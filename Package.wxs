@@ -3,7 +3,7 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package Name="LanChat" 
            Manufacturer="LanChat" 
-           Version="1.0.0" 
+           Version="2.0.0" 
            ProductCode="{7E993262-EAA5-4A37-975D-39F24FEA21D2}"
            UpgradeCode="{7E993262-EAA5-4A37-975D-39F24FEA21D1}"
            Scope="perMachine"
@@ -11,6 +11,10 @@
 
     <MajorUpgrade DowngradeErrorMessage="计算机上已安装较新版本的 LanChat。" />
     <MediaTemplate EmbedCab="yes" />
+
+    <!-- Application Icon Definition -->
+    <Icon Id="AppIcon" SourceFile="app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
 
     <!-- Default Installation Folder -->
     <StandardDirectory Id="ProgramFilesFolder">
@@ -22,12 +26,14 @@
                     Directory="DesktopFolder"
                     Name="LanChat"
                     Target="[!LanChatExe]"
-                    WorkingDirectory="INSTALLFOLDER" />
+                    WorkingDirectory="INSTALLFOLDER"
+                    Icon="AppIcon" />
           <Shortcut Id="StartMenuShortcut"
                     Directory="ProgramMenuFolder"
                     Name="LanChat"
                     Target="[!LanChatExe]"
-                    WorkingDirectory="INSTALLFOLDER" />
+                    WorkingDirectory="INSTALLFOLDER"
+                    Icon="AppIcon" />
         </Component>
 
         <!-- Uninstaller Executable -->
@@ -37,7 +43,8 @@
                     Directory="ProgramMenuFolder"
                     Name="卸载 LanChat"
                     Target="[!UninstallExe]"
-                    WorkingDirectory="INSTALLFOLDER" />
+                    WorkingDirectory="INSTALLFOLDER"
+                    Icon="AppIcon" />
         </Component>
       </Directory>
     </StandardDirectory>

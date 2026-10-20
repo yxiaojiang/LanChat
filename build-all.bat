@@ -29,8 +29,8 @@ echo   - release\LanChat.msi
 echo.
 echo Linux:
 echo   - release\LanChat.deb (Debian / Ubuntu / Kylin)
-echo   - release\lanchat_1.0.0_amd64.deb
-echo   - release\lanchat_1.0.0_all.deb
+echo   - release\lanchat_2.0.0_amd64.deb
+echo   - release\lanchat_2.0.0_all.deb
 echo   - release\linux-x64\lanchat (Self-contained ELF)
 echo   - release\linux-arm64\lanchat (Self-contained ELF)
 echo   - lanchat.py (Universal zero-dependency Python edition)

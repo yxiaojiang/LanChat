@@ -83,6 +83,25 @@ namespace LanChat
 
         public MainForm()
         {
+            try
+            {
+                string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
+                if (File.Exists(iconPath))
+                {
+                    this.Icon = new Icon(iconPath);
+                }
+                else
+                {
+                    string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+                    if (File.Exists(exePath))
+                    {
+                        Icon exeIcon = Icon.ExtractAssociatedIcon(exePath);
+                        if (exeIcon != null) this.Icon = exeIcon;
+                    }
+                }
+            }
+            catch { }
+
             InitializeComponent();
             InitializeNetwork();
         }
@@ -450,7 +469,7 @@ namespace LanChat
             _txtInput = new TextBox
             {
                 Multiline = true,
-                ScrollBars = ScrollBars.Vertical,
+                ScrollBars = ScrollBars.None,
                 Font = new Font("Microsoft YaHei", 10f),
                 BackColor = Color.FromArgb(30, 30, 31),
                 ForeColor = Color.FromArgb(230, 230, 230),
@@ -607,8 +626,11 @@ namespace LanChat
         private void BtnAvatar_Click(object sender, EventArgs e)
         {
             ContextMenuStrip menu = new ContextMenuStrip();
+            menu.Renderer = new WeChatDarkMenuRenderer();
+            menu.ShowImageMargin = false;
+            menu.ShowCheckMargin = false;
             menu.BackColor = Color.FromArgb(44, 44, 46);
-            menu.ForeColor = Color.White;
+            menu.ForeColor = Color.FromArgb(235, 235, 235);
 
             string myNick = _netService != null ? _netService.NickName : Environment.UserName;
             IPAddress ip = _netService != null ? _netService.GetPrimaryPhysicalIp() : IPAddress.Loopback;
@@ -626,8 +648,11 @@ namespace LanChat
         private void BtnSettings_Click(object sender, EventArgs e)
         {
             ContextMenuStrip menu = new ContextMenuStrip();
+            menu.Renderer = new WeChatDarkMenuRenderer();
+            menu.ShowImageMargin = false;
+            menu.ShowCheckMargin = true;
             menu.BackColor = Color.FromArgb(44, 44, 46);
-            menu.ForeColor = Color.White;
+            menu.ForeColor = Color.FromArgb(235, 235, 235);
 
             menu.Items.Add("✏️ 修改我的昵称...", null, (s, ev) => ShowChangeNickDialog());
             var autoItem = new ToolStripMenuItem("⚡ 自动接收文件") { Checked = _netService != null && _netService.AutoAcceptFiles };
@@ -641,7 +666,7 @@ namespace LanChat
             menu.Items.Add("🧹 清空当前聊天记录", null, (s, ev) => ClearCurrentChat());
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("ℹ️ 关于 LanChat (WeChat 风格版)", null, (s, ev) => {
-                MessageBox.Show(this, "LanChat v1.0\n局域网秒级极速通讯与文件互传\nUI: WeChat Desktop 风格 (高精度微距对标)\n零外部运行环境依赖", "关于 LanChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "LanChat v2.0\n局域网秒级极速通讯与文件互传\nUI: WeChat Desktop 风格 (高精度微距对标)\n零外部运行环境依赖", "关于 LanChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
             });
 
             menu.Show(_btnNavMenu, new Point(_btnNavMenu.Width + 4, -80));
@@ -652,6 +677,7 @@ namespace LanChat
             string currentNick = _netService != null ? _netService.NickName : Environment.UserName;
             using (Form prompt = new Form())
             {
+                if (this.Icon != null) prompt.Icon = this.Icon;
                 prompt.Text = "修改我的昵称";
                 prompt.Size = new Size(360, 160);
                 prompt.StartPosition = FormStartPosition.CenterParent;
@@ -813,8 +839,11 @@ namespace LanChat
         private void BtnAddSession_Click(object sender, EventArgs e)
         {
             ContextMenuStrip menu = new ContextMenuStrip();
+            menu.Renderer = new WeChatDarkMenuRenderer();
+            menu.ShowImageMargin = false;
+            menu.ShowCheckMargin = false;
             menu.BackColor = Color.FromArgb(44, 44, 46);
-            menu.ForeColor = Color.White;
+            menu.ForeColor = Color.FromArgb(235, 235, 235);
 
             menu.Items.Add("➕ 手动添加好友 IP...", null, (s, ev) => BtnAddIp_Click(s, ev));
             menu.Items.Add("🔄 扫描局域网好友", null, (s, ev) => RefreshPeersWithNotice());
@@ -1489,6 +1518,7 @@ namespace LanChat
         {
             using (Form inputForm = new Form())
             {
+                if (this.Icon != null) inputForm.Icon = this.Icon;
                 inputForm.Text = "手动添加好友 IP (直连握手)";
                 inputForm.Size = new Size(390, 165);
                 inputForm.StartPosition = FormStartPosition.CenterParent;
@@ -2009,7 +2039,8 @@ namespace LanChat
 
             this.Size = new Size(36, 36);
             this.Cursor = Cursors.Hand;
-            this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+            this.SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+            this.BackColor = Color.Transparent;
         }
 
         protected override void OnMouseEnter(EventArgs e)
@@ -2092,6 +2123,7 @@ namespace LanChat
     {
         private WeChatIconType _iconType;
         private bool _isHovered;
+        private bool _isPressed;
         private string _tooltipText;
 
         public WeChatIconButton(WeChatIconType iconType, string tooltip, int size = 28)
@@ -2101,7 +2133,8 @@ namespace LanChat
 
             this.Size = new Size(size, size);
             this.Cursor = Cursors.Hand;
-            this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+            this.SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+            this.BackColor = Color.Transparent;
         }
 
         protected override void OnMouseEnter(EventArgs e)
@@ -2119,8 +2152,26 @@ namespace LanChat
         {
             base.OnMouseLeave(e);
             _isHovered = false;
+            _isPressed = false;
             Invalidate();
             WeChatDarkTooltip.HideTooltip();
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            base.OnMouseDown(e);
+            if (e.Button == MouseButtons.Left)
+            {
+                _isPressed = true;
+                Invalidate();
+            }
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            base.OnMouseUp(e);
+            _isPressed = false;
+            Invalidate();
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -2129,7 +2180,14 @@ namespace LanChat
             Graphics g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
-            if (_isHovered)
+            if (_isPressed)
+            {
+                using (SolidBrush pressBg = new SolidBrush(Color.FromArgb(60, 60, 64)))
+                {
+                    MainForm.DrawRoundedRectangle(g, pressBg, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 4);
+                }
+            }
+            else if (_isHovered)
             {
                 using (SolidBrush hoverBg = new SolidBrush(Color.FromArgb(50, 50, 52)))
                 {
@@ -2137,8 +2195,82 @@ namespace LanChat
                 }
             }
 
-            Color iconColor = _isHovered ? Color.FromArgb(240, 240, 240) : Color.FromArgb(145, 145, 148);
+            Color iconColor = (_isHovered || _isPressed) ? Color.FromArgb(240, 240, 240) : Color.FromArgb(145, 145, 148);
             WeChatIcon.Draw(g, _iconType, new Rectangle(0, 0, this.Width, this.Height), false, iconColor);
+        }
+    }
+
+    #endregion
+
+    #region Custom WeChat Dark Menu Renderer
+
+    public class WeChatDarkMenuColorTable : ProfessionalColorTable
+    {
+        private readonly Color _bg = Color.FromArgb(44, 44, 46);
+        private readonly Color _border = Color.FromArgb(60, 60, 64);
+        private readonly Color _selected = Color.FromArgb(60, 60, 64);
+        private readonly Color _separator = Color.FromArgb(55, 55, 58);
+
+        public override Color ToolStripDropDownBackground { get { return _bg; } }
+        public override Color ImageMarginGradientBegin { get { return _bg; } }
+        public override Color ImageMarginGradientMiddle { get { return _bg; } }
+        public override Color ImageMarginGradientEnd { get { return _bg; } }
+        public override Color ImageMarginRevealedGradientBegin { get { return _bg; } }
+        public override Color ImageMarginRevealedGradientMiddle { get { return _bg; } }
+        public override Color ImageMarginRevealedGradientEnd { get { return _bg; } }
+        public override Color MenuBorder { get { return _border; } }
+        public override Color MenuItemBorder { get { return Color.Transparent; } }
+        public override Color MenuItemSelected { get { return _selected; } }
+        public override Color MenuItemSelectedGradientBegin { get { return _selected; } }
+        public override Color MenuItemSelectedGradientEnd { get { return _selected; } }
+        public override Color MenuItemPressedGradientBegin { get { return _selected; } }
+        public override Color MenuItemPressedGradientMiddle { get { return _selected; } }
+        public override Color MenuItemPressedGradientEnd { get { return _selected; } }
+        public override Color CheckBackground { get { return _selected; } }
+        public override Color CheckSelectedBackground { get { return _selected; } }
+        public override Color CheckPressedBackground { get { return _selected; } }
+        public override Color SeparatorDark { get { return _separator; } }
+        public override Color SeparatorLight { get { return _bg; } }
+    }
+
+    public class WeChatDarkMenuRenderer : ToolStripProfessionalRenderer
+    {
+        public WeChatDarkMenuRenderer() : base(new WeChatDarkMenuColorTable())
+        {
+        }
+
+        protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+        {
+            e.TextColor = e.Item.Enabled ? Color.FromArgb(235, 235, 235) : Color.FromArgb(125, 125, 128);
+            base.OnRenderItemText(e);
+        }
+
+        protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
+        {
+            e.ArrowColor = Color.FromArgb(200, 200, 200);
+            base.OnRenderArrow(e);
+        }
+
+        protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
+        {
+            Rectangle r = e.ImageRectangle;
+            using (Pen p = new Pen(Color.FromArgb(7, 193, 96), 2.2f))
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                e.Graphics.DrawLines(p, new Point[] {
+                    new Point(r.Left + 3, r.Top + r.Height / 2),
+                    new Point(r.Left + r.Width / 2 - 1, r.Bottom - 4),
+                    new Point(r.Right - 3, r.Top + 4)
+                });
+            }
+        }
+
+        protected override void OnRenderImageMargin(ToolStripRenderEventArgs e)
+        {
+            using (SolidBrush b = new SolidBrush(Color.FromArgb(44, 44, 46)))
+            {
+                e.Graphics.FillRectangle(b, e.AffectedBounds);
+            }
         }
     }
 

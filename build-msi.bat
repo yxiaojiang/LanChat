@@ -15,7 +15,7 @@ if %errorlevel% neq 0 (
 echo.
 echo [2/4] Building uninstall.exe ...
 set "CSC_PATH=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-"%CSC_PATH%" /nologo /target:winexe /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:uninstall.exe Uninstall.cs
+"%CSC_PATH%" /nologo /target:winexe /win32icon:app.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:uninstall.exe Uninstall.cs
 if %errorlevel% neq 0 (
     echo [ERROR] uninstall.exe build failed.
     exit /b %errorlevel%

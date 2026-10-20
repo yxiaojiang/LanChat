@@ -10,7 +10,7 @@ set "CSC_PATH=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 if exist "%CSC_PATH%" (
     echo [1/2] Found system C# compiler: %CSC_PATH%
     echo [2/2] Compiling LanChat.exe ...
-    "%CSC_PATH%" /nologo /target:winexe /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:LanChat.exe Models.cs NetworkService.cs MainForm.cs Program.cs
+    "%CSC_PATH%" /nologo /target:winexe /win32icon:app.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:LanChat.exe Models.cs NetworkService.cs MainForm.cs Program.cs
     
     if %errorlevel% equ 0 (
         echo.

@@ -13,7 +13,7 @@ import tarfile
 import time
 import shutil
 
-VERSION = "1.0.0"
+VERSION = "2.0.0"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RELEASE_DIR = os.path.join(SCRIPT_DIR, "release")
 ROOT_DIR = SCRIPT_DIR
@@ -133,12 +133,23 @@ Categories=Network;InstantMessaging;
 Keywords=chat;lan;file;transfer;
 """
 
-    svg_icon = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+    svg_path = os.path.join(ROOT_DIR, "lanchat.svg")
+    if os.path.exists(svg_path):
+        with open(svg_path, "rb") as f:
+            svg_icon = f.read()
+    else:
+        svg_icon = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <rect width="64" height="64" rx="14" fill="#07c160"/>
   <path d="M18 20 C18 15.58 24.27 12 32 12 C39.73 12 46 15.58 46 20 C46 24.42 39.73 28 32 28 C29.98 28 28.07 27.76 26.39 27.32 L20 30 L21.5 25.5 C19.34 23.95 18 22.08 18 20 Z" fill="#ffffff"/>
   <path d="M30 28 C30 25.24 34.48 23 40 23 C45.52 23 50 25.24 50 28 C50 30.76 45.52 33 40 33 C38.56 33 37.2 32.83 36 32.52 L31.43 34.43 L32.5 31.25 C30.96 30.15 30 29.13 30 28 Z" fill="#e0f8ea"/>
 </svg>
 """
+
+    png_path = os.path.join(ROOT_DIR, "app.png")
+    png_bytes = None
+    if os.path.exists(png_path):
+        with open(png_path, "rb") as f:
+            png_bytes = f.read()
 
     launcher_script = b"""#!/bin/bash
 # LanChat Linux Launcher - Zero external dependencies
@@ -164,7 +175,7 @@ echo "[Error] Unable to launch LanChat. No compatible execution environment foun
 exit 1
 """
 
-    # 1. Build lanchat_1.0.0_amd64.deb
+    # 1. Build lanchat_2.0.0_amd64.deb
     x64_bin_path = os.path.join(RELEASE_DIR, "linux-x64", "lanchat")
     files_amd64 = [
         ("./usr/bin/lanchat", launcher_script, 0o755),
@@ -172,6 +183,8 @@ exit 1
         ("./usr/share/applications/lanchat.desktop", desktop_entry, 0o644),
         ("./usr/share/icons/hicolor/scalable/apps/lanchat.svg", svg_icon, 0o644),
     ]
+    if png_bytes:
+        files_amd64.append(("./usr/share/icons/hicolor/256x256/apps/lanchat.png", png_bytes, 0o644))
 
     if os.path.exists(x64_bin_path):
         with open(x64_bin_path, "rb") as f:
@@ -198,7 +211,7 @@ exit 1
     # Copy also as LanChat.deb for convenience
     shutil.copy2(deb_amd64_path, os.path.join(RELEASE_DIR, "LanChat.deb"))
 
-    # 2. Build lanchat_1.0.0_all.deb (Universal Python-based deb, zero dependencies, works on ARM64, Raspberry Pi, Loongson, FT, etc.)
+    # 2. Build lanchat_2.0.0_all.deb (Universal Python-based deb, zero dependencies, works on ARM64, Raspberry Pi, Loongson, FT, etc.)
     launcher_all = b"""#!/bin/bash
 exec python3 /usr/lib/lanchat/lanchat.py "$@"
 """
@@ -208,6 +221,8 @@ exec python3 /usr/lib/lanchat/lanchat.py "$@"
         ("./usr/share/applications/lanchat.desktop", desktop_entry, 0o644),
         ("./usr/share/icons/hicolor/scalable/apps/lanchat.svg", svg_icon, 0o644),
     ]
+    if png_bytes:
+        files_all.append(("./usr/share/icons/hicolor/256x256/apps/lanchat.png", png_bytes, 0o644))
 
     ctrl_all = {
         "Package": "lanchat",

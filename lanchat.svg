@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0fd674"/>
+      <stop offset="100%" stop-color="#069c4e"/>
+    </linearGradient>
+    <filter id="bubbleShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#003c19" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <!-- Squircle Base -->
+  <rect x="14" y="14" width="228" height="228" rx="54" fill="url(#bgGrad)"/>
+  
+  <!-- Sub Bubble (Right) -->
+  <path d="M 154 116 C 182 116 204 130 204 148 C 204 166 182 180 154 180 C 145 180 137 178 130 174 L 110 184 L 116 166 C 108 160 104 154 104 148 C 104 130 126 116 154 116 Z" fill="#dcfce7" opacity="0.95"/>
+  
+  <!-- Main Bubble (Left) with Drop Shadow -->
+  <path d="M 108 84 C 69 84 38 102 38 126 C 38 140 47 153 62 161 L 52 184 L 78 174 C 87 178 97 180 108 180 C 147 180 178 162 178 138 C 178 108 147 84 108 84 Z" fill="#ffffff" filter="url(#bubbleShadow)"/>
+</svg>
