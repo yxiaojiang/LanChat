@@ -5,7 +5,7 @@ echo         Building LanChat Windows Installer (.msi)
 echo ========================================================
 echo.
 
-echo [1/3] Building LanChat.exe ...
+echo [1/4] Building LanChat.exe ...
 call build.bat 1
 if %errorlevel% neq 0 (
     echo [ERROR] LanChat.exe build failed.
@@ -13,21 +13,33 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [2/3] Checking WiX toolset ...
-where wix >nul 2>nul
+echo [2/4] Building uninstall.exe ...
+set "CSC_PATH=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+"%CSC_PATH%" /nologo /target:winexe /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:uninstall.exe Uninstall.cs
 if %errorlevel% neq 0 (
-    echo WiX not found in PATH, attempting dotnet tool restore...
-    dotnet tool install --global wix --version 5.0.2
+    echo [ERROR] uninstall.exe build failed.
+    exit /b %errorlevel%
 )
+echo [SUCCESS] uninstall.exe built (~7 KB)
 
 echo.
-echo [3/3] Compiling LanChat.msi ...
-wix build Package.wxs -o LanChat.msi
+echo [3/4] Ensuring WiX extensions are present ...
+wix extension add -g WixToolset.UI.wixext/5.0.2 >nul 2>nul
+wix extension add -g WixToolset.Util.wixext/5.0.2 >nul 2>nul
+
+echo.
+echo [4/4] Compiling LanChat.msi with Custom InstallDir UI and Chinese localization ...
+wix build Package.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -culture zh-CN -o LanChat.msi
 if %errorlevel% equ 0 (
     copy /y LanChat.msi release\LanChat.msi >nul 2>nul
     echo.
     echo ========================================================
     echo [SUCCESS] LanChat.msi built successfully!
+    echo Features included:
+    echo   - Installation Directory selection [Browse folder]
+    echo   - Simplified Chinese UI wizard
+    echo   - Launch LanChat immediately on finish checkbox
+    echo   - Bundled uninstall.exe inside install folder
     echo Output: LanChat.msi and release\LanChat.msi
     echo ========================================================
 ) else (

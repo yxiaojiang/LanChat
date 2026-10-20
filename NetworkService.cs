@@ -61,11 +61,55 @@ namespace LanChat
             HostName = Environment.MachineName;
             AutoAcceptFiles = true;
 
+            SaveDirectory = DetermineDefaultSaveDirectory();
+        }
+
+        public static string DetermineDefaultSaveDirectory()
+        {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            SaveDirectory = Path.Combine(baseDir, "ReceivedFiles");
-            if (!Directory.Exists(SaveDirectory))
+            string preferredDir = Path.Combine(baseDir, "ReceivedFiles");
+
+            // Test if the application base directory is writable
+            bool canWriteBaseDir = false;
+            try
             {
-                Directory.CreateDirectory(SaveDirectory);
+                if (!Directory.Exists(preferredDir))
+                {
+                    Directory.CreateDirectory(preferredDir);
+                }
+                string probeFile = Path.Combine(preferredDir, ".write_test_" + Guid.NewGuid().ToString("N"));
+                File.WriteAllText(probeFile, "test");
+                File.Delete(probeFile);
+                canWriteBaseDir = true;
+            }
+            catch
+            {
+                canWriteBaseDir = false;
+            }
+
+            if (canWriteBaseDir)
+            {
+                return preferredDir;
+            }
+
+            // Fallback for installed mode (Program Files, etc.): use user's Downloads or Documents
+            try
+            {
+                string userDownloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "LanChat_Received");
+                if (!Directory.Exists(userDownloads))
+                {
+                    Directory.CreateDirectory(userDownloads);
+                }
+                return userDownloads;
+            }
+            catch
+            {
+                string docsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "LanChat", "ReceivedFiles");
+                if (!Directory.Exists(docsDir))
+                {
+                    Directory.CreateDirectory(docsDir);
+                }
+                return docsDir;
             }
         }
 

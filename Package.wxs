@@ -1,14 +1,21 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package Name="LanChat" 
            Manufacturer="LanChat" 
            Version="1.0.0" 
-           UpgradeCode="7E993262-EAA5-4A37-975D-39F24FEA21D1"
-           Scope="perMachine">
-    <MajorUpgrade DowngradeErrorMessage="已安装较新版本的 LanChat。" />
+           ProductCode="{7E993262-EAA5-4A37-975D-39F24FEA21D2}"
+           UpgradeCode="{7E993262-EAA5-4A37-975D-39F24FEA21D1}"
+           Scope="perMachine"
+           Language="2052">
+
+    <MajorUpgrade DowngradeErrorMessage="计算机上已安装较新版本的 LanChat。" />
     <MediaTemplate EmbedCab="yes" />
 
+    <!-- Default Installation Folder -->
     <StandardDirectory Id="ProgramFilesFolder">
       <Directory Id="INSTALLFOLDER" Name="LanChat">
+        <!-- Main Application Executable -->
         <Component Id="MainExecutable" Guid="D2A687A1-BD02-4A73-A332-951E9DB6E8BC">
           <File Id="LanChatExe" Source="LanChat.exe" KeyPath="yes" />
           <Shortcut Id="DesktopShortcut"
@@ -22,6 +29,16 @@
                     Target="[!LanChatExe]"
                     WorkingDirectory="INSTALLFOLDER" />
         </Component>
+
+        <!-- Uninstaller Executable -->
+        <Component Id="UninstallerComponent" Guid="E8F19B34-6A42-4217-B590-7F10E6C537D9">
+          <File Id="UninstallExe" Source="uninstall.exe" KeyPath="yes" />
+          <Shortcut Id="UninstallStartMenuShortcut"
+                    Directory="ProgramMenuFolder"
+                    Name="卸载 LanChat"
+                    Target="[!UninstallExe]"
+                    WorkingDirectory="INSTALLFOLDER" />
+        </Component>
       </Directory>
     </StandardDirectory>
 
@@ -30,6 +47,23 @@
 
     <Feature Id="Main">
       <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="UninstallerComponent" />
     </Feature>
+
+    <!-- UI Configuration with Installation Directory Selection and Launch on Finish -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="立即运行 LanChat" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WixShellExecTarget" Value="[!LanChatExe]" />
+    <CustomAction Id="LaunchApplication" BinaryRef="Wix4UtilCA_X86" DllEntry="WixShellExec" Impersonate="yes" />
+
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+
+    <!-- Skip License dialog: Welcome -> InstallDir (Browse) -> Ready -> Progress -> Exit -->
+    <UI>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="2" />
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
+    </UI>
+
   </Package>
 </Wix>
