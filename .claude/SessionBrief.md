@@ -1,40 +1,32 @@
 # SessionBrief.md — 当前接手摘要
 
 > 最近刷新：2026-10-20。仓库：`https://github.com/yxiaojiang/LanChat.git`。
-> 界面细节实现 95%+ WeChat 桌面端深度对标：重构纯自绘矢量图标系统（微信实心气泡、专属通讯录人像卡片、3D收藏盒子、平滑汉堡菜单、表情笑脸等），实现完全对齐示例图的悬停圆角背景、深色 Tooltip 以及平滑交互状态。
+> 达成 **v2.0 终极发布**：彻底消除界面中残留的白色元素（图标背景、Win32输入滚动条、右键菜单白边），全新设计高颜值微信风格独立应用图标（`app.ico`, `app.png`, `lanchat.svg`），统一左上角窗口图标与快捷方式图标，全平台安装包（Windows MSI 及 Linux DEB）打包就绪，并已在 Git 打上 `LanChat-v2.0` 与 `v2.0` 标签。
 
 ---
 
-## 当前目标
+## v2.0 核心改动
 
-深度雕琢 Windows UI 细节，对标微信桌面端暗黑主题达到 95%+ 相似度：
-1. **替换原生 Emoji/粗糙字符图标为纯矢量自绘图标**：
-   - 聊天（Chat）：选中态为纯绿（`#00a361` / `#07c160`）实心饱满圆润气泡带引线；未选中态为平滑描边。
-   - 通讯录（Contacts）：根据用户上传特写图严格绘制——头部圆环、圆弧双肩，右侧 3 条水平卡片列表线，100% 还原微信原生通讯录图标。
-   - 接收目录/盒子（Box/Folder）、刷新（双弧箭头）、添加（加号）、菜单（3 条等距圆角水平线）、表情（圆脸、圆眼、圆弧微笑）、搜索（放大镜）等全部矢量化。
-2. **交互悬停与点击状态深度对齐**：
-   - 导航按钮未选中时悬停呈现精致圆角矩形背景（`#303031`），图标高亮提亮为 `#f0f0f0`。
-   - 专属暗黑 Tooltip（`WeChatDarkTooltip`）：严格按照特写图还原背景 `#3b3b3d`、边框 `#4b4b4e`、文字 `#e1e1e5`，替代系统黄色/白色 Tooltip。
-3. **输入框与按钮微距细节**：
-   - 搜索栏采用微圆角容器（`#262628`）内嵌矢量放大镜与 9pt 无框文本输入。
-   - 顶部标头与输入区工具栏统一采用 28px 精致微图标按钮，带暗灰悬停效果。
-   - 发送按钮在空文本时为暗灰深色（`#2a2a2c`），有内容或悬停时呈现醒目微信绿（`#07c160`）白字。
-
----
-
-## 最近改动
-
-1. **`MainForm.cs`**：
-   - 新增 `WeChatIcon` 静态矢量绘制引擎，涵盖 12 类矢量图形（`Chat`, `Contacts`, `Folder`, `Box`, `Refresh`, `Add`, `Menu`, `Emoji`, `Scissors`, `Clear`, `Search`, `More`）。
-   - 实现 `WeChatNavButton` 导航按钮组件，支持 `IsActive`, `IsHovered`, `IsPressed` 完整状态机与圆角背景渲染。
-   - 实现 `WeChatDarkTooltip`，精准复刻微信桌面端暗黑悬浮提示框。
-   - 实现 `WeChatIconButton`，用于右侧标头和输入工具栏的统一风格渲染。
-   - 优化会话列表项高亮（`#07c160`）、无缝三角指针与气泡文字对比度。
-2. **构建包同步更新**：
-   - 重新编译了最新版 `LanChat.exe` 与 `LanChat.msi`。
-
----
-
-## 下一步
-
-1. 用户实机验证主界面的矢量图标美观度、按钮悬停圆角背景、深色提示框以及各处细节与微信示例的契合度。
+1. **彻底消除界面中的白色元素（全面暗黑化）**：
+   - `WeChatIconButton` 增加 `SupportsTransparentBackColor` 与 `BackColor = Color.Transparent`，彻底消除了搜索栏 `+` 按钮、标头 4 个操作按钮、输入工具栏 4 个功能按钮默认绘制的白色方块背景。
+   - 输入框 `_txtInput` 设置 `ScrollBars = ScrollBars.None`，彻底消除原生 Win32 白色垂直滚动条，输入文字多行平滑滚动。
+   - 实现 `WeChatDarkMenuRenderer` 与 `WeChatDarkMenuColorTable`，彻底消除 `ContextMenuStrip` 左侧系统白色/浅色边距与边框，右键与头像菜单全面对标暗黑风格（背景 `#2c2c2e`，悬停高亮 `#3c3c40`，微信绿勾选标记）。
+2. **统一设计精致好看的聊天应用图标**：
+   - 编写 `create_icon.py`，采用 4x 超采样生成高质量多分辨率图标：
+     - `app.ico`（16, 24, 32, 48, 64, 128, 256）
+     - `app.png`（256x256 高清 PNG）
+     - `lanchat.svg`（Linux 矢量图标）
+   - 图标采用微信绿双气泡微渐变与柔和投影设计，现代扁平且精致好看。
+   - 绑定窗口左上角图标（`this.Icon`），并在可执行程序编译时嵌入 `/win32icon:app.ico`。
+   - 更新 MSI 安装向导（`Package.wxs`），桌面快捷方式、开始菜单快捷方式、添加/删除程序列表图标及卸载程序（`uninstall.exe`）全方位统一应用此图标。
+3. **全平台 v2.0 打包发布**：
+   - Windows：
+     - `LanChat.exe`（单文件免安装运行）
+     - `LanChat.msi`（v2.0.0 安装包，包含路径自选、立即启动复选框、干净卸载程序 `uninstall.exe` 与统一图标）
+   - Linux：
+     - `release/lanchat_2.0.0_amd64.deb`（x86_64 自包含免 .NET 运行时版本）
+     - `release/lanchat_2.0.0_all.deb`（通用全架构零依赖 Python 核心版）
+     - `release/LanChat.deb`（最新别名）
+4. **Git 仓库标签**：
+   - 提交全部代码与发布包更新。
+   - 打上版本标签：`LanChat-v2.0` 与 `v2.0`。
