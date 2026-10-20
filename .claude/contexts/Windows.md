@@ -29,5 +29,11 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
    - 欢迎向导 -> 目标文件夹选择（支持点击【浏览】任意指定盘符路径） -> 准备安装 -> 进度展示 -> 完成向导。
    - 完成界面支持【☑ 立即运行 LanChat】，点击【完成】直接开启使用。
    - 安装目录自带 `uninstall.exe`，支持双击完全清除安装目录与快捷方式，不留痕迹。
-5. **Program Files 写权限自适应**：
+5. **系统托盘后台驻留与安全退出闭环**：
+   - 窗体初始化注册 `NotifyIcon _trayIcon` 并绑定 `app.ico`。
+   - 用户点击右上角 `X`（`CloseReason.UserClosing`）时拦截关闭事件并隐藏窗体至托盘，不影响系统正常关机。
+   - 左键单击/双击托盘图标前置恢复主窗口（`Show` + `WindowState.Normal` + `Activate` + `BringToFront`）。
+   - 右键弹出基于 `WeChatDarkMenuRenderer` 绘制的暗黑菜单，提供【显示主界面】与【退出 LanChat】（显式退出标记 `_isExplicitExit` 并完整释放资源）。
+   - 最小化期间收到新消息或新文件时弹出系统托盘气泡通知。
+6. **Program Files 写权限自适应**：
    - 智能探测根目录可写性：便携绿色模式使用当前目录 `ReceivedFiles`；安装在 `Program Files` 时自动将接收文件转存至用户目录 `Downloads\LanChat_Received`，杜绝访问被拒绝报错。

@@ -81,6 +81,11 @@ namespace LanChat
         // Navigation state: 0 = Chat, 1 = Contacts
         private int _currentNavTab = 0;
 
+        // System Tray
+        private NotifyIcon _trayIcon;
+        private bool _isExplicitExit = false;
+        private bool _hasShownTrayBalloon = false;
+
         public MainForm()
         {
             try
@@ -103,6 +108,7 @@ namespace LanChat
             catch { }
 
             InitializeComponent();
+            InitializeTrayIcon();
             InitializeNetwork();
         }
 
@@ -668,6 +674,11 @@ namespace LanChat
             menu.Items.Add("ℹ️ 关于 LanChat (WeChat 风格版)", null, (s, ev) => {
                 MessageBox.Show(this, "LanChat v2.0\n局域网秒级极速通讯与文件互传\nUI: WeChat Desktop 风格 (高精度微距对标)\n零外部运行环境依赖", "关于 LanChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
             });
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("🚪 退出 LanChat", null, (s, ev) => {
+                _isExplicitExit = true;
+                this.Close();
+            });
 
             menu.Show(_btnNavMenu, new Point(_btnNavMenu.Width + 4, -80));
         }
@@ -1149,6 +1160,19 @@ namespace LanChat
 
             AddMessageToHistory(convKey, msg);
             _listSessions.Invalidate();
+
+            // 若窗体隐藏在系统托盘中，显示微信风格气泡提醒
+            if (!this.Visible && _trayIcon != null)
+            {
+                try
+                {
+                    string preview = msg.Content ?? "";
+                    if (preview.Length > 36) preview = preview.Substring(0, 36) + "...";
+                    string title = msg.IsBroadcast ? string.Format("[📢 广播] {0}", msg.SenderNick) : string.Format("来自 {0} 的新消息", msg.SenderNick);
+                    _trayIcon.ShowBalloonTip(2000, title, preview, ToolTipIcon.Info);
+                }
+                catch { }
+            }
         }
 
         private void AddMessageToHistory(string convKey, ChatMessage msg)
@@ -1470,6 +1494,16 @@ namespace LanChat
 
             AddMessageToHistory(convKey, fileMsg);
             _listSessions.Invalidate();
+
+            // 若窗体隐藏在系统托盘中，显示文件接收气泡提醒
+            if (!this.Visible && _trayIcon != null)
+            {
+                try
+                {
+                    _trayIcon.ShowBalloonTip(2500, "收到新文件", string.Format("来自 {0}: {1}", senderNick, fileName), ToolTipIcon.Info);
+                }
+                catch { }
+            }
         }
 
         private void HandleFileActionClick(ChatMessage msg, string action)
@@ -1586,13 +1620,115 @@ namespace LanChat
             }
         }
 
+        #region System Tray & Lifecycle
+
+        private void InitializeTrayIcon()
+        {
+            try
+            {
+                _trayIcon = new NotifyIcon();
+                _trayIcon.Icon = this.Icon ?? SystemIcons.Application;
+                _trayIcon.Text = "LanChat 局域网通讯";
+                _trayIcon.Visible = true;
+
+                // 左键单击或双击还原主界面
+                _trayIcon.MouseClick += (s, e) =>
+                {
+                    if (e.Button == MouseButtons.Left)
+                    {
+                        RestoreFromTray();
+                    }
+                };
+                _trayIcon.DoubleClick += (s, e) =>
+                {
+                    RestoreFromTray();
+                };
+                _trayIcon.BalloonTipClicked += (s, e) =>
+                {
+                    RestoreFromTray();
+                };
+
+                // WeChat Dark 风格暗黑托盘右键菜单
+                ContextMenuStrip trayMenu = new ContextMenuStrip();
+                trayMenu.Renderer = new WeChatDarkMenuRenderer();
+                trayMenu.ShowImageMargin = false;
+                trayMenu.ShowCheckMargin = false;
+                trayMenu.BackColor = Color.FromArgb(44, 44, 46);
+                trayMenu.ForeColor = Color.FromArgb(235, 235, 235);
+
+                ToolStripMenuItem itemShow = new ToolStripMenuItem("显示主界面");
+                itemShow.Font = new Font(this.Font, FontStyle.Bold);
+                itemShow.Click += (s, e) => RestoreFromTray();
+                trayMenu.Items.Add(itemShow);
+
+                trayMenu.Items.Add(new ToolStripSeparator());
+
+                ToolStripMenuItem itemExit = new ToolStripMenuItem("退出 LanChat");
+                itemExit.Click += (s, e) =>
+                {
+                    _isExplicitExit = true;
+                    this.Close();
+                };
+                trayMenu.Items.Add(itemExit);
+
+                _trayIcon.ContextMenuStrip = trayMenu;
+            }
+            catch { }
+        }
+
+        private void RestoreFromTray()
+        {
+            if (!this.Visible)
+            {
+                this.Show();
+            }
+            if (this.WindowState == FormWindowState.Minimized)
+            {
+                this.WindowState = FormWindowState.Normal;
+            }
+            this.Activate();
+            this.BringToFront();
+        }
+
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            // 用户点击右上角关闭按钮（X）且非显式退出：最小化到托盘
+            if (!_isExplicitExit && e.CloseReason == CloseReason.UserClosing)
+            {
+                e.Cancel = true;
+                this.Hide();
+
+                if (!_hasShownTrayBalloon && _trayIcon != null)
+                {
+                    _hasShownTrayBalloon = true;
+                    try
+                    {
+                        _trayIcon.ShowBalloonTip(2000, "LanChat 已最小化到托盘", "程序已转入后台运行。双击托盘图标重新打开，右键可真正退出。", ToolTipIcon.Info);
+                    }
+                    catch { }
+                }
+                return;
+            }
+
+            // 显式退出或系统关机：安全释放托盘与网络资源
+            if (_trayIcon != null)
+            {
+                try
+                {
+                    _trayIcon.Visible = false;
+                    _trayIcon.Dispose();
+                }
+                catch { }
+                _trayIcon = null;
+            }
+
             if (_netService != null)
             {
                 _netService.Dispose();
             }
         }
+
+        #endregion
 
         private void SafeInvoke(Action action)
         {

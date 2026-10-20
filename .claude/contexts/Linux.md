@@ -17,6 +17,12 @@ Linux 客户端支持在各种 Linux 发行版（Ubuntu、Debian、CentOS、统�
    - `lanchat.svg`：Linux 专用矢量双气泡图标，打包至 `/usr/share/icons/hicolor/scalable/apps/lanchat.svg`。
    - `app.png`：256x256 高清图标，打包至 `/usr/share/icons/hicolor/256x256/apps/lanchat.png`。
 
+5. **日志与防闪退保障机制**：
+   - **权限与路径探测**：`lanchat.py` 不再硬编码 `/usr/lib/lanchat/ReceivedFiles`，自动回退到 `~/Downloads/LanChat_Received` 或 `~/.local/share/lanchat/ReceivedFiles`，根治权限异常崩溃。
+   - **全链路诊断日志**：启动器日志写入 `~/.local/share/lanchat/launcher.log` 及 `/tmp/lanchat_${USER}_launch.log`；Python 与 .NET 分别接入全局未捕获异常捕获至 `lanchat_python.log` 与 `lanchat_dotnet.log`。
+   - **终端自适应与错误暂停**：启动器自动检测交互终端，若缺失则拉起系统可用终端（GNOME Terminal/UKUI/Mate/Konsole/XFCE 等）；若程序退出码非 0，窗口自动保持暂停并打印日志路径，彻底告别闪退黑框秒关。
+   - **去除 ICU 强依赖**：.NET Linux 二进制已启用 `InvariantGlobalization=true`，支持各种精简 Linux 系统开箱即用。
+
 ## 常用终端指令映射
 - `/list` 或 `/peers`：打印局域网在线主机表格。
 - `/chat <编号|IP|all>`：切换私聊目标（`0` 或 `all` 为群聊广播）。

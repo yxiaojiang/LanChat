@@ -151,29 +151,108 @@ Keywords=chat;lan;file;transfer;
         with open(png_path, "rb") as f:
             png_bytes = f.read()
 
-    launcher_script = b"""#!/bin/bash
-# LanChat Linux Launcher - Zero external dependencies
+    launcher_script = """#!/bin/bash
+# LanChat Linux Launcher with Diagnostics Logging & Anti-Crash Guard
 # Automatically selects self-contained native binary or falls back to system Python 3
 
 DIR="/usr/lib/lanchat"
+LOG_DIR="$HOME/.local/share/lanchat"
+mkdir -p "$LOG_DIR" 2>/dev/null
+USER_LOG="$LOG_DIR/launcher.log"
+TMP_LOG="/tmp/lanchat_${USER:-default}_launch.log"
 
+log() {
+    local MSG="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+    echo "$MSG" >> "$USER_LOG" 2>/dev/null
+    echo "$MSG" >> "$TMP_LOG" 2>/dev/null
+}
+
+log "========================================================"
+log "LanChat 启动器已调用 (PID: $$, USER: ${USER:-unknown})"
+log "OS: $(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d= -f2 | tr -d '\"' || uname -s)"
+log "Kernel: $(uname -r) | Arch: $(uname -m)"
+log "Glibc: $(ldd --version 2>/dev/null | head -n1 || echo 'unknown')"
+log "Python3: $(python3 --version 2>/dev/null || echo 'not found')"
+log "DISPLAY: $DISPLAY | WAYLAND_DISPLAY: $WAYLAND_DISPLAY"
+log "========================================================"
+
+# 1. 终端环境自适应检测 (若某些桌面环境未自动提供 TTY 则主动拉起终端)
+if [ ! -t 0 ] || [ ! -t 1 ]; then
+    log "[INFO] 检测到无交互终端环境，尝试唤起系统可用终端窗口..."
+    for TERM_CMD in x-terminal-emulator gnome-terminal mate-terminal ukui-terminal deepin-terminal konsole xfce4-terminal terminator tilix lxterminal alacritty kitty xterm; do
+        if command -v "$TERM_CMD" >/dev/null 2>&1; then
+            log "[INFO] 找到可用终端模拟器: $TERM_CMD，正在拉起交互窗口..."
+            case "$TERM_CMD" in
+                gnome-terminal)
+                    exec gnome-terminal -- /usr/bin/lanchat "$@"
+                    ;;
+                mate-terminal|ukui-terminal|xfce4-terminal|lxterminal)
+                    exec "$TERM_CMD" -e "/usr/bin/lanchat $*"
+                    ;;
+                konsole)
+                    exec konsole -e /usr/bin/lanchat "$@"
+                    ;;
+                *)
+                    exec "$TERM_CMD" -e /usr/bin/lanchat "$@"
+                    ;;
+            esac
+        fi
+    done
+    log "[WARN] 未找到可用终端模拟器，将以无交互后台模式继续执行"
+fi
+
+EXIT_CODE=0
+
+# 2. 尝试执行 Linux 原生自包含 ELF 二进制
 if [ -x "$DIR/lanchat-bin" ]; then
+    log "[INFO] 正在尝试启动 Linux 原生自包含二进制: $DIR/lanchat-bin"
     "$DIR/lanchat-bin" "$@"
     RET=$?
+    log "[INFO] 原生二进制执行退出码: $RET"
     if [ $RET -eq 0 ] || [ $RET -eq 130 ]; then
         exit $RET
     fi
+    log "[WARN] 原生二进制非正常退出 (退出码: $RET)，自动尝试降级至 Python 3 运行时..."
+    echo ""
+    echo "[!] 原生版本退出码: $RET，正在自动切换为 Python 3 通用兼容版..."
 fi
 
+# 3. 降级尝试 Python 3 通用版
 if command -v python3 >/dev/null 2>&1; then
-    exec python3 "$DIR/lanchat.py" "$@"
+    log "[INFO] 正在使用 Python 3 启动通用版: $DIR/lanchat.py"
+    python3 "$DIR/lanchat.py" "$@"
+    EXIT_CODE=$?
+    log "[INFO] Python 3 退出码: $EXIT_CODE"
 elif command -v python >/dev/null 2>&1; then
-    exec python "$DIR/lanchat.py" "$@"
+    log "[INFO] 正在使用 python 启动通用版: $DIR/lanchat.py"
+    python "$DIR/lanchat.py" "$@"
+    EXIT_CODE=$?
+    log "[INFO] python 退出码: $EXIT_CODE"
+else
+    log "[FATAL] 系统既无法运行原生二进制，也未检测到 Python 3 解释器"
+    echo "[Error] 无法启动 LanChat：未找到兼容的执行环境 (缺少 Python 3)。" >&2
+    EXIT_CODE=1
 fi
 
-echo "[Error] Unable to launch LanChat. No compatible execution environment found." >&2
-exit 1
-"""
+# 4. 防闪退兜底机制：若退出异常且处于交互终端中，阻止窗口秒退并提示查看日志
+if [ $EXIT_CODE -ne 0 ] && [ $EXIT_CODE -ne 130 ]; then
+    log "[ERROR] LanChat 异常退出，退出码: $EXIT_CODE"
+    echo ""
+    echo "=========================================================================="
+    echo " [LanChat 启动或运行异常 / Launch Error] (退出码: $EXIT_CODE)"
+    echo " 程序发生异常退出，详细诊断日志已写入以下位置："
+    echo "   1. $USER_LOG"
+    echo "   2. $TMP_LOG"
+    echo "   3. $LOG_DIR/lanchat_python.log"
+    echo "   4. $LOG_DIR/lanchat_dotnet.log"
+    echo "=========================================================================="
+    if [ -t 0 ]; then
+        read -p "按 [回车键] 关闭此窗口..." _dummy
+    fi
+fi
+
+exit $EXIT_CODE
+""".encode('utf-8')
 
     # 1. Build lanchat_2.0.0_amd64.deb
     x64_bin_path = os.path.join(RELEASE_DIR, "linux-x64", "lanchat")
@@ -212,9 +291,58 @@ exit 1
     shutil.copy2(deb_amd64_path, os.path.join(RELEASE_DIR, "LanChat.deb"))
 
     # 2. Build lanchat_2.0.0_all.deb (Universal Python-based deb, zero dependencies, works on ARM64, Raspberry Pi, Loongson, FT, etc.)
-    launcher_all = b"""#!/bin/bash
-exec python3 /usr/lib/lanchat/lanchat.py "$@"
-"""
+    launcher_all = """#!/bin/bash
+# LanChat Universal Python Launcher with Diagnostics & Anti-Crash Guard
+LOG_DIR="$HOME/.local/share/lanchat"
+mkdir -p "$LOG_DIR" 2>/dev/null
+USER_LOG="$LOG_DIR/launcher.log"
+TMP_LOG="/tmp/lanchat_${USER:-default}_launch.log"
+
+log() {
+    local MSG="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+    echo "$MSG" >> "$USER_LOG" 2>/dev/null
+    echo "$MSG" >> "$TMP_LOG" 2>/dev/null
+}
+
+log "LanChat Universal 版启动 (PID: $$, USER: ${USER:-unknown})"
+
+# 终端自适应
+if [ ! -t 0 ] || [ ! -t 1 ]; then
+    for TERM_CMD in x-terminal-emulator gnome-terminal mate-terminal ukui-terminal deepin-terminal konsole xfce4-terminal terminator lxterminal xterm; do
+        if command -v "$TERM_CMD" >/dev/null 2>&1; then
+            case "$TERM_CMD" in
+                gnome-terminal) exec gnome-terminal -- /usr/bin/lanchat "$@" ;;
+                *) exec "$TERM_CMD" -e "/usr/bin/lanchat $*" ;;
+            esac
+        fi
+    done
+fi
+
+EXIT_CODE=0
+if command -v python3 >/dev/null 2>&1; then
+    python3 /usr/lib/lanchat/lanchat.py "$@"
+    EXIT_CODE=$?
+elif command -v python >/dev/null 2>&1; then
+    python /usr/lib/lanchat/lanchat.py "$@"
+    EXIT_CODE=$?
+else
+    echo "[Error] 未检测到 Python 3 解释器" >&2
+    EXIT_CODE=1
+fi
+
+if [ $EXIT_CODE -ne 0 ] && [ $EXIT_CODE -ne 130 ]; then
+    echo ""
+    echo "=========================================================================="
+    echo " [LanChat 运行异常 / Error] (退出码: $EXIT_CODE)"
+    echo " 详细日志: $USER_LOG 及 $LOG_DIR/lanchat_python.log"
+    echo "=========================================================================="
+    if [ -t 0 ]; then
+        read -p "按 [回车键] 关闭此窗口..." _dummy
+    fi
+fi
+
+exit $EXIT_CODE
+""".encode('utf-8')
     files_all = [
         ("./usr/bin/lanchat", launcher_all, 0o755),
         ("./usr/lib/lanchat/lanchat.py", py_bytes, 0o755),

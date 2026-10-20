@@ -6,11 +6,11 @@ echo ========================================================
 echo.
 
 echo [1/2] Building for Linux x86_64 (Intel/AMD)...
-dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o ../release/linux-x64
+dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:InvariantGlobalization=true -o ../release/linux-x64
 
 echo.
 echo [2/2] Building for Linux ARM64 (aarch64 / Raspberry Pi)...
-dotnet publish -c Release -r linux-arm64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o ../release/linux-arm64
+dotnet publish -c Release -r linux-arm64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:InvariantGlobalization=true -o ../release/linux-arm64
 
 echo.
 echo ========================================================

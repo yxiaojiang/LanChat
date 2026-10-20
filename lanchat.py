@@ -14,11 +14,81 @@ import time
 import uuid
 import struct
 import glob
+import traceback
 
 UDP_PORT = 38888
 TCP_BASE_PORT = 38889
 MAGIC = b"LANC"
 HANDSHAKE_MSG = "[系统自动握手]"
+
+# ==================== 多级持久化日志系统 ====================
+LOG_DIR = os.path.expanduser("~/.local/share/lanchat")
+try:
+    os.makedirs(LOG_DIR, exist_ok=True)
+except Exception:
+    pass
+
+LOG_FILE_USER = os.path.join(LOG_DIR, "lanchat_python.log")
+LOG_FILE_TMP = f"/tmp/lanchat_{os.environ.get('USER', 'default')}.log"
+
+def log_message(level: str, msg: str):
+    """记录日志到用户目录及 /tmp 备用目录"""
+    t_str = time.strftime("%Y-%m-%d %H:%M:%S")
+    formatted = f"[{t_str}] [{level}] {msg}\n"
+    for log_path in (LOG_FILE_USER, LOG_FILE_TMP):
+        try:
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(formatted)
+        except Exception:
+            pass
+
+def handle_uncaught_exception(exc_type, exc_value, exc_traceback):
+    """全局未捕获异常崩溃记录"""
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    tb_text = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+    log_message("CRITICAL", "未捕获异常崩溃:\n" + tb_text)
+    print("\n\033[31m[CRITICAL ERROR] 程序发生未捕获异常崩溃:\033[0m")
+    print(tb_text)
+    print(f"\033[33m完整错误日志已写入:\n  1. {LOG_FILE_USER}\n  2. {LOG_FILE_TMP}\033[0m\n")
+
+sys.excepthook = handle_uncaught_exception
+
+def determine_save_dir() -> str:
+    """智能选择接收文件目录，防止在 /usr/lib 系统只读目录下崩溃"""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    is_system_path = base_dir.startswith("/usr") or base_dir.startswith("/etc") or base_dir.startswith("/opt")
+    if not is_system_path:
+        preferred = os.path.join(base_dir, "ReceivedFiles")
+        try:
+            os.makedirs(preferred, exist_ok=True)
+            test_file = os.path.join(preferred, ".write_test_" + uuid.uuid4().hex[:8])
+            with open(test_file, "w") as f:
+                f.write("test")
+            os.remove(test_file)
+            return preferred
+        except Exception:
+            pass
+
+    home = os.path.expanduser("~")
+    downloads = os.path.join(home, "Downloads", "LanChat_Received")
+    try:
+        os.makedirs(downloads, exist_ok=True)
+        return downloads
+    except Exception:
+        pass
+
+    local_share = os.path.join(home, ".local", "share", "lanchat", "ReceivedFiles")
+    try:
+        os.makedirs(local_share, exist_ok=True)
+        return local_share
+    except Exception:
+        pass
+
+    tmp_dir = os.path.join("/tmp", f"lanchat_{os.environ.get('USER', 'default')}_received")
+    os.makedirs(tmp_dir, exist_ok=True)
+    return tmp_dir
 
 class PeerInfo:
     def __init__(self, peer_id, nick, host, ip, port):
@@ -84,8 +154,8 @@ class LanChatService:
         self.nickname = nickname or os.environ.get("USER", "LinuxUser")
         self.hostname = socket.gethostname()
         self.tcp_port = TCP_BASE_PORT
-        self.save_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "ReceivedFiles"))
-        os.makedirs(self.save_dir, exist_ok=True)
+        self.save_dir = determine_save_dir()
+        log_message("INFO", f"LanChatService 初始化: 昵称={self.nickname}, 主机={self.hostname}, 存储目录={self.save_dir}")
 
         self.peers = {} # id -> PeerInfo
         self.lock = threading.Lock()
@@ -437,8 +507,10 @@ class LanChatService:
         except: pass
 
 def main():
+    log_message("INFO", f"=== LanChat Python 版启动 (PID: {os.getpid()}) ===")
     service = LanChatService()
     service.start()
+    log_message("INFO", f"网络服务就绪: IP={service.primary_ip}, TCP={service.tcp_port}, UDP={UDP_PORT}")
 
     print("\n" + "="*70)
     print("      \033[33mLanChat for Linux (Universal Python Edition)\033[0m")
@@ -573,10 +645,20 @@ def main():
                             print("\033[32m[LanChat] > \033[0m", end="", flush=True)
                     threading.Thread(target=_send_private, daemon=True).start()
 
-        except (KeyboardInterrupt, EOFError):
+        except KeyboardInterrupt:
+            break
+        except EOFError:
+            log_message("WARN", "标准输入 (stdin) EOF，非交互终端或无 TTY。保持后台网络监听服务运行...")
+            print("\n\033[33m[!] 标准输入已关闭（无交互式终端）。LanChat 网络服务将保持在后台运行 (Ctrl+C 退出)...\033[0m")
+            try:
+                while service.is_running:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                break
             break
 
     print("\n正在安全退出...")
+    log_message("INFO", "=== LanChat Python 版安全退出 ===")
     service.close()
 
 if __name__ == "__main__":

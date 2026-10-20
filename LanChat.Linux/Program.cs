@@ -14,7 +14,50 @@ namespace LanChat.Linux
         private static readonly object _consoleLock = new object();
         private static volatile bool _isRunning = true;
 
+        private static void LogToFile(string level, string msg)
+        {
+            string line = string.Format("[{0}] [{1}] {2}", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), level, msg);
+            try
+            {
+                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                string userLogDir = Path.Combine(home, ".local", "share", "lanchat");
+                if (!Directory.Exists(userLogDir)) Directory.CreateDirectory(userLogDir);
+                File.AppendAllText(Path.Combine(userLogDir, "lanchat_dotnet.log"), line + Environment.NewLine);
+            }
+            catch { }
+
+            try
+            {
+                string tmpLog = Path.Combine("/tmp", "lanchat_" + Environment.UserName + "_dotnet.log");
+                File.AppendAllText(tmpLog, line + Environment.NewLine);
+            }
+            catch { }
+        }
+
         static void Main(string[] args)
+        {
+            AppDomain.CurrentDomain.UnhandledException += (s, e) =>
+            {
+                Exception ex = e.ExceptionObject as Exception;
+                string err = ex != null ? ex.ToString() : "未知致命错误";
+                LogToFile("CRITICAL", "未捕获异常崩溃:\n" + err);
+                PrintColored(ConsoleColor.Red, "\n[CRITICAL ERROR] 发生未处理异常崩溃:\n" + err);
+            };
+
+            try
+            {
+                LogToFile("INFO", string.Format("=== LanChat Linux (.NET Native) 启动 (PID: {0}) ===", Environment.ProcessId));
+                RunMain(args);
+            }
+            catch (Exception ex)
+            {
+                LogToFile("FATAL", "主循环发生致命异常:\n" + ex.ToString());
+                PrintColored(ConsoleColor.Red, "\n[FATAL ERROR] 程序发生致命异常:\n" + ex.ToString());
+                ExitApp();
+            }
+        }
+
+        static void RunMain(string[] args)
         {
             Console.OutputEncoding = Encoding.UTF8;
             Console.InputEncoding = Encoding.UTF8;
@@ -26,6 +69,7 @@ namespace LanChat.Linux
             }
 
             _netService = new NetworkService(initialNick);
+            _netService.OnLogMessage += log => LogToFile("NET", log);
 
             // Register events
             _netService.OnPeerJoined += peer =>
@@ -95,7 +139,16 @@ namespace LanChat.Linux
             while (_isRunning)
             {
                 string line = Console.ReadLine();
-                if (line == null) break;
+                if (line == null)
+                {
+                    LogToFile("WARN", "Console.ReadLine() 返回 null (无可用交互终端或 stdin 管道关闭)。转为守护进程模式维持网络监听...");
+                    PrintColored(ConsoleColor.Yellow, "\n[!] 检测到非交互式终端输入或输入流已断开。LanChat 网络服务将保持在后台运行 (Ctrl+C 退出)...");
+                    while (_isRunning)
+                    {
+                        Thread.Sleep(1000);
+                    }
+                    break;
+                }
 
                 line = line.Trim();
                 if (string.IsNullOrEmpty(line))
