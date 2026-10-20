@@ -10,7 +10,7 @@ dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFil
 
 echo.
 echo [2/2] Building for Linux ARM64 (aarch64 / Raspberry Pi)...
-dotnet publish -c Release -r linux-arm64 --self-contained false -p:PublishSingleFile=true -o ../release/linux-arm64
+dotnet publish -c Release -r linux-arm64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o ../release/linux-arm64
 
 echo.
 echo ========================================================
@@ -20,4 +20,6 @@ echo   - release/linux-arm64/lanchat
 echo   - lanchat.py (Universal zero-dependency Python edition)
 echo ========================================================
 echo.
-pause
+if "%~1"=="" (
+    pause
+)

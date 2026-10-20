@@ -12,6 +12,9 @@ namespace LanChat
         public int TcpPort { get; set; }
         public DateTime LastSeen { get; set; }
         public bool IsManual { get; set; }
+        public string LastMessage { get; set; }
+        public DateTime LastMessageTime { get; set; }
+        public int UnreadCount { get; set; }
 
         public string DisplayText
         {
@@ -37,6 +40,11 @@ namespace LanChat
         public DateTime Timestamp { get; set; }
         public bool IsSelf { get; set; }
         public bool IsBroadcast { get; set; }
+        public bool IsSystem { get; set; }
+        public bool IsFile { get; set; }
+        public string FileName { get; set; }
+        public string FilePath { get; set; }
+        public long FileSize { get; set; }
     }
 
     public class FileTransferProgress

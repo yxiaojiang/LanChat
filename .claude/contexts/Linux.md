@@ -1,16 +1,16 @@
 # Linux.md — Linux 客户端模块上下文
 
 ## 模块定位与职责
-Linux 客户端支持在各种 Linux 发行版（Ubuntu、Debian、CentOS、Arch、树莓派 OS、嵌入式 Linux）上运行，兼顾无桌面的服务器/SSH 环境以及图形桌面环境。提供预编译二进制与纯 Python 单文件两种方式。
+Linux 客户端支持在各种 Linux 发行版（Ubuntu、Debian、CentOS、统信UOS、银河麒麟、Arch、树莓派 OS、嵌入式 Linux）上运行。具备标准 deb 安装包、预编译自包含独立 ELF 二进制与纯 Python 单文件三种形态，**彻底解决无需预装 .NET 运行时即可独立运行的诉求**。
 
 ## 源码与构建物清单
-1. **预编译独立二进制（ELF）**：
-   - `release/linux-x64/lanchat`：针对 Intel / AMD 64位架构，单文件自包含（Self-contained）。
-   - `release/linux-arm64/lanchat`：针对 aarch64 架构（树莓派 3/4/5、Jetson、RK3588、ARM 服务器）。
-2. **C# 终端工程**：
-   - `LanChat.Linux/LanChat.Linux.csproj`：通过链接引用直接复用根目录的 `Models.cs` 和 `NetworkService.cs`。
-   - `LanChat.Linux/Program.cs`：交互式 ANSI 彩色终端 UI，支持命令行会话切换、彩色消息格式化与 ASCII 传输进度条。
-   - `LanChat.Linux/build-linux.bat`：一键交叉编译脚本。
+1. **Debian 标准安装包 (`.deb`)**：
+   - `release/LanChat.deb` / `release/lanchat_1.0.0_amd64.deb`：专为 x86_64 打造，内置自包含二进制与 Python 双核，带 `.desktop` 快捷方式与矢量图标。
+   - `release/lanchat_1.0.0_all.deb`：全架构通用包。
+   - `build-deb.py`：纯 Python 构建 deb 包工具。
+2. **预编译自包含独立二进制（ELF）**：
+   - `release/linux-x64/lanchat`：针对 Intel / AMD 64位架构，单文件自带 Runtime（`--self-contained true`）。
+   - `release/linux-arm64/lanchat`：针对 aarch64 架构（树莓派 3/4/5、Jetson、RK3588、麒麟 ARM 服务器）。
 3. **通用单文件版**：
    - `lanchat.py`：纯 Python 3 标准库实现（无需 `pip install`），全架构兼容。
 

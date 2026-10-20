@@ -1,17 +1,21 @@
 # Windows.md — Windows 客户端模块上下文
 
 ## 模块定位与职责
-Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装、无外部依赖、体积仅约 55KB 的单文件免环境程序**。
+Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装、无外部依赖、支持 MSI 标准安装与绿色单文件执行**的现代化桌面应用。界面风格全面对标 WeChat Desktop 暗黑主题。
 
-## 核心源码清单
+## 核心源码与构建物清单
 - `Program.cs`：应用程序入口，开启高 DPI 感知（`SetProcessDPIAware`），注册全局未捕获异常兜底处理。
-- `MainForm.cs`：主窗体，包含全套扁平化现代 UI、FlowLayout 工具栏、左右分栏（好友列表/聊天区域）、文件拖拽拦截（Drag & Drop）、进度条渲染、消息气泡排版。
-- `build.bat`：构建脚本，直接调用系统自带的 `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe` 进行秒级编译生成 `LanChat.exe`，无需安装 Visual Studio 或 .NET SDK。
-- `LanChat.csproj`：用于 Visual Studio 或现代 `dotnet build` 的辅助工程配置。
+- `MainForm.cs`：主窗体，包含全套 WeChat 风格三栏暗黑 UI（左侧导航条、中间会话与实时搜索列表、右侧气泡聊天工作区、Emoji 表情选择器、文件卡片）。
+- `Package.wxs`：WiX Toolset 安装包定义，定义组件、安装路径、桌面与开始菜单快捷方式。
+- `build.bat`：一键编译脚本，调用系统自带 `csc.exe` 秒级生成绿色免安装版 `LanChat.exe` (~46 KB)。
+- `build-msi.bat`：一键构建 Windows 标准安装包 `LanChat.msi`。
+- `LanChat.msi`：生成的 Windows Installer 安装包文件。
 
 ## 关键设计点
-1. **FlowLayout 自适应工具栏**：
-   - 顶部工具栏右侧采用 `FlowLayoutPanel`，【🔄 刷新好友】固定宽度 120px，【➕ 添加IP】95px，【📂 接收文件夹】125px，彻底避免高 DPI 缩放（125%、150%）下的文字折行或挤压。
-2. **纯代码构建界面**：所有控件通过 C# 代码声明式组装，不依赖 `.Designer.cs` 或资源文件，便于单一源文件随处直接编译。
-3. **文件拖拽响应**：窗体及输入框均开启 `AllowDrop = true`，拖入文件自动触发目标选择或直接向当前选中的好友开启流式发送。
-4. **安全跨线程更新**：封装 `SafeInvoke`，在后台 Socket 触发的各种网络事件中安全调度 UI 渲染，避免句柄泄漏或死锁。
+1. **WeChat Desktop 暗黑设计语言**：
+   - 侧边栏：`#202022`，支持头像弹窗、导航切换。
+   - 会话列表：`#2f2f30`，选中项为微信绿 `#07c160`，支持根据昵称、IP 实时模糊搜索过滤。
+   - 聊天气泡：自主实现 `WeChatChatView` 双缓冲自绘，对方暗灰 `#2c2c2e` 气泡居左，己方微信绿 `#07c160` 气泡居右，带三角指示器。
+   - 表情弹窗：支持 60+ 流行 Emoji 点击快速输入。
+2. **零外部环境依赖**：
+   - 基于系统内置 .NET Framework 4.0/4.5/4.8，任意 Windows 7/8/10/11 开箱即跑。

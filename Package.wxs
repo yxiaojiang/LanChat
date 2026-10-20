@@ -1,0 +1,35 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="LanChat" 
+           Manufacturer="LanChat" 
+           Version="1.0.0" 
+           UpgradeCode="7E993262-EAA5-4A37-975D-39F24FEA21D1"
+           Scope="perMachine">
+    <MajorUpgrade DowngradeErrorMessage="已安装较新版本的 LanChat。" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFilesFolder">
+      <Directory Id="INSTALLFOLDER" Name="LanChat">
+        <Component Id="MainExecutable" Guid="D2A687A1-BD02-4A73-A332-951E9DB6E8BC">
+          <File Id="LanChatExe" Source="LanChat.exe" KeyPath="yes" />
+          <Shortcut Id="DesktopShortcut"
+                    Directory="DesktopFolder"
+                    Name="LanChat"
+                    Target="[!LanChatExe]"
+                    WorkingDirectory="INSTALLFOLDER" />
+          <Shortcut Id="StartMenuShortcut"
+                    Directory="ProgramMenuFolder"
+                    Name="LanChat"
+                    Target="[!LanChatExe]"
+                    WorkingDirectory="INSTALLFOLDER" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder" />
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main">
+      <ComponentRef Id="MainExecutable" />
+    </Feature>
+  </Package>
+</Wix>
