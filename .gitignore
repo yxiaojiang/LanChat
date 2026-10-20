@@ -1,0 +1,15 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio & IDEs
+.vs/
+*.user
+*.suo
+.idea/
+.vscode/
+
+# Runtime received files & logs
+ReceivedFiles/
+*.downloading
+*.log
