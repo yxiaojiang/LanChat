@@ -18,9 +18,8 @@ namespace LanChat
 
         private const string BROADCAST_TARGET = "📢 局域网全员群聊";
         private NetworkService _netService;
-        private readonly object _uiLock = new object();
 
-        // Chat histories by conversation key: "" or "BROADCAST" for group, peerId for private
+        // Chat histories by conversation key: "BROADCAST" for group, peerId for private
         private readonly Dictionary<string, List<ChatMessage>> _chatHistories = new Dictionary<string, List<ChatMessage>>();
         private string _activeChatKey = "BROADCAST";
         private PeerInfo _selectedPeer = null;
@@ -32,17 +31,18 @@ namespace LanChat
 
         // Sidebar Controls
         private Button _btnAvatar;
-        private Button _btnNavChat;
-        private Button _btnNavContacts;
-        private Button _btnNavFolder;
-        private Button _btnNavRefresh;
-        private Button _btnNavAddIp;
-        private Button _btnNavSettings;
+        private WeChatNavButton _btnNavChat;
+        private WeChatNavButton _btnNavContacts;
+        private WeChatNavButton _btnNavFolder;
+        private WeChatNavButton _btnNavRefresh;
+        private WeChatNavButton _btnNavAddIp;
+        private WeChatNavButton _btnNavMenu;
 
         // Sessions Column Controls
         private Panel _searchHeaderPanel;
+        private Panel _searchBoxContainer;
         private TextBox _txtSearch;
-        private Button _btnAddSession;
+        private WeChatIconButton _btnAddSession;
         private ListBox _listSessions;
         private List<object> _allSessionItems = new List<object>();
 
@@ -50,10 +50,10 @@ namespace LanChat
         private Panel _chatHeader;
         private Label _lblChatTitle;
         private Label _lblChatSubtitle;
-        private Button _btnChatRefresh;
-        private Button _btnChatFolder;
-        private Button _btnChatAddIp;
-        private Button _btnChatClear;
+        private WeChatIconButton _btnHeaderRefresh;
+        private WeChatIconButton _btnHeaderAddIp;
+        private WeChatIconButton _btnHeaderFolder;
+        private WeChatIconButton _btnHeaderClear;
 
         // File Progress Banner
         private Panel _progressPanel;
@@ -65,10 +65,10 @@ namespace LanChat
 
         // Input Toolbar Controls
         private Panel _toolPanel;
-        private Button _btnToolEmoji;
-        private Button _btnToolSendFile;
-        private Button _btnToolFolder;
-        private Button _btnToolClear;
+        private WeChatIconButton _btnToolEmoji;
+        private WeChatIconButton _btnToolSendFile;
+        private WeChatIconButton _btnToolFolder;
+        private WeChatIconButton _btnToolClear;
         private Label _lblAutoAccept;
 
         // Input Area Controls
@@ -102,8 +102,8 @@ namespace LanChat
         private void InitializeComponent()
         {
             this.Text = "LanChat";
-            this.Size = new Size(1000, 680);
-            this.MinimumSize = new Size(840, 540);
+            this.Size = new Size(1024, 680);
+            this.MinimumSize = new Size(860, 560);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular);
             this.BackColor = Color.FromArgb(30, 30, 31);
@@ -112,18 +112,20 @@ namespace LanChat
             this.DragEnter += MainForm_DragEnter;
             this.DragDrop += MainForm_DragDrop;
 
-            // 1. Left Sidebar (Dock / Rail)
+            // ==========================================
+            // 1. Left Sidebar (Dock / Rail) - 54px Width
+            // ==========================================
             _sidebarPanel = new Panel
             {
                 Dock = DockStyle.Left,
-                Width = 58,
-                BackColor = Color.FromArgb(32, 32, 34)
+                Width = 54,
+                BackColor = Color.FromArgb(37, 37, 38) // WeChat #252526
             };
 
-            // Avatar at top
+            // Top Avatar (36x36 rounded square)
             _btnAvatar = new Button
             {
-                Size = new Size(40, 40),
+                Size = new Size(36, 36),
                 Location = new Point(9, 14),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
@@ -133,140 +135,123 @@ namespace LanChat
             _btnAvatar.Paint += BtnAvatar_Paint;
             _btnAvatar.Click += BtnAvatar_Click;
 
-            // Nav: Chat
-            _btnNavChat = CreateNavButton("💬", 64, "聊天", true);
+            // Nav: Chat (Active by default, WeChat green solid speech bubble)
+            _btnNavChat = new WeChatNavButton(WeChatIconType.Chat, "聊天", true)
+            {
+                Location = new Point(9, 66)
+            };
             _btnNavChat.Click += (s, e) => SwitchNavTab(0);
 
-            // Nav: Contacts
-            _btnNavContacts = CreateNavButton("👥", 116, "通讯录", false);
+            // Nav: Contacts (Outlined person + list card lines, exactly matching screenshot)
+            _btnNavContacts = new WeChatNavButton(WeChatIconType.Contacts, "通讯录", false)
+            {
+                Location = new Point(9, 114)
+            };
             _btnNavContacts.Click += (s, e) => SwitchNavTab(1);
 
             // Nav: Received Folder
-            _btnNavFolder = CreateNavButton("📁", 168, "接收文件夹", false);
+            _btnNavFolder = new WeChatNavButton(WeChatIconType.Folder, "接收文件夹", false)
+            {
+                Location = new Point(9, 162)
+            };
             _btnNavFolder.Click += (s, e) => OpenReceivedFolder();
 
-            // Nav: Refresh
-            _btnNavRefresh = CreateNavButton("🔄", 220, "刷新好友", false);
+            // Nav: Refresh / Radar
+            _btnNavRefresh = new WeChatNavButton(WeChatIconType.Refresh, "刷新好友", false)
+            {
+                Location = new Point(9, 210)
+            };
             _btnNavRefresh.Click += (s, e) => RefreshPeersWithNotice();
 
             // Nav: Add IP
-            _btnNavAddIp = CreateNavButton("➕", 272, "添加好友 IP", false);
+            _btnNavAddIp = new WeChatNavButton(WeChatIconType.Add, "添加好友 IP", false)
+            {
+                Location = new Point(9, 258)
+            };
             _btnNavAddIp.Click += (s, e) => BtnAddIp_Click(s, e);
 
-            // Nav: Settings at bottom
-            _btnNavSettings = new Button
+            // Nav: Menu / Settings at bottom (3 parallel lines)
+            _btnNavMenu = new WeChatNavButton(WeChatIconType.Menu, "设置与更多", false)
             {
-                Text = "≡",
-                Dock = DockStyle.Bottom,
-                Height = 48,
-                FlatStyle = FlatStyle.Flat,
-                ForeColor = Color.FromArgb(160, 160, 160),
-                Font = new Font("Microsoft YaHei", 14f, FontStyle.Bold),
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand
+                Location = new Point(9, _sidebarPanel.Height - 48),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Left
             };
-            _btnNavSettings.FlatAppearance.BorderSize = 0;
-            _btnNavSettings.MouseEnter += (s, e) => _btnNavSettings.ForeColor = Color.White;
-            _btnNavSettings.MouseLeave += (s, e) => _btnNavSettings.ForeColor = Color.FromArgb(160, 160, 160);
-            _btnNavSettings.Click += BtnSettings_Click;
+            _btnNavMenu.Click += BtnSettings_Click;
 
-            _sidebarPanel.Controls.Add(_btnAvatar);
-            _sidebarPanel.Controls.Add(_btnNavChat);
-            _sidebarPanel.Controls.Add(_btnNavContacts);
-            _sidebarPanel.Controls.Add(_btnNavFolder);
-            _sidebarPanel.Controls.Add(_btnNavRefresh);
-            _sidebarPanel.Controls.Add(_btnNavAddIp);
-            _sidebarPanel.Controls.Add(_btnNavSettings);
+            _sidebarPanel.Controls.AddRange(new Control[] {
+                _btnAvatar, _btnNavChat, _btnNavContacts, _btnNavFolder, _btnNavRefresh, _btnNavAddIp, _btnNavMenu
+            });
 
-            // 2. Middle Sessions / Contact List
+            // ==========================================
+            // 2. Middle Sessions Column - 250px Width
+            // ==========================================
             _sessionsPanel = new Panel
             {
                 Dock = DockStyle.Left,
-                Width = 260,
-                BackColor = Color.FromArgb(47, 47, 48)
+                Width = 250,
+                BackColor = Color.FromArgb(47, 47, 48) // WeChat list #2f2f30
             };
 
-            // Search and Add header
+            // Top Search Bar Panel (Height: 52px)
             _searchHeaderPanel = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 56,
+                Height = 52,
                 BackColor = Color.FromArgb(47, 47, 48),
                 Padding = new Padding(12, 12, 12, 12)
             };
 
-            Panel searchBoxContainer = new Panel
+            _searchBoxContainer = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(37, 37, 38),
-                Padding = new Padding(8, 6, 8, 6)
+                BackColor = Color.FromArgb(38, 38, 40),
+                Padding = new Padding(8, 4, 8, 4)
             };
-            searchBoxContainer.Paint += (s, e) => {
-                using (Pen pen = new Pen(Color.FromArgb(60, 60, 62)))
+            _searchBoxContainer.Paint += (s, e) => {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (Pen pen = new Pen(Color.FromArgb(56, 56, 58), 1f))
                 {
-                    DrawRoundedRectangle(e.Graphics, pen, new Rectangle(0, 0, searchBoxContainer.Width - 1, searchBoxContainer.Height - 1), 6);
+                    DrawRoundedRectangle(e.Graphics, pen, new Rectangle(0, 0, _searchBoxContainer.Width - 1, _searchBoxContainer.Height - 1), 4);
                 }
-            };
-
-            Label lblSearchIcon = new Label
-            {
-                Text = "🔍",
-                Dock = DockStyle.Left,
-                Width = 24,
-                ForeColor = Color.FromArgb(140, 140, 140),
-                Font = new Font("Microsoft YaHei", 8.5f),
-                TextAlign = ContentAlignment.MiddleCenter,
-                BackColor = Color.Transparent
+                // Draw vector magnifying glass icon
+                WeChatIcon.DrawSearchIcon(e.Graphics, new Rectangle(6, 6, 14, 14), Color.FromArgb(118, 118, 120));
             };
 
             _txtSearch = new TextBox
             {
-                Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(37, 37, 38),
+                Dock = DockStyle.Right,
+                Width = _searchBoxContainer.Width - 30,
+                BackColor = Color.FromArgb(38, 38, 40),
                 ForeColor = Color.FromArgb(220, 220, 220),
                 BorderStyle = BorderStyle.None,
-                Font = new Font("Microsoft YaHei", 9.5f)
+                Font = new Font("Microsoft YaHei", 9f),
+                Margin = new Padding(0)
+            };
+            _searchBoxContainer.Resize += (s, e) => {
+                _txtSearch.Width = Math.Max(50, _searchBoxContainer.Width - 30);
+                _txtSearch.Location = new Point(26, (_searchBoxContainer.Height - _txtSearch.Height) / 2);
             };
             _txtSearch.TextChanged += TxtSearch_TextChanged;
+            _searchBoxContainer.Controls.Add(_txtSearch);
 
-            searchBoxContainer.Controls.Add(_txtSearch);
-            searchBoxContainer.Controls.Add(lblSearchIcon);
-
-            _btnAddSession = new Button
+            _btnAddSession = new WeChatIconButton(WeChatIconType.Add, "添加好友 IP / 扫描", 26)
             {
-                Text = "+",
                 Dock = DockStyle.Right,
-                Width = 32,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(37, 37, 38),
-                ForeColor = Color.FromArgb(200, 200, 200),
-                Font = new Font("Microsoft YaHei", 12f, FontStyle.Bold),
-                Cursor = Cursors.Hand,
-                Margin = new Padding(8, 0, 0, 0)
+                Width = 26,
+                Margin = new Padding(6, 0, 0, 0)
             };
-            _btnAddSession.FlatAppearance.BorderSize = 0;
             _btnAddSession.Click += BtnAddSession_Click;
 
-            Panel searchWrap = new Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.Transparent
-            };
-            searchWrap.Controls.Add(searchBoxContainer);
+            Panel searchWrap = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent };
+            searchWrap.Controls.Add(_searchBoxContainer);
 
-            Panel addWrap = new Panel
-            {
-                Dock = DockStyle.Right,
-                Width = 38,
-                Padding = new Padding(6, 0, 0, 0),
-                BackColor = Color.Transparent
-            };
+            Panel addWrap = new Panel { Dock = DockStyle.Right, Width = 32, Padding = new Padding(6, 0, 0, 0), BackColor = Color.Transparent };
             addWrap.Controls.Add(_btnAddSession);
 
             _searchHeaderPanel.Controls.Add(searchWrap);
             _searchHeaderPanel.Controls.Add(addWrap);
 
-            // Sessions ListBox
+            // Sessions ListBox (Height: 64px per item, OwnerDrawn)
             _listSessions = new ListBox
             {
                 Dock = DockStyle.Fill,
@@ -284,23 +269,25 @@ namespace LanChat
             _sessionsPanel.Controls.Add(_listSessions);
             _sessionsPanel.Controls.Add(_searchHeaderPanel);
 
-            // 3. Right Chat Panel
+            // ==========================================
+            // 3. Right Chat Panel - WeChat Dark Mode
+            // ==========================================
             _chatPanel = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(30, 30, 31)
+                BackColor = Color.FromArgb(30, 30, 31) // WeChat main chat #1e1e1f
             };
 
-            // Chat Header
+            // Top Header Bar (Height: 52px)
             _chatHeader = new Panel
             {
                 Dock = DockStyle.Top,
                 Height = 52,
                 BackColor = Color.FromArgb(30, 30, 31),
-                Padding = new Padding(16, 8, 16, 8)
+                Padding = new Padding(18, 8, 16, 8)
             };
             _chatHeader.Paint += (s, e) => {
-                using (Pen pen = new Pen(Color.FromArgb(42, 42, 44)))
+                using (Pen pen = new Pen(Color.FromArgb(40, 40, 42)))
                 {
                     e.Graphics.DrawLine(pen, 0, _chatHeader.Height - 1, _chatHeader.Width, _chatHeader.Height - 1);
                 }
@@ -310,48 +297,58 @@ namespace LanChat
             {
                 Text = BROADCAST_TARGET,
                 Font = new Font("Microsoft YaHei", 11f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(240, 240, 240),
+                ForeColor = Color.FromArgb(236, 236, 236),
                 AutoSize = true,
-                Location = new Point(16, 8)
+                Location = new Point(18, 9)
             };
 
             _lblChatSubtitle = new Label
             {
                 Text = "局域网全员广播消息通道",
                 Font = new Font("Microsoft YaHei", 8.5f),
-                ForeColor = Color.FromArgb(138, 138, 142),
+                ForeColor = Color.FromArgb(120, 120, 124),
                 AutoSize = true,
-                Location = new Point(17, 30)
+                Location = new Point(19, 30)
             };
 
-            FlowLayoutPanel chatActions = new FlowLayoutPanel
+            FlowLayoutPanel headerActions = new FlowLayoutPanel
             {
                 Dock = DockStyle.Right,
                 AutoSize = true,
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false,
-                BackColor = Color.Transparent
+                BackColor = Color.Transparent,
+                Padding = new Padding(0, 4, 0, 0)
             };
 
-            _btnChatRefresh = CreateChatHeaderButton("🔄 刷新", (s, e) => RefreshPeersWithNotice());
-            _btnChatAddIp = CreateChatHeaderButton("➕ 添加IP", (s, e) => BtnAddIp_Click(s, e));
-            _btnChatFolder = CreateChatHeaderButton("📂 文件夹", (s, e) => OpenReceivedFolder());
-            _btnChatClear = CreateChatHeaderButton("🧹 清屏", (s, e) => ClearCurrentChat());
+            _btnHeaderRefresh = new WeChatIconButton(WeChatIconType.Refresh, "刷新局域网好友", 28);
+            _btnHeaderRefresh.Click += (s, e) => RefreshPeersWithNotice();
 
-            chatActions.Controls.AddRange(new Control[] { _btnChatRefresh, _btnChatAddIp, _btnChatFolder, _btnChatClear });
+            _btnHeaderAddIp = new WeChatIconButton(WeChatIconType.Add, "添加好友 IP", 28);
+            _btnHeaderAddIp.Click += (s, e) => BtnAddIp_Click(s, e);
+
+            _btnHeaderFolder = new WeChatIconButton(WeChatIconType.Folder, "打开接收文件夹", 28);
+            _btnHeaderFolder.Click += (s, e) => OpenReceivedFolder();
+
+            _btnHeaderClear = new WeChatIconButton(WeChatIconType.Clear, "清屏", 28);
+            _btnHeaderClear.Click += (s, e) => ClearCurrentChat();
+
+            headerActions.Controls.AddRange(new Control[] {
+                _btnHeaderRefresh, _btnHeaderAddIp, _btnHeaderFolder, _btnHeaderClear
+            });
 
             _chatHeader.Controls.Add(_lblChatTitle);
             _chatHeader.Controls.Add(_lblChatSubtitle);
-            _chatHeader.Controls.Add(chatActions);
+            _chatHeader.Controls.Add(headerActions);
 
-            // Progress Panel (Collapsible)
+            // Collapsible Transfer Progress Banner
             _progressPanel = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 48,
-                BackColor = Color.FromArgb(38, 38, 41),
+                Height = 46,
+                BackColor = Color.FromArgb(36, 36, 38),
                 Visible = false,
-                Padding = new Padding(16, 6, 16, 6)
+                Padding = new Padding(18, 6, 18, 6)
             };
             _lblProgressInfo = new Label
             {
@@ -359,22 +356,22 @@ namespace LanChat
                 Font = new Font("Microsoft YaHei", 8.5f),
                 ForeColor = Color.FromArgb(7, 193, 96),
                 AutoSize = true,
-                Location = new Point(16, 6)
+                Location = new Point(18, 6)
             };
             _progressBar = new ProgressBar
             {
-                Location = new Point(16, 26),
-                Height = 12,
+                Location = new Point(18, 25),
+                Height = 10,
                 Width = 500,
                 Style = ProgressBarStyle.Continuous
             };
             _progressPanel.Controls.Add(_lblProgressInfo);
             _progressPanel.Controls.Add(_progressBar);
             _progressPanel.Resize += (s, e) => {
-                _progressBar.Width = Math.Max(100, _progressPanel.Width - 32);
+                _progressBar.Width = Math.Max(100, _progressPanel.Width - 36);
             };
 
-            // Chat View (Custom double-buffered WeChat chat history renderer)
+            // Custom-Drawn WeChat Chat History View
             _chatView = new WeChatChatView
             {
                 Dock = DockStyle.Fill,
@@ -382,25 +379,32 @@ namespace LanChat
             };
             _chatView.OnFileActionClick += HandleFileActionClick;
 
-            // Input Toolbar
+            // Input Toolbar (Emoji, Send File, Folder, Clear)
             _toolPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
                 Height = 36,
                 BackColor = Color.FromArgb(30, 30, 31),
-                Padding = new Padding(12, 4, 12, 4)
+                Padding = new Padding(16, 4, 16, 4)
             };
             _toolPanel.Paint += (s, e) => {
-                using (Pen pen = new Pen(Color.FromArgb(42, 42, 44)))
+                using (Pen pen = new Pen(Color.FromArgb(40, 40, 42)))
                 {
                     e.Graphics.DrawLine(pen, 0, 0, _toolPanel.Width, 0);
                 }
             };
 
-            _btnToolEmoji = CreateToolButton("😊 表情", (s, e) => ShowEmojiPopup());
-            _btnToolSendFile = CreateToolButton("📁 发送文件", (s, e) => BtnSendFile_Click(s, e));
-            _btnToolFolder = CreateToolButton("📂 接收目录", (s, e) => OpenReceivedFolder());
-            _btnToolClear = CreateToolButton("🧹 清屏", (s, e) => ClearCurrentChat());
+            _btnToolEmoji = new WeChatIconButton(WeChatIconType.Emoji, "表情", 28);
+            _btnToolEmoji.Click += (s, e) => ShowEmojiPopup();
+
+            _btnToolSendFile = new WeChatIconButton(WeChatIconType.Folder, "发送文件", 28);
+            _btnToolSendFile.Click += (s, e) => BtnSendFile_Click(s, e);
+
+            _btnToolFolder = new WeChatIconButton(WeChatIconType.Box, "接收目录", 28);
+            _btnToolFolder.Click += (s, e) => OpenReceivedFolder();
+
+            _btnToolClear = new WeChatIconButton(WeChatIconType.Clear, "清屏", 28);
+            _btnToolClear.Click += (s, e) => ClearCurrentChat();
 
             _lblAutoAccept = new Label
             {
@@ -416,7 +420,7 @@ namespace LanChat
             _lblAutoAccept.Click += (s, e) => {
                 _netService.AutoAcceptFiles = !_netService.AutoAcceptFiles;
                 _lblAutoAccept.Text = _netService.AutoAcceptFiles ? "⚡ 自动接收: 开" : "⏸ 自动接收: 关";
-                _lblAutoAccept.ForeColor = _netService.AutoAcceptFiles ? Color.FromArgb(7, 193, 96) : Color.FromArgb(160, 160, 160);
+                _lblAutoAccept.ForeColor = _netService.AutoAcceptFiles ? Color.FromArgb(7, 193, 96) : Color.FromArgb(140, 140, 140);
             };
 
             FlowLayoutPanel toolFlow = new FlowLayoutPanel
@@ -427,18 +431,20 @@ namespace LanChat
                 WrapContents = false,
                 BackColor = Color.Transparent
             };
-            toolFlow.Controls.AddRange(new Control[] { _btnToolEmoji, _btnToolSendFile, _btnToolFolder, _btnToolClear });
+            toolFlow.Controls.AddRange(new Control[] {
+                _btnToolEmoji, _btnToolSendFile, _btnToolFolder, _btnToolClear
+            });
 
             _toolPanel.Controls.Add(toolFlow);
             _toolPanel.Controls.Add(_lblAutoAccept);
 
-            // Input Text Box
+            // Multiline Text Input Area
             _inputPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 90,
+                Height = 88,
                 BackColor = Color.FromArgb(30, 30, 31),
-                Padding = new Padding(16, 4, 16, 4)
+                Padding = new Padding(18, 4, 18, 4)
             };
 
             _txtInput = new TextBox
@@ -447,7 +453,7 @@ namespace LanChat
                 ScrollBars = ScrollBars.Vertical,
                 Font = new Font("Microsoft YaHei", 10f),
                 BackColor = Color.FromArgb(30, 30, 31),
-                ForeColor = Color.FromArgb(236, 236, 236),
+                ForeColor = Color.FromArgb(230, 230, 230),
                 BorderStyle = BorderStyle.None,
                 Dock = DockStyle.Fill,
                 AllowDrop = true
@@ -459,43 +465,55 @@ namespace LanChat
 
             _inputPanel.Controls.Add(_txtInput);
 
-            // Bottom Send Panel
+            // Bottom Action Bar (Send Button & Tip)
             _bottomSendPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
                 Height = 42,
                 BackColor = Color.FromArgb(30, 30, 31),
-                Padding = new Padding(16, 4, 16, 8)
+                Padding = new Padding(18, 4, 18, 8)
             };
 
             _lblSendTip = new Label
             {
                 Text = "按 Enter 发送，Ctrl+Enter 换行",
                 Font = new Font("Microsoft YaHei", 8f),
-                ForeColor = Color.FromArgb(100, 100, 100),
+                ForeColor = Color.FromArgb(90, 90, 92),
                 AutoSize = true,
-                Location = new Point(16, 12)
+                Location = new Point(18, 12)
             };
 
             _btnSend = new Button
             {
                 Text = "发送 (S)",
-                Size = new Size(82, 30),
-                Location = new Point(_bottomSendPanel.Width - 98, 4),
+                Size = new Size(74, 28),
+                Location = new Point(_bottomSendPanel.Width - 92, 4),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(44, 44, 46),
-                ForeColor = Color.FromArgb(140, 140, 140),
+                BackColor = Color.FromArgb(42, 42, 44),
+                ForeColor = Color.FromArgb(120, 120, 120),
                 Font = new Font("Microsoft YaHei", 9f),
                 Cursor = Cursors.Hand
             };
             _btnSend.FlatAppearance.BorderSize = 0;
+            _btnSend.Paint += (s, e) => {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (SolidBrush b = new SolidBrush(_btnSend.BackColor))
+                {
+                    DrawRoundedRectangle(e.Graphics, b, new Rectangle(0, 0, _btnSend.Width - 1, _btnSend.Height - 1), 4);
+                }
+                StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                using (SolidBrush tb = new SolidBrush(_btnSend.ForeColor))
+                {
+                    e.Graphics.DrawString(_btnSend.Text, _btnSend.Font, tb, new Rectangle(0, 0, _btnSend.Width, _btnSend.Height), sf);
+                }
+            };
             _btnSend.Click += BtnSend_Click;
 
             _bottomSendPanel.Controls.Add(_lblSendTip);
             _bottomSendPanel.Controls.Add(_btnSend);
 
-            // Assemble Right Chat Panel
+            // Assemble Panels
             _chatPanel.Controls.Add(_chatView);
             _chatPanel.Controls.Add(_progressPanel);
             _chatPanel.Controls.Add(_chatHeader);
@@ -503,95 +521,11 @@ namespace LanChat
             _chatPanel.Controls.Add(_inputPanel);
             _chatPanel.Controls.Add(_bottomSendPanel);
 
-            // Assemble MainForm
             this.Controls.Add(_chatPanel);
             this.Controls.Add(_sessionsPanel);
             this.Controls.Add(_sidebarPanel);
 
             this.FormClosing += MainForm_FormClosing;
-        }
-
-        private Button CreateNavButton(string icon, int top, string tooltipText, bool active)
-        {
-            Button btn = new Button
-            {
-                Text = icon,
-                Size = new Size(58, 46),
-                Location = new Point(0, top),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                ForeColor = active ? Color.FromArgb(7, 193, 96) : Color.FromArgb(160, 160, 160),
-                Font = new Font("Segoe UI Emoji", 14f),
-                Cursor = Cursors.Hand
-            };
-            btn.FlatAppearance.BorderSize = 0;
-
-            ToolTip tt = new ToolTip();
-            tt.SetToolTip(btn, tooltipText);
-
-            btn.MouseEnter += (s, e) => {
-                if (btn.ForeColor != Color.FromArgb(7, 193, 96))
-                    btn.ForeColor = Color.White;
-            };
-            btn.MouseLeave += (s, e) => {
-                if (btn != GetActiveNavButton())
-                    btn.ForeColor = Color.FromArgb(160, 160, 160);
-            };
-
-            return btn;
-        }
-
-        private Button GetActiveNavButton()
-        {
-            return _currentNavTab == 0 ? _btnNavChat : _btnNavContacts;
-        }
-
-        private Button CreateChatHeaderButton(string text, EventHandler onClick)
-        {
-            Button btn = new Button
-            {
-                Text = text,
-                AutoSize = true,
-                Height = 28,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(44, 44, 46),
-                ForeColor = Color.FromArgb(200, 200, 200),
-                Font = new Font("Microsoft YaHei", 8.5f),
-                Cursor = Cursors.Hand,
-                Margin = new Padding(4, 4, 4, 4)
-            };
-            btn.FlatAppearance.BorderSize = 0;
-            btn.MouseEnter += (s, e) => {
-                btn.BackColor = Color.FromArgb(58, 58, 60);
-                btn.ForeColor = Color.White;
-            };
-            btn.MouseLeave += (s, e) => {
-                btn.BackColor = Color.FromArgb(44, 44, 46);
-                btn.ForeColor = Color.FromArgb(200, 200, 200);
-            };
-            btn.Click += onClick;
-            return btn;
-        }
-
-        private Button CreateToolButton(string text, EventHandler onClick)
-        {
-            Button btn = new Button
-            {
-                Text = text,
-                AutoSize = true,
-                Height = 26,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                ForeColor = Color.FromArgb(170, 170, 170),
-                Font = new Font("Microsoft YaHei", 8.5f),
-                Cursor = Cursors.Hand,
-                Margin = new Padding(0, 0, 8, 0)
-            };
-            btn.FlatAppearance.BorderSize = 0;
-            btn.MouseEnter += (s, e) => btn.ForeColor = Color.White;
-            btn.MouseLeave += (s, e) => btn.ForeColor = Color.FromArgb(170, 170, 170);
-            btn.Click += onClick;
-            return btn;
         }
 
         #region Network & Init
@@ -630,8 +564,8 @@ namespace LanChat
         private void SwitchNavTab(int tabIndex)
         {
             _currentNavTab = tabIndex;
-            _btnNavChat.ForeColor = tabIndex == 0 ? Color.FromArgb(7, 193, 96) : Color.FromArgb(160, 160, 160);
-            _btnNavContacts.ForeColor = tabIndex == 1 ? Color.FromArgb(7, 193, 96) : Color.FromArgb(160, 160, 160);
+            _btnNavChat.IsActive = (tabIndex == 0);
+            _btnNavContacts.IsActive = (tabIndex == 1);
             RefreshPeerListUI();
         }
 
@@ -639,18 +573,14 @@ namespace LanChat
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-            // Draw rounded avatar circle/box
-            Rectangle rect = new Rectangle(2, 2, 34, 34);
-            using (GraphicsPath path = new GraphicsPath())
+            // Rounded rectangle avatar (radius 4px)
+            Rectangle rect = new Rectangle(0, 0, 35, 35);
+            using (SolidBrush brush = new SolidBrush(Color.FromArgb(7, 193, 96)))
             {
-                path.AddEllipse(rect);
-                using (SolidBrush brush = new SolidBrush(Color.FromArgb(7, 193, 96)))
-                {
-                    e.Graphics.FillPath(brush, path);
-                }
+                DrawRoundedRectangle(e.Graphics, brush, rect, 4);
             }
 
-            // Draw user initials
+            // Initials
             string nick = _netService != null ? _netService.NickName : Environment.UserName;
             string initial = string.IsNullOrEmpty(nick) ? "我" : nick.Substring(0, 1).ToUpperInvariant();
             using (Font f = new Font("Microsoft YaHei", 11f, FontStyle.Bold))
@@ -664,12 +594,12 @@ namespace LanChat
                 e.Graphics.DrawString(initial, f, textBrush, rect, sf);
             }
 
-            // Draw online green dot
-            Rectangle dotRect = new Rectangle(26, 26, 9, 9);
-            using (SolidBrush dotBg = new SolidBrush(Color.FromArgb(32, 32, 34)))
+            // Green online indicator dot
+            Rectangle dotRect = new Rectangle(24, 24, 9, 9);
+            using (SolidBrush dotBg = new SolidBrush(Color.FromArgb(37, 37, 38)))
             using (SolidBrush dotFg = new SolidBrush(Color.FromArgb(7, 193, 96)))
             {
-                e.Graphics.FillEllipse(dotBg, new Rectangle(25, 25, 11, 11));
+                e.Graphics.FillEllipse(dotBg, new Rectangle(23, 23, 11, 11));
                 e.Graphics.FillEllipse(dotFg, dotRect);
             }
         }
@@ -704,17 +634,17 @@ namespace LanChat
             autoItem.Click += (s, ev) => {
                 _netService.AutoAcceptFiles = !_netService.AutoAcceptFiles;
                 _lblAutoAccept.Text = _netService.AutoAcceptFiles ? "⚡ 自动接收: 开" : "⏸ 自动接收: 关";
-                _lblAutoAccept.ForeColor = _netService.AutoAcceptFiles ? Color.FromArgb(7, 193, 96) : Color.FromArgb(160, 160, 160);
+                _lblAutoAccept.ForeColor = _netService.AutoAcceptFiles ? Color.FromArgb(7, 193, 96) : Color.FromArgb(140, 140, 140);
             };
             menu.Items.Add(autoItem);
             menu.Items.Add("📁 打开接收文件夹", null, (s, ev) => OpenReceivedFolder());
             menu.Items.Add("🧹 清空当前聊天记录", null, (s, ev) => ClearCurrentChat());
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("ℹ️ 关于 LanChat (WeChat 风格版)", null, (s, ev) => {
-                MessageBox.Show(this, "LanChat v1.0\n局域网秒级极速通讯与文件互传\nUI: WeChat Desktop 风格\n无任何外部运行环境依赖", "关于 LanChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "LanChat v1.0\n局域网秒级极速通讯与文件互传\nUI: WeChat Desktop 风格 (高精度微距对标)\n零外部运行环境依赖", "关于 LanChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
             });
 
-            menu.Show(_btnNavSettings, new Point(_btnNavSettings.Width + 4, -80));
+            menu.Show(_btnNavMenu, new Point(_btnNavMenu.Width + 4, -80));
         }
 
         private void ShowChangeNickDialog()
@@ -789,7 +719,7 @@ namespace LanChat
         private void PeerJoined(PeerInfo peer)
         {
             RefreshPeerListUI();
-            AppendChatSystem(string.Format("好友上线: {0} ({1} - {2})", peer.NickName, peer.HostName, peer.IP));
+            AppendChatSystem(string.Format("发现好友上线: {0} ({1} - {2})", peer.NickName, peer.HostName, peer.IP));
         }
 
         private void PeerUpdated(PeerInfo peer)
@@ -952,11 +882,11 @@ namespace LanChat
 
             if (item is string)
             {
-                // Group Chat item
+                // Group Chat item avatar
                 Rectangle avatarRect = new Rectangle(r.Left + 12, r.Top + 12, 40, 40);
                 using (SolidBrush avBrush = new SolidBrush(isSelected ? Color.FromArgb(4, 150, 74) : Color.FromArgb(32, 128, 70)))
                 {
-                    DrawRoundedRectangle(e.Graphics, avBrush, avatarRect, 6);
+                    DrawRoundedRectangle(e.Graphics, avBrush, avatarRect, 4);
                 }
 
                 using (Font iconFont = new Font("Microsoft YaHei", 12f))
@@ -988,7 +918,7 @@ namespace LanChat
                 }
 
                 using (Font subFont = new Font("Microsoft YaHei", 8.5f))
-                using (SolidBrush subBrush = new SolidBrush(isSelected ? Color.FromArgb(230, 255, 230) : Color.FromArgb(145, 145, 145)))
+                using (SolidBrush subBrush = new SolidBrush(isSelected ? Color.FromArgb(220, 248, 230) : Color.FromArgb(145, 145, 145)))
                 {
                     if (snippet.Length > 20) snippet = snippet.Substring(0, 19) + "...";
                     e.Graphics.DrawString(snippet, subFont, subBrush, new PointF(r.Left + 60, r.Top + 36));
@@ -998,12 +928,12 @@ namespace LanChat
             {
                 PeerInfo peer = (PeerInfo)item;
 
-                // Round Avatar
+                // Round Avatar (radius 4px)
                 Rectangle avatarRect = new Rectangle(r.Left + 12, r.Top + 12, 40, 40);
                 Color avColor = GetAvatarColor(peer.NickName);
                 using (SolidBrush avBrush = new SolidBrush(avColor))
                 {
-                    DrawRoundedRectangle(e.Graphics, avBrush, avatarRect, 6);
+                    DrawRoundedRectangle(e.Graphics, avBrush, avatarRect, 4);
                 }
 
                 string initial = string.IsNullOrEmpty(peer.NickName) ? "友" : peer.NickName.Substring(0, 1).ToUpperInvariant();
@@ -1014,7 +944,7 @@ namespace LanChat
                     e.Graphics.DrawString(initial, f, textBrush, avatarRect, sf);
                 }
 
-                // Online indicator
+                // Online green dot
                 Rectangle dotRect = new Rectangle(r.Left + 42, r.Top + 42, 10, 10);
                 using (SolidBrush dotBg = new SolidBrush(bgColor))
                 using (SolidBrush dotFg = new SolidBrush(Color.FromArgb(7, 193, 96)))
@@ -1034,10 +964,10 @@ namespace LanChat
                 using (Font timeFont = new Font("Microsoft YaHei", 8f))
                 using (SolidBrush timeBrush = new SolidBrush(isSelected ? Color.FromArgb(220, 245, 220) : Color.FromArgb(130, 130, 130)))
                 {
-                    string timeStr = peer.LastMessageTime != DateTime.MinValue ? peer.LastMessageTime.ToString("HH:mm") : "";
+                    string timeStr = peer.LastMessageTime != DateTime.MinValue ? peer.LastMessageTime.ToString("MM/dd") : "";
                     if (!string.IsNullOrEmpty(timeStr))
                     {
-                        e.Graphics.DrawString(timeStr, timeFont, timeBrush, new PointF(r.Right - 48, r.Top + 14));
+                        e.Graphics.DrawString(timeStr, timeFont, timeBrush, new PointF(r.Right - 46, r.Top + 14));
                     }
                 }
 
@@ -1048,7 +978,7 @@ namespace LanChat
                     snippet = string.Format("{0} ({1})", peer.HostName, peer.IP);
                 }
                 using (Font subFont = new Font("Microsoft YaHei", 8.5f))
-                using (SolidBrush subBrush = new SolidBrush(isSelected ? Color.FromArgb(230, 255, 230) : Color.FromArgb(145, 145, 145)))
+                using (SolidBrush subBrush = new SolidBrush(isSelected ? Color.FromArgb(220, 248, 230) : Color.FromArgb(145, 145, 145)))
                 {
                     if (snippet.Length > 22) snippet = snippet.Substring(0, 21) + "...";
                     e.Graphics.DrawString(snippet, subFont, subBrush, new PointF(r.Left + 60, r.Top + 36));
@@ -1058,7 +988,7 @@ namespace LanChat
             // Divider line
             using (Pen divPen = new Pen(Color.FromArgb(40, 40, 42)))
             {
-                e.Graphics.DrawLine(divPen, r.Left + 12, r.Bottom - 1, r.Right, r.Bottom - 1);
+                e.Graphics.DrawLine(divPen, r.Left + 60, r.Bottom - 1, r.Right, r.Bottom - 1);
             }
         }
 
@@ -1086,8 +1016,9 @@ namespace LanChat
         private void TxtInput_TextChanged(object sender, EventArgs e)
         {
             bool hasText = !string.IsNullOrEmpty(_txtInput.Text.Trim());
-            _btnSend.BackColor = hasText ? Color.FromArgb(7, 193, 96) : Color.FromArgb(44, 44, 46);
-            _btnSend.ForeColor = hasText ? Color.White : Color.FromArgb(140, 140, 140);
+            _btnSend.BackColor = hasText ? Color.FromArgb(7, 193, 96) : Color.FromArgb(42, 42, 44);
+            _btnSend.ForeColor = hasText ? Color.White : Color.FromArgb(120, 120, 120);
+            _btnSend.Invalidate();
         }
 
         private void TxtInput_KeyDown(object sender, KeyEventArgs e)
@@ -1683,18 +1614,11 @@ namespace LanChat
                 return path;
             }
 
-            // top left
             path.AddArc(arc, 180, 90);
-
-            // top right
             arc.X = bounds.Right - diameter;
             path.AddArc(arc, 270, 90);
-
-            // bottom right
             arc.Y = bounds.Bottom - diameter;
             path.AddArc(arc, 0, 90);
-
-            // bottom left
             arc.X = bounds.Left;
             path.AddArc(arc, 90, 90);
 
@@ -1704,6 +1628,579 @@ namespace LanChat
 
         #endregion
     }
+
+    #region Vector Icon Definitions & Renderer
+
+    public enum WeChatIconType
+    {
+        Chat,
+        Contacts,
+        Folder,
+        Box,
+        Refresh,
+        Add,
+        Menu,
+        Emoji,
+        Scissors,
+        Clear,
+        Search,
+        Call,
+        More
+    }
+
+    public static class WeChatIcon
+    {
+        public static void Draw(Graphics g, WeChatIconType type, Rectangle bounds, bool active, Color color)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+            switch (type)
+            {
+                case WeChatIconType.Chat:
+                    DrawChatIcon(g, bounds, active, color);
+                    break;
+                case WeChatIconType.Contacts:
+                    DrawContactsIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.Folder:
+                    DrawFolderIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.Box:
+                    DrawBoxIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.Refresh:
+                    DrawRefreshIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.Add:
+                    DrawAddIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.Menu:
+                    DrawMenuIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.Emoji:
+                    DrawEmojiIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.Scissors:
+                    DrawScissorsIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.Clear:
+                    DrawClearIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.Search:
+                    DrawSearchIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.Call:
+                    DrawCallIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.More:
+                    DrawMoreIcon(g, bounds, color);
+                    break;
+            }
+        }
+
+        // 1. WeChat Chat speech bubble icon (solid filled green when active, outlined otherwise)
+        public static void DrawChatIcon(Graphics g, Rectangle r, bool active, Color color)
+        {
+            float cx = r.X + r.Width / 2f;
+            float cy = r.Y + r.Height / 2f;
+            float w = r.Width * 0.72f;
+            float h = r.Height * 0.62f;
+
+            using (GraphicsPath path = new GraphicsPath())
+            {
+                // Oval body
+                path.AddArc(cx - w / 2f, cy - h / 2f, w, h, 200, 310);
+                // Bottom left tail
+                path.AddLine(cx - w * 0.38f, cy + h * 0.42f, cx - w * 0.54f, cy + h * 0.64f);
+                path.AddLine(cx - w * 0.54f, cy + h * 0.64f, cx - w * 0.18f, cy + h * 0.46f);
+                path.CloseFigure();
+
+                if (active)
+                {
+                    using (SolidBrush b = new SolidBrush(Color.FromArgb(0, 163, 97)))
+                    {
+                        g.FillPath(b, path);
+                    }
+                }
+                else
+                {
+                    using (Pen p = new Pen(color, 1.8f))
+                    {
+                        p.LineJoin = LineJoin.Round;
+                        g.DrawPath(p, path);
+                    }
+                }
+            }
+        }
+
+        // 2. WeChat Contacts icon (person profile + 3 horizontal lines, exactly per uploaded screenshot)
+        public static void DrawContactsIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.8f))
+            {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+
+                float x0 = r.X + r.Width * 0.18f;
+                float y0 = r.Y + r.Height * 0.18f;
+                float s = r.Width * 0.64f;
+
+                // Head circle
+                g.DrawEllipse(p, x0 + s * 0.18f, y0 + s * 0.04f, s * 0.34f, s * 0.34f);
+
+                // Shoulders arc
+                g.DrawArc(p, x0 + s * 0.02f, y0 + s * 0.46f, s * 0.66f, s * 0.42f, 180, 180);
+
+                // 3 horizontal contact lines on the right
+                float lx1 = x0 + s * 0.76f;
+                float lx2 = x0 + s * 1.05f;
+                g.DrawLine(p, lx1, y0 + s * 0.16f, lx2, y0 + s * 0.16f);
+                g.DrawLine(p, lx1, y0 + s * 0.36f, lx2, y0 + s * 0.36f);
+                g.DrawLine(p, lx1, y0 + s * 0.56f, lx2 - s * 0.08f, y0 + s * 0.56f);
+            }
+        }
+
+        // 3. Folder icon
+        public static void DrawFolderIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.7f))
+            {
+                p.LineJoin = LineJoin.Round;
+                float x = r.X + r.Width * 0.16f;
+                float y = r.Y + r.Height * 0.22f;
+                float w = r.Width * 0.68f;
+                float h = r.Height * 0.56f;
+
+                GraphicsPath path = new GraphicsPath();
+                path.AddLine(x, y + 3, x + w * 0.35f, y + 3);
+                path.AddLine(x + w * 0.42f, y + 6, x + w, y + 6);
+                path.AddLine(x + w, y + h, x, y + h);
+                path.CloseFigure();
+                g.DrawPath(p, path);
+            }
+        }
+
+        // 4. Cube / Box icon
+        public static void DrawBoxIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.6f))
+            {
+                p.LineJoin = LineJoin.Round;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                float w = r.Width * 0.32f;
+                float h = r.Height * 0.22f;
+
+                PointF top = new PointF(cx, cy - h * 1.5f);
+                PointF topRight = new PointF(cx + w, cy - h * 0.5f);
+                PointF botRight = new PointF(cx + w, cy + h * 0.9f);
+                PointF bot = new PointF(cx, cy + h * 1.8f);
+                PointF botLeft = new PointF(cx - w, cy + h * 0.9f);
+                PointF topLeft = new PointF(cx - w, cy - h * 0.5f);
+                PointF center = new PointF(cx, cy);
+
+                g.DrawPolygon(p, new PointF[] { top, topRight, botRight, bot, botLeft, topLeft });
+                g.DrawLine(p, center, top);
+                g.DrawLine(p, center, botRight);
+                g.DrawLine(p, center, botLeft);
+            }
+        }
+
+        // 5. Refresh / Radar icon (clockwise double arc arrows)
+        public static void DrawRefreshIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.8f))
+            {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                float sz = r.Width * 0.32f;
+
+                RectangleF rf = new RectangleF(cx - sz, cy - sz, sz * 2, sz * 2);
+                g.DrawArc(p, rf, 40, 120);
+                g.DrawArc(p, rf, 220, 120);
+
+                // Arrows
+                g.DrawLine(p, cx + sz * 0.7f, cy + sz * 0.3f, cx + sz * 0.7f, cy + sz * 0.8f);
+                g.DrawLine(p, cx + sz * 0.7f, cy + sz * 0.8f, cx + sz * 0.2f, cy + sz * 0.8f);
+
+                g.DrawLine(p, cx - sz * 0.7f, cy - sz * 0.3f, cx - sz * 0.7f, cy - sz * 0.8f);
+                g.DrawLine(p, cx - sz * 0.7f, cy - sz * 0.8f, cx - sz * 0.2f, cy - sz * 0.8f);
+            }
+        }
+
+        // 6. Plus / Add icon
+        public static void DrawAddIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.8f))
+            {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                float len = r.Width * 0.22f;
+
+                g.DrawLine(p, cx - len, cy, cx + len, cy);
+                g.DrawLine(p, cx, cy - len, cx, cy + len);
+            }
+        }
+
+        // 7. Menu Hamburger icon (3 horizontal lines)
+        public static void DrawMenuIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 2.0f))
+            {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                float len = r.Width * 0.28f;
+
+                g.DrawLine(p, cx - len, cy - 5, cx + len, cy - 5);
+                g.DrawLine(p, cx - len, cy, cx + len, cy);
+                g.DrawLine(p, cx - len, cy + 5, cx + len, cy + 5);
+            }
+        }
+
+        // 8. Emoji smiley icon
+        public static void DrawEmojiIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.6f))
+            {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                float rad = r.Width * 0.35f;
+
+                // Face circle
+                g.DrawEllipse(p, cx - rad, cy - rad, rad * 2, rad * 2);
+
+                // Eyes
+                using (SolidBrush b = new SolidBrush(color))
+                {
+                    g.FillEllipse(b, cx - rad * 0.45f, cy - rad * 0.35f, 2.2f, 2.2f);
+                    g.FillEllipse(b, cx + rad * 0.25f, cy - rad * 0.35f, 2.2f, 2.2f);
+                }
+
+                // Smile curve
+                g.DrawArc(p, cx - rad * 0.5f, cy - rad * 0.2f, rad, rad * 0.8f, 20, 140);
+            }
+        }
+
+        // 9. Scissors / Screenshot icon
+        public static void DrawScissorsIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.5f))
+            {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+
+                // Two blades
+                g.DrawLine(p, cx - 6, cy - 7, cx + 6, cy + 6);
+                g.DrawLine(p, cx - 6, cy + 7, cx + 6, cy - 6);
+
+                // Two handles
+                g.DrawEllipse(p, cx - 9, cy - 9, 5, 5);
+                g.DrawEllipse(p, cx - 9, cy + 4, 5, 5);
+            }
+        }
+
+        // 10. Clear / Broom icon
+        public static void DrawClearIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.6f))
+            {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+
+                // Handle
+                g.DrawLine(p, cx + 5, cy - 6, cx - 1, cy);
+                // Bristles
+                g.DrawLine(p, cx - 5, cy + 5, cx + 3, cy - 1);
+                g.DrawLine(p, cx - 6, cy + 6, cx - 1, cy + 7);
+                g.DrawLine(p, cx - 6, cy + 6, cx - 7, cy + 2);
+            }
+        }
+
+        // 11. Search Magnifying Glass
+        public static void DrawSearchIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.5f))
+            {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+                float x = r.X + 2;
+                float y = r.Y + 2;
+                g.DrawEllipse(p, x, y, 9, 9);
+                g.DrawLine(p, x + 7.5f, y + 7.5f, x + 12f, y + 12f);
+            }
+        }
+
+        // 12. Call Handset Icon
+        public static void DrawCallIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.6f))
+            {
+                p.LineJoin = LineJoin.Round;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                GraphicsPath path = new GraphicsPath();
+                path.AddArc(cx - 6, cy - 6, 12, 12, 190, 80);
+                g.DrawPath(p, path);
+            }
+        }
+
+        // 13. More Dots Icon (···)
+        public static void DrawMoreIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (SolidBrush b = new SolidBrush(color))
+            {
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                g.FillEllipse(b, cx - 6, cy - 1.5f, 3, 3);
+                g.FillEllipse(b, cx - 1.5f, cy - 1.5f, 3, 3);
+                g.FillEllipse(b, cx + 3f, cy - 1.5f, 3, 3);
+            }
+        }
+    }
+
+    #endregion
+
+    #region Custom WeChat Navigation Button
+
+    public class WeChatNavButton : Control
+    {
+        private WeChatIconType _iconType;
+        private bool _isActive;
+        private bool _isHovered;
+        private bool _isPressed;
+        private string _tooltipText;
+
+        public WeChatIconType IconType
+        {
+            get { return _iconType; }
+            set { _iconType = value; Invalidate(); }
+        }
+
+        public bool IsActive
+        {
+            get { return _isActive; }
+            set { _isActive = value; Invalidate(); }
+        }
+
+        public string TooltipText
+        {
+            get { return _tooltipText; }
+            set { _tooltipText = value; }
+        }
+
+        public WeChatNavButton(WeChatIconType iconType, string tooltip, bool active = false)
+        {
+            _iconType = iconType;
+            _tooltipText = tooltip;
+            _isActive = active;
+
+            this.Size = new Size(36, 36);
+            this.Cursor = Cursors.Hand;
+            this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+        }
+
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            base.OnMouseEnter(e);
+            _isHovered = true;
+            Invalidate();
+            WeChatDarkTooltip.ShowTooltip(this, _tooltipText);
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            _isHovered = false;
+            Invalidate();
+            WeChatDarkTooltip.HideTooltip();
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            base.OnMouseDown(e);
+            _isPressed = true;
+            Invalidate();
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            base.OnMouseUp(e);
+            _isPressed = false;
+            Invalidate();
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // Background hover rounded rectangle (#303031, exactly per screenshot)
+            if (_isHovered && !_isActive)
+            {
+                using (SolidBrush hoverBg = new SolidBrush(Color.FromArgb(48, 48, 49)))
+                {
+                    MainForm.DrawRoundedRectangle(g, hoverBg, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 6);
+                }
+            }
+            else if (_isPressed)
+            {
+                using (SolidBrush pressBg = new SolidBrush(Color.FromArgb(40, 40, 41)))
+                {
+                    MainForm.DrawRoundedRectangle(g, pressBg, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 6);
+                }
+            }
+
+            // Determine Icon color
+            Color iconColor;
+            if (_isActive)
+            {
+                iconColor = Color.FromArgb(0, 163, 97); // WeChat Green
+            }
+            else if (_isHovered)
+            {
+                iconColor = Color.FromArgb(240, 240, 240); // Bright white
+            }
+            else
+            {
+                iconColor = Color.FromArgb(152, 152, 152); // Muted grey #989898
+            }
+
+            Rectangle iconRect = new Rectangle(0, 0, this.Width, this.Height);
+            WeChatIcon.Draw(g, _iconType, iconRect, _isActive, iconColor);
+        }
+    }
+
+    #endregion
+
+    #region Custom WeChat Icon Button (For Header & Toolbar)
+
+    public class WeChatIconButton : Control
+    {
+        private WeChatIconType _iconType;
+        private bool _isHovered;
+        private string _tooltipText;
+
+        public WeChatIconButton(WeChatIconType iconType, string tooltip, int size = 28)
+        {
+            _iconType = iconType;
+            _tooltipText = tooltip;
+
+            this.Size = new Size(size, size);
+            this.Cursor = Cursors.Hand;
+            this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+        }
+
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            base.OnMouseEnter(e);
+            _isHovered = true;
+            Invalidate();
+            if (!string.IsNullOrEmpty(_tooltipText))
+            {
+                WeChatDarkTooltip.ShowTooltip(this, _tooltipText);
+            }
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            _isHovered = false;
+            Invalidate();
+            WeChatDarkTooltip.HideTooltip();
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            if (_isHovered)
+            {
+                using (SolidBrush hoverBg = new SolidBrush(Color.FromArgb(50, 50, 52)))
+                {
+                    MainForm.DrawRoundedRectangle(g, hoverBg, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 4);
+                }
+            }
+
+            Color iconColor = _isHovered ? Color.FromArgb(240, 240, 240) : Color.FromArgb(145, 145, 148);
+            WeChatIcon.Draw(g, _iconType, new Rectangle(0, 0, this.Width, this.Height), false, iconColor);
+        }
+    }
+
+    #endregion
+
+    #region Custom WeChat Dark Tooltip
+
+    public static class WeChatDarkTooltip
+    {
+        private static Form _tipForm;
+        private static Label _lblText;
+
+        public static void ShowTooltip(Control parent, string text)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+
+            if (_tipForm == null)
+            {
+                _tipForm = new Form
+                {
+                    FormBorderStyle = FormBorderStyle.None,
+                    ShowInTaskbar = false,
+                    StartPosition = FormStartPosition.Manual,
+                    BackColor = Color.FromArgb(59, 59, 61), // #3b3b3d per screenshot
+                    AutoSize = true,
+                    AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                    Padding = new Padding(8, 5, 8, 5)
+                };
+
+                _lblText = new Label
+                {
+                    ForeColor = Color.FromArgb(225, 225, 229), // #e1e1e5
+                    Font = new Font("Microsoft YaHei", 8.5f),
+                    AutoSize = true,
+                    BackColor = Color.Transparent
+                };
+                _tipForm.Controls.Add(_lblText);
+
+                _tipForm.Paint += (s, e) => {
+                    using (Pen p = new Pen(Color.FromArgb(75, 75, 78)))
+                    {
+                        e.Graphics.DrawRectangle(p, 0, 0, _tipForm.Width - 1, _tipForm.Height - 1);
+                    }
+                };
+            }
+
+            _lblText.Text = text;
+            Point screenPt = parent.PointToScreen(new Point(parent.Width + 8, (parent.Height - 24) / 2));
+            _tipForm.Location = screenPt;
+            _tipForm.Show();
+        }
+
+        public static void HideTooltip()
+        {
+            if (_tipForm != null && _tipForm.Visible)
+            {
+                _tipForm.Hide();
+            }
+        }
+    }
+
+    #endregion
 
     #region Custom WeChat Chat View Control
 
@@ -1735,7 +2232,7 @@ namespace LanChat
             _vScrollBar = new VScrollBar
             {
                 Dock = DockStyle.Right,
-                Width = 10,
+                Width = 8,
                 Visible = false
             };
             _vScrollBar.Scroll += (s, e) => { Invalidate(); };
@@ -1766,7 +2263,7 @@ namespace LanChat
         private void WeChatChatView_MouseWheel(object sender, MouseEventArgs e)
         {
             if (!_vScrollBar.Visible) return;
-            int change = (e.Delta / 120) * -30;
+            int change = (e.Delta / 120) * -36;
             int newVal = _vScrollBar.Value + change;
             if (newVal < _vScrollBar.Minimum) newVal = _vScrollBar.Minimum;
             if (newVal > _vScrollBar.Maximum - _vScrollBar.LargeChange + 1) newVal = Math.Max(0, _vScrollBar.Maximum - _vScrollBar.LargeChange + 1);
@@ -1814,7 +2311,6 @@ namespace LanChat
             using (Graphics g = this.CreateGraphics())
             using (Font timeFont = new Font("Microsoft YaHei", 8f))
             using (Font msgFont = new Font("Microsoft YaHei", 9.5f))
-            using (Font nickFont = new Font("Microsoft YaHei", 8.5f))
             {
                 foreach (var msg in _messages)
                 {
@@ -1822,7 +2318,7 @@ namespace LanChat
                     if ((msg.Timestamp - lastTime).TotalMinutes > 3)
                     {
                         lastTime = msg.Timestamp;
-                        currentY += 24; // Space for time
+                        currentY += 24;
                     }
 
                     if (msg.IsSystem)
@@ -1840,40 +2336,40 @@ namespace LanChat
                     }
                     else if (msg.IsFile)
                     {
-                        // File card
-                        int cardW = 240;
-                        int cardH = 80;
-                        int x = msg.IsSelf ? (viewWidth - cardW - 56) : 56;
+                        // File card (Width ~230px, Height ~74px)
+                        int cardW = 230;
+                        int cardH = 74;
+                        int x = msg.IsSelf ? (viewWidth - cardW - 54) : 54;
                         MessageRenderItem r = new MessageRenderItem
                         {
                             Message = msg,
-                            Bounds = new Rectangle(0, currentY, viewWidth, cardH + 20),
-                            BubbleBounds = new Rectangle(x, currentY + 14, cardW, cardH),
-                            AvatarBounds = msg.IsSelf ? new Rectangle(viewWidth - 46, currentY + 14, 34, 34) : new Rectangle(14, currentY + 14, 34, 34),
-                            FileOpenBounds = new Rectangle(x + 12, currentY + 14 + 50, 70, 22),
-                            FileFolderBounds = new Rectangle(x + 90, currentY + 14 + 50, 80, 22)
+                            Bounds = new Rectangle(0, currentY, viewWidth, cardH + 18),
+                            BubbleBounds = new Rectangle(x, currentY + 12, cardW, cardH),
+                            AvatarBounds = msg.IsSelf ? new Rectangle(viewWidth - 44, currentY + 12, 34, 34) : new Rectangle(14, currentY + 12, 34, 34),
+                            FileOpenBounds = new Rectangle(x + 10, currentY + 12 + 48, 64, 20),
+                            FileFolderBounds = new Rectangle(x + 80, currentY + 12 + 48, 74, 20)
                         };
                         _renderItems.Add(r);
-                        currentY += cardH + 28;
+                        currentY += cardH + 24;
                     }
                     else
                     {
                         // Regular bubble message
                         int maxTextW = Math.Max(120, (int)(viewWidth * 0.65));
                         SizeF sz = g.MeasureString(msg.Content, msgFont, maxTextW);
-                        int bubbleW = Math.Max(42, (int)Math.Ceiling(sz.Width) + 24);
-                        int bubbleH = Math.Max(34, (int)Math.Ceiling(sz.Height) + 16);
+                        int bubbleW = Math.Max(40, (int)Math.Ceiling(sz.Width) + 22);
+                        int bubbleH = Math.Max(32, (int)Math.Ceiling(sz.Height) + 14);
 
-                        int x = msg.IsSelf ? (viewWidth - bubbleW - 56) : 56;
+                        int x = msg.IsSelf ? (viewWidth - bubbleW - 54) : 54;
                         MessageRenderItem r = new MessageRenderItem
                         {
                             Message = msg,
-                            Bounds = new Rectangle(0, currentY, viewWidth, bubbleH + 20),
-                            BubbleBounds = new Rectangle(x, currentY + 14, bubbleW, bubbleH),
-                            AvatarBounds = msg.IsSelf ? new Rectangle(viewWidth - 46, currentY + 14, 34, 34) : new Rectangle(14, currentY + 14, 34, 34)
+                            Bounds = new Rectangle(0, currentY, viewWidth, bubbleH + 18),
+                            BubbleBounds = new Rectangle(x, currentY + 10, bubbleW, bubbleH),
+                            AvatarBounds = msg.IsSelf ? new Rectangle(viewWidth - 44, currentY + 10, 34, 34) : new Rectangle(14, currentY + 10, 34, 34)
                         };
                         _renderItems.Add(r);
-                        currentY += bubbleH + 24;
+                        currentY += bubbleH + 20;
                     }
                 }
             }
@@ -1909,12 +2405,11 @@ namespace LanChat
             using (Font timeFont = new Font("Microsoft YaHei", 8f))
             using (Font msgFont = new Font("Microsoft YaHei", 9.5f))
             using (Font nickFont = new Font("Microsoft YaHei", 8f))
-            using (SolidBrush textLight = new SolidBrush(Color.FromArgb(236, 236, 236)))
-            using (SolidBrush textDark = new SolidBrush(Color.FromArgb(17, 17, 17)))
-            using (SolidBrush grayText = new SolidBrush(Color.FromArgb(140, 140, 140)))
-            using (SolidBrush otherBubbleBrush = new SolidBrush(Color.FromArgb(44, 44, 46))) // Dark WeChat bubble
-            using (SolidBrush selfBubbleBrush = new SolidBrush(Color.FromArgb(7, 193, 96)))    // WeChat Green bubble
-            using (Pen otherBubblePen = new Pen(Color.FromArgb(52, 52, 54)))
+            using (SolidBrush textLight = new SolidBrush(Color.FromArgb(230, 230, 230)))
+            using (SolidBrush textDark = new SolidBrush(Color.FromArgb(10, 10, 10)))
+            using (SolidBrush grayText = new SolidBrush(Color.FromArgb(120, 120, 120)))
+            using (SolidBrush otherBubbleBrush = new SolidBrush(Color.FromArgb(44, 44, 46))) // WeChat other bubble #2c2c2e
+            using (SolidBrush selfBubbleBrush = new SolidBrush(Color.FromArgb(7, 193, 96)))    // WeChat green bubble #07c160
             {
                 DateTime lastTime = DateTime.MinValue;
 
@@ -1927,7 +2422,7 @@ namespace LanChat
 
                     ChatMessage msg = item.Message;
 
-                    // Time header
+                    // Centered Time Header
                     if ((msg.Timestamp - lastTime).TotalMinutes > 3)
                     {
                         lastTime = msg.Timestamp;
@@ -1939,91 +2434,92 @@ namespace LanChat
 
                     if (msg.IsSystem)
                     {
-                        // Centered tip
+                        // Centered system notification
                         SizeF sz = g.MeasureString(msg.Content, timeFont, viewWidth - 80);
                         float sx = (viewWidth - sz.Width) / 2f;
                         g.DrawString(msg.Content, timeFont, grayText, new RectangleF(sx, itemTop + 4, sz.Width + 4, sz.Height + 4));
                     }
                     else if (msg.IsFile)
                     {
-                        // Draw Avatar
+                        // Avatar (rounded rectangle radius 4px)
                         Rectangle av = new Rectangle(item.AvatarBounds.X, item.AvatarBounds.Y - scrollY, item.AvatarBounds.Width, item.AvatarBounds.Height);
                         DrawAvatar(g, msg.SenderNick, av, msg.IsSelf);
 
-                        // Draw File Card Bubble
+                        // File Card (matte dark #2c2c2e)
                         Rectangle bb = new Rectangle(item.BubbleBounds.X, item.BubbleBounds.Y - scrollY, item.BubbleBounds.Width, item.BubbleBounds.Height);
-                        MainForm.DrawRoundedRectangle(g, otherBubbleBrush, bb, 6);
-                        MainForm.DrawRoundedRectangle(g, otherBubblePen, bb, 6);
+                        MainForm.DrawRoundedRectangle(g, otherBubbleBrush, bb, 4);
 
-                        // File Icon & Details
-                        Rectangle iconRect = new Rectangle(bb.Left + 12, bb.Top + 12, 32, 32);
-                        g.DrawString("📄", new Font("Segoe UI Emoji", 16f), textLight, iconRect);
+                        // File badge icon
+                        Rectangle badgeRect = new Rectangle(bb.Left + 10, bb.Top + 10, 32, 32);
+                        using (SolidBrush badgeBg = new SolidBrush(Color.FromArgb(30, 58, 138))) // Deep Blue
+                        {
+                            MainForm.DrawRoundedRectangle(g, badgeBg, badgeRect, 4);
+                        }
+                        StringFormat bsf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                        g.DrawString("FILE", new Font("Microsoft YaHei", 7.5f, FontStyle.Bold), textLight, badgeRect, bsf);
 
+                        // Name & Size
                         string nameSnippet = msg.FileName ?? "未知文件";
                         if (nameSnippet.Length > 16) nameSnippet = nameSnippet.Substring(0, 15) + "...";
-                        g.DrawString(nameSnippet, new Font("Microsoft YaHei", 9f, FontStyle.Bold), textLight, bb.Left + 48, bb.Top + 10);
-                        g.DrawString(MainForm_FormatFileSize(msg.FileSize), new Font("Microsoft YaHei", 8f), grayText, bb.Left + 48, bb.Top + 28);
+                        g.DrawString(nameSnippet, new Font("Microsoft YaHei", 9f, FontStyle.Bold), textLight, bb.Left + 48, bb.Top + 9);
+                        g.DrawString(MainForm_FormatFileSize(msg.FileSize), new Font("Microsoft YaHei", 8f), grayText, bb.Left + 48, bb.Top + 27);
 
-                        // Buttons
+                        // Action links
                         Rectangle bOpen = new Rectangle(item.FileOpenBounds.X, item.FileOpenBounds.Y - scrollY, item.FileOpenBounds.Width, item.FileOpenBounds.Height);
                         Rectangle bFolder = new Rectangle(item.FileFolderBounds.X, item.FileFolderBounds.Y - scrollY, item.FileFolderBounds.Width, item.FileFolderBounds.Height);
 
-                        using (SolidBrush btnBrush = new SolidBrush(Color.FromArgb(60, 60, 64)))
+                        using (SolidBrush linkBrush = new SolidBrush(Color.FromArgb(7, 193, 96)))
                         {
-                            MainForm.DrawRoundedRectangle(g, btnBrush, bOpen, 4);
-                            MainForm.DrawRoundedRectangle(g, btnBrush, bFolder, 4);
+                            g.DrawString("打开文件", timeFont, linkBrush, bOpen);
+                            g.DrawString("打开目录", timeFont, linkBrush, bFolder);
                         }
-                        StringFormat bsf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                        g.DrawString("打开文件", timeFont, textLight, bOpen, bsf);
-                        g.DrawString("打开目录", timeFont, textLight, bFolder, bsf);
                     }
                     else
                     {
-                        // Draw Avatar
+                        // Avatar
                         Rectangle av = new Rectangle(item.AvatarBounds.X, item.AvatarBounds.Y - scrollY, item.AvatarBounds.Width, item.AvatarBounds.Height);
                         DrawAvatar(g, msg.SenderNick, av, msg.IsSelf);
 
-                        // Draw Bubble
+                        // Bubble
                         Rectangle bb = new Rectangle(item.BubbleBounds.X, item.BubbleBounds.Y - scrollY, item.BubbleBounds.Width, item.BubbleBounds.Height);
 
                         if (msg.IsSelf)
                         {
-                            // Self WeChat Green bubble
-                            MainForm.DrawRoundedRectangle(g, selfBubbleBrush, bb, 6);
+                            // Self WeChat Green bubble (#07c160)
+                            MainForm.DrawRoundedRectangle(g, selfBubbleBrush, bb, 4);
 
-                            // Triangle pointing right
+                            // Triangle pointing right towards avatar
                             Point[] tri = new Point[]
                             {
-                                new Point(bb.Right, bb.Top + 12),
-                                new Point(bb.Right + 5, bb.Top + 17),
-                                new Point(bb.Right, bb.Top + 22)
+                                new Point(bb.Right, bb.Top + 10),
+                                new Point(bb.Right + 5, bb.Top + 15),
+                                new Point(bb.Right, bb.Top + 20)
                             };
                             g.FillPolygon(selfBubbleBrush, tri);
 
-                            // Text
-                            Rectangle textRect = new Rectangle(bb.Left + 12, bb.Top + 8, bb.Width - 24, bb.Height - 16);
-                            g.DrawString(msg.Content, msgFont, textLight, textRect);
+                            // Text inside green bubble (crisp dark text as in screenshot)
+                            Rectangle textRect = new Rectangle(bb.Left + 11, bb.Top + 7, bb.Width - 22, bb.Height - 14);
+                            g.DrawString(msg.Content, msgFont, textDark, textRect);
                         }
                         else
                         {
                             // Nickname on other side
                             g.DrawString(msg.SenderNick ?? "好友", nickFont, grayText, bb.Left, bb.Top - 14);
 
-                            // Other Dark Gray bubble
-                            MainForm.DrawRoundedRectangle(g, otherBubbleBrush, bb, 6);
-                            MainForm.DrawRoundedRectangle(g, otherBubblePen, bb, 6);
+                            // Other Dark Gray bubble (#2c2c2e)
+                            MainForm.DrawRoundedRectangle(g, otherBubbleBrush, bb, 4);
 
-                            // Triangle pointing left
+                            // Triangle pointing left towards avatar
                             Point[] tri = new Point[]
                             {
-                                new Point(bb.Left, bb.Top + 12),
-                                new Point(bb.Left - 5, bb.Top + 17),
-                                new Point(bb.Left, bb.Top + 22)
+                                new Point(bb.Left, bb.Top + 10),
+                                new Point(bb.Left - 5, bb.Top + 15),
+                                new Point(bb.Left, bb.Top + 20)
                             };
                             g.FillPolygon(otherBubbleBrush, tri);
 
-                            // Text
-                            Rectangle textRect = new Rectangle(bb.Left + 12, bb.Top + 8, bb.Width - 24, bb.Height - 16);
+                            // Text inside other bubble
+                            Rectangle textRect = new Rectangle(bb.Left + 11, bb.Top + 7, bb.Width - 22, bb.Height - 14);
                             g.DrawString(msg.Content, msgFont, textLight, textRect);
                         }
                     }
@@ -2036,7 +2532,7 @@ namespace LanChat
             Color avColor = isSelf ? Color.FromArgb(7, 193, 96) : Color.FromArgb(59, 130, 246);
             using (SolidBrush avBrush = new SolidBrush(avColor))
             {
-                MainForm.DrawRoundedRectangle(g, avBrush, rect, 6);
+                MainForm.DrawRoundedRectangle(g, avBrush, rect, 4);
             }
 
             string initial = string.IsNullOrEmpty(nick) ? (isSelf ? "我" : "友") : nick.Substring(0, 1).ToUpperInvariant();
