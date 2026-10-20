@@ -1,20 +1,21 @@
 # Plan.md — 当前活跃计划
 
 > 最近刷新：2026-10-20。仓库：`https://github.com/yxiaojiang/LanChat.git`。
-> Windows 端与 Linux 端已完成 v1.0 架构升级：打上 `LanChat-v1.0` / `v1.0` Tag，完成 Windows MSI 安装包与 Linux deb 安装包构建（免外部依赖），Windows UI 全面重构为 WeChat 桌面暗黑三栏风格。
+> 项目版本：**LanChat v2.0**（已发布并在 Git 上打好 `LanChat-v2.0` / `v2.0` 标签）。
+> 历史已完成计划项已全部归档至 `Plan-archive.md`。
 
 ---
 
 ## 仍未完成 / 活跃计划项
 
-1. **安装包实机部署与跨发行版验证**：
-   - Windows 端已产出 `LanChat.msi`（WiX 5 打包，支持 Program Files 标准安装、桌面及开始菜单快捷方式、控制面板卸载）。
-   - Linux 端已产出 `release/LanChat.deb` 与 `lanchat_1.0.0_amd64.deb`（内置自包含 Native 二进制与 Python 3 双核，免 .NET 运行时），以及全架构通用包 `lanchat_1.0.0_all.deb`。
-   - 待用户在实机环境中进行安装体验和反馈。
+1. **v2.0 全平台安装包实机部署与验证**：
+   - Windows 端已产出 `release/LanChat.msi`（2.0.0 版，WiX 5 打包，支持自定义路径选择【浏览】、立即运行勾选项、内置免依赖清理卸载程序 `uninstall.exe`、统一桌面/开始菜单应用图标）。
+   - Linux 端已产出 `release/LanChat.deb` 与 `release/lanchat_2.0.0_amd64.deb`（内置自包含 Native 二进制与 Python 3 双核，免 .NET 运行时），以及全架构通用包 `release/lanchat_2.0.0_all.deb`。
+   - 待用户在不同实机物理局域网环境中进行安装部署体验，并验证桌面快捷方式、图标显示与文件互传。
 
-2. **WeChat 风格 UI 持续精细化调优**：
-   - 已实现：左侧深色导航栏（头像/状态、聊天、通讯录、文件夹、刷新、添加IP、设置）、中间会话列表（搜索框实时过滤、全员群聊与好友、微信绿 `#07c160` 选中态）、右侧微信暗黑气泡聊天窗口（左右气泡、Emoji 弹窗、文件传输卡片）。
-   - 后续可扩展：离线消息本地持久化、托盘最小化与未读消息红点角标。
+2. **高级特性预研（可选演进项）**：
+   - 系统托盘驻留与未读消息状态角标闪烁/红点提醒。
+   - 历史消息与传输记录轻量本地持久化存储。
 
 ---
 
@@ -22,5 +23,5 @@
 
 - 端口：UDP 38888（发现与探测），TCP 38889+（通信与流传输）。
 - 魔数：`LANC`（`0x4C, 0x41, 0x4E, 0x43`），小端模式，字符串为 LEB128 变长前缀 + UTF-8。
-- 零第三方依赖：Windows 端可由 `csc.exe` 产出绿色版 `LanChat.exe`，并由 WiX 产出 `LanChat.msi`；Linux 端提供自包含 deb 安装包，不依赖宿主电脑预装 .NET。
-- 视觉规范：对标 WeChat Desktop Dark Mode（侧边栏 `#202022`、会话列表 `#2f2f30`、激活高亮 `#07c160`、主聊天区 `#1e1e1f`）。
+- 零第三方依赖：Windows 端可由系统原生 `csc.exe` 产出绿色版 `LanChat.exe`，并由 WiX 产出 `LanChat.msi`；Linux 端提供自包含 deb 安装包，不依赖宿主预装 .NET。
+- 视觉规范：对标 WeChat Desktop Dark Mode（侧边栏 `#252526`、会话列表 `#202021`、激活高亮 `#07c160`、主聊天区 `#1e1e1f`、暗黑菜单 `#2c2c2e`），全界面彻底消除任何白色割裂元素。
