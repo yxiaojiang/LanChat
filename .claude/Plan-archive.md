@@ -49,3 +49,25 @@
   3. 窗体标题栏、Windows EXE、MSI 快捷方式、卸载快捷方式、Linux 图标全链路统一绑定该图标。
   4. 打包发布 Windows `LanChat.msi` (2.0.0)、Linux `lanchat_2.0.0_amd64.deb` 与 `lanchat_2.0.0_all.deb`。
   5. 打上 Git Tag：`LanChat-v2.0` 与 `v2.0`。
+
+
+---
+
+## 归档事项 5：Windows 最小化异常修复、单实例互斥唤醒与 GitHub 在线更新（已完成）
+
+- **完成日期**：2026-10-20
+- **成果**：
+  1. 修复窗体最小化时 `WeChatChatView` 滚动条 Value 越界抛出 `ArgumentOutOfRangeException` 异常，加入边界夹紧与尺寸守卫。
+  2. 实现基于 `Mutex` 与 Windows 广播消息 `RegisterWindowMessage` 的单实例互斥机制，重复启动时自动唤醒已运行实例并前置展示。
+  3. 实现基于 GitHub Releases API 的在线新版本检测与微信暗黑更新向导，支持一键拉取最新 Release 并下载 MSI 升级。
+
+---
+
+## 归档事项 6：Linux deb 微信暗黑原生 GUI 与双端界面完全统一（已完成）
+
+- **完成日期**：2026-10-20
+- **成果**：
+  1. 在 `lanchat.py` 中采用 Python 标准库 `tkinter` 纯自绘复刻与 Windows 完全一致的微信暗黑 3 栏界面（导航栏、会话列表、聊天区域、暗黑消息气泡、发送文件、流式进度等），0 额外依赖。
+  2. 将 `lanchat.desktop` 修改为 `Terminal=false`，消除桌面点击图标时的黑框终端闪现。
+  3. 优化启动器 `/usr/bin/lanchat`：图形环境优先启动 GUI，无头/SSH 环境平滑回退至 CLI 控制台；桌面缺少 `python3-tk` 时自动弹出系统提示窗。
+  4. 重新编译生成 Windows `LanChat.msi`、`LanChat.exe` 与 Linux `release/lanchat_2.0.0_amd64.deb`、`release/LanChat.deb`、`release/lanchat_2.0.0_all.deb`。

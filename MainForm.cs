@@ -7,6 +7,7 @@ using System.IO;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace LanChat
@@ -81,10 +82,15 @@ namespace LanChat
         // Navigation state: 0 = Chat, 1 = Contacts
         private int _currentNavTab = 0;
 
-        // System Tray
+        // Constants
+        public const string APP_VERSION = "2.0.0";
+        public const string GITHUB_REPO = "yxiaojiang/LanChat";
+
+        // System Tray & Single Instance
         private NotifyIcon _trayIcon;
         private bool _isExplicitExit = false;
         private bool _hasShownTrayBalloon = false;
+        private int _wakeupMessageId = 0;
 
         public MainForm()
         {
@@ -122,6 +128,23 @@ namespace LanChat
                 DwmSetWindowAttribute(this.Handle, 20, ref darkMode, sizeof(int));
             }
             catch { }
+
+            try
+            {
+                _wakeupMessageId = Program.RegisterWindowMessage(Program.WakeupMessageName);
+            }
+            catch { }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (_wakeupMessageId != 0 && m.Msg == _wakeupMessageId)
+            {
+                // 收到已有实例唤醒消息：立即从托盘唤出并前置
+                RestoreFromTray();
+                return;
+            }
+            base.WndProc(ref m);
         }
 
         private void InitializeComponent()
@@ -671,8 +694,9 @@ namespace LanChat
             menu.Items.Add("📁 打开接收文件夹", null, (s, ev) => OpenReceivedFolder());
             menu.Items.Add("🧹 清空当前聊天记录", null, (s, ev) => ClearCurrentChat());
             menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("🔄 检查新版本...", null, (s, ev) => CheckForUpdates(false));
             menu.Items.Add("ℹ️ 关于 LanChat (WeChat 风格版)", null, (s, ev) => {
-                MessageBox.Show(this, "LanChat v2.0\n局域网秒级极速通讯与文件互传\nUI: WeChat Desktop 风格 (高精度微距对标)\n零外部运行环境依赖", "关于 LanChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "LanChat v" + APP_VERSION + "\n局域网秒级极速通讯与文件互传\nUI: WeChat Desktop 风格 (高精度微距对标)\n零外部运行环境依赖\n开源主页: https://github.com/" + GITHUB_REPO, "关于 LanChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
             });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("🚪 退出 LanChat", null, (s, ev) => {
@@ -1661,6 +1685,10 @@ namespace LanChat
                 itemShow.Click += (s, e) => RestoreFromTray();
                 trayMenu.Items.Add(itemShow);
 
+                ToolStripMenuItem itemCheckUpdate = new ToolStripMenuItem("🔄 检查新版本...");
+                itemCheckUpdate.Click += (s, e) => CheckForUpdates(false);
+                trayMenu.Items.Add(itemCheckUpdate);
+
                 trayMenu.Items.Add(new ToolStripSeparator());
 
                 ToolStripMenuItem itemExit = new ToolStripMenuItem("退出 LanChat");
@@ -1726,6 +1754,274 @@ namespace LanChat
             {
                 _netService.Dispose();
             }
+        }
+
+        #endregion
+
+        #region Online Update (GitHub Releases)
+
+        private static string ExtractJsonString(string json, string key)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(json, "\"" + key + "\"\\s*:\\s*\"((?:\\\\\"|[^\"])*)\"");
+            if (match.Success)
+            {
+                return match.Groups[1].Value.Replace("\\\"", "\"").Replace("\\\\", "\\");
+            }
+            return "";
+        }
+
+        private void CheckForUpdates(bool silentIfNotNew)
+        {
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    System.Net.ServicePointManager.SecurityProtocol = (System.Net.SecurityProtocolType)3072; // TLS 1.2
+                    string url = "https://api.github.com/repos/" + GITHUB_REPO + "/releases/latest";
+                    var request = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(url);
+                    request.UserAgent = "LanChat-Client/" + APP_VERSION;
+                    request.Timeout = 10000;
+
+                    string json;
+                    using (var response = request.GetResponse())
+                    using (var stream = response.GetResponseStream())
+                    using (var reader = new System.IO.StreamReader(stream, System.Text.Encoding.UTF8))
+                    {
+                        json = reader.ReadToEnd();
+                    }
+
+                    string tagName = ExtractJsonString(json, "tag_name").TrimStart('v', 'V');
+                    string releaseName = ExtractJsonString(json, "name");
+                    string htmlUrl = ExtractJsonString(json, "html_url");
+                    string body = ExtractJsonString(json, "body").Replace("\\r\\n", Environment.NewLine).Replace("\\n", Environment.NewLine);
+
+                    // 优先提取 LanChat.msi 安装包直链
+                    string downloadUrl = "https://github.com/" + GITHUB_REPO + "/releases/latest/download/LanChat.msi";
+                    var assetMatch = System.Text.RegularExpressions.Regex.Match(json, "\"browser_download_url\"\\s*:\\s*\"([^\"]*LanChat\\.msi[^\"]*)\"");
+                    if (assetMatch.Success)
+                    {
+                        downloadUrl = assetMatch.Groups[1].Value;
+                    }
+
+                    Version currentVer = new Version(APP_VERSION);
+                    Version latestVer;
+                    string cleanTag = System.Text.RegularExpressions.Regex.Match(tagName, @"\d+(\.\d+)+").Value;
+                    if (!Version.TryParse(cleanTag, out latestVer))
+                    {
+                        latestVer = currentVer;
+                    }
+
+                    if (latestVer > currentVer)
+                    {
+                        SafeInvoke(() => ShowUpdateDialog(tagName, releaseName, body, downloadUrl, htmlUrl));
+                    }
+                    else
+                    {
+                        if (!silentIfNotNew)
+                        {
+                            SafeInvoke(() =>
+                            {
+                                MessageBox.Show(this, "当前已是最新版本 (v" + APP_VERSION + ")，无需更新。", "检查更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            });
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (!silentIfNotNew)
+                    {
+                        SafeInvoke(() =>
+                        {
+                            MessageBox.Show(this, "检查新版本失败，可能无法访问 GitHub 或当前处于纯内网环境。\n错误信息: " + ex.Message, "检查更新", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        });
+                    }
+                }
+            });
+        }
+
+        private void ShowUpdateDialog(string version, string releaseTitle, string releaseNotes, string downloadUrl, string webUrl)
+        {
+            Form dlg = new Form
+            {
+                Text = "发现新版本 - LanChat",
+                Size = new Size(540, 440),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                BackColor = Color.FromArgb(32, 32, 33),
+                ForeColor = Color.FromArgb(235, 235, 235),
+                Font = new Font("Microsoft YaHei", 9f)
+            };
+            if (this.Icon != null) dlg.Icon = this.Icon;
+
+            Label lblTitle = new Label
+            {
+                Text = "🚀 发现 LanChat 新版本: v" + version,
+                Font = new Font("Microsoft YaHei", 12f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(7, 193, 96),
+                Location = new Point(24, 20),
+                AutoSize = true
+            };
+
+            Label lblSub = new Label
+            {
+                Text = string.Format("当前版本: v{0}  |  更新标题: {1}", APP_VERSION, string.IsNullOrEmpty(releaseTitle) ? "LanChat v" + version : releaseTitle),
+                ForeColor = Color.FromArgb(160, 160, 160),
+                Location = new Point(25, 48),
+                AutoSize = true
+            };
+
+            Label lblNoteTitle = new Label
+            {
+                Text = "更新日志 / 发布说明:",
+                ForeColor = Color.FromArgb(200, 200, 200),
+                Location = new Point(25, 78),
+                AutoSize = true
+            };
+
+            TextBox txtNotes = new TextBox
+            {
+                Multiline = true,
+                ReadOnly = true,
+                ScrollBars = ScrollBars.Vertical,
+                BackColor = Color.FromArgb(44, 44, 46),
+                ForeColor = Color.FromArgb(220, 220, 220),
+                BorderStyle = BorderStyle.FixedSingle,
+                Location = new Point(25, 102),
+                Size = new Size(475, 210),
+                Text = string.IsNullOrEmpty(releaseNotes) ? "此版本包含重要功能改进与问题修复。" : releaseNotes
+            };
+
+            ProgressBar prgDownload = new ProgressBar
+            {
+                Location = new Point(25, 322),
+                Size = new Size(475, 16),
+                Visible = false
+            };
+
+            Button btnDownload = new Button
+            {
+                Text = "⚡ 立即下载安装 (MSI)",
+                BackColor = Color.FromArgb(7, 193, 96),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold),
+                Location = new Point(25, 350),
+                Size = new Size(180, 36),
+                Cursor = Cursors.Hand
+            };
+            btnDownload.FlatAppearance.BorderSize = 0;
+
+            Button btnWeb = new Button
+            {
+                Text = "🌐 GitHub 页面",
+                BackColor = Color.FromArgb(50, 50, 52),
+                ForeColor = Color.FromArgb(220, 220, 220),
+                FlatStyle = FlatStyle.Flat,
+                Location = new Point(220, 350),
+                Size = new Size(130, 36),
+                Cursor = Cursors.Hand
+            };
+            btnWeb.FlatAppearance.BorderSize = 0;
+
+            Button btnCancel = new Button
+            {
+                Text = "稍后再说",
+                BackColor = Color.FromArgb(44, 44, 46),
+                ForeColor = Color.FromArgb(180, 180, 180),
+                FlatStyle = FlatStyle.Flat,
+                Location = new Point(370, 350),
+                Size = new Size(130, 36),
+                Cursor = Cursors.Hand
+            };
+            btnCancel.FlatAppearance.BorderSize = 0;
+            btnCancel.Click += (s, e) => dlg.Close();
+
+            btnWeb.Click += (s, e) =>
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start(string.IsNullOrEmpty(webUrl) ? "https://github.com/" + GITHUB_REPO + "/releases" : webUrl);
+                }
+                catch { }
+            };
+
+            btnDownload.Click += (s, e) =>
+            {
+                btnDownload.Enabled = false;
+                btnDownload.Text = "正在下载更新...";
+                prgDownload.Visible = true;
+                prgDownload.Value = 0;
+
+                ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    try
+                    {
+                        string saveFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+                        if (!Directory.Exists(saveFolder)) Directory.CreateDirectory(saveFolder);
+                        string savePath = Path.Combine(saveFolder, "LanChat_Setup_v" + version + ".msi");
+
+                        using (var client = new System.Net.WebClient())
+                        {
+                            client.Headers.Add("User-Agent", "LanChat-Client/" + APP_VERSION);
+                            client.DownloadProgressChanged += (sender, ev) =>
+                            {
+                                SafeInvoke(() =>
+                                {
+                                    if (prgDownload.Visible) prgDownload.Value = ev.ProgressPercentage;
+                                });
+                            };
+
+                            client.DownloadFileCompleted += (sender, ev) =>
+                            {
+                                SafeInvoke(() =>
+                                {
+                                    if (ev.Error != null)
+                                    {
+                                        MessageBox.Show(dlg, "下载更新失败: " + ev.Error.Message, "更新失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                        btnDownload.Enabled = true;
+                                        btnDownload.Text = "⚡ 重试下载";
+                                    }
+                                    else
+                                    {
+                                        btnDownload.Text = "下载完成！";
+                                        var res = MessageBox.Show(dlg, "新版本安装包已下载至:\n" + savePath + "\n\n是否立即启动安装程序进行升级？", "下载完成", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                                        if (res == DialogResult.Yes)
+                                        {
+                                            try
+                                            {
+                                                System.Diagnostics.Process.Start(savePath);
+                                                _isExplicitExit = true;
+                                                this.Close();
+                                            }
+                                            catch (Exception startEx)
+                                            {
+                                                MessageBox.Show(dlg, "无法自动启动安装程序: " + startEx.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                            }
+                                        }
+                                        dlg.Close();
+                                    }
+                                });
+                            };
+
+                            client.DownloadFileAsync(new Uri(downloadUrl), savePath);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        SafeInvoke(() =>
+                        {
+                            MessageBox.Show(dlg, "发起下载失败: " + ex.Message, "更新失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            btnDownload.Enabled = true;
+                            btnDownload.Text = "⚡ 立即下载安装 (MSI)";
+                        });
+                    }
+                });
+            };
+
+            dlg.Controls.AddRange(new Control[] { lblTitle, lblSub, lblNoteTitle, txtNotes, prgDownload, btnDownload, btnWeb, btnCancel });
+            dlg.ShowDialog(this);
         }
 
         #endregion
@@ -2530,12 +2826,18 @@ namespace LanChat
 
         private void WeChatChatView_MouseWheel(object sender, MouseEventArgs e)
         {
-            if (!_vScrollBar.Visible) return;
+            if (!_vScrollBar.Visible || this.Height <= 0) return;
             int change = (e.Delta / 120) * -36;
             int newVal = _vScrollBar.Value + change;
+            int maxAllowed = Math.Max(0, _vScrollBar.Maximum - Math.Max(1, _vScrollBar.LargeChange) + 1);
+            if (newVal > maxAllowed) newVal = maxAllowed;
             if (newVal < _vScrollBar.Minimum) newVal = _vScrollBar.Minimum;
-            if (newVal > _vScrollBar.Maximum - _vScrollBar.LargeChange + 1) newVal = Math.Max(0, _vScrollBar.Maximum - _vScrollBar.LargeChange + 1);
-            _vScrollBar.Value = newVal;
+            if (newVal > _vScrollBar.Maximum) newVal = _vScrollBar.Maximum;
+            try
+            {
+                _vScrollBar.Value = newVal;
+            }
+            catch { }
             Invalidate();
         }
 
@@ -2562,11 +2864,14 @@ namespace LanChat
 
         private void RecalculateLayout(bool scrollToBottom)
         {
+            if (this.Width <= 50 || this.Height <= 50) return;
+
             _renderItems.Clear();
             if (_messages == null || _messages.Count == 0)
             {
                 _totalHeight = 0;
                 _vScrollBar.Visible = false;
+                try { _vScrollBar.Value = 0; } catch { }
                 return;
             }
 
@@ -2644,20 +2949,31 @@ namespace LanChat
 
             _totalHeight = currentY + 20;
 
-            if (_totalHeight > this.Height)
+            if (_totalHeight > this.Height && this.Height > 0)
             {
                 _vScrollBar.Visible = true;
+                _vScrollBar.Minimum = 0;
                 _vScrollBar.Maximum = _totalHeight;
-                _vScrollBar.LargeChange = this.Height;
+                _vScrollBar.LargeChange = Math.Max(1, this.Height);
                 if (scrollToBottom)
                 {
-                    _vScrollBar.Value = Math.Max(0, _vScrollBar.Maximum - _vScrollBar.LargeChange + 1);
+                    int maxAllowed = Math.Max(0, _vScrollBar.Maximum - _vScrollBar.LargeChange + 1);
+                    int targetVal = Math.Min(_vScrollBar.Maximum, Math.Max(_vScrollBar.Minimum, maxAllowed));
+                    try
+                    {
+                        _vScrollBar.Value = targetVal;
+                    }
+                    catch { }
                 }
             }
             else
             {
                 _vScrollBar.Visible = false;
-                _vScrollBar.Value = 0;
+                try
+                {
+                    _vScrollBar.Value = 0;
+                }
+                catch { }
             }
         }
 

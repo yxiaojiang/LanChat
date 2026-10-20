@@ -4,6 +4,11 @@
 LanChat for Linux (Universal x86 / x86_64 / ARM / aarch64 / MIPS)
 100% Protocol Compatible with LanChat Windows Version.
 Pure Python standard library - ZERO dependencies required!
+Features:
+  - WeChat Desktop Dark Mode Native GUI (Tkinter)
+  - Interactive Terminal CLI Fallback Mode
+  - Peer Discovery (UDP 38888), P2P TCP Chat & Chunked File Streaming
+  - Online Auto-Update via GitHub Releases
 """
 
 import sys
@@ -15,7 +20,20 @@ import uuid
 import struct
 import glob
 import traceback
+import json
+import urllib.request
+import webbrowser
+import subprocess
 
+try:
+    import tkinter as tk
+    from tkinter import messagebox, filedialog, simpledialog
+    HAS_TK = True
+except ImportError:
+    HAS_TK = False
+
+APP_VERSION = "2.0.0"
+GITHUB_REPO = "yxiaojiang/LanChat"
 UDP_PORT = 38888
 TCP_BASE_PORT = 38889
 MAGIC = b"LANC"
@@ -98,6 +116,8 @@ class PeerInfo:
         self.ip = ip
         self.port = port
         self.last_seen = time.time()
+        self.last_msg = ""
+        self.last_msg_time = ""
 
     def __str__(self):
         return f"{self.nick} ({self.host} @ {self.ip}:{self.port})"
@@ -148,6 +168,7 @@ def get_unique_filepath(folder: str, filename: str) -> str:
         count += 1
     return dest
 
+# ==================== 核心网络通信服务 ====================
 class LanChatService:
     def __init__(self, nickname: str = None):
         self.local_id = uuid.uuid4().hex
@@ -164,6 +185,15 @@ class LanChatService:
         self.primary_ip = self.detect_primary_ip()
         self.tcp_sock = None
         self.udp_sock = None
+
+        # 事件回调钩子 (GUI 和 CLI 共用)
+        self.on_peer_joined = None
+        self.on_peer_updated = None
+        self.on_peer_left = None
+        self.on_message_received = None
+        self.on_file_received = None
+        self.on_file_progress = None
+        self.auto_accept = True
 
     def detect_primary_ip(self) -> str:
         try:
@@ -198,7 +228,7 @@ class LanChatService:
             self.udp_sock.bind(("0.0.0.0", UDP_PORT))
             threading.Thread(target=self._udp_listen_loop, daemon=True).start()
         except Exception as e:
-            print(f"[!] UDP 绑定警告: {e}")
+            log_message("WARN", f"UDP 绑定警告: {e}")
 
         # 3. Heartbeat
         threading.Thread(target=self._heartbeat_loop, daemon=True).start()
@@ -234,7 +264,6 @@ class LanChatService:
 
                     # Auto learn peer
                     self.add_or_update_peer(sender_id, sender_nick, "LAN-Host", addr[0], TCP_BASE_PORT)
-
                     client.sendall(b"\x01") # ACK
 
                     if content == HANDSHAKE_MSG:
@@ -245,6 +274,12 @@ class LanChatService:
                     print(f"\n{t_str} {tag} \033[1m{sender_nick}\033[0m: {content}")
                     print("\033[32m[LanChat] > \033[0m", end="", flush=True)
 
+                    if self.on_message_received:
+                        try:
+                            self.on_message_received(sender_nick, content, is_broadcast, sender_id, time.time())
+                        except Exception as ex:
+                            log_message("ERROR", f"on_message_received 回调异常: {ex}")
+
                 elif packet_type == 2: # File transfer offer
                     transfer_id = read_dotnet_string(client)
                     sender_id = read_dotnet_string(client)
@@ -252,8 +287,11 @@ class LanChatService:
                     file_name = read_dotnet_string(client)
                     file_size = struct.unpack("<q", client.recv(8))[0]
 
-                    # Auto accept
-                    client.sendall(b"\x01")
+                    if not self.auto_accept:
+                        client.sendall(b"\x00")
+                        return
+
+                    client.sendall(b"\x01") # Accept
 
                     safe_name = os.path.basename(file_name)
                     local_path = get_unique_filepath(self.save_dir, safe_name)
@@ -277,6 +315,12 @@ class LanChatService:
                         print(f"\n\033[32m[{t_str}] 📎 成功接收文件: {safe_name} ({format_size(file_size)})\033[0m")
                         print(f"    来自: {sender_nick} | 保存至: {local_path}")
                         print("\033[32m[LanChat] > \033[0m", end="", flush=True)
+
+                        if self.on_file_received:
+                            try:
+                                self.on_file_received(sender_nick, safe_name, local_path, file_size)
+                            except Exception as ex:
+                                log_message("ERROR", f"on_file_received 回调异常: {ex}")
                     else:
                         if os.path.exists(temp_path): os.remove(temp_path)
 
@@ -305,6 +349,9 @@ class LanChatService:
             with self.lock:
                 if peer_id in self.peers:
                     del self.peers[peer_id]
+                    if self.on_peer_left:
+                        try: self.on_peer_left(peer_id)
+                        except Exception: pass
             return
 
         if len(parts) >= 5:
@@ -337,20 +384,25 @@ class LanChatService:
                 self.peers[peer_id] = peer
                 print(f"\n\033[32m[+] 发现好友上线: {peer}\033[0m")
                 print("\033[32m[LanChat] > \033[0m", end="", flush=True)
+                if self.on_peer_joined:
+                    try: self.on_peer_joined(peer)
+                    except Exception: pass
             else:
-                self.peers[peer_id].nick = nick
-                self.peers[peer_id].host = host
-                self.peers[peer_id].ip = ip
-                self.peers[peer_id].port = port
-                self.peers[peer_id].last_seen = time.time()
+                p = self.peers[peer_id]
+                p.nick = nick
+                p.host = host
+                p.ip = ip
+                p.port = port
+                p.last_seen = time.time()
+                if self.on_peer_updated:
+                    try: self.on_peer_updated(p)
+                    except Exception: pass
 
     def broadcast_presence(self, cmd="HELLO"):
         payload = f"{cmd}|{self.local_id}|{self.nickname}|{self.hostname}|{self.tcp_port}|{self.primary_ip}".encode('utf-8')
-        # 1. Global broadcast
         try: self.udp_sock.sendto(payload, ("255.255.255.255", UDP_PORT))
         except: pass
 
-        # 2. Subnet broadcast and fast unicast sweep
         if cmd == "HELLO":
             threading.Thread(target=self._sweep_subnet, args=(payload,), daemon=True).start()
 
@@ -359,81 +411,72 @@ class LanChatService:
         if len(ip_parts) == 4:
             base = f"{ip_parts[0]}.{ip_parts[1]}.{ip_parts[2]}."
             my_last = int(ip_parts[3])
-
-            # Subnet broadcast
             try: self.udp_sock.sendto(payload, (base + "255", UDP_PORT))
             except: pass
 
-            # Unicast UDP sweep
-            for i in range(1, 255):
-                if i == my_last: continue
-                target_ip = base + str(i)
-                try: self.udp_sock.sendto(payload, (target_ip, UDP_PORT))
-                except: pass
+            def _ping_host(dst_ip):
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                    sock.sendto(payload, (dst_ip, UDP_PORT))
+                    sock.close()
+                except Exception:
+                    pass
 
-            # Fast TCP Handshake probe to port 38889
             for i in range(1, 255):
-                if i == my_last: continue
-                target_ip = base + str(i)
-                threading.Thread(target=self.try_tcp_handshake, args=(target_ip,), daemon=True).start()
+                if i != my_last:
+                    threading.Thread(target=_ping_host, args=(f"{base}{i}",), daemon=True).start()
 
-    def try_tcp_handshake(self, target_ip):
+    def try_tcp_handshake(self, target_ip, port=TCP_BASE_PORT):
+        def _worker():
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(3.0)
+                s.connect((target_ip, port))
+                buf = bytearray(MAGIC)
+                buf.append(1) # Text
+                buf.append(0) # Not broadcast
+                buf.extend(write_dotnet_string(self.local_id))
+                buf.extend(write_dotnet_string(self.nickname))
+                buf.extend(write_dotnet_string("DIRECT"))
+                buf.extend(write_dotnet_string(HANDSHAKE_MSG))
+                s.sendall(buf)
+                resp = s.recv(1)
+                s.close()
+                if resp == b"\x01":
+                    self.add_or_update_peer(uuid.uuid4().hex, f"Direct-{target_ip}", "Manual-Node", target_ip, port)
+                    log_message("INFO", f"直连成功: {target_ip}:{port}")
+            except Exception as e:
+                log_message("WARN", f"直连 {target_ip} 失败: {e}")
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def send_text_message(self, peer: PeerInfo, text: str, is_broadcast: bool) -> bool:
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(0.35)
-            s.connect((target_ip, TCP_BASE_PORT))
-            s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
-            # Send Handshake message
-            buf = bytearray(MAGIC)
-            buf.append(1) # Text
-            buf.append(1) # isBroadcast
-            buf.extend(write_dotnet_string(self.local_id))
-            buf.extend(write_dotnet_string(self.nickname))
-            buf.extend(write_dotnet_string(""))
-            buf.extend(write_dotnet_string(HANDSHAKE_MSG))
-            s.sendall(buf)
-
-            s.settimeout(1.2)
-            ack = s.recv(1)
-            if ack == b"\x01":
-                self.add_or_update_peer(target_ip, f"好友 ({target_ip})", "LAN-PC", target_ip, TCP_BASE_PORT)
-            s.close()
-        except Exception:
-            pass
-
-    def send_text_message(self, peer: PeerInfo, text: str, is_broadcast=False) -> bool:
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(2.0)
+            s.settimeout(4.0)
             s.connect((peer.ip, peer.port))
-            s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
             buf = bytearray(MAGIC)
             buf.append(1) # Text
             buf.append(1 if is_broadcast else 0)
             buf.extend(write_dotnet_string(self.local_id))
             buf.extend(write_dotnet_string(self.nickname))
-            buf.extend(write_dotnet_string("" if is_broadcast else peer.id))
+            buf.extend(write_dotnet_string(peer.id if not is_broadcast else "ALL"))
             buf.extend(write_dotnet_string(text))
             s.sendall(buf)
-
-            ack = s.recv(1)
+            resp = s.recv(1)
             s.close()
-            return ack == b"\x01"
-        except Exception as e:
+            return resp == b"\x01"
+        except Exception as ex:
+            log_message("WARN", f"发送消息给 {peer.nick} ({peer.ip}) 失败: {ex}")
             return False
 
     def send_file(self, peer: PeerInfo, file_path: str):
         if not os.path.exists(file_path):
-            print(f"\033[31m[x] 文件不存在: {file_path}\033[0m")
             return
 
         file_size = os.path.getsize(file_path)
         file_name = os.path.basename(file_path)
         transfer_id = uuid.uuid4().hex
-
-        print(f"\n\033[36m正在向 [{peer.nick}] 发送文件: {file_name} ({format_size(file_size)}) ...\033[0m")
 
         def _do_send():
             try:
@@ -454,7 +497,6 @@ class LanChatService:
                 s.settimeout(10.0)
                 accept = s.recv(1)
                 if accept != b"\x01":
-                    print(f"\n\033[31m[x] 对方拒绝或未自动接收文件\033[0m")
                     s.close()
                     return
 
@@ -466,20 +508,20 @@ class LanChatService:
                         if not chunk: break
                         s.sendall(chunk)
                         sent_bytes += len(chunk)
-                        pct = int((sent_bytes * 100) / file_size) if file_size > 0 else 100
                         el = time.time() - t_start
                         spd = (sent_bytes / (el * 1024 * 1024)) if el > 0 else 0
-                        sys.stdout.write(f"\r  -> 传输中: {pct}% ({format_size(sent_bytes)}/{format_size(file_size)}) - {spd:.1f} MB/s   ")
-                        sys.stdout.flush()
+                        if self.on_file_progress:
+                            try: self.on_file_progress(file_name, sent_bytes, file_size, spd, True)
+                            except Exception: pass
 
-                confirm = s.recv(1)
+                s.recv(1)
                 s.close()
-                print(f"\n\033[32m[✓] 文件 {file_name} 发送完成！\033[0m")
-                print("\033[32m[LanChat] > \033[0m", end="", flush=True)
+                if self.on_file_progress:
+                    try: self.on_file_progress(file_name, file_size, file_size, 0, False)
+                    except Exception: pass
 
             except Exception as ex:
-                print(f"\n\033[31m[x] 文件发送失败: {ex}\033[0m")
-                print("\033[32m[LanChat] > \033[0m", end="", flush=True)
+                log_message("ERROR", f"发送文件失败: {ex}")
 
         threading.Thread(target=_do_send, daemon=True).start()
 
@@ -495,6 +537,9 @@ class LanChatService:
                 expired = [pid for pid, p in self.peers.items() if now - p.last_seen > 25]
                 for pid in expired:
                     del self.peers[pid]
+                    if self.on_peer_left:
+                        try: self.on_peer_left(pid)
+                        except Exception: pass
 
     def close(self):
         self.is_running = False
@@ -506,14 +551,620 @@ class LanChatService:
         try: self.udp_sock.close()
         except: pass
 
-def main():
-    log_message("INFO", f"=== LanChat Python 版启动 (PID: {os.getpid()}) ===")
-    service = LanChatService()
-    service.start()
-    log_message("INFO", f"网络服务就绪: IP={service.primary_ip}, TCP={service.tcp_port}, UDP={UDP_PORT}")
+# ==================== Linux 微信暗黑风格图形界面 (WeChatGui) ====================
+if HAS_TK:
+    class WeChatGui:
+        def __init__(self, service: LanChatService):
+            self.service = service
+            self.root = tk.Tk()
+            self.root.title("LanChat")
+            self.root.geometry("980x660")
+            self.root.minsize(820, 540)
+            self.root.configure(bg="#1e1e1f")
 
+            # 图标绑定
+            for icon_path in [
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.png"),
+                "/usr/share/icons/hicolor/256x256/apps/lanchat.png",
+                "/usr/share/pixmaps/lanchat.png"
+            ]:
+                if os.path.exists(icon_path):
+                    try:
+                        self._icon_img = tk.PhotoImage(file=icon_path)
+                        self.root.iconphoto(True, self._icon_img)
+                        break
+                    except Exception:
+                        pass
+
+            # 数据态
+            self.current_conv_key = "BROADCAST"  # "BROADCAST" 或 peer.id
+            self.histories = {"BROADCAST": []}   # key -> list of dict
+            self.unread_counts = {}              # key -> count
+            self.peer_items = {}                 # key -> UI components
+
+            # 颜色规范：深度对标 WeChat Desktop Dark Mode
+            self.C_SIDEBAR = "#252526"
+            self.C_SESSIONS = "#202021"
+            self.C_CHAT = "#1e1e1f"
+            self.C_BORDER = "#2b2b2d"
+            self.C_GREEN = "#07c160"
+            self.C_GREEN_HOVER = "#06ad56"
+            self.C_BUBBLE_OTHER = "#2c2c2e"
+            self.C_BUBBLE_SELF = "#07c160"
+            self.C_TEXT_WHITE = "#f0f0f0"
+            self.C_TEXT_MUTED = "#888888"
+            self.C_SESSION_SELECT = "#333335"
+            self.C_SESSION_HOVER = "#2a2a2b"
+
+            self._build_ui()
+            self._wire_callbacks()
+
+            self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        def _build_ui(self):
+            # 1. 左侧边栏 (导航与头像)
+            self.sidebar = tk.Frame(self.root, bg=self.C_SIDEBAR, width=58)
+            self.sidebar.pack(side="left", fill="y")
+            self.sidebar.pack_propagate(False)
+
+            self.avatar_canvas = tk.Canvas(self.sidebar, width=42, height=42, bg=self.C_SIDEBAR, highlightthickness=0)
+            self.avatar_canvas.pack(pady=(16, 20))
+            self._draw_avatar()
+
+            self.btn_nav_chat = tk.Button(
+                self.sidebar, text="💬", font=("Microsoft YaHei", 15),
+                bg=self.C_SIDEBAR, fg=self.C_GREEN, relief="flat", bd=0, cursor="hand2"
+            )
+            self.btn_nav_chat.pack(pady=6)
+
+            self.btn_nav_refresh = tk.Button(
+                self.sidebar, text="🔄", font=("Microsoft YaHei", 13),
+                bg=self.C_SIDEBAR, fg=self.C_TEXT_MUTED, relief="flat", bd=0, cursor="hand2",
+                command=self._on_refresh
+            )
+            self.btn_nav_refresh.pack(pady=6)
+
+            self.btn_nav_add = tk.Button(
+                self.sidebar, text="➕", font=("Microsoft YaHei", 13),
+                bg=self.C_SIDEBAR, fg=self.C_TEXT_MUTED, relief="flat", bd=0, cursor="hand2",
+                command=self._on_add_ip
+            )
+            self.btn_nav_add.pack(pady=6)
+
+            self.btn_settings = tk.Button(
+                self.sidebar, text="≡", font=("Microsoft YaHei", 16, "bold"),
+                bg=self.C_SIDEBAR, fg=self.C_TEXT_MUTED, relief="flat", bd=0, cursor="hand2",
+                command=self._show_settings_menu
+            )
+            self.btn_settings.pack(side="bottom", pady=16)
+
+            # 2. 中间会话列表栏
+            self.sessions_panel = tk.Frame(self.root, bg=self.C_SESSIONS, width=240)
+            self.sessions_panel.pack(side="left", fill="y")
+            self.sessions_panel.pack_propagate(False)
+
+            search_frame = tk.Frame(self.sessions_panel, bg=self.C_SESSIONS, height=52)
+            search_frame.pack(fill="x", padx=10, pady=(12, 6))
+
+            search_box = tk.Frame(search_frame, bg="#2c2c2e", bd=0)
+            search_box.pack(fill="x")
+
+            lbl_lens = tk.Label(search_box, text="🔍", bg="#2c2c2e", fg="#888888", font=("Microsoft YaHei", 9))
+            lbl_lens.pack(side="left", padx=(6, 2))
+
+            self.entry_search = tk.Entry(
+                search_box, bg="#2c2c2e", fg="#e0e0e0", insertbackground="#ffffff",
+                relief="flat", font=("Microsoft YaHei", 9), bd=0
+            )
+            self.entry_search.pack(side="left", fill="x", expand=True, ipady=4, padx=(0, 6))
+            self.entry_search.bind("<KeyRelease>", lambda e: self._render_sessions())
+
+            sep1 = tk.Frame(self.sessions_panel, bg=self.C_BORDER, height=1)
+            sep1.pack(fill="x", pady=(6, 0))
+
+            self.sessions_container = tk.Frame(self.sessions_panel, bg=self.C_SESSIONS)
+            self.sessions_container.pack(fill="both", expand=True)
+
+            # 3. 右侧主聊天区
+            self.chat_panel = tk.Frame(self.root, bg=self.C_CHAT)
+            self.chat_panel.pack(side="right", fill="both", expand=True)
+
+            # 顶部标头
+            self.header_frame = tk.Frame(self.chat_panel, bg=self.C_CHAT, height=54)
+            self.header_frame.pack(fill="x")
+            self.header_frame.pack_propagate(False)
+
+            header_info = tk.Frame(self.header_frame, bg=self.C_CHAT)
+            header_info.pack(side="left", padx=16, pady=8)
+
+            self.lbl_chat_title = tk.Label(
+                header_info, text="📢 局域网全员群聊", font=("Microsoft YaHei", 12, "bold"),
+                bg=self.C_CHAT, fg=self.C_TEXT_WHITE
+            )
+            self.lbl_chat_title.pack(anchor="w")
+
+            self.lbl_chat_sub = tk.Label(
+                header_info, text="局域网广播模式 (所有人可见)", font=("Microsoft YaHei", 8),
+                bg=self.C_CHAT, fg=self.C_TEXT_MUTED
+            )
+            self.lbl_chat_sub.pack(anchor="w")
+
+            header_actions = tk.Frame(self.header_frame, bg=self.C_CHAT)
+            header_actions.pack(side="right", padx=16, pady=10)
+
+            for text, cmd in [
+                ("🔄 刷新", self._on_refresh),
+                ("➕ 加IP", self._on_add_ip),
+                ("📂 接收目录", self._open_save_folder),
+                ("🧹 清屏", self._clear_current_chat)
+            ]:
+                b = tk.Button(
+                    header_actions, text=text, font=("Microsoft YaHei", 8),
+                    bg="#262628", fg="#cccccc", activebackground="#333336",
+                    activeforeground="#ffffff", relief="flat", bd=0, padx=8, pady=3,
+                    cursor="hand2", command=cmd
+                )
+                b.pack(side="left", padx=3)
+
+            sep2 = tk.Frame(self.chat_panel, bg=self.C_BORDER, height=1)
+            sep2.pack(fill="x")
+
+            # 传输进度条条幅 (默认隐藏)
+            self.progress_frame = tk.Frame(self.chat_panel, bg="#262628", height=28)
+            self.lbl_progress = tk.Label(self.progress_frame, text="", font=("Microsoft YaHei", 8), bg="#262628", fg=self.C_GREEN)
+            self.lbl_progress.pack(side="left", padx=12, pady=4)
+
+            # 消息流视图
+            msg_container = tk.Frame(self.chat_panel, bg=self.C_CHAT)
+            msg_container.pack(fill="both", expand=True)
+
+            self.txt_history = tk.Text(
+                msg_container, bg=self.C_CHAT, fg=self.C_TEXT_WHITE,
+                relief="flat", bd=0, font=("Microsoft YaHei", 10),
+                padx=16, pady=10, state="disabled", wrap="word",
+                selectbackground=self.C_GREEN, selectforeground="#ffffff"
+            )
+            history_scroll = tk.Scrollbar(msg_container, orient="vertical", command=self.txt_history.yview)
+            self.txt_history.configure(yscrollcommand=history_scroll.set)
+
+            history_scroll.pack(side="right", fill="y")
+            self.txt_history.pack(side="left", fill="both", expand=True)
+
+            # 气泡标签配置
+            self.txt_history.tag_configure("sys_msg", justify="center", foreground="#888888", font=("Microsoft YaHei", 8), spacing1=6, spacing3=6)
+            self.txt_history.tag_configure("center_time", justify="center", foreground="#666666", font=("Microsoft YaHei", 8), spacing1=6, spacing3=4)
+            self.txt_history.tag_configure("other_nick", justify="left", foreground="#999999", font=("Microsoft YaHei", 8), spacing1=6, spacing3=2)
+            self.txt_history.tag_configure("other_bubble", justify="left", background=self.C_BUBBLE_OTHER, foreground="#f0f0f0", font=("Microsoft YaHei", 10), lmargin1=10, lmargin2=10, rmargin=140, spacing1=4, spacing3=4)
+            self.txt_history.tag_configure("self_nick", justify="right", foreground="#999999", font=("Microsoft YaHei", 8), spacing1=6, spacing3=2)
+            self.txt_history.tag_configure("self_bubble", justify="right", background="#069c4e", foreground="#ffffff", font=("Microsoft YaHei", 10), lmargin1=140, rmargin=10, spacing1=4, spacing3=4)
+            self.txt_history.tag_configure("file_card", justify="left", background="#28282b", foreground=self.C_GREEN, font=("Microsoft YaHei", 9, "bold"), spacing1=4, spacing3=4)
+
+            # 输入工具栏
+            sep3 = tk.Frame(self.chat_panel, bg=self.C_BORDER, height=1)
+            sep3.pack(fill="x")
+
+            tool_frame = tk.Frame(self.chat_panel, bg=self.C_CHAT, height=32)
+            tool_frame.pack(fill="x", padx=12, pady=4)
+
+            btn_send_file = tk.Button(
+                tool_frame, text="📁 发送文件", font=("Microsoft YaHei", 8),
+                bg=self.C_CHAT, fg="#cccccc", activebackground="#2c2c2e", activeforeground="#ffffff",
+                relief="flat", bd=0, padx=6, pady=2, cursor="hand2", command=self._on_send_file
+            )
+            btn_send_file.pack(side="left", padx=4)
+
+            self.btn_auto_accept = tk.Button(
+                tool_frame, text="⚡ 自动接收: 开", font=("Microsoft YaHei", 8),
+                bg=self.C_CHAT, fg=self.C_GREEN, activebackground="#2c2c2e", activeforeground=self.C_GREEN,
+                relief="flat", bd=0, padx=6, pady=2, cursor="hand2", command=self._toggle_auto_accept
+            )
+            self.btn_auto_accept.pack(side="left", padx=4)
+
+            btn_folder = tk.Button(
+                tool_frame, text="📂 接收目录", font=("Microsoft YaHei", 8),
+                bg=self.C_CHAT, fg="#cccccc", activebackground="#2c2c2e", activeforeground="#ffffff",
+                relief="flat", bd=0, padx=6, pady=2, cursor="hand2", command=self._open_save_folder
+            )
+            btn_folder.pack(side="left", padx=4)
+
+            btn_clear = tk.Button(
+                tool_frame, text="🧹 清屏", font=("Microsoft YaHei", 8),
+                bg=self.C_CHAT, fg="#cccccc", activebackground="#2c2c2e", activeforeground="#ffffff",
+                relief="flat", bd=0, padx=6, pady=2, cursor="hand2", command=self._clear_current_chat
+            )
+            btn_clear.pack(side="left", padx=4)
+
+            # 多行输入框
+            input_container = tk.Frame(self.chat_panel, bg=self.C_CHAT)
+            input_container.pack(fill="x", padx=12, pady=(0, 4))
+
+            self.txt_input = tk.Text(
+                input_container, bg=self.C_CHAT, fg="#f0f0f0", insertbackground="#ffffff",
+                font=("Microsoft YaHei", 10), height=4, relief="flat", bd=0,
+                padx=4, pady=4, wrap="word"
+            )
+            self.txt_input.pack(fill="x")
+            self.txt_input.bind("<Return>", self._on_enter_pressed)
+            self.txt_input.bind("<Control-Return>", lambda e: self.txt_input.insert("insert", "\n"))
+
+            # 底部发送面板
+            bottom_frame = tk.Frame(self.chat_panel, bg=self.C_CHAT, height=36)
+            bottom_frame.pack(fill="x", padx=16, pady=(0, 10))
+
+            lbl_tip = tk.Label(bottom_frame, text="按 Enter 发送，Ctrl+Enter 换行", font=("Microsoft YaHei", 8), bg=self.C_CHAT, fg="#666666")
+            lbl_tip.pack(side="left")
+
+            self.btn_send = tk.Button(
+                bottom_frame, text="发送 (S)", font=("Microsoft YaHei", 9, "bold"),
+                bg=self.C_GREEN, fg="#ffffff", activebackground=self.C_GREEN_HOVER,
+                activeforeground="#ffffff", relief="flat", bd=0, padx=18, pady=4,
+                cursor="hand2", command=self._send_message
+            )
+            self.btn_send.pack(side="right")
+
+            # 初始化渲染
+            self._render_sessions()
+            self._append_system_message("欢迎使用 LanChat 局域网即时通讯客户端 (Linux 微信暗黑版)！")
+            self._append_system_message(f"本机 IP: {self.service.primary_ip}:{self.service.tcp_port} | 昵称: {self.service.nickname}")
+
+        def _draw_avatar(self):
+            self.avatar_canvas.delete("all")
+            self.avatar_canvas.create_oval(2, 2, 40, 40, fill=self.C_GREEN, outline="")
+            initial = (self.service.nickname[0] if self.service.nickname else "L").upper()
+            self.avatar_canvas.create_text(21, 21, text=initial, fill="#ffffff", font=("Microsoft YaHei", 12, "bold"))
+
+        def _wire_callbacks(self):
+            self.service.on_peer_joined = lambda p: self.root.after(0, self._handle_peer_joined, p)
+            self.service.on_peer_updated = lambda p: self.root.after(0, self._handle_peer_updated, p)
+            self.service.on_peer_left = lambda pid: self.root.after(0, self._handle_peer_left, pid)
+            self.service.on_message_received = lambda nick, cnt, is_bc, pid, ts: self.root.after(0, self._handle_msg_recv, nick, cnt, is_bc, pid, ts)
+            self.service.on_file_received = lambda nick, fn, path, sz: self.root.after(0, self._handle_file_recv, nick, fn, path, sz)
+            self.service.on_file_progress = lambda fn, tr, tot, spd, sending: self.root.after(0, self._handle_file_prog, fn, tr, tot, spd, sending)
+
+        def _render_sessions(self):
+            for widget in self.sessions_container.winfo_children():
+                widget.destroy()
+
+            keyword = self.entry_search.get().strip().lower()
+
+            # 1. 广播群聊
+            if not keyword or "群聊" in keyword or "broadcast" in keyword:
+                bg = self.C_SESSION_SELECT if self.current_conv_key == "BROADCAST" else self.C_SESSIONS
+                f_bc = tk.Frame(self.sessions_container, bg=bg, height=54, cursor="hand2")
+                f_bc.pack(fill="x", padx=4, pady=2)
+                f_bc.pack_propagate(False)
+
+                lbl_t = tk.Label(f_bc, text="📢 局域网全员群聊", font=("Microsoft YaHei", 9, "bold"), bg=bg, fg=self.C_TEXT_WHITE)
+                lbl_t.pack(anchor="w", padx=10, pady=(8, 0))
+
+                with self.service.lock:
+                    count = len(self.service.peers)
+                lbl_sub = tk.Label(f_bc, text=f"在线成员: {count} 人", font=("Microsoft YaHei", 8), bg=bg, fg=self.C_TEXT_MUTED)
+                lbl_sub.pack(anchor="w", padx=10)
+
+                for w in (f_bc, lbl_t, lbl_sub):
+                    w.bind("<Button-1>", lambda e: self._select_session("BROADCAST"))
+
+            # 2. 好友列表
+            with self.service.lock:
+                peers_list = list(self.service.peers.values())
+
+            for p in peers_list:
+                if keyword and (keyword not in p.nick.lower() and keyword not in p.ip):
+                    continue
+
+                bg = self.C_SESSION_SELECT if self.current_conv_key == p.id else self.C_SESSIONS
+                f_p = tk.Frame(self.sessions_container, bg=bg, height=54, cursor="hand2")
+                f_p.pack(fill="x", padx=4, pady=2)
+                f_p.pack_propagate(False)
+
+                top_box = tk.Frame(f_p, bg=bg)
+                top_box.pack(fill="x", padx=10, pady=(6, 0))
+
+                lbl_dot = tk.Label(top_box, text="●", font=("Microsoft YaHei", 8), bg=bg, fg=self.C_GREEN)
+                lbl_dot.pack(side="left")
+
+                lbl_nick = tk.Label(top_box, text=p.nick, font=("Microsoft YaHei", 9, "bold"), bg=bg, fg=self.C_TEXT_WHITE)
+                lbl_nick.pack(side="left", padx=4)
+
+                if self.unread_counts.get(p.id, 0) > 0:
+                    lbl_badge = tk.Label(top_box, text=str(self.unread_counts[p.id]), font=("Microsoft YaHei", 7, "bold"), bg="#fa5151", fg="#ffffff", padx=4)
+                    lbl_badge.pack(side="right")
+
+                lbl_msg = tk.Label(f_p, text=p.last_msg or f"{p.ip}:{p.port}", font=("Microsoft YaHei", 8), bg=bg, fg=self.C_TEXT_MUTED)
+                lbl_msg.pack(anchor="w", padx=10)
+
+                pid = p.id
+                for w in (f_p, top_box, lbl_dot, lbl_nick, lbl_msg):
+                    w.bind("<Button-1>", lambda e, k=pid: self._select_session(k))
+
+        def _select_session(self, conv_key):
+            self.current_conv_key = conv_key
+            self.unread_counts[conv_key] = 0
+
+            if conv_key == "BROADCAST":
+                self.lbl_chat_title.config(text="📢 局域网全员群聊")
+                with self.service.lock:
+                    count = len(self.service.peers)
+                self.lbl_chat_sub.config(text=f"局域网广播模式 (共 {count} 位好友在线)")
+            else:
+                with self.service.lock:
+                    peer = self.service.peers.get(conv_key)
+                if peer:
+                    self.lbl_chat_title.config(text=peer.nick)
+                    self.lbl_chat_sub.config(text=f"{peer.host} @ {peer.ip}:{peer.port}")
+
+            self._render_sessions()
+            self._redraw_chat_history()
+
+        def _redraw_chat_history(self):
+            self.txt_history.configure(state="normal")
+            self.txt_history.delete("1.0", "end")
+            msgs = self.histories.get(self.current_conv_key, [])
+            for item in msgs:
+                self._render_message_item(item)
+            self.txt_history.configure(state="disabled")
+            self.txt_history.see("end")
+
+        def _render_message_item(self, item):
+            is_self = item["is_self"]
+            sender = item["sender"]
+            text = item["text"]
+            t_str = item["time"]
+            is_file = item.get("is_file", False)
+
+            if item.get("is_sys", False):
+                self.txt_history.insert("end", f"{text}\n", "sys_msg")
+                return
+
+            if is_self:
+                self.txt_history.insert("end", f"{t_str}  我\n", "self_nick")
+                if is_file:
+                    self.txt_history.insert("end", f" [发送文件] {text} \n\n", "file_card")
+                else:
+                    self.txt_history.insert("end", f" {text} \n\n", "self_bubble")
+            else:
+                self.txt_history.insert("end", f"{sender}  {t_str}\n", "other_nick")
+                if is_file:
+                    self.txt_history.insert("end", f" [接收文件] {text} \n\n", "file_card")
+                else:
+                    self.txt_history.insert("end", f" {text} \n\n", "other_bubble")
+
+        def _append_message(self, conv_key, is_self, sender, text, is_file=False):
+            t_str = time.strftime("%H:%M:%S")
+            item = {"is_self": is_self, "sender": sender, "text": text, "time": t_str, "is_file": is_file}
+            if conv_key not in self.histories:
+                self.histories[conv_key] = []
+            self.histories[conv_key].append(item)
+
+            if conv_key == self.current_conv_key:
+                self.txt_history.configure(state="normal")
+                self._render_message_item(item)
+                self.txt_history.configure(state="disabled")
+                self.txt_history.see("end")
+            else:
+                self.unread_counts[conv_key] = self.unread_counts.get(conv_key, 0) + 1
+                self._render_sessions()
+
+        def _append_system_message(self, text):
+            item = {"is_sys": True, "text": text}
+            self.histories["BROADCAST"].append(item)
+            if self.current_conv_key == "BROADCAST":
+                self.txt_history.configure(state="normal")
+                self.txt_history.insert("end", f"{text}\n", "sys_msg")
+                self.txt_history.configure(state="disabled")
+                self.txt_history.see("end")
+
+        def _on_enter_pressed(self, event):
+            self._send_message()
+            return "break"
+
+        def _send_message(self):
+            text = self.txt_input.get("1.0", "end-1c").strip()
+            if not text: return
+            self.txt_input.delete("1.0", "end")
+
+            if self.current_conv_key == "BROADCAST":
+                self._append_message("BROADCAST", True, self.service.nickname, text)
+                with self.service.lock:
+                    plist = list(self.service.peers.values())
+                for p in plist:
+                    threading.Thread(target=self.service.send_text_message, args=(p, text, True), daemon=True).start()
+            else:
+                with self.service.lock:
+                    peer = self.service.peers.get(self.current_conv_key)
+                if peer:
+                    self._append_message(self.current_conv_key, True, self.service.nickname, text)
+                    peer.last_msg = text
+                    threading.Thread(target=self.service.send_text_message, args=(peer, text, False), daemon=True).start()
+                    self._render_sessions()
+
+        def _handle_msg_recv(self, sender_nick, content, is_broadcast, sender_id, ts):
+            conv_key = "BROADCAST" if is_broadcast else sender_id
+            self._append_message(conv_key, False, sender_nick, content)
+            with self.service.lock:
+                if sender_id in self.service.peers:
+                    self.service.peers[sender_id].last_msg = content
+            self._render_sessions()
+
+        def _handle_file_recv(self, sender_nick, file_name, local_path, file_size):
+            self.progress_frame.pack_forget()
+            conv_key = self.current_conv_key
+            with self.service.lock:
+                for pid, p in self.service.peers.items():
+                    if p.nick == sender_nick:
+                        conv_key = pid
+                        break
+            text = f"{file_name} ({format_size(file_size)})\n保存至: {local_path}"
+            self._append_message(conv_key, False, sender_nick, text, is_file=True)
+
+        def _handle_file_prog(self, file_name, transferred, total, speed, is_sending):
+            if is_sending:
+                pct = int((transferred * 100) / total) if total > 0 else 100
+                self.lbl_progress.config(text=f"📎 发送文件: {file_name} ({pct}%) - {speed:.1f} MB/s")
+                self.progress_frame.pack(fill="x", before=self.txt_history.master)
+            else:
+                self.progress_frame.pack_forget()
+
+        def _handle_peer_joined(self, peer):
+            self._append_system_message(f"[+] 好友上线: {peer.nick} ({peer.ip})")
+            self._render_sessions()
+
+        def _handle_peer_updated(self, peer):
+            self._render_sessions()
+
+        def _handle_peer_left(self, peer_id):
+            self._append_system_message(f"[-] 好友已离线")
+            self._render_sessions()
+
+        def _on_send_file(self):
+            if self.current_conv_key == "BROADCAST":
+                messagebox.showinfo("提示", "请先在中间列表中点击选择一位私聊好友，再发送文件。")
+                return
+
+            with self.service.lock:
+                peer = self.service.peers.get(self.current_conv_key)
+            if not peer:
+                messagebox.showwarning("提示", "当前好友不在线，无法发送文件。")
+                return
+
+            filepath = filedialog.askopenfilename(title="选择要发送的文件")
+            if filepath:
+                self._append_message(self.current_conv_key, True, self.service.nickname, os.path.basename(filepath), is_file=True)
+                self.service.send_file(peer, filepath)
+
+        def _toggle_auto_accept(self):
+            self.service.auto_accept = not self.service.auto_accept
+            txt = "⚡ 自动接收: 开" if self.service.auto_accept else "⏸ 自动接收: 关"
+            fg = self.C_GREEN if self.service.auto_accept else "#888888"
+            self.btn_auto_accept.config(text=txt, fg=fg)
+
+        def _open_save_folder(self):
+            save_dir = self.service.save_dir
+            try:
+                if sys.platform == "darwin": subprocess.Popen(["open", save_dir])
+                elif sys.platform == "win32": os.startfile(save_dir)
+                else: subprocess.Popen(["xdg-open", save_dir])
+            except Exception as e:
+                messagebox.showerror("打开目录失败", str(e))
+
+        def _clear_current_chat(self):
+            self.histories[self.current_conv_key] = []
+            self._redraw_chat_history()
+
+        def _on_refresh(self):
+            self.service.broadcast_presence("HELLO")
+            self._append_system_message("正在重新向局域网广播自身并探测在线好友...")
+
+        def _on_add_ip(self):
+            ip = simpledialog.askstring("添加好友 IP", "请输入对方的局域网 IP 地址:", parent=self.root)
+            if ip and ip.strip():
+                ip = ip.strip()
+                self._append_system_message(f"正在主动向 {ip} 发起 TCP 握手探测...")
+                self.service.try_tcp_handshake(ip)
+
+        def _show_settings_menu(self):
+            menu = tk.Menu(self.root, tearoff=0, bg="#2c2c2e", fg="#f0f0f0", activebackground="#3c3c40", activeforeground="#ffffff")
+            menu.add_command(label="✏️ 修改我的昵称...", command=self._on_change_nick)
+            menu.add_command(label="⚡ 切换自动接收文件", command=self._toggle_auto_accept)
+            menu.add_command(label="📂 打开接收文件夹", command=self._open_save_folder)
+            menu.add_command(label="🧹 清空当前聊天", command=self._clear_current_chat)
+            menu.add_separator()
+            menu.add_command(label="🔄 检查新版本...", command=lambda: self._check_for_updates(False))
+            menu.add_command(label="ℹ️ 关于 LanChat", command=self._show_about)
+            menu.add_separator()
+            menu.add_command(label="🚪 退出 LanChat", command=self._on_close)
+
+            try:
+                x = self.btn_settings.winfo_rootx() + 45
+                y = self.btn_settings.winfo_rooty() - 100
+                menu.post(x, y)
+            except Exception:
+                pass
+
+        def _on_change_nick(self):
+            new_nick = simpledialog.askstring("修改昵称", "请输入新的昵称:", initialvalue=self.service.nickname, parent=self.root)
+            if new_nick and new_nick.strip():
+                self.service.nickname = new_nick.strip()
+                self._draw_avatar()
+                self.service.broadcast_presence("HELLO")
+                self._append_system_message(f"您的昵称已更改为: {self.service.nickname}")
+
+        def _show_about(self):
+            msg = (
+                f"LanChat v{APP_VERSION} (Linux 微信暗黑版)\n\n"
+                "局域网秒级极速通讯与文件互传\n"
+                "UI: 纯标准库自绘 WeChat Desktop Dark Mode\n"
+                "零外部运行库依赖\n"
+                f"项目主页: https://github.com/{GITHUB_REPO}"
+            )
+            messagebox.showinfo("关于 LanChat", msg)
+
+        def _check_for_updates(self, silent=False):
+            def _worker():
+                try:
+                    url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+                    req = urllib.request.Request(url, headers={"User-Agent": f"LanChat-Linux/{APP_VERSION}"})
+                    with urllib.request.urlopen(req, timeout=8) as resp:
+                        data = json.loads(resp.read().decode('utf-8'))
+
+                    tag = data.get("tag_name", "").lstrip("vV")
+                    body = data.get("body", "包含重要稳定性更新。")
+                    html_url = data.get("html_url", f"https://github.com/{GITHUB_REPO}/releases")
+
+                    cur_parts = [int(x) for x in APP_VERSION.split('.') if x.isdigit()]
+                    tag_parts = [int(x) for x in tag.split('.') if x.isdigit()]
+
+                    if tag_parts > cur_parts:
+                        self.root.after(0, lambda: self._show_update_dialog(tag, body, html_url))
+                    else:
+                        if not silent:
+                            self.root.after(0, lambda: messagebox.showinfo("检查更新", f"当前已是最新版本 (v{APP_VERSION})，无需更新。"))
+                except Exception as ex:
+                    if not silent:
+                        self.root.after(0, lambda: messagebox.showwarning("检查更新", f"检查更新失败: {ex}\n请确认能否访问 GitHub。"))
+
+            threading.Thread(target=_worker, daemon=True).start()
+
+        def _show_update_dialog(self, tag, body, html_url):
+            dlg = tk.Toplevel(self.root)
+            dlg.title("发现新版本")
+            dlg.geometry("500x380")
+            dlg.configure(bg="#202021")
+            dlg.transient(self.root)
+
+            lbl = tk.Label(dlg, text=f"🚀 发现 LanChat 新版本: v{tag}", font=("Microsoft YaHei", 12, "bold"), bg="#202021", fg=self.C_GREEN)
+            lbl.pack(pady=(16, 4))
+
+            lbl_sub = tk.Label(dlg, text=f"当前版本: v{APP_VERSION}", font=("Microsoft YaHei", 8), bg="#202021", fg="#888888")
+            lbl_sub.pack()
+
+            txt = tk.Text(dlg, bg="#2c2c2e", fg="#dddddd", font=("Microsoft YaHei", 9), height=10, relief="flat", padx=8, pady=8)
+            txt.insert("1.0", f"更新日志:\n{body}")
+            txt.configure(state="disabled")
+            txt.pack(fill="both", expand=True, padx=20, pady=12)
+
+            btn_box = tk.Frame(dlg, bg="#202021")
+            btn_box.pack(pady=(0, 16))
+
+            btn_open = tk.Button(btn_box, text="🌐 前往 GitHub 下载", bg=self.C_GREEN, fg="#ffffff", font=("Microsoft YaHei", 9, "bold"), relief="flat", padx=14, pady=4, cursor="hand2", command=lambda: webbrowser.open(html_url))
+            btn_open.pack(side="left", padx=8)
+
+            btn_close = tk.Button(btn_box, text="关闭", bg="#3c3c40", fg="#cccccc", relief="flat", padx=14, pady=4, cursor="hand2", command=dlg.destroy)
+            btn_close.pack(side="left", padx=8)
+
+        def _on_close(self):
+            log_message("INFO", "=== LanChat GUI 退出 ===")
+            self.service.close()
+            self.root.destroy()
+
+        def run(self):
+            self.root.mainloop()
+
+# ==================== 终端命令行备用模式 (CLI) ====================
+def run_cli(service: LanChatService):
     print("\n" + "="*70)
-    print("      \033[33mLanChat for Linux (Universal Python Edition)\033[0m")
+    print("      \033[33mLanChat for Linux (Universal Console Edition)\033[0m")
     print("="*70)
     print(f" [+] 本机物理 IP:  {service.primary_ip}:{service.tcp_port}")
     print(f" [+] 本机昵称:     {service.nickname} ({service.hostname})")
@@ -606,7 +1257,7 @@ def main():
                         continue
                     tip = parts[1]
                     print(f"正在主动连接 {tip} ...")
-                    threading.Thread(target=service.try_tcp_handshake, args=(tip,), daemon=True).start()
+                    service.try_tcp_handshake(tip)
 
                 elif cmd in ["/refresh", "/scan"]:
                     print("正在广播并扫描局域网网段...")
@@ -626,7 +1277,6 @@ def main():
                     print(f"\033[31m未知指令: {cmd}\033[0m")
 
             else:
-                # Send text message
                 if not current_chat:
                     with service.lock:
                         plist = list(service.peers.values())
@@ -648,8 +1298,8 @@ def main():
         except KeyboardInterrupt:
             break
         except EOFError:
-            log_message("WARN", "标准输入 (stdin) EOF，非交互终端或无 TTY。保持后台网络监听服务运行...")
-            print("\n\033[33m[!] 标准输入已关闭（无交互式终端）。LanChat 网络服务将保持在后台运行 (Ctrl+C 退出)...\033[0m")
+            log_message("WARN", "标准输入 (stdin) EOF，非交互终端。保持后台网络监听服务运行...")
+            print("\n\033[33m[!] 标准输入已关闭。LanChat 网络服务将保持在后台运行 (Ctrl+C 退出)...\033[0m")
             try:
                 while service.is_running:
                     time.sleep(1)
@@ -658,8 +1308,43 @@ def main():
             break
 
     print("\n正在安全退出...")
-    log_message("INFO", "=== LanChat Python 版安全退出 ===")
+    log_message("INFO", "=== LanChat CLI 安全退出 ===")
     service.close()
+
+# ==================== 主入口与模式探测 ====================
+def main():
+    log_message("INFO", f"=== LanChat 启动 (PID: {os.getpid()}) ===")
+    service = LanChatService()
+    service.start()
+    log_message("INFO", f"网络服务就绪: IP={service.primary_ip}, TCP={service.tcp_port}, UDP={UDP_PORT}")
+
+    force_cli = "--cli" in sys.argv or "-c" in sys.argv
+    has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY") or sys.platform == "win32")
+
+    if HAS_TK and has_display and not force_cli:
+        try:
+            log_message("INFO", "正在启动 WeChat 微信暗黑风格图形界面 (Tkinter GUI)...")
+            gui = WeChatGui(service)
+            gui.run()
+            return
+        except Exception as ex:
+            log_message("ERROR", f"启动图形界面失败: {ex}，自动降级至终端命令行模式")
+            print(f"[!] 启动图形界面失败 ({ex})，正在降级为命令行模式...")
+
+    if not HAS_TK and has_display and not force_cli and not sys.stdin.isatty():
+        msg = "LanChat 启动微信界面需要 python3-tk 组件。\n请在终端执行以下命令进行安装：\n\nsudo apt install python3-tk"
+        try:
+            import subprocess, shutil
+            if shutil.which("zenity"):
+                subprocess.Popen(["zenity", "--error", "--title=LanChat 提示", f"--text={msg}", "--width=320"])
+            elif shutil.which("notify-send"):
+                subprocess.Popen(["notify-send", "LanChat 提示", "缺少 python3-tk 组件，请安装: sudo apt install python3-tk"])
+        except Exception:
+            pass
+        log_message("ERROR", "未检测到 tkinter (python3-tk)，且处于无终端交互环境，已弹出提示并退出")
+        return
+
+    run_cli(service)
 
 if __name__ == "__main__":
     main()

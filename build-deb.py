@@ -128,7 +128,7 @@ GenericName=LAN Messenger
 Comment=Lightweight LAN instant messaging and file transfer
 Exec=lanchat
 Icon=lanchat
-Terminal=true
+Terminal=false
 Categories=Network;InstantMessaging;
 Keywords=chat;lan;file;transfer;
 """
@@ -153,7 +153,7 @@ Keywords=chat;lan;file;transfer;
 
     launcher_script = """#!/bin/bash
 # LanChat Linux Launcher with Diagnostics Logging & Anti-Crash Guard
-# Automatically selects self-contained native binary or falls back to system Python 3
+# Priority: Python 3 WeChat Desktop GUI -> Fallback to Terminal CLI / Native ELF
 
 DIR="/usr/lib/lanchat"
 LOG_DIR="$HOME/.local/share/lanchat"
@@ -171,29 +171,64 @@ log "========================================================"
 log "LanChat 启动器已调用 (PID: $$, USER: ${USER:-unknown})"
 log "OS: $(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d= -f2 | tr -d '\"' || uname -s)"
 log "Kernel: $(uname -r) | Arch: $(uname -m)"
-log "Glibc: $(ldd --version 2>/dev/null | head -n1 || echo 'unknown')"
 log "Python3: $(python3 --version 2>/dev/null || echo 'not found')"
 log "DISPLAY: $DISPLAY | WAYLAND_DISPLAY: $WAYLAND_DISPLAY"
+log "ARGS: $*"
 log "========================================================"
 
-# 1. 终端环境自适应检测 (若某些桌面环境未自动提供 TTY 则主动拉起终端)
+HAS_GUI_ENV=0
+if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
+    HAS_GUI_ENV=1
+fi
+
+FORCE_CLI=0
+for arg in "$@"; do
+    if [ "$arg" = "--cli" ] || [ "$arg" = "-c" ]; then
+        FORCE_CLI=1
+        break
+    fi
+done
+
+# 1. 桌面图形环境首选：优先直接拉起微信暗黑 GUI (无黑框、全功能)
+if [ $HAS_GUI_ENV -eq 1 ] && [ $FORCE_CLI -eq 0 ]; then
+    log "[INFO] 检测到图形桌面环境，优先以微信暗黑风格 GUI 启动..."
+    if command -v python3 >/dev/null 2>&1; then
+        if python3 -c "import tkinter" >/dev/null 2>&1; then
+            log "[INFO] 正在启动 Python WeChat GUI: $DIR/lanchat.py"
+            python3 "$DIR/lanchat.py" "$@"
+            EXIT_CODE=$?
+            log "[INFO] Python WeChat GUI 退出码: $EXIT_CODE"
+            exit $EXIT_CODE
+        else
+            log "[WARN] 检测到未安装 python3-tk，图形界面无法初始化"
+            MSG="LanChat 启动微信暗黑图形界面需要 python3-tk 组件。\n请在终端运行以下命令安装：\n\nsudo apt install python3-tk"
+            if command -v zenity >/dev/null 2>&1; then
+                zenity --warning --title="LanChat 提示" --text="$MSG" --width=350 2>/dev/null &
+            elif command -v notify-send >/dev/null 2>&1; then
+                notify-send "LanChat 提示" "缺少 python3-tk 组件，请执行 sudo apt install python3-tk" 2>/dev/null
+            fi
+        fi
+    fi
+fi
+
+# 2. 终端环境自适应检测 (若在无 TTY 环境下需要运行 CLI，则主动拉起终端窗口)
 if [ ! -t 0 ] || [ ! -t 1 ]; then
-    log "[INFO] 检测到无交互终端环境，尝试唤起系统可用终端窗口..."
+    log "[INFO] 终端命令行模式：检测到无交互终端环境，尝试唤起系统可用终端窗口..."
     for TERM_CMD in x-terminal-emulator gnome-terminal mate-terminal ukui-terminal deepin-terminal konsole xfce4-terminal terminator tilix lxterminal alacritty kitty xterm; do
         if command -v "$TERM_CMD" >/dev/null 2>&1; then
             log "[INFO] 找到可用终端模拟器: $TERM_CMD，正在拉起交互窗口..."
             case "$TERM_CMD" in
                 gnome-terminal)
-                    exec gnome-terminal -- /usr/bin/lanchat "$@"
+                    exec gnome-terminal -- /usr/bin/lanchat --cli "$@"
                     ;;
                 mate-terminal|ukui-terminal|xfce4-terminal|lxterminal)
-                    exec "$TERM_CMD" -e "/usr/bin/lanchat $*"
+                    exec "$TERM_CMD" -e "/usr/bin/lanchat --cli $*"
                     ;;
                 konsole)
-                    exec konsole -e /usr/bin/lanchat "$@"
+                    exec konsole -e /usr/bin/lanchat --cli "$@"
                     ;;
                 *)
-                    exec "$TERM_CMD" -e /usr/bin/lanchat "$@"
+                    exec "$TERM_CMD" -e /usr/bin/lanchat --cli "$@"
                     ;;
             esac
         fi
@@ -203,33 +238,19 @@ fi
 
 EXIT_CODE=0
 
-# 2. 尝试执行 Linux 原生自包含 ELF 二进制
-if [ -x "$DIR/lanchat-bin" ]; then
-    log "[INFO] 正在尝试启动 Linux 原生自包含二进制: $DIR/lanchat-bin"
-    "$DIR/lanchat-bin" "$@"
-    RET=$?
-    log "[INFO] 原生二进制执行退出码: $RET"
-    if [ $RET -eq 0 ] || [ $RET -eq 130 ]; then
-        exit $RET
-    fi
-    log "[WARN] 原生二进制非正常退出 (退出码: $RET)，自动尝试降级至 Python 3 运行时..."
-    echo ""
-    echo "[!] 原生版本退出码: $RET，正在自动切换为 Python 3 通用兼容版..."
-fi
-
-# 3. 降级尝试 Python 3 通用版
+# 3. 命令行模式下优先使用 Python 3 通用版
 if command -v python3 >/dev/null 2>&1; then
-    log "[INFO] 正在使用 Python 3 启动通用版: $DIR/lanchat.py"
+    log "[INFO] 正在使用 Python 3 启动: $DIR/lanchat.py"
     python3 "$DIR/lanchat.py" "$@"
     EXIT_CODE=$?
     log "[INFO] Python 3 退出码: $EXIT_CODE"
-elif command -v python >/dev/null 2>&1; then
-    log "[INFO] 正在使用 python 启动通用版: $DIR/lanchat.py"
-    python "$DIR/lanchat.py" "$@"
+elif [ -x "$DIR/lanchat-bin" ]; then
+    log "[INFO] Python 3 不可用，尝试启动 Linux 原生自包含 ELF 二进制: $DIR/lanchat-bin"
+    "$DIR/lanchat-bin" "$@"
     EXIT_CODE=$?
-    log "[INFO] python 退出码: $EXIT_CODE"
+    log "[INFO] 原生二进制执行退出码: $EXIT_CODE"
 else
-    log "[FATAL] 系统既无法运行原生二进制，也未检测到 Python 3 解释器"
+    log "[FATAL] 系统既无法运行 Python 3，也未找到原生可执行文件"
     echo "[Error] 无法启动 LanChat：未找到兼容的执行环境 (缺少 Python 3)。" >&2
     EXIT_CODE=1
 fi
@@ -244,7 +265,6 @@ if [ $EXIT_CODE -ne 0 ] && [ $EXIT_CODE -ne 130 ]; then
     echo "   1. $USER_LOG"
     echo "   2. $TMP_LOG"
     echo "   3. $LOG_DIR/lanchat_python.log"
-    echo "   4. $LOG_DIR/lanchat_dotnet.log"
     echo "=========================================================================="
     if [ -t 0 ]; then
         read -p "按 [回车键] 关闭此窗口..." _dummy
@@ -280,8 +300,10 @@ exit $EXIT_CODE
         "Priority": "optional",
         "Architecture": "amd64",
         "Maintainer": "LanChat Team <lanchat@local>",
+        "Depends": "python3",
+        "Recommends": "python3-tk",
         "Installed-Size": str(installed_size),
-        "Description": "LanChat - Lightweight LAN Chat and High-Speed File Transfer\n LanChat is a zero-dependency instant messenger and streaming file transfer\n tool for local area networks. Fully self-contained, no external .NET required.",
+        "Description": "LanChat - Lightweight LAN Chat and High-Speed File Transfer\n LanChat is a zero-dependency instant messenger and streaming file transfer\n tool for local area networks with WeChat dark GUI.",
     }
 
     deb_amd64_path = os.path.join(RELEASE_DIR, f"lanchat_{VERSION}_amd64.deb")
@@ -293,6 +315,7 @@ exit $EXIT_CODE
     # 2. Build lanchat_2.0.0_all.deb (Universal Python-based deb, zero dependencies, works on ARM64, Raspberry Pi, Loongson, FT, etc.)
     launcher_all = """#!/bin/bash
 # LanChat Universal Python Launcher with Diagnostics & Anti-Crash Guard
+DIR="/usr/lib/lanchat"
 LOG_DIR="$HOME/.local/share/lanchat"
 mkdir -p "$LOG_DIR" 2>/dev/null
 USER_LOG="$LOG_DIR/launcher.log"
@@ -304,15 +327,58 @@ log() {
     echo "$MSG" >> "$TMP_LOG" 2>/dev/null
 }
 
-log "LanChat Universal 版启动 (PID: $$, USER: ${USER:-unknown})"
+log "========================================================"
+log "LanChat Universal 启动器已调用 (PID: $$, USER: ${USER:-unknown})"
+log "OS: $(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d= -f2 | tr -d '\"' || uname -s)"
+log "DISPLAY: $DISPLAY | WAYLAND_DISPLAY: $WAYLAND_DISPLAY"
+log "ARGS: $*"
+log "========================================================"
+
+HAS_GUI_ENV=0
+if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
+    HAS_GUI_ENV=1
+fi
+
+FORCE_CLI=0
+for arg in "$@"; do
+    if [ "$arg" = "--cli" ] || [ "$arg" = "-c" ]; then
+        FORCE_CLI=1
+        break
+    fi
+done
+
+# 图形桌面环境首选直接启动 WeChat GUI
+if [ $HAS_GUI_ENV -eq 1 ] && [ $FORCE_CLI -eq 0 ]; then
+    log "[INFO] 检测到图形桌面环境，优先以微信暗黑风格 GUI 启动..."
+    if command -v python3 >/dev/null 2>&1; then
+        if python3 -c "import tkinter" >/dev/null 2>&1; then
+            log "[INFO] 启动 GUI: $DIR/lanchat.py"
+            python3 "$DIR/lanchat.py" "$@"
+            EXIT_CODE=$?
+            log "[INFO] GUI 退出码: $EXIT_CODE"
+            exit $EXIT_CODE
+        else
+            log "[WARN] 缺少 python3-tk，图形界面无法初始化"
+            MSG="LanChat 启动微信暗黑图形界面需要 python3-tk 组件。\n请在终端运行以下命令安装：\n\nsudo apt install python3-tk"
+            if command -v zenity >/dev/null 2>&1; then
+                zenity --warning --title="LanChat 提示" --text="$MSG" --width=350 2>/dev/null &
+            elif command -v notify-send >/dev/null 2>&1; then
+                notify-send "LanChat 提示" "缺少 python3-tk 组件，请执行 sudo apt install python3-tk" 2>/dev/null
+            fi
+        fi
+    fi
+fi
 
 # 终端自适应
 if [ ! -t 0 ] || [ ! -t 1 ]; then
+    log "[INFO] 终端模式：检测到无交互 TTY，尝试唤起系统终端..."
     for TERM_CMD in x-terminal-emulator gnome-terminal mate-terminal ukui-terminal deepin-terminal konsole xfce4-terminal terminator lxterminal xterm; do
         if command -v "$TERM_CMD" >/dev/null 2>&1; then
             case "$TERM_CMD" in
-                gnome-terminal) exec gnome-terminal -- /usr/bin/lanchat "$@" ;;
-                *) exec "$TERM_CMD" -e "/usr/bin/lanchat $*" ;;
+                gnome-terminal) exec gnome-terminal -- /usr/bin/lanchat --cli "$@" ;;
+                mate-terminal|ukui-terminal|xfce4-terminal|lxterminal) exec "$TERM_CMD" -e "/usr/bin/lanchat --cli $*" ;;
+                konsole) exec konsole -e /usr/bin/lanchat --cli "$@" ;;
+                *) exec "$TERM_CMD" -e "/usr/bin/lanchat --cli $*" ;;
             esac
         fi
     done
@@ -320,10 +386,10 @@ fi
 
 EXIT_CODE=0
 if command -v python3 >/dev/null 2>&1; then
-    python3 /usr/lib/lanchat/lanchat.py "$@"
+    python3 "$DIR/lanchat.py" "$@"
     EXIT_CODE=$?
 elif command -v python >/dev/null 2>&1; then
-    python /usr/lib/lanchat/lanchat.py "$@"
+    python "$DIR/lanchat.py" "$@"
     EXIT_CODE=$?
 else
     echo "[Error] 未检测到 Python 3 解释器" >&2
@@ -359,8 +425,10 @@ exit $EXIT_CODE
         "Priority": "optional",
         "Architecture": "all",
         "Maintainer": "LanChat Team <lanchat@local>",
+        "Depends": "python3",
+        "Recommends": "python3-tk",
         "Installed-Size": str(len(py_bytes) // 1024),
-        "Description": "LanChat - Universal LAN Chat and File Transfer (Python Edition)\n Pure standard library, zero external dependencies. Works on all CPU architectures.",
+        "Description": "LanChat - Universal LAN Chat and File Transfer (Python Edition)\n Pure standard library, zero external dependencies. Works on all CPU architectures with WeChat dark GUI.",
     }
 
     deb_all_path = os.path.join(RELEASE_DIR, f"lanchat_{VERSION}_all.deb")
