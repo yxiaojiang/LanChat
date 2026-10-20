@@ -9,6 +9,10 @@
 .idea/
 .vscode/
 
+# Python
+__pycache__/
+*.pyc
+
 # Runtime received files & logs
 ReceivedFiles/
 *.downloading
