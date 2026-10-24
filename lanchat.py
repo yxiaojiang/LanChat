@@ -1102,27 +1102,59 @@ if HAS_TK:
 
         def _check_for_updates(self, silent=False):
             def _worker():
+                tag = None
+                body = "包含重要稳定性更新。"
+                html_url = f"https://github.com/{GITHUB_REPO}/releases"
+                last_err = None
+
+                # 1. 优先尝试 GitHub REST API
                 try:
                     url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
                     req = urllib.request.Request(url, headers={"User-Agent": f"LanChat-Linux/{APP_VERSION}"})
                     with urllib.request.urlopen(req, timeout=8) as resp:
                         data = json.loads(resp.read().decode('utf-8'))
-
                     tag = data.get("tag_name", "").lstrip("vV")
                     body = data.get("body", "包含重要稳定性更新。")
                     html_url = data.get("html_url", f"https://github.com/{GITHUB_REPO}/releases")
-
-                    cur_parts = [int(x) for x in APP_VERSION.split('.') if x.isdigit()]
-                    tag_parts = [int(x) for x in tag.split('.') if x.isdigit()]
-
-                    if tag_parts > cur_parts:
-                        self.root.after(0, lambda: self._show_update_dialog(tag, body, html_url))
-                    else:
-                        if not silent:
-                            self.root.after(0, lambda: messagebox.showinfo("检查更新", f"当前已是最新版本 (v{APP_VERSION})，无需更新。"))
                 except Exception as ex:
-                    if not silent:
-                        self.root.after(0, lambda: messagebox.showwarning("检查更新", f"检查更新失败: {ex}\n请确认能否访问 GitHub。"))
+                    last_err = ex
+
+                # 2. 降级尝试 Web 302 重定向 (无 60次/小时 API 限制)
+                if not tag:
+                    try:
+                        web_url = f"https://github.com/{GITHUB_REPO}/releases/latest"
+                        req2 = urllib.request.Request(web_url, headers={"User-Agent": "Mozilla/5.0"})
+                        with urllib.request.urlopen(req2, timeout=8) as resp2:
+                            final_url = resp2.geturl()
+                            if "/releases/tag/" in final_url:
+                                tag = final_url.split("/releases/tag/")[-1].lstrip("vV")
+                                html_url = final_url
+                                last_err = None
+                    except Exception as ex2:
+                        if not last_err:
+                            last_err = ex2
+
+                if tag:
+                    try:
+                        cur_parts = [int(x) for x in APP_VERSION.split('.') if x.isdigit()]
+                        tag_parts = [int(x) for x in tag.split('.') if x.isdigit()]
+                        if tag_parts > cur_parts:
+                            self.root.after(0, lambda: self._show_update_dialog(tag, body, html_url))
+                        else:
+                            if not silent:
+                                self.root.after(0, lambda: messagebox.showinfo("检查更新", f"当前已是最新版本 (v{APP_VERSION})，无需更新。"))
+                        return
+                    except Exception:
+                        pass
+
+                if not silent and last_err:
+                    tip = str(last_err)
+                    if hasattr(last_err, "code"):
+                        if last_err.code == 403:
+                            tip = "访问被禁止 (403 Forbidden)。\n原因：仓库目前为私有 (Private) 仓库，或触发了 GitHub API 速率限制。\n解决：请将 GitHub 仓库设为 Public 并发布 Release。"
+                        elif last_err.code == 404:
+                            tip = "未找到发布版本 (404 Not Found)。\n原因：仓库尚未创建 Release 版本，或仓库为私有 (Private) 状态。\n解决：请在 GitHub 发布 Release，并将仓库设为 Public。"
+                    self.root.after(0, lambda: messagebox.showwarning("检查更新", f"检查更新失败。\n\n{tip}"))
 
             threading.Thread(target=_worker, daemon=True).start()
 

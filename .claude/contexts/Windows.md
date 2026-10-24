@@ -5,7 +5,8 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 
 ## 核心源码与构建物清单
 - `Program.cs`：应用程序入口，具名 Mutex（`Global\LanChat_SingleInstance_Mutex_9F24FEA2`）实现单实例互斥，广播消息唤醒已运行实例；开启高 DPI 感知（`SetProcessDPIAware`），注册全局未捕获异常兜底处理。
-- `MainForm.cs`：主窗体，包含全套 WeChat 风格三栏暗黑 UI、自绘矢量图标系统（`WeChatIcon`）、暗黑提示框（`WeChatDarkTooltip`）、暗黑菜单（`WeChatDarkMenuRenderer`）、自绘消息流视图（`WeChatChatView`，防最小化越界保护）、暗黑更新检查向导（`ShowUpdateDialog`）、托盘右键退出。
+- `MainForm.cs`：主窗体，包含全套 WeChat 风格三栏暗黑 UI、自绘矢量图标系统（`WeChatIcon`）、暗黑提示框（`WeChatDarkTooltip`）、暗黑菜单（`WeChatDarkMenuRenderer`）、自绘消息流视图（`WeChatChatView`，防最小化越界保护）、暗黑双轨更新检查向导（REST API + Web 302 重定向降级）、托盘右键退出。
+- `publish-release.py`：GitHub Releases 自动化发布工具，一键创建 Tag 并挂载 MSI/DEB 二进制资产。
 - `Uninstall.cs`：独立卸载程序源码，无依赖秒级编译。
 - `uninstall.exe`：安装目录自带的卸载程序 (~7 KB)，支持安全脱钩、一键彻底清理残留。
 - `Package.wxs`：WiX 5 安装包定义（2.0.0 版本），定义安装路径自选、桌面/开始菜单快捷方式、统一 `app.ico` 图标绑定、ExitDialog 启动复选框。
@@ -36,8 +37,9 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
    - 窗体隐藏期间收到新消息或新文件时弹出系统托盘气泡通知。
 6. **窗口最小化防越界保护**：
    - 修复窗体最小化时 `Height = 0` 触发 `WeChatChatView` 重新排版导致 `_vScrollBar.Value` 越界的问题，加入尺寸守卫（`<=50` 立即跳过计算）与安全边界裁剪（Clamping）。
-7. **GitHub Releases 在线自动更新**：
-   - 内置官方 API（`api.github.com/repos/yxiaojiang/LanChat/releases/latest`）异步更新检测。
-   - 弹出暗黑更新向导展示新版本号、Release 描述与安装包大小，支持一键下载 MSI 并拉起更新。
+7. **GitHub Releases 在线自动更新（双轨架构）**：
+   - 优先请求 GitHub REST API 获取详细 Changelog 与 MSI 直链；
+   - 降级支持 Web 302 页面重定向解析最新 Tag，彻底免疫匿名 60次/小时 速率限制；
+   - 精准识别 403（私有仓库/限流）与 404（无发布版），提供清晰引导界面。
 8. **Program Files 写权限自适应**：
    - 智能探测根目录可写性：便携绿色模式使用当前目录 `ReceivedFiles`；安装在 `Program Files` 时自动将接收文件转存至用户目录 `Downloads\LanChat_Received`，杜绝访问被拒绝报错。

@@ -1774,13 +1774,21 @@ namespace LanChat
         {
             ThreadPool.QueueUserWorkItem(_ =>
             {
+                string tagName = null;
+                string releaseName = null;
+                string htmlUrl = null;
+                string body = null;
+                string downloadUrl = "https://github.com/" + GITHUB_REPO + "/releases/latest/download/LanChat.msi";
+                Exception lastEx = null;
+
+                // 方案 1: 优先尝试 GitHub REST API 获取完整更新日志与附件列表
                 try
                 {
                     System.Net.ServicePointManager.SecurityProtocol = (System.Net.SecurityProtocolType)3072; // TLS 1.2
                     string url = "https://api.github.com/repos/" + GITHUB_REPO + "/releases/latest";
                     var request = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(url);
                     request.UserAgent = "LanChat-Client/" + APP_VERSION;
-                    request.Timeout = 10000;
+                    request.Timeout = 8000;
 
                     string json;
                     using (var response = request.GetResponse())
@@ -1790,51 +1798,108 @@ namespace LanChat
                         json = reader.ReadToEnd();
                     }
 
-                    string tagName = ExtractJsonString(json, "tag_name").TrimStart('v', 'V');
-                    string releaseName = ExtractJsonString(json, "name");
-                    string htmlUrl = ExtractJsonString(json, "html_url");
-                    string body = ExtractJsonString(json, "body").Replace("\\r\\n", Environment.NewLine).Replace("\\n", Environment.NewLine);
+                    tagName = ExtractJsonString(json, "tag_name").TrimStart('v', 'V');
+                    releaseName = ExtractJsonString(json, "name");
+                    htmlUrl = ExtractJsonString(json, "html_url");
+                    body = ExtractJsonString(json, "body").Replace("\\r\\n", Environment.NewLine).Replace("\\n", Environment.NewLine);
 
-                    // 优先提取 LanChat.msi 安装包直链
-                    string downloadUrl = "https://github.com/" + GITHUB_REPO + "/releases/latest/download/LanChat.msi";
                     var assetMatch = System.Text.RegularExpressions.Regex.Match(json, "\"browser_download_url\"\\s*:\\s*\"([^\"]*LanChat\\.msi[^\"]*)\"");
                     if (assetMatch.Success)
                     {
                         downloadUrl = assetMatch.Groups[1].Value;
                     }
-
-                    Version currentVer = new Version(APP_VERSION);
-                    Version latestVer;
-                    string cleanTag = System.Text.RegularExpressions.Regex.Match(tagName, @"\d+(\.\d+)+").Value;
-                    if (!Version.TryParse(cleanTag, out latestVer))
-                    {
-                        latestVer = currentVer;
-                    }
-
-                    if (latestVer > currentVer)
-                    {
-                        SafeInvoke(() => ShowUpdateDialog(tagName, releaseName, body, downloadUrl, htmlUrl));
-                    }
-                    else
-                    {
-                        if (!silentIfNotNew)
-                        {
-                            SafeInvoke(() =>
-                            {
-                                MessageBox.Show(this, "当前已是最新版本 (v" + APP_VERSION + ")，无需更新。", "检查更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                            });
-                        }
-                    }
                 }
                 catch (Exception ex)
                 {
-                    if (!silentIfNotNew)
+                    lastEx = ex;
+                }
+
+                // 方案 2: 若 API 遇到 403 频率限制，降级尝试通过 Web 页面 302 重定向探测最新 Tag (无 60次/小时 API 限制)
+                if (string.IsNullOrEmpty(tagName))
+                {
+                    try
                     {
-                        SafeInvoke(() =>
+                        string webUrl = "https://github.com/" + GITHUB_REPO + "/releases/latest";
+                        var webReq = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(webUrl);
+                        webReq.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
+                        webReq.AllowAutoRedirect = true;
+                        webReq.Timeout = 8000;
+                        using (var webResp = webReq.GetResponse())
                         {
-                            MessageBox.Show(this, "检查新版本失败，可能无法访问 GitHub 或当前处于纯内网环境。\n错误信息: " + ex.Message, "检查更新", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        });
+                            string finalUrl = webResp.ResponseUri.ToString();
+                            if (finalUrl.Contains("/releases/tag/"))
+                            {
+                                int idx = finalUrl.LastIndexOf("/releases/tag/");
+                                tagName = finalUrl.Substring(idx + "/releases/tag/".Length).TrimStart('v', 'V');
+                                releaseName = "LanChat v" + tagName;
+                                htmlUrl = finalUrl;
+                                body = "包含重要功能与稳定性改进，请点击【立即更新】下载升级。";
+                                lastEx = null;
+                            }
+                        }
                     }
+                    catch (Exception ex2)
+                    {
+                        if (lastEx == null) lastEx = ex2;
+                    }
+                }
+
+                // 成功解析版本号
+                if (!string.IsNullOrEmpty(tagName))
+                {
+                    try
+                    {
+                        Version currentVer = new Version(APP_VERSION);
+                        Version latestVer;
+                        string cleanTag = System.Text.RegularExpressions.Regex.Match(tagName, @"\d+(\.\d+)+").Value;
+                        if (!Version.TryParse(cleanTag, out latestVer))
+                        {
+                            latestVer = currentVer;
+                        }
+
+                        if (latestVer > currentVer)
+                        {
+                            SafeInvoke(() => ShowUpdateDialog(tagName, releaseName, body, downloadUrl, htmlUrl));
+                        }
+                        else
+                        {
+                            if (!silentIfNotNew)
+                            {
+                                SafeInvoke(() =>
+                                {
+                                    MessageBox.Show(this, "当前已是最新版本 (v" + APP_VERSION + ")，无需更新。", "检查更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                });
+                            }
+                        }
+                        return;
+                    }
+                    catch { }
+                }
+
+                // 若失败且非静默模式，提供精准诊断信息
+                if (!silentIfNotNew && lastEx != null)
+                {
+                    SafeInvoke(() =>
+                    {
+                        string tip = lastEx.Message;
+                        var webEx = lastEx as System.Net.WebException;
+                        if (webEx != null)
+                        {
+                            var resp = webEx.Response as System.Net.HttpWebResponse;
+                            if (resp != null)
+                            {
+                                if (resp.StatusCode == System.Net.HttpStatusCode.Forbidden) // 403
+                                {
+                                    tip = "访问被禁止 (403 Forbidden)。\n\n可能原因：\n1. 当前 GitHub 仓库为「私有仓库 (Private)」，外部客户端未授权无法访问。\n   解决建议：请在 GitHub 仓库 Settings 中将仓库可见性调整为「Public (公开)」；\n2. 触发了 GitHub API 匿名请求频率限制 (60次/小时)，请稍后重试。";
+                                }
+                                else if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) // 404
+                                {
+                                    tip = "未在 GitHub 找到发布版本 (404 Not Found)。\n\n可能原因：\n1. 仓库尚未在 GitHub 创建 Release 发布版本（当前 Releases 列表为空）；\n2. 仓库当前设置为「私有仓库 (Private)」，未登录状态下不可见。\n\n解决建议：请前往 GitHub 仓库页面发布 Release，并将仓库设置为 Public。";
+                                }
+                            }
+                        }
+                        MessageBox.Show(this, "检查新版本失败。\n\n" + tip, "检查更新", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    });
                 }
             });
         }
