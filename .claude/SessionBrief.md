@@ -59,6 +59,7 @@
 
 | 模块 / 文件 | 说明 |
 | :--- | :--- |
+| `Tools/Compile.bat` | 原生极速纯编译脚本，仅校验生成 `LanChat.exe` 与 `uninstall.exe`，不触碰本地安装，不打包发布 |
 | `Tools/CompileAndLink.bat` | 一键编译链接并将 `LanChat.exe` 热替换覆盖至 `D:\soft\LanChat\` |
 | `Tools/Publish.bat` | 一键打包 `LanChat.msi` 并自动上传发布至 GitHub Releases |
 | `Program.cs` | 应用程序入口，单实例互斥（Mutex）与全局消息广播唤醒，高 DPI 感知 |

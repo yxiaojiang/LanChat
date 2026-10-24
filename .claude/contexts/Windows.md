@@ -7,6 +7,9 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `Program.cs`：应用程序入口，具名 Mutex（`Global\LanChat_SingleInstance_Mutex_9F24FEA2`）实现单实例互斥，广播消息唤醒已运行实例；开启高 DPI 感知（`SetProcessDPIAware`），注册全局未捕获异常兜底处理。
 - `MainForm.cs`：主窗体，包含全套 WeChat 风格三栏暗黑 UI、自绘矢量图标系统（`WeChatIcon`）、暗黑提示框（`WeChatDarkTooltip`）、暗黑菜单（`WeChatDarkMenuRenderer`）、自绘消息流视图（`WeChatChatView`，防最小化越界保护）、暗黑双轨更新检查向导（REST API + Web 302 重定向降级）、托盘右键退出。
 - `publish-release.py`：GitHub Releases 自动化发布工具，一键创建 Tag 并挂载 MSI/DEB 二进制资产。
+- `Tools/Compile.bat`：原生纯编译脚本，秒级生成 `LanChat.exe` 与 `uninstall.exe`，不改动已安装目录。
+- `Tools/CompileAndLink.bat`：一键编译链接并热替换覆盖至 `D:\soft\LanChat\`。
+- `Tools/Publish.bat`：一键调用 WiX 5 打包 `LanChat.msi` 并自动上传发布至 GitHub Releases。
 - `Uninstall.cs`：独立卸载程序源码，无依赖秒级编译。
 - `uninstall.exe`：安装目录自带的卸载程序 (~7 KB)，支持安全脱钩、一键彻底清理残留。
 - `Package.wxs`：WiX 5 安装包定义（2.0.0 版本），定义安装路径自选、桌面/开始菜单快捷方式、统一 `app.ico` 图标绑定、ExitDialog 启动复选框。
