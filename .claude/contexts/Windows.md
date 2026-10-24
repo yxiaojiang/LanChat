@@ -9,6 +9,10 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `src/MainForm.Chat.cs`：会话管理与聊天交互，包含好友状态监听、会话列表自绘/筛选、文本消息收发、历史记录流转、Emoji 表情选择器、手动添加 IP 直连（468行）。
 - `src/MainForm.Files.cs`：文件收发与分块跟踪，包含文件选择、拖拽监听、流式进度更新、文件接收落盘与打开文件/目录调用（268行）。
 - `src/MainForm.Tray.cs`：系统托盘与生命周期，包含底层网络启动绑定、昵称修改向导、托盘图标常驻、关闭拦截防误退、暗黑托盘菜单与在线更新代理（272行）。
+- `src/NetworkService.cs`：网络通信门面，主类定义与生命周期管理（154行）。
+- `src/NetworkService.Interface.cs`：物理网卡检测与 TUN 虚拟网卡穿透过滤（153行）。
+- `src/NetworkService.Discovery.cs`：多物理网卡 UDP 广播与并发子网单播探测（396行）。
+- `src/NetworkService.Transfer.cs`：LANC 二进制协议解包与 64KB 流式传输引擎（341行）。
 - `src/UI/Renderers/WeChatIcon.cs`：微信暗黑矢量图标绘制引擎（纯 GDI+ 路径计算抗锯齿自绘，涵盖气泡、通讯录、文件夹、刷新雷达、表情、剪刀截图等 13 类高保真图标）。
 - `src/UI/Renderers/WeChatDarkMenuRenderer.cs`：微信暗黑风格右键弹出菜单渲染器（`WeChatDarkMenuRenderer`、`WeChatDarkMenuColorTable`）与暗黑全局浮动提示组件（`WeChatDarkTooltip`）。
 - `src/UI/Controls/WeChatButtons.cs`：微信侧边栏导航按钮（`WeChatNavButton`）与无边框暗黑工具栏图标按钮（`WeChatIconButton`）。

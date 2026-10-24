@@ -16,6 +16,9 @@
   <ItemGroup>
     <Compile Include="..\..\Models.cs" Link="Models.cs" />
     <Compile Include="..\..\NetworkService.cs" Link="NetworkService.cs" />
+    <Compile Include="..\..\NetworkService.Interface.cs" Link="NetworkService.Interface.cs" />
+    <Compile Include="..\..\NetworkService.Discovery.cs" Link="NetworkService.Discovery.cs" />
+    <Compile Include="..\..\NetworkService.Transfer.cs" Link="NetworkService.Transfer.cs" />
   </ItemGroup>
 
 </Project>

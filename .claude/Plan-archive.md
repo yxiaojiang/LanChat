@@ -99,3 +99,19 @@
      - `src/MainForm.Tray.cs`（272 行）：网络底层初始化与网卡探测、个人昵称修改弹窗、系统托盘图标常驻、拦截关闭按钮后台静默运行、托盘微信暗黑右键菜单与在线更新委托。
   2. 更新工具链 `Tools/Compile.bat`、`CompileAndLink.bat`、`Publish.bat`，适配 `src/MainForm*.cs` 批编译。
   3. 原生系统 `csc.exe` 纯编译与 .NET 9 双轨验证耗时 < 1 秒，产物体积恒定在 139 KB，逻辑与界面零退化。
+
+
+---
+
+## 归档事项 9：架构解耦重构阶段三 —— 网络通信层内部模块化与 Partial 解耦（已完成）
+
+- **完成日期**：2026-10-24
+- **成果**：
+  1. 将 1152 行的 `NetworkService.cs` 内部复杂的多职责解耦拆分为 4 个职责单一、高内聚的 partial 类文件（单文件均控制在 400 行以内）：
+     - `src/NetworkService.cs`（154 行）：网络门面（Facade），公开属性、事件代理、构造函数与生命周期（`Start` / `Dispose`）；
+     - `src/NetworkService.Interface.cs`（153 行）：网卡硬件探测与过滤、TUN/VPN/WSL 虚拟网卡隔离、子网掩码计算与本地终结点匹配；
+     - `src/NetworkService.Discovery.cs`（396 行）：多物理网卡绑定 UDP 广播监听、254 子网高并发单播探测扫描、心跳保活、离线定时清理与节点生命周期管理；
+     - `src/NetworkService.Transfer.cs`（341 行）：TCP 监听器初始化、`LANC` 二进制协议拆包封包、文本消息双向分发与 64KB 流式分块传输引擎。
+  2. 更新构建工具链 `Tools/Compile.bat`、`CompileAndLink.bat`、`Publish.bat`，引入 `src\NetworkService*.cs` 模式匹配，杜绝单文件硬编码遗漏。
+  3. 更新 `src/linux/LanChat.Linux/LanChat.Linux.csproj`，同步添加所有 partial 类文件软链接映射，保持 Windows 与 Linux 跨平台源码级共享。
+  4. 原生系统 `csc.exe`（.NET Framework 4.0 / C# 5.0）纯编译与现代 .NET 9 SDK（Windows + Linux）双轨构建全面通过，达成 **0 警告、0 错误**，体积稳定在 142,336 字节（~139 KB）。

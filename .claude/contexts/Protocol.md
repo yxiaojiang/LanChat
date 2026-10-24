@@ -4,8 +4,11 @@
 定义底层局域网点对点（P2P）通信规范，处理多物理网卡、TUN 代理路由冲突与高速流式传输。
 
 ## 源码清单
-- `Models.cs`：`PeerInfo`、`ChatMessage`、`FileTransferProgress` 数据载体。
-- `NetworkService.cs`：核心服务，包含 UDP 广播监听、TCP 监听、多网卡检测、子网单播探测、流式文件收发。
+- `Models.cs`：`PeerInfo`、`ChatMessage`、`FileTransferProgress` 纯 POCO 数据载体（Windows 与 Linux 双端源码级共享）。
+- `NetworkService.cs`：顶层网络门面（Facade），对外统一暴露属性、事件与生命周期方法（`Start`、`Dispose`）。
+- `NetworkService.Interface.cs`：物理网卡与 TUN 冲突消除、网卡探测、子网掩码计算与本地终端匹配。
+- `NetworkService.Discovery.cs`：多物理网卡多套接字 UDP 广播监听、254 子网并发探测、心跳保活与节点生命周期。
+- `NetworkService.Transfer.cs`：TCP 监听、`LANC` 协议编解码、文本消息路由与 64KB 流式分块传输引擎。
 - `lanchat.py` 中对应的网络服务与协议编解码实现。
 
 ## 核心实现机制

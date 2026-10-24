@@ -2,7 +2,7 @@
 
 > 最近刷新：2026-10-24。仓库：`https://github.com/yxiaojiang/LanChat.git`。
 > 项目版本：**LanChat v2.0.0**。
-> 核心里程碑：全面对标微信桌面端（WeChat Desktop Dark Mode）95%+ 视觉与交互精度，彻底消除界面所有白色割裂元素；完成 Windows 托盘后台驻留与安全退出闭环；加入全局单实例互斥与唤醒机制；集成 GitHub Releases 在线自动更新检查与 Web 302 重定向降级；为 Linux 端打造 0 依赖微信暗黑原生 GUI（Tkinter 双轨）；新增 `Tools/` 工具链，支持用户一键编译链接并热替换本地安装目录（`CompileAndLink.bat`）以及一键打包 MSI 并发布至 GitHub Releases（`Publish.bat`）；**全面落地架构解耦重构阶段一（UI 控件与服务物理剥离）与阶段二（主窗体业务逻辑 Partial 模块化），彻底消除 God Object，所有单文件均压缩至 650 行以内，原生 `csc.exe` 秒级编译产物恒定保持 ~139KB，构建脚本实现纯 ASCII 与 0-BOM 零乱码治理**。
+> 核心里程碑：全面对标微信桌面端（WeChat Desktop Dark Mode）95%+ 视觉与交互精度，彻底消除界面所有白色割裂元素；完成 Windows 托盘后台驻留与安全退出闭环；加入全局单实例互斥与唤醒机制；集成 GitHub Releases 在线自动更新检查与 Web 302 重定向降级；为 Linux 端打造 0 依赖微信暗黑原生 GUI（Tkinter 双轨）；新增 `Tools/` 工具链，支持用户一键编译链接并热替换本地安装目录（`CompileAndLink.bat`）以及一键打包 MSI 并发布至 GitHub Releases（`Publish.bat`）；**全面落地架构解耦重构阶段一（UI 控件与服务物理剥离）、阶段二（主窗体业务逻辑 Partial 模块化）与阶段三（网络通信层内部轻量门面解耦），彻底消除 God Object，所有单文件均压缩至 400~650 行以内，原生 `csc.exe` 秒级编译产物恒定保持 ~139KB，构建脚本实现纯 ASCII 与 0-BOM 零乱码治理**。
 
 ---
 
@@ -24,14 +24,21 @@
   - `src/MainForm.Files.cs`（268 行）：文件选择与拖拽监听、分块传输进度条更新计算、接收文件保存分发、双击打开文件及定位系统资源管理器；
   - `src/MainForm.Tray.cs`（272 行）：网络底层初始化与物理网卡探测、个人昵称修改弹窗、系统托盘图标常驻、拦截关闭按钮后台静默运行、托盘微信暗黑右键菜单与在线更新委托。
 
-### 3. 构建工具链 0-BOM 纯 ASCII 治理与双轨验证
+### 3. 架构解耦重构（阶段三：网络通信层内部轻量门面解耦）
+- **高内聚职责拆分，跨端零破坏**：
+  - `src/NetworkService.cs`（154 行）：顶层门面（Facade），对外公开统一属性、事件代理（`MessageReceived`、`PeerUpdated`、`FileProgressChanged` 等）与生命周期管理（`Start`、`Dispose`）；
+  - `src/NetworkService.Interface.cs`（153 行）：物理网卡检测与过滤、TUN/VPN/WSL 虚拟网卡隔离、子网掩码计算与本地终结点自动绑定；
+  - `src/NetworkService.Discovery.cs`（396 行）：多物理网卡绑定 UDP 广播监听、254 子网高并发单播探测扫描、心跳保活、离线定时清理与节点生命周期管理；
+  - `src/NetworkService.Transfer.cs`（341 行）：TCP 监听器初始化、`LANC` 二进制协议拆包封包、文本消息双向分发与 64KB 流式分块传输引擎。
+  - 同步更新 `LanChat.Linux.csproj` 软链接配置，保持 Windows 与 Linux 跨平台源码级共享。
+
+### 4. 构建工具链 0-BOM 纯 ASCII 治理与双轨验证
 - **`Tools/` 自动化工具链无缝适配与乱码根治**：
-  - 更新 `Tools/Compile.bat`、`Tools/CompileAndLink.bat` 与 `Tools/Publish.bat`，全面引入 `src/MainForm*.cs` 批编译；
+  - 更新 `Tools/Compile.bat`、`Tools/CompileAndLink.bat` 与 `Tools/Publish.bat`，全面引入 `src/MainForm*.cs` 与 `src/NetworkService*.cs` 批编译；
   - 彻底去除脚本内的 UTF-8 BOM 标记（避免 Windows `cmd.exe` 将文件头误判为 `'ï»¿@echo'` 语法报错）；
   - 彻底清理脚本内所有中文注释与非 ASCII 字符，完全采用纯英文 ASCII 格式保存，避免在中文 Windows 默认 CP936（GBK）控制台下产生多字节拆解乱码；
   - 经由系统原生 `csc.exe`（.NET Framework 4.0 / C# 5.0）实测验证，编译耗时 < 1 秒，产物 `release/LanChat.exe` 体积稳定在 **139 KB**（142,336 字节），零运行时依赖膨胀。
 - **跨平台与现代 SDK 双轨兼容保障**：
-  - 修复 `src/linux/LanChat.Linux/LanChat.Linux.csproj` 对跨端共用通信引擎（`Models.cs` 与 `NetworkService.cs`）的相对软链接路径；
   - 在现代 .NET 9 SDK 环境下完成 `LanChat.csproj` 与 `LanChat.Linux.csproj` 全量构建，达成 **0 警告、0 错误**。
 
 ---
