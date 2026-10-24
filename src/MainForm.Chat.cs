@@ -147,16 +147,7 @@ namespace LanChat
 
         private void SwitchActiveChatView()
         {
-            List<ChatMessage> list;
-            lock (_chatHistories)
-            {
-                if (!_chatHistories.TryGetValue(_activeChatKey, out list))
-                {
-                    list = new List<ChatMessage>();
-                    _chatHistories[_activeChatKey] = list;
-                }
-            }
-            _chatView.SetMessages(list);
+            _chatView.SetMessages(_sessionManager.GetMessages(_activeChatKey));
         }
 
         private void ListSessions_DrawItem(object sender, DrawItemEventArgs e)
@@ -203,16 +194,8 @@ namespace LanChat
                 }
 
                 // Last message snippet
-                string snippet = "点击发送全网广播消息";
-                lock (_chatHistories)
-                {
-                    List<ChatMessage> list;
-                    if (_chatHistories.TryGetValue("BROADCAST", out list) && list.Count > 0)
-                    {
-                        ChatMessage last = list[list.Count - 1];
-                        snippet = last.SenderNick + ": " + (last.IsFile ? "[文件] " + last.FileName : last.Content);
-                    }
-                }
+                string snippet = _sessionManager.GetLastMessageSnippet(SessionManager.BROADCAST_KEY, 20);
+                if (string.IsNullOrEmpty(snippet)) snippet = "点击发送全网广播消息";
 
                 using (Font subFont = new Font("Microsoft YaHei", 8.5f))
                 using (SolidBrush subBrush = new SolidBrush(isSelected ? Color.FromArgb(220, 248, 230) : Color.FromArgb(145, 145, 145)))
@@ -434,16 +417,7 @@ namespace LanChat
 
         private void AddMessageToHistory(string convKey, ChatMessage msg)
         {
-            lock (_chatHistories)
-            {
-                List<ChatMessage> list;
-                if (!_chatHistories.TryGetValue(convKey, out list))
-                {
-                    list = new List<ChatMessage>();
-                    _chatHistories[convKey] = list;
-                }
-                list.Add(msg);
-            }
+            _sessionManager.AddMessage(convKey, msg);
 
             if (_activeChatKey == convKey)
             {
@@ -467,13 +441,7 @@ namespace LanChat
 
         private void ClearCurrentChat()
         {
-            lock (_chatHistories)
-            {
-                if (_chatHistories.ContainsKey(_activeChatKey))
-                {
-                    _chatHistories[_activeChatKey].Clear();
-                }
-            }
+            _sessionManager.ClearHistory(_activeChatKey);
             SwitchActiveChatView();
         }
 

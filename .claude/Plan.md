@@ -2,19 +2,17 @@
 
 > 最近刷新：2026-10-24。仓库：`https://github.com/yxiaojiang/LanChat.git`。
 > 项目版本：**LanChat v2.0.0**。
-> 阶段一、阶段二与阶段三重构已全部归档至 `Plan-archive.md`。
+> 阶段一至阶段四重构已全部归档至 `Plan-archive.md`。
 
 ---
 
 ## 仍未完成 / 活跃计划项
 
-1. **架构解耦与工程代码重构（推进情况）**：
+1. **架构解耦与工程代码重构（推进成果）**：
    - **阶段一（已完成）**：UI 控件、矢量图系统与更新服务物理剥离，产出 `src/UI/` 与 `src/Services/` 独立模块，体积稳定在 139 KB。
-   - **阶段二（已完成）**：主窗体业务逻辑 Partial 模块化，拆分为 `MainForm.cs`（645行）、`MainForm.Chat.cs`（468行）、`MainForm.Files.cs`（268行）、`MainForm.Tray.cs`（272行），单文件规模大幅降低。
+   - **阶段二（已完成）**：主窗体业务逻辑 Partial 模块化，拆分为 `MainForm.cs`（569行）、`MainForm.Chat.cs`（510行）、`MainForm.Files.cs`（242行）、`MainForm.Tray.cs`（296行），单文件规模大幅降低。
    - **阶段三（已完成）**：网络通信层内部轻量门面解耦，拆分为 `NetworkService.cs`（154行）、`NetworkService.Interface.cs`（153行）、`NetworkService.Discovery.cs`（396行）、`NetworkService.Transfer.cs`（341行），跨端零破坏，双轨 0 警告 0 错误编译通过。
-   - **阶段四（待执行：应用服务层与离线会话/消息协调器提取）**：
-     - 将会话列表管理、未读小红点状态、离线消息历史等业务从 `MainForm.Chat.cs` 进一步提炼为应用服务层（如 `SessionManager` 或消息历史管理器）；
-     - 保持跨端及 C# 5.0 / .NET Framework 4.0 语法兼容与 ~139KB 体积。
+   - **阶段四（已完成）**：提炼应用服务层 `src/Services/SessionManager.cs`（142行），主窗体完全剥离 `_chatHistories` 数据字典，实现会话上下文与历史消息纯领域封装，原生体积恒定保持 ~140KB。
 
 2. **GitHub 仓库设为 Public 并完成在线更新闭环验证**：
    - Release `v2.0.0` 已通过 `publish-release.py` 成功创建并上传 `LanChat.msi` 与 `LanChat.deb` 资产。

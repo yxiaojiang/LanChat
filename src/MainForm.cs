@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -21,8 +21,14 @@ namespace LanChat
         private NetworkService _netService;
 
         // Chat histories by conversation key: "BROADCAST" for group, peerId for private
-        private readonly Dictionary<string, List<ChatMessage>> _chatHistories = new Dictionary<string, List<ChatMessage>>();
-        private string _activeChatKey = "BROADCAST";
+        // Session and chat history coordination service
+        private readonly SessionManager _sessionManager = new SessionManager();
+        private string _activeChatKey
+        {
+            get { return _sessionManager.ActiveSessionKey; }
+            set { _sessionManager.ActiveSessionKey = value; }
+        }
+
         private PeerInfo _selectedPeer = null;
 
         // UI Layout Panels

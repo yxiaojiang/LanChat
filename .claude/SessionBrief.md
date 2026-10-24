@@ -2,7 +2,7 @@
 
 > 最近刷新：2026-10-24。仓库：`https://github.com/yxiaojiang/LanChat.git`。
 > 项目版本：**LanChat v2.0.0**。
-> 核心里程碑：全面对标微信桌面端（WeChat Desktop Dark Mode）95%+ 视觉与交互精度，彻底消除界面所有白色割裂元素；完成 Windows 托盘后台驻留与安全退出闭环；加入全局单实例互斥与唤醒机制；集成 GitHub Releases 在线自动更新检查与 Web 302 重定向降级；为 Linux 端打造 0 依赖微信暗黑原生 GUI（Tkinter 双轨）；新增 `Tools/` 工具链，支持用户一键编译链接并热替换本地安装目录（`CompileAndLink.bat`）以及一键打包 MSI 并发布至 GitHub Releases（`Publish.bat`）；**全面落地架构解耦重构阶段一（UI 控件与服务物理剥离）、阶段二（主窗体业务逻辑 Partial 模块化）与阶段三（网络通信层内部轻量门面解耦），彻底消除 God Object，所有单文件均压缩至 400~650 行以内，原生 `csc.exe` 秒级编译产物恒定保持 ~139KB，构建脚本实现纯 ASCII 与 0-BOM 零乱码治理**。
+> 核心里程碑：全面对标微信桌面端（WeChat Desktop Dark Mode）95%+ 视觉与交互精度，彻底消除界面所有白色割裂元素；完成 Windows 托盘后台驻留与安全退出闭环；加入全局单实例互斥与唤醒机制；集成 GitHub Releases 在线自动更新检查与 Web 302 重定向降级；为 Linux 端打造 0 依赖微信暗黑原生 GUI（Tkinter 双轨）；新增 `Tools/` 工具链，支持用户一键编译链接并热替换本地安装目录（`CompileAndLink.bat`）以及一键打包 MSI 并发布至 GitHub Releases（`Publish.bat`）；**全面落地架构解耦重构阶段一（UI 控件与服务物理剥离）、阶段二（主窗体业务逻辑 Partial 模块化）、阶段三（网络通信层内部轻量门面解耦）与阶段四（应用服务层 SessionManager 独立提炼），彻底消除 God Object，所有单文件均压缩至 120~570 行以内，原生 `csc.exe` 秒级编译产物恒定保持 ~140KB，构建脚本实现纯 ASCII 与 0-BOM 零乱码治理**。
 
 ---
 
@@ -32,7 +32,13 @@
   - `src/NetworkService.Transfer.cs`（341 行）：TCP 监听器初始化、`LANC` 二进制协议拆包封包、文本消息双向分发与 64KB 流式分块传输引擎。
   - 同步更新 `LanChat.Linux.csproj` 软链接配置，保持 Windows 与 Linux 跨平台源码级共享。
 
-### 4. 构建工具链 0-BOM 纯 ASCII 治理与双轨验证
+### 4. 架构解耦重构（阶段四：应用服务层 SessionManager 独立提炼）
+- **会话与消息历史纯领域解耦**：
+  - 新增 `src/Services/SessionManager.cs`（142 行）：统一管理广播与点对点私聊消息字典 `_histories`，提供线程安全的增加、查询、摘要提取与清空能力；
+  - 彻底剥离主窗体中的 `Dictionary<string, List<ChatMessage>> _chatHistories` 字段，实现表现层与领域会话数据解耦；
+  - 保持 C# 5.0 / .NET Framework 4.0 语法兼容，零外部依赖，秒级编译产物体积稳定在 140 KB（143,872 字节）。
+
+### 5. 构建工具链 0-BOM 纯 ASCII 治理与双轨验证
 - **`Tools/` 自动化工具链无缝适配与乱码根治**：
   - 更新 `Tools/Compile.bat`、`Tools/CompileAndLink.bat` 与 `Tools/Publish.bat`，全面引入 `src/MainForm*.cs` 与 `src/NetworkService*.cs` 批编译；
   - 彻底去除脚本内的 UTF-8 BOM 标记（避免 Windows `cmd.exe` 将文件头误判为 `'ï»¿@echo'` 语法报错）；

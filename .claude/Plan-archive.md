@@ -115,3 +115,21 @@
   2. 更新构建工具链 `Tools/Compile.bat`、`CompileAndLink.bat`、`Publish.bat`，引入 `src\NetworkService*.cs` 模式匹配，杜绝单文件硬编码遗漏。
   3. 更新 `src/linux/LanChat.Linux/LanChat.Linux.csproj`，同步添加所有 partial 类文件软链接映射，保持 Windows 与 Linux 跨平台源码级共享。
   4. 原生系统 `csc.exe`（.NET Framework 4.0 / C# 5.0）纯编译与现代 .NET 9 SDK（Windows + Linux）双轨构建全面通过，达成 **0 警告、0 错误**，体积稳定在 142,336 字节（~139 KB）。
+
+
+---
+
+## 归档事项 10：架构解耦重构阶段四 —— 应用服务层提炼与 SessionManager 消息解耦（已完成）
+
+- **完成日期**：2026-10-24
+- **成果**：
+  1. 新增应用服务模块 `src/Services/SessionManager.cs`（142 行）：
+     - 纯领域服务，解耦 UI 与会话数据，统一封装广播与私聊历史消息字典 `_histories` 并实现线程安全访问控制；
+     - 提供 `AddMessage`、`GetMessages`、`GetLastMessage`、`GetLastMessageSnippet`、`ClearHistory` 等高内聚操作接口；
+     - 抽象活跃会话标识 `ActiveSessionKey` 与 `IsBroadcastActive` 判断，预留事件驱动模型。
+  2. 精简主窗体 `src/MainForm.cs` 与 `src/MainForm.Chat.cs`：
+     - 从 `MainForm.cs` 彻底剔除原生 `Dictionary<string, List<ChatMessage>> _chatHistories` 字段；
+     - 重构 `SwitchActiveChatView`、`ListSessions_DrawItem`、`AddMessageToHistory` 与 `ClearCurrentChat`，直接委托 `_sessionManager` 处理。
+  3. 双轨编译验证：
+     - 原生系统 `csc.exe`（.NET Framework 4.0 / C# 5.0）秒级编译，产物体积仅为 143,872 字节（~140 KB）；
+     - 现代 .NET 9 SDK（Windows + Linux）构建达成 **0 警告、0 错误**。

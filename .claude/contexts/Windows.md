@@ -18,6 +18,7 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `src/UI/Controls/WeChatButtons.cs`：微信侧边栏导航按钮（`WeChatNavButton`）与无边框暗黑工具栏图标按钮（`WeChatIconButton`）。
 - `src/UI/Controls/WeChatChatView.cs`：微信暗黑风格流式消息自绘视图控件（支持自发微信绿气泡、好友暗黑气泡、文件卡片点击交互、头像胶囊及防越界平滑滚动条）。
 - `src/Services/UpdateService.cs`：GitHub Releases 在线自动更新服务（REST API 优先探测 + Web 302 重定向降级更新向导弹窗与 MSI 自动下载安装）。
+- `src/Services/SessionManager.cs`：会话与消息历史协调服务，解耦窗体与聊天数据，统一提供线程安全的会话管理与摘要提取（142行）。
 - `src/Uninstall.cs`：独立卸载程序源码，无依赖秒级编译。
 - `assets/app.ico`：256x256 至 16x16 全尺寸高精度多分辨率应用图标，微信绿双气泡现代扁平设计。
 - `packaging/Package.wxs`：WiX 5 安装包定义（2.0.0 版本），定义安装路径自选、桌面/开始菜单快捷方式、统一 `app.ico` 图标绑定、ExitDialog 启动复选框。
