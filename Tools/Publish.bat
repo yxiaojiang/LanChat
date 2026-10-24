@@ -8,16 +8,16 @@ echo.
 
 REM 1. 自动定位 LanChat 项目根目录
 set "PROJECT_DIR="
-if exist "%~dp0..\MainForm.cs" set "PROJECT_DIR=%~dp0.."
+if exist "%~dp0..\src\MainForm.cs" set "PROJECT_DIR=%~dp0.."
 if not defined PROJECT_DIR (
-    if exist "%~dp0..\LanChat\MainForm.cs" set "PROJECT_DIR=%~dp0..\LanChat"
+    if exist "%~dp0..\LanChat\src\MainForm.cs" set "PROJECT_DIR=%~dp0..\LanChat"
 )
 if not defined PROJECT_DIR (
-    if exist "%~dp0MainForm.cs" set "PROJECT_DIR=%~dp0"
+    if exist "%~dp0src\MainForm.cs" set "PROJECT_DIR=%~dp0"
 )
 
 if not defined PROJECT_DIR (
-    echo [错误] 未能找到项目核心源文件 MainForm.cs。
+    echo [错误] 未能找到项目核心源文件 src\MainForm.cs。
     pause
     exit /b 1
 )
@@ -26,11 +26,13 @@ cd /d "%PROJECT_DIR%"
 set "PROJECT_DIR=%CD%"
 set "CSC_PATH=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 
-REM 2. 检查是否有 LanChat.exe，若没有则自动先编译
-if not exist "LanChat.exe" (
-    echo [提示] 未在项目根目录检测到 LanChat.exe，正在自动编译...
+if not exist "release" mkdir release >nul 2>nul
+
+REM 2. 检查是否有 release\LanChat.exe，若没有则自动编译
+if not exist "release\LanChat.exe" (
+    echo [提示] 未在 release 目录检测到 LanChat.exe，正在自动编译...
     if exist "%CSC_PATH%" (
-        "%CSC_PATH%" /nologo /target:winexe /win32icon:app.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:LanChat.exe Models.cs NetworkService.cs MainForm.cs Program.cs
+        "%CSC_PATH%" /nologo /target:winexe /win32icon:assets\app.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:release\LanChat.exe src\Models.cs src\NetworkService.cs src\MainForm.cs src\Program.cs
         if errorlevel 1 (
             echo [错误] LanChat.exe 编译失败。
             pause
@@ -43,19 +45,18 @@ if not exist "LanChat.exe" (
     )
 )
 
-REM 确保配套的 uninstall.exe 存在
-if not exist "uninstall.exe" (
-    if exist "Uninstall.cs" (
-        "%CSC_PATH%" /nologo /target:winexe /win32icon:app.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:uninstall.exe Uninstall.cs >nul 2>nul
+if not exist "release\uninstall.exe" (
+    if exist "src\Uninstall.cs" (
+        "%CSC_PATH%" /nologo /target:winexe /win32icon:assets\app.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:release\uninstall.exe src\Uninstall.cs >nul 2>nul
     )
 )
 
-REM 3. WiX 5 工具打包 LanChat.msi
-echo [1/3] 正在使用 WiX 5 打包 Windows 安装包 (LanChat.msi)...
+REM 3. WiX 5 工具打包 release\LanChat.msi
+echo [1/3] 正在使用 WiX 5 打包 Windows 安装包 (release\LanChat.msi)...
 wix extension add -g WixToolset.UI.wixext/5.0.2 >nul 2>nul
 wix extension add -g WixToolset.Util.wixext/5.0.2 >nul 2>nul
 
-wix build Package.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -culture zh-CN -o LanChat.msi
+wix build packaging\Package.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -culture zh-CN -o release\LanChat.msi
 if errorlevel 1 (
     echo.
     echo ====================================================================
@@ -64,18 +65,15 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-
-if not exist "release" mkdir release >nul 2>nul
-copy /y LanChat.msi release\LanChat.msi >nul 2>nul
-echo       [成功] LanChat.msi 打包完成并同步至 release\LanChat.msi
+echo       [成功] LanChat.msi 打包完成: release\LanChat.msi
 echo.
 
 REM 4. 可选同步更新 Linux deb 包
-if exist "build-deb.py" (
+if exist "packaging\build-deb.py" (
     echo [2/3] 正在检查并生成最新的 Linux deb 安装包...
     where python >nul 2>nul
     if not errorlevel 1 (
-        python build-deb.py >nul 2>nul
+        python packaging\build-deb.py >nul 2>nul
         echo       [成功] Linux deb 包已同步更新！
     ) else (
         echo       [跳过] 未检测到 python 命令，跳过 Linux deb 打包。
@@ -87,7 +85,7 @@ REM 5. 调用 publish-release.py 发布并上传二进制资产到 GitHub Releases
 echo [3/3] 正在自动发布到 GitHub Releases 并上传资产...
 where python >nul 2>nul
 if not errorlevel 1 (
-    python publish-release.py %*
+    python packaging\publish-release.py %*
     if errorlevel 1 (
         echo.
         echo [警告] 上传 GitHub Releases 时发生异常，请检查网络或 GitHub 凭据。

@@ -98,13 +98,62 @@ python3 lanchat.py
 
 ---
 
-## 🛠️ 项目构建指南
+## 📂 规范工程目录结构
 
-- **构建 Windows EXE**：
-  双击运行 `build.bat`（调用系统自带 `csc.exe`，秒级编译）。
-- **构建 Windows MSI 安装包**：
-  双击运行 `build-msi.bat`（产出 `LanChat.msi`）。
-- **构建 Linux deb 安装包**：
-  运行 `python build-deb.py`（产出 `release/LanChat.deb` 等）。
-- **一键全平台全包构建**：
-  双击运行 `build-all.bat`（一次性产出 Windows EXE、MSI 与 Linux deb 全部产物）。
+```
+LanChat/
+├── src/                          # 核心业务源代码
+│   ├── Program.cs                # 程序入口与单实例互斥唤醒 (Mutex)
+│   ├── MainForm.cs               # WeChat 暗黑桌面主界面与消息流引擎
+│   ├── Models.cs                 # 跨平台共用网络数据实体
+│   ├── NetworkService.cs         # 核心网络通信服务与分块流式传输引擎
+│   ├── Uninstall.cs              # 绿色卸载向导源码
+│   ├── LanChat.csproj            # .NET 9 项目工程文件
+│   └── linux/                    # Linux 端源码
+│       ├── lanchat.py            # 纯 Python 3 标准库 WeChat 暗黑 GUI
+│       └── LanChat.Linux/        # .NET 9 自包含 Linux 控制台项目
+│
+├── assets/                       # 图标与高精度设计资源
+│   ├── app.ico                   # Windows 多分辨率应用图标 (256x256 ~ 16x16)
+│   ├── app.png                   # Linux 256x256 高清启动图标
+│   ├── lanchat.svg               # Linux 专用矢量应用图标
+│   └── create_icon.py            # 图标自动生成工具
+│
+├── packaging/                    # 标准安装包打包配置与引擎
+│   ├── Package.wxs               # WiX 5 中文安装向导配置文件
+│   ├── build-deb.py              # Linux 多架构 Debian (.deb) 标准打包引擎
+│   ├── publish-release.py        # GitHub Releases 自动化发布与资产挂载引擎
+│   ├── build.bat                 # 基础编译脚本 (Legacy)
+│   ├── build-msi.bat             # WiX 打包脚本 (Legacy)
+│   └── build-all.bat             # 全平台一键构建脚本 (Legacy)
+│
+├── Tools/                        # 开发者常用高频自动化工具 (核心入口)
+│   ├── Compile.bat               # 纯编译 (仅编译生成 release\LanChat.exe)
+│   ├── CompileAndLink.bat        # 编译并热替换覆盖本地安装目录 D:\soft\LanChat\
+│   └── Publish.bat               # 一键打包 MSI 并自动推送至 GitHub Releases
+│
+├── release/                      # 全平台编译与构建安装包产物
+│   ├── LanChat.exe               # 绿色版免安装客户端 (~46 KB)
+│   ├── LanChat.msi               # Windows 微软标准安装包 (~765 KB)
+│   ├── LanChat.deb               # Linux 64位 Debian/Ubuntu 安装包 (~6 MB)
+│   ├── lanchat_2.0.0_all.deb     # Linux 全架构通用版安装包 (~35 KB)
+│   ├── linux-x64/                # 自包含 Linux 原生 ELF 独立二进制
+│   └── linux-arm64/              # aarch64 架构原生二进制
+│
+├── .claude/                      # 架构上下文记忆、规范与开发规则
+├── .gitignore                    # Git 忽略配置
+└── README.md                     # 说明文档
+```
+
+---
+
+## 🛠️ 项目构建与开发者快捷指令
+
+在 `Tools/` 文件夹中为您提供了 3 个一键自动化脚本：
+
+1. **`Tools/Compile.bat`（纯编译）**：
+   调用系统原生 `csc.exe` 极速编译链接 `release\LanChat.exe` 与 `release\uninstall.exe`，不触碰本地安装，用于快速排查代码语法。
+2. **`Tools/CompileAndLink.bat`（编译覆盖）**：
+   编译后自动检测并安全退出后台运行中的旧程序，将最新版程序热替换覆盖至 `D:\soft\LanChat\`，按回车即可立即启动全新程序体验。
+3. **`Tools/Publish.bat`（一键发布）**：
+   自动调用 WiX 5 将最新程序打包为 `release\LanChat.msi`，刷新 Linux deb 包，并自动创建/更新对应版本的 GitHub Release 并流式挂载安装包资产。

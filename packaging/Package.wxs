@@ -13,7 +13,7 @@
     <MediaTemplate EmbedCab="yes" />
 
     <!-- Application Icon Definition -->
-    <Icon Id="AppIcon" SourceFile="app.ico" />
+    <Icon Id="AppIcon" SourceFile="assets\app.ico" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon" />
 
     <!-- Default Installation Folder -->
@@ -21,7 +21,7 @@
       <Directory Id="INSTALLFOLDER" Name="LanChat">
         <!-- Main Application Executable -->
         <Component Id="MainExecutable" Guid="D2A687A1-BD02-4A73-A332-951E9DB6E8BC">
-          <File Id="LanChatExe" Source="LanChat.exe" KeyPath="yes" />
+          <File Id="LanChatExe" Source="release\LanChat.exe" KeyPath="yes" />
           <Shortcut Id="DesktopShortcut"
                     Directory="DesktopFolder"
                     Name="LanChat"
@@ -38,7 +38,7 @@
 
         <!-- Uninstaller Executable -->
         <Component Id="UninstallerComponent" Guid="E8F19B34-6A42-4217-B590-7F10E6C537D9">
-          <File Id="UninstallExe" Source="uninstall.exe" KeyPath="yes" />
+          <File Id="UninstallExe" Source="release\uninstall.exe" KeyPath="yes" />
           <Shortcut Id="UninstallStartMenuShortcut"
                     Directory="ProgramMenuFolder"
                     Name="卸载 LanChat"

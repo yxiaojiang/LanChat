@@ -15,8 +15,8 @@ import shutil
 
 VERSION = "2.0.0"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-RELEASE_DIR = os.path.join(SCRIPT_DIR, "release")
-ROOT_DIR = SCRIPT_DIR
+ROOT_DIR = os.path.dirname(SCRIPT_DIR)
+RELEASE_DIR = os.path.join(ROOT_DIR, "release")
 
 def make_ar_header(name: str, size: int) -> bytes:
     # BSD ar format header: 60 bytes
@@ -116,7 +116,7 @@ def build_packages():
     print("=" * 60)
 
     # Read lanchat.py
-    py_path = os.path.join(ROOT_DIR, "lanchat.py")
+    py_path = os.path.join(ROOT_DIR, "src", "linux", "lanchat.py")
     with open(py_path, "rb") as f:
         py_bytes = f.read()
 
@@ -133,7 +133,7 @@ Categories=Network;InstantMessaging;
 Keywords=chat;lan;file;transfer;
 """
 
-    svg_path = os.path.join(ROOT_DIR, "lanchat.svg")
+    svg_path = os.path.join(ROOT_DIR, "assets", "lanchat.svg")
     if os.path.exists(svg_path):
         with open(svg_path, "rb") as f:
             svg_icon = f.read()
@@ -145,7 +145,7 @@ Keywords=chat;lan;file;transfer;
 </svg>
 """
 
-    png_path = os.path.join(ROOT_DIR, "app.png")
+    png_path = os.path.join(ROOT_DIR, "assets", "app.png")
     png_bytes = None
     if os.path.exists(png_path):
         with open(png_path, "rb") as f:

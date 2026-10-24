@@ -55,22 +55,25 @@
 
 ---
 
-## 三、 模块索引
+## 三、 模块索引 (新目录架构)
 
 | 模块 / 文件 | 说明 |
 | :--- | :--- |
-| `Tools/Compile.bat` | 原生极速纯编译脚本，仅校验生成 `LanChat.exe` 与 `uninstall.exe`，不触碰本地安装，不打包发布 |
-| `Tools/CompileAndLink.bat` | 一键编译链接并将 `LanChat.exe` 热替换覆盖至 `D:\soft\LanChat\` |
-| `Tools/Publish.bat` | 一键打包 `LanChat.msi` 并自动上传发布至 GitHub Releases |
-| `Program.cs` | 应用程序入口，单实例互斥（Mutex）与全局消息广播唤醒，高 DPI 感知 |
-| `MainForm.cs` | 主界面核心逻辑、托盘图标、暗黑渲染器、GitHub 双轨（API+Web）在线更新、防越界保护 |
-| `Models.cs` | 跨平台共用数据实体（`PeerInfo`, `ChatMessage`, `FileTransferTask`） |
-| `NetworkService.cs` | 跨平台共用网络引擎（多网卡探测、UDP 发现、TCP 握手、流式分块文件收发） |
-| `Package.wxs` | WiX 5 安装包定义，配置目录选择向导、快捷方式与图标绑定 |
-| `Uninstall.cs` | 独立卸载向导源码，支持安全脱钩与彻底清理 |
-| `publish-release.py` | GitHub Releases 一键发布与二进制资产覆盖上传工具 |
-| `build-deb.py` | Linux 多架构标准 Debian 安装包构建脚本（内嵌桌面自适应启动器与日志收集） |
-| `lanchat.py` | Linux 纯标准库微信暗黑 GUI 与 CLI 双模通用版 |
+| `src/Program.cs` | 应用程序入口，单实例互斥（Mutex）与全局消息广播唤醒，高 DPI 感知 |
+| `src/MainForm.cs` | 主界面核心逻辑、托盘图标、暗黑渲染器、GitHub 双轨（API+Web）在线更新、防越界保护 |
+| `src/Models.cs` | 跨平台共用数据实体（`PeerInfo`, `ChatMessage`, `FileTransferTask`） |
+| `src/NetworkService.cs` | 跨平台共用网络引擎（多网卡探测、UDP 发现、TCP 握手、流式分块文件收发） |
+| `src/Uninstall.cs` | 独立卸载向导源码，支持安全脱钩与彻底清理 |
+| `src/linux/lanchat.py` | Linux 纯标准库微信暗黑 GUI 与 CLI 双模通用版 |
+| `src/linux/LanChat.Linux/` | Linux 原生自包含 C# 工程（.NET 9 InvariantGlobalization 开箱即用） |
+| `assets/app.ico` / `app.png` / `lanchat.svg` | 全套跨平台高精度应用图标设计资产 |
+| `packaging/Package.wxs` | WiX 5 安装包定义，配置目录选择向导、快捷方式与图标绑定 |
+| `packaging/build-deb.py` | Linux 多架构标准 Debian 安装包构建脚本（内嵌桌面自适应启动器与日志收集） |
+| `packaging/publish-release.py` | GitHub Releases 一键发布与二进制资产覆盖上传工具 |
+| `Tools/Compile.bat` | 原生极速纯编译脚本，仅校验生成 `release\LanChat.exe`，不触碰本地安装，不打包发布 |
+| `Tools/CompileAndLink.bat` | 一键编译链接并将 `release\LanChat.exe` 热替换覆盖至 `D:\soft\LanChat\` |
+| `Tools/Publish.bat` | 一键打包 `release\LanChat.msi` 并自动上传发布至 GitHub Releases |
+| `release/` | 全平台安装包与二进制输出目录（EXE、MSI、DEB） |
 
 ---
 

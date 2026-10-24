@@ -18,13 +18,14 @@ import json
 
 REPO = "yxiaojiang/LanChat"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-RELEASE_DIR = os.path.join(SCRIPT_DIR, "release")
+ROOT_DIR = os.path.dirname(SCRIPT_DIR)
+RELEASE_DIR = os.path.join(ROOT_DIR, "release")
 
 def detect_version():
     if len(sys.argv) > 1 and sys.argv[1].strip() and not sys.argv[1].startswith("-"):
         return sys.argv[1].strip().lstrip("vV")
 
-    main_cs = os.path.join(SCRIPT_DIR, "MainForm.cs")
+    main_cs = os.path.join(ROOT_DIR, "src", "MainForm.cs")
     if os.path.exists(main_cs):
         try:
             with open(main_cs, "r", encoding="utf-8") as f:
