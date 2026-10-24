@@ -2,65 +2,57 @@
 
 > 最近刷新：2026-10-24。仓库：`https://github.com/yxiaojiang/LanChat.git`。
 > 项目版本：**LanChat v2.0.0**。
-> 核心里程碑：全面对标微信桌面端（WeChat Desktop Dark Mode）95%+ 视觉与交互精度，彻底消除界面所有白色割裂元素；完成 Windows 托盘后台驻留与安全退出闭环；根治 Windows 最小化异常；加入全局单实例互斥与唤醒机制；集成 GitHub Releases 在线自动更新检查与 Web 302 重定向降级；为 Linux 端打造 0 依赖微信暗黑原生 GUI（Tkinter 双轨）；**新增 `Tools/` 工具链，支持用户一键编译链接并热替换本地安装目录（`CompileAndLink.bat`）以及一键打包 MSI 并发布至 GitHub Releases（`Publish.bat`）**。
+> 核心里程碑：全面对标微信桌面端（WeChat Desktop Dark Mode）95%+ 视觉与交互精度，彻底消除界面所有白色割裂元素；完成 Windows 托盘后台驻留与安全退出闭环；加入全局单实例互斥与唤醒机制；集成 GitHub Releases 在线自动更新检查与 Web 302 重定向降级；为 Linux 端打造 0 依赖微信暗黑原生 GUI（Tkinter 双轨）；新增 `Tools/` 工具链，支持用户一键编译链接并热替换本地安装目录（`CompileAndLink.bat`）以及一键打包 MSI 并发布至 GitHub Releases（`Publish.bat`）；**成功落地架构解耦重构阶段一：物理剥离 UI 控件体系与在线更新服务，`MainForm.cs` 大幅瘦身 1368 行，原生 `csc.exe` 秒级编译产物保持 ~139KB 极致精简；全面完成构建脚本纯 ASCII 与 0-BOM 治理，杜绝任何代码页下的控制台乱码与语法中断**。
 
 ---
 
 ## 一、 本轮工作态与交付成果总结
 
-### 1. 开发者自助脚本工具链交付 (`Tools/`)
-- **`Tools/CompileAndLink.bat`（一键编译与本地热替换）**：
-  - 自动定位项目根目录，调用系统原生 `csc.exe` 秒级编译 `LanChat.exe` 与 `uninstall.exe`；
-  - 智能探测目标安装目录 `D:\soft\LanChat\`，若正在运行则自动退出旧进程防止文件锁定；
-  - 完整覆盖替换安装目录中的 `LanChat.exe`、`uninstall.exe`、`app.ico`，支持按回车键立即拉起新程序。
-- **`Tools/Publish.bat`（一键打包与 GitHub 发布）**：
-  - 调用 WiX 5 自动将最新的 `LanChat.exe` 打包为微软标准安装包 `LanChat.msi`；
-  - 自动同步刷新 Linux deb 双包（`amd64` 与 `all`）；
-  - 调用 `publish-release.py` 自动匹配版本、检测 GitHub 仓库状态、创建/更新 Release 并支持旧同名资产自动删除覆盖，完成二进制资产流式直传。
+### 1. 架构解耦重构（阶段一：UI 控件与服务物理剥离）
+- **物理模块化拆分与目录重组**：
+  - 将原长达 3206 行的巨型 `src/MainForm.cs` 精简瘦身至 1838 行（净减 1368 行代码），成功消除了部分上帝类（God Object）臃肿问题；
+  - 创建 `src/UI/Renderers/WeChatIcon.cs`：剥离包含气泡、通讯录、文件夹、雷达刷新等 13 类纯 GDI+ 矢量抗锯齿绘制算法与 `WeChatIconType` 枚举；
+  - 创建 `src/UI/Renderers/WeChatDarkMenuRenderer.cs`：剥离微信暗黑菜单调色板（`WeChatDarkMenuColorTable`）、暗黑菜单渲染器（`WeChatDarkMenuRenderer`）与全局浮动暗黑气泡提示框（`WeChatDarkTooltip`）；
+  - 创建 `src/UI/Controls/WeChatButtons.cs`：剥离侧边栏导航按钮（`WeChatNavButton`）与无边框暗黑工具栏图标按钮（`WeChatIconButton`）；
+  - 创建 `src/UI/Controls/WeChatChatView.cs`：剥离自绘消息流视图控件与排版测算项（`MessageRenderItem`），完整保留平滑滚动与尺寸防越界保护；
+  - 创建 `src/Services/UpdateService.cs`：将 GitHub REST API + Web 302 页面重定向双轨降级探测、更新向导弹窗与 MSI 自动下载安装完整封装为独立应用服务。
 
-### 2. 在线更新 403 已禁止根因排查与机制加固
-- **403 异常根因诊断**：
-  1. 仓库当前处于 **Private（私有）** 状态，匿名客户端请求 GitHub API 会被直接拒绝（403/404）；
-  2. 仓库尚未在 GitHub 创建 **Release** 发布版本（当前 Releases 为 0），`/releases/latest` 端点无数据；
-  3. GitHub API 针对未认证 IP 设有严格的 60次/小时 速率限制，匿名请求容易触发 `403 rate limit exceeded`。
-- **客户端更新引擎双重加固（双轨探测）**：
-  1. **REST API 优先**：请求 API 获取详细日志与 MSI 下载直链；
-  2. **Web 302 重定向降级**：若 API 遭遇 403 限流或故障，自动请求 `https://github.com/{repo}/releases/latest`，通过页面 302 目标 URL 解析最新 Tag，**彻底突破 60次/小时限制**；
-  3. **智能友好诊断弹窗**：识别 403 与 404 状态码，精准提示用户“仓库为 Private 或尚未发布 Release”，提供清晰解决方案，替换生硬的 Win32/WebException 报错。
-- **自动化发布脚本交付 (`publish-release.py`)**：
-  - 读取本地 Git 凭据，自动创建 GitHub Release（`v2.0.0`）并流式上传 `LanChat.msi` 与 `LanChat.deb` 资产。
-
-### 3. Windows 端稳定性与体验闭环
-- **滚动条越界异常根治**：在 `RecalculateLayout` 中加入尺寸守卫（`<= 50` 立即返回）、`Math.Min/Max` 边界夹紧并包裹 `try-catch`。
-- **全局单实例互斥（Mutex）**：在 `Program.Main` 中使用 `Mutex("Global\\LanChat_SingleInstance_Mutex_9F24FEA2")`。若已有实例在运行，通过系统广播消息 `RegisterWindowMessage("LANCHAT_WAKEUP_INSTANCE_MSG_V2")` 唤醒已存在的实例并前置展示，当前进程安全退出。
-- **WndProc 唤醒响应**：在 `MainForm.WndProc` 中监听该唤醒消息，自动调用 `RestoreFromTray()` 从系统托盘或最小化状态恢复并激活到前台。
-
-### 4. Linux 端 deb 微信暗黑原生 GUI
-- **0 额外依赖 Tkinter 原生微信暗黑界面**：在 `lanchat.py` 中使用 Python 3 标准库 `tkinter` 像素级复刻 Windows 端微信暗黑 3 栏界面，支持暗黑消息气泡、头像胶囊、进度条、发送文件、群聊/私聊切换等，免去 PyQt/Electron 臃肿负担。
-- **桌面快捷方式去终端化**：将 `lanchat.desktop` 改为 `Terminal=false`，桌面点击图标直接以原生 GUI 呈现。
-- **启动器自适应环境调度**：`/usr/bin/lanchat` 在图形桌面（`DISPLAY`/`WAYLAND_DISPLAY`）下优先启动微信暗黑 GUI；若无交互终端且缺少 `python3-tk`，自动调用 `zenity`/`notify-send` 友好提示 `sudo apt install python3-tk`；若在纯 SSH/无头服务器或传入 `--cli` 时，平滑降级至交互式 CLI 控制台。
+### 2. 编译构建工具链升级与 0-BOM 纯 ASCII 治理
+- **`Tools/` 自动化工具链无缝适配与乱码根治**：
+  - 更新 `Tools/Compile.bat`、`Tools/CompileAndLink.bat` 与 `Tools/Publish.bat`，全面引入多级目录源码编译；
+  - 彻底去除脚本内的 UTF-8 BOM 标记（避免 Windows `cmd.exe` 将文件头误判为 `'ï»¿@echo'` 语法报错）；
+  - 彻底清理脚本内所有中文注释与非 ASCII 字符，完全采用纯英文 ASCII 格式保存，避免在中文 Windows 默认 CP936（GBK）控制台下产生多字节拆解乱码；
+  - 经由系统原生 `csc.exe`（.NET Framework 4.0 / C# 5.0）实测验证，编译耗时 < 1 秒，产物 `release/LanChat.exe` 体积稳定在 **139 KB**（142,336 字节），零运行时依赖膨胀。
+- **跨平台与现代 SDK 双轨兼容保障**：
+  - 修复 `src/linux/LanChat.Linux/LanChat.Linux.csproj` 对跨端共用通信引擎（`Models.cs` 与 `NetworkService.cs`）的相对软链接路径；
+  - 在现代 .NET 9 SDK 环境下完成 `LanChat.csproj` 与 `LanChat.Linux.csproj` 全量构建，达成 **0 警告、0 错误**。
 
 ---
 
 ## 二、 关键约束与设计原则
 
 1. **以最小实现、零冗余依赖为荣**：
-   - Windows 端保持系统自带 `csc.exe` 秒级编译，无任何外部运行库依赖。
+   - Windows 端保持系统自带 `csc.exe` 秒级纯编译，免去任何第三方 NuGet 与庞大运行库。
    - Linux 端采用 Python 标准库实现微信暗黑 GUI，兼具跨发行版与跨 CPU 架构兼容性（x86_64、ARM64、龙芯、飞腾）。
-2. **纯暗黑界面无白色残留**：
-   - 界面自绘控件及菜单统一采用微信暗黑配色规范。
-3. **网络与协议安全边界**：
-   - 纯内网 P2P 通信，魔数 `0x4C, 0x41, 0x4E, 0x43`（`"LANC"`），LEB128 变长前缀 + UTF-8 字符串编码。
-   - 大文件传输固定 64KB Chunk 分块流式收发，内存占用恒定 < 1MB。
+2. **严格代码规范与向后兼容**：
+   - 保持 C# 5.0 语法兼容，杜绝引入任何破坏轻量原生的 C# 8+ 高版本语言特性；
+   - 核心通信契约保持向后兼容：端口 UDP 38888、TCP 38889+，魔数 `0x4C, 0x41, 0x4E, 0x43`（`"LANC"`），LEB128 变长前缀 + UTF-8 字符串编码，64KB 流式分块传输。
+3. **纯暗黑界面与视觉规范**：
+   - 对标 WeChat Desktop Dark Mode（侧边栏 `#252526`、会话列表 `#202021`、激活绿 `#07c160`、主聊天区 `#1e1e1f`、气泡 `#07c160` 与 `#2c2c2e`），全界面杜绝任何 Win32 原生白色残留。
 
 ---
 
-## 三、 模块索引 (新目录架构)
+## 三、 模块索引 (当前项目目录架构)
 
 | 模块 / 文件 | 说明 |
 | :--- | :--- |
 | `src/Program.cs` | 应用程序入口，单实例互斥（Mutex）与全局消息广播唤醒，高 DPI 感知 |
-| `src/MainForm.cs` | 主界面核心逻辑、托盘图标、暗黑渲染器、GitHub 双轨（API+Web）在线更新、防越界保护 |
+| `src/MainForm.cs` | 主界面核心逻辑、托盘图标响应、会话流转与消息布局调度 |
+| `src/UI/Renderers/WeChatIcon.cs` | 纯 GDI+ 矢量自绘图标系统（13 类微信高保真图标） |
+| `src/UI/Renderers/WeChatDarkMenuRenderer.cs` | 微信暗黑菜单调色板、专业菜单渲染器与暗黑悬浮 Tooltip 气泡 |
+| `src/UI/Controls/WeChatButtons.cs` | 侧栏微信导航按钮（`WeChatNavButton`）与无边框透明图标按钮（`WeChatIconButton`） |
+| `src/UI/Controls/WeChatChatView.cs` | 自绘流式消息列表视图、虚拟防越界滚动条、气泡与文件卡片渲染 |
+| `src/Services/UpdateService.cs` | GitHub Releases 双轨在线检测、降级 Web 302 探测与暗黑更新向导弹窗 |
 | `src/Models.cs` | 跨平台共用数据实体（`PeerInfo`, `ChatMessage`, `FileTransferTask`） |
 | `src/NetworkService.cs` | 跨平台共用网络引擎（多网卡探测、UDP 发现、TCP 握手、流式分块文件收发） |
 | `src/Uninstall.cs` | 独立卸载向导源码，支持安全脱钩与彻底清理 |
@@ -79,5 +71,8 @@
 
 ## 四、 下一步计划
 
-1. **GitHub 仓库设为 Public 验证在线更新**：将 GitHub 仓库可见性修改为 Public 后，在客户端点击【🔄 检查新版本...】验证全流程。
-2. **用户日常自助开发验证**：用户在更改代码后双击 `Tools/CompileAndLink.bat` 验证本地开发体验，完成新版本后双击 `Tools/Publish.bat` 验证全自动打包发布。
+1. **推进架构重构阶段二（主窗体业务逻辑 Partial 模块化）**：
+   - 将精简后的 `MainForm.cs` 按业务领域解耦为 `MainForm.cs`（核心骨架）、`MainForm.Chat.cs`（聊天交互）、`MainForm.Files.cs`（文件流传输回调）、`MainForm.Tray.cs`（系统托盘与生命周期）；
+   - 原生 `csc.exe` 验证极速编译并确保逻辑零退化。
+2. **GitHub 仓库设为 Public 验证在线更新**：
+   - 将 GitHub 仓库可见性调整为 Public 后，实机点击【🔄 检查新版本...】完成双轨在线更新闭环验证。

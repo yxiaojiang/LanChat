@@ -14,8 +14,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\Models.cs" Link="Models.cs" />
-    <Compile Include="..\NetworkService.cs" Link="NetworkService.cs" />
+    <Compile Include="..\..\Models.cs" Link="Models.cs" />
+    <Compile Include="..\..\NetworkService.cs" Link="NetworkService.cs" />
   </ItemGroup>
 
 </Project>

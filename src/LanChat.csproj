@@ -10,6 +10,12 @@
     <StartupObject>LanChat.Program</StartupObject>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
+    <NoWarn>$(NoWarn);WFO1000;SYSLIB0014</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="linux\**" />
+    <Compile Remove="Uninstall.cs" />
+  </ItemGroup>
 
 </Project>

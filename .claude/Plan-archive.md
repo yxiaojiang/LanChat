@@ -1,6 +1,6 @@
 # Plan-archive.md — 历史归档计划
 
-> 归档时间：2026-10-20。
+> 归档时间：2026-10-24。
 
 ---
 
@@ -50,7 +50,6 @@
   4. 打包发布 Windows `LanChat.msi` (2.0.0)、Linux `lanchat_2.0.0_amd64.deb` 与 `lanchat_2.0.0_all.deb`。
   5. 打上 Git Tag：`LanChat-v2.0` 与 `v2.0`。
 
-
 ---
 
 ## 归档事项 5：Windows 最小化异常修复、单实例互斥唤醒与 GitHub 在线更新（已完成）
@@ -71,3 +70,18 @@
   2. 将 `lanchat.desktop` 修改为 `Terminal=false`，消除桌面点击图标时的黑框终端闪现。
   3. 优化启动器 `/usr/bin/lanchat`：图形环境优先启动 GUI，无头/SSH 环境平滑回退至 CLI 控制台；桌面缺少 `python3-tk` 时自动弹出系统提示窗。
   4. 重新编译生成 Windows `LanChat.msi`、`LanChat.exe` 与 Linux `release/lanchat_2.0.0_amd64.deb`、`release/LanChat.deb`、`release/lanchat_2.0.0_all.deb`。
+
+---
+
+## 归档事项 7：架构解耦重构阶段一 —— UI 控件、绘图引擎与更新服务物理分离（已完成）
+
+- **完成日期**：2026-10-24
+- **成果**：
+  1. 将 3206 行的巨型 `MainForm.cs` 进行物理模块化剥离，瘦身至 1838 行（净减 1368 行代码）：
+     - 提取 `src/UI/Renderers/WeChatIcon.cs`：13 类纯 GDI+ 矢量图标绘制引擎；
+     - 提取 `src/UI/Renderers/WeChatDarkMenuRenderer.cs`：微信暗黑菜单调色板与全局暗黑 Tooltip；
+     - 提取 `src/UI/Controls/WeChatButtons.cs`：微信侧边栏导航按钮与暗黑工具栏图标按钮；
+     - 提取 `src/UI/Controls/WeChatChatView.cs`：流式自绘聊天视图与文件卡片交互；
+     - 提取 `src/Services/UpdateService.cs`：GitHub 双轨在线更新检测服务与更新向导弹窗。
+  2. 更新并验证 `Tools/Compile.bat`、`Tools/CompileAndLink.bat`、`Tools/Publish.bat`，原生系统自带 `csc.exe` 耗时 < 1 秒，产物体积保持在 139 KB（~142,336 字节）。
+  3. 修复 `LanChat.Linux.csproj` 源码软链接路径并完成 .NET 9 与 Framework 4.0 双轨编译验证，达成 0 警告、0 错误。

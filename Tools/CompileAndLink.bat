@@ -1,12 +1,12 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal
 
 echo ====================================================================
-echo         LanChat 一键编译链接与覆盖安装工具
+echo         LanChat Compile, Link and Hot-Replace Tool
 echo ====================================================================
 echo.
 
-REM 1. 自动定位 LanChat 项目根目录
+REM 1. Locate LanChat project root directory
 set "PROJECT_DIR="
 if exist "%~dp0..\src\MainForm.cs" set "PROJECT_DIR=%~dp0.."
 if not defined PROJECT_DIR (
@@ -17,7 +17,7 @@ if not defined PROJECT_DIR (
 )
 
 if not defined PROJECT_DIR (
-    echo [错误] 未能找到项目核心源文件 src\MainForm.cs。
+    echo [ERROR] Could not find project source file src\MainForm.cs.
     pause
     exit /b 1
 )
@@ -27,27 +27,27 @@ set "PROJECT_DIR=%CD%"
 set "TARGET_INSTALL_DIR=D:\soft\LanChat"
 set "CSC_PATH=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 
-echo [1/3] 检查编译与目标环境...
+echo [1/3] Checking environment...
 if not exist "%CSC_PATH%" (
-    echo [错误] 系统 C# 编译器不存在: %CSC_PATH%
+    echo [ERROR] System C# compiler not found: %CSC_PATH%
     pause
     exit /b 1
 )
-echo       C# 编译器: %CSC_PATH%
-echo       源码目录: %PROJECT_DIR%\src
-echo       目标目录: %TARGET_INSTALL_DIR%
+echo       C# Compiler: %CSC_PATH%
+echo       Source Dir : %PROJECT_DIR%\src
+echo       Target Dir : %TARGET_INSTALL_DIR%
 echo.
 
 if not exist "release" mkdir release >nul 2>nul
 
-REM 2. 编译 LanChat.exe
-echo [2/3] 正在编译链接 LanChat.exe ...
-"%CSC_PATH%" /nologo /target:winexe /win32icon:assets\app.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:release\LanChat.exe src\Models.cs src\NetworkService.cs src\MainForm.cs src\Program.cs
+REM 2. Compile LanChat.exe
+echo [2/3] Compiling LanChat.exe ...
+"%CSC_PATH%" /nologo /target:winexe /main:LanChat.Program /win32icon:assets\app.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:release\LanChat.exe src\Models.cs src\NetworkService.cs src\MainForm.cs src\Program.cs src\UI\Controls\*.cs src\UI\Renderers\*.cs src\Services\*.cs
 
 if errorlevel 1 (
     echo.
     echo ====================================================================
-    echo [错误] LanChat.exe 编译失败！请检查上述代码报错。
+    echo [ERROR] LanChat.exe compilation failed. Please check errors above.
     echo ====================================================================
     pause
     exit /b 1
@@ -57,21 +57,21 @@ if exist "src\Uninstall.cs" (
     "%CSC_PATH%" /nologo /target:winexe /win32icon:assets\app.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:release\uninstall.exe src\Uninstall.cs >nul 2>nul
 )
 
-echo       [成功] LanChat.exe 编译链接完成！
+echo       [SUCCESS] LanChat.exe compiled successfully.
 echo.
 
-REM 3. 覆盖替换安装目录
-echo [3/3] 正在同步覆盖到已安装目录: %TARGET_INSTALL_DIR% ...
+REM 3. Hot-replace files in installation directory
+echo [3/3] Synchronizing files to: %TARGET_INSTALL_DIR% ...
 
 if not exist "%TARGET_INSTALL_DIR%" (
-    echo       安装目录不存在，自动创建目录: %TARGET_INSTALL_DIR%
+    echo       Target directory does not exist, creating: %TARGET_INSTALL_DIR%
     mkdir "%TARGET_INSTALL_DIR%" >nul 2>nul
 )
 
-REM 检测目标程序是否正在运行
+REM Terminate existing LanChat.exe process if running
 tasklist /fi "imagename eq LanChat.exe" 2>nul | findstr /i "LanChat.exe" >nul
 if not errorlevel 1 (
-    echo       检测到 LanChat.exe 正在运行中，正在退出原进程以便文件替换...
+    echo       Detected running LanChat.exe, terminating process for hot-replace...
     taskkill /f /im LanChat.exe >nul 2>nul
     timeout /t 1 /nobreak >nul 2>nul
 )
@@ -79,7 +79,7 @@ if not errorlevel 1 (
 copy /y release\LanChat.exe "%TARGET_INSTALL_DIR%\LanChat.exe" >nul
 if errorlevel 1 (
     echo.
-    echo [错误] 复制替换失败！文件可能仍被占用或权限不足。
+    echo [ERROR] Copy failed. File might be locked or requires administrator privileges.
     pause
     exit /b 1
 )
@@ -91,21 +91,21 @@ if exist "assets\app.ico" (
     copy /y assets\app.ico "%TARGET_INSTALL_DIR%\app.ico" >nul 2>nul
 )
 
-echo       [成功] 新版 LanChat.exe 已成功覆盖至: %TARGET_INSTALL_DIR%\LanChat.exe
+echo       [SUCCESS] New LanChat.exe copied to: %TARGET_INSTALL_DIR%\LanChat.exe
 echo.
 echo ====================================================================
-echo  编译与本地更新已全部完成！
+echo  Compilation and local update completed successfully.
 echo ====================================================================
 echo.
 
-set /p RUN_NOW="是否立即启动新版 LanChat? [Y/N，默认Y]: "
+set /p RUN_NOW="Launch LanChat now? [Y/N, default=Y]: "
 if /i "%RUN_NOW%"=="" set RUN_NOW=Y
 if /i "%RUN_NOW%"=="Y" (
-    echo 正在启动: %TARGET_INSTALL_DIR%\LanChat.exe ...
+    echo Starting: %TARGET_INSTALL_DIR%\LanChat.exe ...
     start "" "%TARGET_INSTALL_DIR%\LanChat.exe"
 )
 
 echo.
-echo 操作完成。
+echo Done.
 pause
 exit /b 0
