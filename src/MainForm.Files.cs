@@ -91,20 +91,21 @@ namespace LanChat
                 picker.FormBorderStyle = FormBorderStyle.FixedDialog;
                 picker.MaximizeBox = false;
                 picker.MinimizeBox = false;
-                picker.BackColor = System.Drawing.Color.FromArgb(44, 44, 46);
+                picker.BackColor = System.Drawing.Color.FromArgb(24, 24, 26);
                 picker.ForeColor = System.Drawing.Color.White;
 
                 ListBox lb = new ListBox
                 {
                     Dock = DockStyle.Fill,
                     Font = new System.Drawing.Font("Microsoft YaHei", 9.5f),
-                    BackColor = System.Drawing.Color.FromArgb(32, 32, 34),
+                    BackColor = System.Drawing.Color.FromArgb(18, 18, 20),
                     ForeColor = System.Drawing.Color.White
                 };
                 foreach (var p in peers) lb.Items.Add(p);
                 lb.SelectedIndex = 0;
 
-                Button btnOk = new Button { Text = "确定发送", Dock = DockStyle.Bottom, Height = 36, DialogResult = DialogResult.OK, BackColor = System.Drawing.Color.FromArgb(7, 193, 96), ForeColor = System.Drawing.Color.White, FlatStyle = FlatStyle.Flat };
+                Button btnOk = new Button { Text = "确定发送", Dock = DockStyle.Bottom, Height = 36, DialogResult = DialogResult.OK, BackColor = System.Drawing.Color.FromArgb(121, 70, 215), ForeColor = System.Drawing.Color.White, FlatStyle = FlatStyle.Flat };
+                btnOk.FlatAppearance.BorderSize = 0;
                 picker.Controls.Add(lb);
                 picker.Controls.Add(btnOk);
 

@@ -13,7 +13,7 @@ namespace LanChat
         private void PeerJoined(PeerInfo peer)
         {
             RefreshPeerListUI();
-            AppendChatSystem(string.Format("发现好友上线: {0} ({1} - {2})", peer.NickName, peer.HostName, peer.IP));
+            AppendChatSystem(string.Format("发现节点上线: {0} ({1} - {2})", peer.NickName, peer.HostName, peer.IP));
         }
 
         private void PeerUpdated(PeerInfo peer)
@@ -38,6 +38,9 @@ namespace LanChat
                 _allSessionItems.Add(p);
             }
 
+            // 列表末尾固定附带“新建连接”（对应截图中底部的“新建 Bot”）
+            _allSessionItems.Add(NEW_CONNECTION_ITEM);
+
             ApplyFilterAndRenderList();
         }
 
@@ -51,6 +54,15 @@ namespace LanChat
 
             foreach (var item in _allSessionItems)
             {
+                if (item is string && (string)item == NEW_CONNECTION_ITEM)
+                {
+                    if (string.IsNullOrEmpty(filter) || "新建连接".Contains(filter) || "bot".Contains(filter))
+                    {
+                        _listSessions.Items.Add(item);
+                    }
+                    continue;
+                }
+
                 if (string.IsNullOrEmpty(filter))
                 {
                     _listSessions.Items.Add(item);
@@ -77,7 +89,7 @@ namespace LanChat
             }
 
             // Restore selection or select 0
-            if (currentSelected != null)
+            if (currentSelected != null && !(currentSelected is string && (string)currentSelected == NEW_CONNECTION_ITEM))
             {
                 int index = -1;
                 for (int i = 0; i < _listSessions.Items.Count; i++)
@@ -110,38 +122,57 @@ namespace LanChat
             menu.Renderer = new WeChatDarkMenuRenderer();
             menu.ShowImageMargin = false;
             menu.ShowCheckMargin = false;
-            menu.BackColor = Color.FromArgb(44, 44, 46);
-            menu.ForeColor = Color.FromArgb(235, 235, 235);
+            menu.BackColor = Color.FromArgb(30, 30, 32);
+            menu.ForeColor = Color.FromArgb(235, 235, 240);
 
-            menu.Items.Add("➕ 手动添加好友 IP...", null, (s, ev) => BtnAddIp_Click(s, ev));
-            menu.Items.Add("🔄 扫描局域网好友", null, (s, ev) => RefreshPeersWithNotice());
+            menu.Items.Add("➕ 手动添加好友 IP (直连握手)...", null, (s, ev) => BtnAddIp_Click(s, ev));
+            menu.Items.Add("🔄 扫描并广播局域网节点", null, (s, ev) => RefreshPeersWithNotice());
             menu.Items.Add("📂 打开接收文件夹", null, (s, ev) => OpenReceivedFolder());
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("⚙️ 系统设置与更多...", null, (s, ev) => BtnSettings_Click(s, ev));
 
-            menu.Show(_btnAddSession, new Point(0, _btnAddSession.Height + 2));
+            menu.Show(_btnAddSession, new Point(0, _btnAddSession.Height + 4));
         }
 
         private void ListSessions_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (_listSessions.SelectedItem == null) return;
 
+            // 点击列表末尾“新建连接”项：触发手动连接 IP 弹窗并恢复原会话选中态
+            if (_listSessions.SelectedItem is string && (string)_listSessions.SelectedItem == NEW_CONNECTION_ITEM)
+            {
+                _listSessions.SelectedIndex = 0;
+                BtnAddIp_Click(this, EventArgs.Empty);
+                return;
+            }
+
             if (_listSessions.SelectedItem is string && (string)_listSessions.SelectedItem == BROADCAST_TARGET)
             {
                 _selectedPeer = null;
                 _activeChatKey = "BROADCAST";
-                int count = _netService != null ? _netService.GetActivePeers().Count : 0;
-                _lblChatTitle.Text = string.Format("📢 局域网全员群聊 ({0}人在线)", count);
-                _lblChatSubtitle.Text = "局域网全员广播消息通道";
+                _lblChatTitle.Text = "局域网全员群聊";
+                _inputPlaceholder = "给 局域网全员群聊 发消息";
+                _chatView.ShowGroupSenderName = true;
             }
             else if (_listSessions.SelectedItem is PeerInfo)
             {
                 _selectedPeer = (PeerInfo)_listSessions.SelectedItem;
                 _activeChatKey = _selectedPeer.Id;
                 _selectedPeer.UnreadCount = 0;
-                _lblChatTitle.Text = string.Format("👤 {0}", _selectedPeer.NickName);
-                _lblChatSubtitle.Text = string.Format("{0} - {1}:{2}", _selectedPeer.HostName, _selectedPeer.IP, _selectedPeer.TcpPort);
+                _lblChatTitle.Text = _selectedPeer.NickName ?? "在线节点";
+                _inputPlaceholder = string.Format("给 {0} 发消息", _selectedPeer.NickName ?? "好友");
+                _chatView.ShowGroupSenderName = false; // 1对1私聊与截图完全一致，隐藏双方头像与昵称
+            }
+
+            if (_lblSendTip != null)
+            {
+                _lblSendTip.Text = _inputPlaceholder;
+                _lblSendTip.Visible = string.IsNullOrEmpty(_txtInput.Text);
             }
 
             SwitchActiveChatView();
+            _chatHeader.Invalidate();
+            _inputPanel.Invalidate();
             _listSessions.Invalidate();
         }
 
@@ -154,137 +185,121 @@ namespace LanChat
         {
             if (e.Index < 0 || e.Index >= _listSessions.Items.Count) return;
 
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
-            bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-            // WeChat Green selection highlight as in screenshot: #07c160
-            Color bgColor = isSelected ? Color.FromArgb(7, 193, 96) : Color.FromArgb(47, 47, 48);
+            Rectangle r = e.Bounds;
+            object item = _listSessions.Items[e.Index];
+            bool isNewConnItem = (item is string && (string)item == NEW_CONNECTION_ITEM);
+            bool isSelected = ((e.State & DrawItemState.Selected) == DrawItemState.Selected) && !isNewConnItem;
 
-            using (SolidBrush bgBrush = new SolidBrush(bgColor))
+            // 1. 填充纯黑底色 (#0E0E0E)
+            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(14, 14, 14)))
             {
-                e.Graphics.FillRectangle(bgBrush, e.Bounds);
+                g.FillRectangle(bgBrush, r);
             }
 
-            object item = _listSessions.Items[e.Index];
-            Rectangle r = e.Bounds;
+            bool isLarge = (r.Height > 50);
+            int cardMarginX = isLarge ? 10 : 8;
+            int cardMarginY = isLarge ? 3 : 2;
+            int cardRadius = isLarge ? 11 : 9;
+
+            // 2. 选中态绘制 #222226 圆角卡片背景（与截图选中项 Alist迅雷 100% 一致）
+            if (isSelected)
+            {
+                Rectangle cardRect = new Rectangle(r.Left + cardMarginX, r.Top + cardMarginY, r.Width - cardMarginX * 2, r.Height - cardMarginY * 2);
+                using (SolidBrush cardBrush = new SolidBrush(Color.FromArgb(34, 34, 38)))
+                {
+                    DrawRoundedRectangle(g, cardBrush, cardRect, cardRadius);
+                }
+            }
+
+            int avSize = isLarge ? 32 : 26;
+            int avX = r.Left + (isLarge ? 18 : 14);
+            int avY = r.Top + (r.Height - avSize) / 2;
+            Rectangle avatarRect = new Rectangle(avX, avY, avSize, avSize);
+            int textX = avX + avSize + (isLarge ? 10 : 8);
+
+            if (isNewConnItem)
+            {
+                // 底部“新建连接”项：有机橙黄云朵吉祥物 + 单行粗体白字（复刻截图底部“新建 Bot”）
+                WeChatIcon.DrawMascotAvatar(g, avatarRect, Color.FromArgb(246, 148, 18), true, false, Color.FromArgb(14, 14, 14));
+
+                using (Font titleFont = new Font("Microsoft YaHei", isLarge ? 9.5f : 9.0f, FontStyle.Bold))
+                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(240, 240, 245)))
+                {
+                    float ty = r.Top + (r.Height - titleFont.GetHeight(g)) / 2f;
+                    g.DrawString("新建连接", titleFont, titleBrush, new PointF(textX, ty));
+                }
+                return;
+            }
 
             if (item is string)
             {
-                // Group Chat item avatar
-                Rectangle avatarRect = new Rectangle(r.Left + 12, r.Top + 12, 40, 40);
-                using (SolidBrush avBrush = new SolidBrush(isSelected ? Color.FromArgb(4, 150, 74) : Color.FromArgb(32, 128, 70)))
-                {
-                    DrawRoundedRectangle(e.Graphics, avBrush, avatarRect, 4);
-                }
+                // 顶部第一项（局域网全员群聊）：亮紫色正圆吉祥物 (#905AFB，复刻截图 Alist迅雷)
+                WeChatIcon.DrawMascotAvatar(g, avatarRect, Color.FromArgb(144, 90, 251), false, false, Color.FromArgb(14, 14, 14));
 
-                using (Font iconFont = new Font("Microsoft YaHei", 12f))
-                using (SolidBrush textBrush = new SolidBrush(Color.White))
-                {
-                    StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString("📢", iconFont, textBrush, avatarRect, sf);
-                }
-
-                // Name
-                using (Font titleFont = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold))
-                using (SolidBrush titleBrush = new SolidBrush(Color.White))
+                using (Font titleFont = new Font("Microsoft YaHei", isLarge ? 9.5f : 9.0f, FontStyle.Bold))
+                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(242, 242, 245)))
                 {
                     int onlineCount = _netService != null ? _netService.GetActivePeers().Count : 0;
-                    string title = string.Format("局域网全员群聊 ({0})", onlineCount);
-                    e.Graphics.DrawString(title, titleFont, titleBrush, new PointF(r.Left + 60, r.Top + 14));
+                    string title = onlineCount > 0 ? string.Format("局域网全员群聊 ({0})", onlineCount) : "局域网全员群聊";
+                    g.DrawString(title, titleFont, titleBrush, new PointF(textX, r.Top + (isLarge ? 8 : 5)));
                 }
 
-                // Last message snippet
-                string snippet = _sessionManager.GetLastMessageSnippet(SessionManager.BROADCAST_KEY, 20);
-                if (string.IsNullOrEmpty(snippet)) snippet = "点击发送全网广播消息";
+                string snippet = _sessionManager.GetLastMessageSnippet(SessionManager.BROADCAST_KEY, 18);
+                if (string.IsNullOrEmpty(snippet)) snippet = "已按 Rules 刷新本机局域网广播...";
 
-                using (Font subFont = new Font("Microsoft YaHei", 8.5f))
-                using (SolidBrush subBrush = new SolidBrush(isSelected ? Color.FromArgb(220, 248, 230) : Color.FromArgb(145, 145, 145)))
+                using (Font subFont = new Font("Microsoft YaHei", isLarge ? 8.5f : 8.0f))
+                using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(135, 135, 140)))
                 {
-                    if (snippet.Length > 20) snippet = snippet.Substring(0, 19) + "...";
-                    e.Graphics.DrawString(snippet, subFont, subBrush, new PointF(r.Left + 60, r.Top + 36));
+                    if (snippet.Length > 16) snippet = snippet.Substring(0, 15) + "...";
+                    g.DrawString(snippet, subFont, subBrush, new PointF(textX, r.Top + (isLarge ? 28 : 24)));
                 }
             }
             else if (item is PeerInfo)
             {
                 PeerInfo peer = (PeerInfo)item;
 
-                // Round Avatar (radius 4px)
-                Rectangle avatarRect = new Rectangle(r.Left + 12, r.Top + 12, 40, 40);
-                Color avColor = GetAvatarColor(peer.NickName);
-                using (SolidBrush avBrush = new SolidBrush(avColor))
+                // 在线节点：复刻截图中的橙色云朵吉祥物 (#F69412) 与珊瑚红带角标吉祥物 (#FC2C3E)
+                bool useCoralStyle = (e.Index % 3 == 0);
+                Color bodyColor = useCoralStyle ? Color.FromArgb(252, 44, 62) : Color.FromArgb(246, 148, 18);
+                string badge = useCoralStyle ? "节点" : null;
+                WeChatIcon.DrawMascotAvatar(g, avatarRect, bodyColor, !useCoralStyle, false, Color.FromArgb(14, 14, 14), badge);
+
+                using (Font titleFont = new Font("Microsoft YaHei", isLarge ? 9.5f : 9.0f, FontStyle.Bold))
+                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(242, 242, 245)))
                 {
-                    DrawRoundedRectangle(e.Graphics, avBrush, avatarRect, 4);
+                    string name = peer.NickName ?? "未知节点";
+                    if (name.Length > 13) name = name.Substring(0, 12) + "...";
+                    g.DrawString(name, titleFont, titleBrush, new PointF(textX, r.Top + (isLarge ? 8 : 5)));
                 }
 
-                string initial = string.IsNullOrEmpty(peer.NickName) ? "友" : peer.NickName.Substring(0, 1).ToUpperInvariant();
-                using (Font f = new Font("Microsoft YaHei", 11f, FontStyle.Bold))
-                using (SolidBrush textBrush = new SolidBrush(Color.White))
-                {
-                    StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString(initial, f, textBrush, avatarRect, sf);
-                }
-
-                // Online green dot
-                Rectangle dotRect = new Rectangle(r.Left + 42, r.Top + 42, 10, 10);
-                using (SolidBrush dotBg = new SolidBrush(bgColor))
-                using (SolidBrush dotFg = new SolidBrush(Color.FromArgb(7, 193, 96)))
-                {
-                    e.Graphics.FillEllipse(dotBg, new Rectangle(r.Left + 41, r.Top + 41, 12, 12));
-                    e.Graphics.FillEllipse(dotFg, dotRect);
-                }
-
-                // Peer Nickname
-                using (Font titleFont = new Font("Microsoft YaHei", 9.5f, isSelected ? FontStyle.Bold : FontStyle.Regular))
-                using (SolidBrush titleBrush = new SolidBrush(Color.White))
-                {
-                    e.Graphics.DrawString(peer.NickName ?? "未知用户", titleFont, titleBrush, new PointF(r.Left + 60, r.Top + 13));
-                }
-
-                // Time or IP on right
-                using (Font timeFont = new Font("Microsoft YaHei", 8f))
-                using (SolidBrush timeBrush = new SolidBrush(isSelected ? Color.FromArgb(220, 245, 220) : Color.FromArgb(130, 130, 130)))
-                {
-                    string timeStr = peer.LastMessageTime != DateTime.MinValue ? peer.LastMessageTime.ToString("MM/dd") : "";
-                    if (!string.IsNullOrEmpty(timeStr))
-                    {
-                        e.Graphics.DrawString(timeStr, timeFont, timeBrush, new PointF(r.Right - 46, r.Top + 14));
-                    }
-                }
-
-                // Peer Snippet
                 string snippet = peer.LastMessage;
                 if (string.IsNullOrEmpty(snippet))
                 {
                     snippet = string.Format("{0} ({1})", peer.HostName, peer.IP);
                 }
-                using (Font subFont = new Font("Microsoft YaHei", 8.5f))
-                using (SolidBrush subBrush = new SolidBrush(isSelected ? Color.FromArgb(220, 248, 230) : Color.FromArgb(145, 145, 145)))
+                using (Font subFont = new Font("Microsoft YaHei", isLarge ? 8.5f : 8.0f))
+                using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(135, 135, 140)))
                 {
-                    if (snippet.Length > 22) snippet = snippet.Substring(0, 21) + "...";
-                    e.Graphics.DrawString(snippet, subFont, subBrush, new PointF(r.Left + 60, r.Top + 36));
+                    if (snippet.Length > 16) snippet = snippet.Substring(0, 15) + "...";
+                    g.DrawString(snippet, subFont, subBrush, new PointF(textX, r.Top + (isLarge ? 28 : 24)));
                 }
-            }
-
-            // Divider line
-            using (Pen divPen = new Pen(Color.FromArgb(40, 40, 42)))
-            {
-                e.Graphics.DrawLine(divPen, r.Left + 60, r.Bottom - 1, r.Right, r.Bottom - 1);
             }
         }
 
         private Color GetAvatarColor(string name)
         {
-            if (string.IsNullOrEmpty(name)) return Color.FromArgb(59, 130, 246);
+            if (string.IsNullOrEmpty(name)) return Color.FromArgb(144, 90, 251);
             int hash = Math.Abs(name.GetHashCode());
             Color[] colors = new Color[]
             {
-                Color.FromArgb(59, 130, 246),  // Blue
-                Color.FromArgb(139, 92, 246),  // Purple
-                Color.FromArgb(236, 72, 153),  // Pink
-                Color.FromArgb(16, 185, 129),  // Emerald
-                Color.FromArgb(245, 158, 11),  // Amber
-                Color.FromArgb(14, 165, 233),  // Sky
-                Color.FromArgb(168, 85, 247)   // Violet
+                Color.FromArgb(144, 90, 251),  // Grok Purple
+                Color.FromArgb(246, 148, 18),  // Grok Orange
+                Color.FromArgb(252, 44, 62),   // Grok Coral Red
+                Color.FromArgb(77, 155, 255)   // Grok Blue
             };
             return colors[hash % colors.Length];
         }
@@ -295,10 +310,11 @@ namespace LanChat
 
         private void TxtInput_TextChanged(object sender, EventArgs e)
         {
-            bool hasText = !string.IsNullOrEmpty(_txtInput.Text.Trim());
-            _btnSend.BackColor = hasText ? Color.FromArgb(7, 193, 96) : Color.FromArgb(42, 42, 44);
-            _btnSend.ForeColor = hasText ? Color.White : Color.FromArgb(120, 120, 120);
-            _btnSend.Invalidate();
+            if (_lblSendTip != null)
+            {
+                _lblSendTip.Visible = string.IsNullOrEmpty(_txtInput.Text) && !_txtInput.Focused;
+            }
+            _inputPanel.Invalidate();
         }
 
         private void TxtInput_KeyDown(object sender, KeyEventArgs e)
@@ -401,7 +417,7 @@ namespace LanChat
             AddMessageToHistory(convKey, msg);
             _listSessions.Invalidate();
 
-            // 若窗体隐藏在系统托盘中，显示微信风格气泡提醒
+            // 若窗体隐藏在系统托盘中，显示气泡提醒
             if (!this.Visible && _trayIcon != null)
             {
                 try
@@ -435,7 +451,6 @@ namespace LanChat
                 IsSystem = true
             };
 
-            // Add to current active chat
             AddMessageToHistory(_activeChatKey, msg);
         }
 
@@ -457,10 +472,10 @@ namespace LanChat
                 StartPosition = FormStartPosition.Manual,
                 ShowInTaskbar = false,
                 Size = new Size(290, 200),
-                BackColor = Color.FromArgb(44, 44, 46)
+                BackColor = Color.FromArgb(28, 28, 30)
             };
 
-            Point screenPoint = _btnToolEmoji.PointToScreen(new Point(0, -popup.Height - 4));
+            Point screenPoint = _btnToolSendFile.PointToScreen(new Point(0, -popup.Height - 6));
             popup.Location = screenPoint;
 
             FlowLayoutPanel flow = new FlowLayoutPanel
@@ -468,7 +483,7 @@ namespace LanChat
                 Dock = DockStyle.Fill,
                 AutoScroll = true,
                 Padding = new Padding(6),
-                BackColor = Color.FromArgb(44, 44, 46)
+                BackColor = Color.FromArgb(28, 28, 30)
             };
 
             string[] emojis = new string[]
@@ -494,9 +509,10 @@ namespace LanChat
                     Cursor = Cursors.Hand
                 };
                 btn.FlatAppearance.BorderSize = 0;
-                btn.MouseEnter += (s, e) => btn.BackColor = Color.FromArgb(60, 60, 64);
+                btn.MouseEnter += (s, e) => btn.BackColor = Color.FromArgb(52, 52, 56);
                 btn.MouseLeave += (s, e) => btn.BackColor = Color.Transparent;
                 btn.Click += (s, e) => {
+                    _txtInput.Visible = true;
                     _txtInput.Paste(em);
                     popup.Close();
                     _txtInput.Focus();
@@ -518,18 +534,18 @@ namespace LanChat
             using (Form inputForm = new Form())
             {
                 if (this.Icon != null) inputForm.Icon = this.Icon;
-                inputForm.Text = "手动添加好友 IP (直连握手)";
+                inputForm.Text = "连接节点 (手动输入 IP 直连握手)";
                 inputForm.Size = new Size(390, 165);
                 inputForm.StartPosition = FormStartPosition.CenterParent;
                 inputForm.FormBorderStyle = FormBorderStyle.FixedDialog;
                 inputForm.MaximizeBox = false;
                 inputForm.MinimizeBox = false;
-                inputForm.BackColor = Color.FromArgb(44, 44, 46);
+                inputForm.BackColor = Color.FromArgb(24, 24, 26);
                 inputForm.ForeColor = Color.White;
 
                 Label lblPrompt = new Label
                 {
-                    Text = "请输入对方计算机的 IPv4 地址 (例如 192.168.255.147):",
+                    Text = "请输入对方计算机的 IPv4 地址 (例如 192.168.1.100):",
                     Location = new Point(16, 16),
                     AutoSize = true,
                     Font = new Font("Microsoft YaHei", 9f)
@@ -540,7 +556,7 @@ namespace LanChat
                     Location = new Point(18, 42),
                     Width = 338,
                     Font = new Font("Microsoft YaHei", 10f),
-                    BackColor = Color.FromArgb(32, 32, 34),
+                    BackColor = Color.FromArgb(16, 16, 18),
                     ForeColor = Color.White,
                     BorderStyle = BorderStyle.FixedSingle
                 };
@@ -551,10 +567,11 @@ namespace LanChat
                     Location = new Point(180, 78),
                     Size = new Size(85, 30),
                     DialogResult = DialogResult.OK,
-                    BackColor = Color.FromArgb(7, 193, 96),
+                    BackColor = Color.FromArgb(121, 70, 215),
                     ForeColor = Color.White,
                     FlatStyle = FlatStyle.Flat
                 };
+                btnOk.FlatAppearance.BorderSize = 0;
 
                 Button btnCancel = new Button
                 {
@@ -562,10 +579,11 @@ namespace LanChat
                     Location = new Point(275, 78),
                     Size = new Size(80, 30),
                     DialogResult = DialogResult.Cancel,
-                    BackColor = Color.FromArgb(60, 60, 62),
+                    BackColor = Color.FromArgb(46, 46, 50),
                     ForeColor = Color.White,
                     FlatStyle = FlatStyle.Flat
                 };
+                btnCancel.FlatAppearance.BorderSize = 0;
 
                 inputForm.Controls.AddRange(new Control[] { lblPrompt, txtIp, btnOk, btnCancel });
                 inputForm.AcceptButton = btnOk;

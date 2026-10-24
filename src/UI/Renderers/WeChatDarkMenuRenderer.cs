@@ -12,10 +12,10 @@ namespace LanChat
     /// </summary>
     public class WeChatDarkMenuColorTable : ProfessionalColorTable
     {
-        private readonly Color _bg = Color.FromArgb(44, 44, 46);
-        private readonly Color _border = Color.FromArgb(60, 60, 64);
-        private readonly Color _selected = Color.FromArgb(60, 60, 64);
-        private readonly Color _separator = Color.FromArgb(55, 55, 58);
+        private readonly Color _bg = Color.FromArgb(30, 30, 32);
+        private readonly Color _border = Color.FromArgb(48, 48, 52);
+        private readonly Color _selected = Color.FromArgb(46, 46, 50);
+        private readonly Color _separator = Color.FromArgb(44, 44, 48);
 
         public override Color ToolStripDropDownBackground { get { return _bg; } }
         public override Color ImageMarginGradientBegin { get { return _bg; } }
@@ -63,7 +63,7 @@ namespace LanChat
         protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
         {
             Rectangle r = e.ImageRectangle;
-            using (Pen p = new Pen(Color.FromArgb(7, 193, 96), 2.2f))
+            using (Pen p = new Pen(Color.FromArgb(144, 90, 251), 2.2f))
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 e.Graphics.DrawLines(p, new Point[] {
@@ -76,7 +76,7 @@ namespace LanChat
 
         protected override void OnRenderImageMargin(ToolStripRenderEventArgs e)
         {
-            using (SolidBrush b = new SolidBrush(Color.FromArgb(44, 44, 46)))
+            using (SolidBrush b = new SolidBrush(Color.FromArgb(30, 30, 32)))
             {
                 e.Graphics.FillRectangle(b, e.AffectedBounds);
             }

@@ -23,11 +23,17 @@ namespace LanChat
         Clear,
         Search,
         Call,
-        More
+        More,
+        Mic,
+        SoundWave,
+        UpArrow,
+        WinMin,
+        WinMax,
+        WinClose
     }
 
     /// <summary>
-    /// 微信暗黑矢量图标绘制引擎 (纯 GDI+ 矢量路径与抗锯齿绘制)
+    /// 矢量图标与 Grok Bot 吉祥物绘制引擎 (纯 GDI+ 矢量路径与抗锯齿绘制)
     /// </summary>
     public static class WeChatIcon
     {
@@ -77,6 +83,109 @@ namespace LanChat
                 case WeChatIconType.More:
                     DrawMoreIcon(g, bounds, color);
                     break;
+                case WeChatIconType.Mic:
+                    DrawMicIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.SoundWave:
+                    DrawSoundWaveIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.UpArrow:
+                    DrawUpArrowIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.WinMin:
+                    DrawWinMinIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.WinMax:
+                    DrawWinMaxIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.WinClose:
+                    DrawWinCloseIcon(g, bounds, color);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// 绘制截图同款 Grok/Bot 双眼灵动吉祥物头像（支持正圆或云朵有机轮廓 + 倾斜双胶囊眼）
+        /// </summary>
+        public static void DrawMascotAvatar(Graphics g, Rectangle r, Color bodyColor, bool isOrganicBlob, bool showOnlineDot, Color bgForDot, string badgeTag = null)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+            using (SolidBrush bodyBrush = new SolidBrush(bodyColor))
+            {
+                if (isOrganicBlob)
+                {
+                    // 绘制截图左侧列表中特有的有机云朵/果冻状吉祥物轮廓
+                    float x = r.X;
+                    float y = r.Y;
+                    float w = r.Width;
+                    float h = r.Height;
+                    g.FillEllipse(bodyBrush, x + w * 0.08f, y + h * 0.14f, w * 0.84f, h * 0.82f);
+                    g.FillEllipse(bodyBrush, x + w * 0.02f, y + h * 0.04f, w * 0.62f, h * 0.56f);
+                    g.FillEllipse(bodyBrush, x + w * 0.28f, y + h * 0.34f, w * 0.68f, h * 0.62f);
+                }
+                else
+                {
+                    g.FillEllipse(bodyBrush, r);
+                }
+            }
+
+            // 绘制标志性的两颗倾斜黑色胶囊灵动眼睛（向右下微看，与截图 Karina / Alist迅雷 完全一致）
+            GraphicsState state = g.Save();
+            float cx = r.X + r.Width * 0.54f;
+            float cy = r.Y + r.Height * 0.48f;
+            g.TranslateTransform(cx, cy);
+            g.RotateTransform(-24f);
+
+            float eyeW = Math.Max(2.2f, r.Width * 0.115f);
+            float eyeH = Math.Max(5.0f, r.Height * 0.28f);
+            float eyeGap = Math.Max(2.2f, r.Width * 0.09f);
+
+            using (SolidBrush eyeBrush = new SolidBrush(Color.FromArgb(20, 20, 22)))
+            using (Pen eyePen = new Pen(Color.FromArgb(20, 20, 22), eyeW))
+            {
+                eyePen.StartCap = LineCap.Round;
+                eyePen.EndCap = LineCap.Round;
+                float halfLen = (eyeH - eyeW) / 2f;
+                // 左眼
+                g.DrawLine(eyePen, -eyeGap, -halfLen, -eyeGap, halfLen);
+                // 右眼（略微偏下一点点增加灵动感）
+                g.DrawLine(eyePen, eyeGap, -halfLen + 0.5f, eyeGap, halfLen + 0.5f);
+            }
+            g.Restore(state);
+
+            // 可选左上角微型黑底徽章（对应截图第4项左上角的圆形小标）
+            if (!string.IsNullOrEmpty(badgeTag))
+            {
+                int bw = Math.Max(15, (int)(r.Width * 0.48f));
+                Rectangle badgeRect = new Rectangle(r.X - 2, r.Y - 1, bw, bw);
+                using (SolidBrush bBg = new SolidBrush(Color.FromArgb(24, 24, 26)))
+                using (Pen bPen = new Pen(Color.FromArgb(55, 55, 58), 1f))
+                {
+                    g.FillEllipse(bBg, badgeRect);
+                    g.DrawEllipse(bPen, badgeRect);
+                }
+                using (Font bf = new Font("Microsoft YaHei", 5.0f, FontStyle.Regular))
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(210, 210, 210)))
+                {
+                    StringFormat sf = new StringFormat(StringFormatFlags.NoWrap) { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                    g.DrawString(badgeTag, bf, tb, badgeRect, sf);
+                }
+            }
+
+            // 右下角状态蓝点（对应截图 Karina 红色头像右下角的 #4D9BFF 蓝点）
+            if (showOnlineDot)
+            {
+                int dotSize = Math.Max(8, (int)(r.Width * 0.25f));
+                int dotX = r.Right - dotSize - 1;
+                int dotY = r.Bottom - dotSize - 1;
+                using (SolidBrush ringBrush = new SolidBrush(bgForDot))
+                using (SolidBrush dotBrush = new SolidBrush(Color.FromArgb(77, 155, 255)))
+                {
+                    g.FillEllipse(ringBrush, dotX - 2, dotY - 2, dotSize + 4, dotSize + 4);
+                    g.FillEllipse(dotBrush, dotX, dotY, dotSize, dotSize);
+                }
             }
         }
 
@@ -313,14 +422,16 @@ namespace LanChat
         // 11. Search Magnifying Glass
         public static void DrawSearchIcon(Graphics g, Rectangle r, Color color)
         {
-            using (Pen p = new Pen(color, 1.5f))
+            using (Pen p = new Pen(color, 1.6f))
             {
                 p.StartCap = LineCap.Round;
                 p.EndCap = LineCap.Round;
-                float x = r.X + 2;
-                float y = r.Y + 2;
-                g.DrawEllipse(p, x, y, 9, 9);
-                g.DrawLine(p, x + 7.5f, y + 7.5f, x + 12f, y + 12f);
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                float rad = Math.Min(r.Width, r.Height) * 0.20f;
+                if (rad < 3.5f) rad = 3.5f;
+                g.DrawEllipse(p, cx - rad - 1.2f, cy - rad - 1.2f, rad * 2f, rad * 2f);
+                g.DrawLine(p, cx + rad * 0.5f - 1f, cy + rad * 0.5f - 1f, cx + rad * 1.35f, cy + rad * 1.35f);
             }
         }
 
@@ -348,6 +459,100 @@ namespace LanChat
                 g.FillEllipse(b, cx - 6, cy - 1.5f, 3, 3);
                 g.FillEllipse(b, cx - 1.5f, cy - 1.5f, 3, 3);
                 g.FillEllipse(b, cx + 3f, cy - 1.5f, 3, 3);
+            }
+        }
+
+        // 14. Microphone Icon (Grok bottom input bar)
+        public static void DrawMicIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.6f))
+            using (SolidBrush b = new SolidBrush(color))
+            {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+
+                // Capsule head
+                Rectangle headRect = new Rectangle((int)(cx - 2.5f), (int)(cy - 6.5f), 5, 8);
+                MainForm.DrawRoundedRectangle(g, b, headRect, 2);
+
+                // U-cup arc
+                g.DrawArc(p, cx - 5f, cy - 4.5f, 10f, 8.5f, 0, 180);
+
+                // Bottom stand
+                g.DrawLine(p, cx, cy + 4f, cx, cy + 6.5f);
+            }
+        }
+
+        // 15. SoundWave Icon (Grok bottom-right purple circle button)
+        public static void DrawSoundWaveIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.8f))
+            {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+
+                g.DrawLine(p, cx - 5.5f, cy - 2f, cx - 5.5f, cy + 2f);
+                g.DrawLine(p, cx - 2.0f, cy - 5.5f, cx - 2.0f, cy + 5.5f);
+                g.DrawLine(p, cx + 1.8f, cy - 3.8f, cx + 1.8f, cy + 3.8f);
+                g.DrawLine(p, cx + 5.3f, cy - 1.8f, cx + 5.3f, cy + 1.8f);
+            }
+        }
+
+        // 16. Up Arrow Icon (Grok bottom-left blue scan circle button)
+        public static void DrawUpArrowIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.8f))
+            {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+                p.LineJoin = LineJoin.Round;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+
+                g.DrawLine(p, cx, cy + 5f, cx, cy - 5f);
+                g.DrawLines(p, new PointF[] {
+                    new PointF(cx - 4.2f, cy - 1f),
+                    new PointF(cx, cy - 5.2f),
+                    new PointF(cx + 4.2f, cy - 1f)
+                });
+            }
+        }
+
+        // 17. Frameless Window Minimize Icon (—)
+        public static void DrawWinMinIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.2f))
+            {
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                g.DrawLine(p, cx - 5f, cy, cx + 5f, cy);
+            }
+        }
+
+        // 18. Frameless Window Maximize Icon (□)
+        public static void DrawWinMaxIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.2f))
+            {
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                g.DrawRectangle(p, cx - 4.5f, cy - 4.5f, 9f, 9f);
+            }
+        }
+
+        // 19. Frameless Window Close Icon (×)
+        public static void DrawWinCloseIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.3f))
+            {
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                g.DrawLine(p, cx - 4.5f, cy - 4.5f, cx + 4.5f, cy + 4.5f);
+                g.DrawLine(p, cx + 4.5f, cy - 4.5f, cx - 4.5f, cy + 4.5f);
             }
         }
     }

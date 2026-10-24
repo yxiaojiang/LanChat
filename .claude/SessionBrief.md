@@ -1,64 +1,49 @@
 # SessionBrief.md — 当前接手摘要
 
-> 最近刷新：2026-10-24。仓库：`https://github.com/yxiaojiang/LanChat.git`。
+> 最近刷新：2026-10-25。仓库：`https://github.com/yxiaojiang/LanChat.git`。
 > 项目版本：**LanChat v2.0.0**。
-> 核心里程碑：全面对标微信桌面端（WeChat Desktop Dark Mode）95%+ 视觉与交互精度，彻底消除界面所有白色割裂元素；完成 Windows 托盘后台驻留与安全退出闭环；加入全局单实例互斥与唤醒机制；集成 GitHub Releases 在线自动更新检查与 Web 302 重定向降级；为 Linux 端打造 0 依赖微信暗黑原生 GUI（Tkinter 双轨）；新增 `Tools/` 工具链，支持用户一键编译链接并热替换本地安装目录（`CompileAndLink.bat`）以及一键打包 MSI 并发布至 GitHub Releases（`Publish.bat`）；**全面落地架构解耦重构阶段一（UI 控件与服务物理剥离）、阶段二（主窗体业务逻辑 Partial 模块化）、阶段三（网络通信层内部轻量门面解耦）与阶段四（应用服务层 SessionManager 独立提炼），彻底消除 God Object，所有单文件均压缩至 120~570 行以内，原生 `csc.exe` 秒级编译产物恒定保持 ~140KB，构建脚本实现纯 ASCII 与 0-BOM 零乱码治理**。
+> 核心里程碑：全面超越旧版微信界面风格，**100% 高保真像素级还原 Grok Bot 桌面端现代惊艳清爽暗黑风格**！建立智能响应式两栏布局系统，窗口拉伸与最大化全动态自适应；重塑阅读流限制 840px 居中对齐与底部呼吸感留白；实现 Grok Mascot 纯 GDI+ 矢量渲染引擎（双斜椭圆胶囊眼、蓝点与有机轮廓）；打造自适应输入胶囊与三联栏 Dock；保持 C# 5.0 / .NET Framework 4.0 兼容与系统原生 `csc.exe` 秒级纯编译，零外部依赖，产物体积恒定在 ~148KB。
 
 ---
 
 ## 一、 本轮工作态与交付成果总结
 
-### 1. 架构解耦重构（阶段一：UI 控件与服务物理剥离）
-- **物理模块化拆分与目录重组**：
-  - 将原长达 3206 行的巨型 `src/MainForm.cs` 精简瘦身，提取出 5 个高内聚独立模块：
-    - `src/UI/Renderers/WeChatIcon.cs`：13 类纯 GDI+ 矢量抗锯齿绘制算法与 `WeChatIconType` 枚举；
-    - `src/UI/Renderers/WeChatDarkMenuRenderer.cs`：微信暗黑菜单调色板（`WeChatDarkMenuColorTable`）、暗黑菜单渲染器（`WeChatDarkMenuRenderer`）与全局浮动暗黑气泡提示框（`WeChatDarkTooltip`）；
-    - `src/UI/Controls/WeChatButtons.cs`：侧边栏导航按钮（`WeChatNavButton`）与无边框暗黑工具栏图标按钮（`WeChatIconButton`）；
-    - `src/UI/Controls/WeChatChatView.cs`：自绘消息流视图控件与排版测算项（`MessageRenderItem`），完整保留平滑滚动与尺寸防越界保护；
-    - `src/Services/UpdateService.cs`：GitHub REST API + Web 302 页面重定向双轨降级探测、更新向导弹窗与 MSI 自动下载安装。
+### 1. 实测逆向与 Grok Bot 审美规范解构
+- **深度测量实机运行态 Grok Bot 窗口数据**：
+  - 针对用户桌面 125% DPI（虚拟 1536x864）与 1024x540 原型，提取其核心审美法则：
+    1. **侧边栏弹性比例**：侧边栏宽度在 220px ~ 300px 间弹性自适应（约占窗体宽度 21%~23%），深邃纯黑底色 `#0E0E0E`；
+    2. **会话列表舒适节奏**：小屏/正常窗体项高 48px、大屏/最大化项高 56px；卡片边距 8px~10px，圆角 9px~11px；选中态底色 `#222226`；
+    3. **居中阅读流（Reading Stream）**：聊天气泡与底部输入胶囊在大屏/最大化时最大宽度锁定在 840px，并在右侧视口内水平居中对齐，左右两端留出充裕且对等的呼吸感留白，彻底解决以往 LanChat 死板拉伸与边缘紧贴问题；
+    4. **底部自适应输入胶囊**：高 40px/46px 大圆角胶囊容器（`#202024`，微光边框 `#2E2E36`），内部左侧圆形 `+` 号按钮，中间无边框输入框与垂直居中占位符，右侧垂直居中麦克风图标与招牌高饱和魅紫声波圆钮（`#8E64DC` / `#7946D7`）。
 
-### 2. 架构解耦重构（阶段二：主窗体业务逻辑 Partial 模块化）
-- **按职责划分领域代码，彻底告别单文件膨胀**：
-  - `src/MainForm.cs`（645 行）：主窗体核心构造、控件树构建与布局计算、DWM 暗黑标题栏、Win32 窗口消息拦截（单实例广播唤醒）与 GDI+ 圆角矩形自绘辅助函数；
-  - `src/MainForm.Chat.cs`（468 行）：好友上线/离线/信息更新、会话列表自绘与关键字实时筛选、文本消息收发流转、历史记录维护、Emoji 表情弹窗与手动添加 IP 直连握手；
-  - `src/MainForm.Files.cs`（268 行）：文件选择与拖拽监听、分块传输进度条更新计算、接收文件保存分发、双击打开文件及定位系统资源管理器；
-  - `src/MainForm.Tray.cs`（272 行）：网络底层初始化与物理网卡探测、个人昵称修改弹窗、系统托盘图标常驻、拦截关闭按钮后台静默运行、托盘微信暗黑右键菜单与在线更新委托。
+### 2. UI 矢量绘制引擎与控件全面重塑
+- **`src/UI/Renderers/WeChatIcon.cs` 升级**：
+  - 新增 `DrawMascotAvatar`：纯矢量高保真绘制 Grok 灵动双眼吉祥物（两颗逆时针倾斜 24° 的黑色垂直胶囊眼、右下角 `#4D9BFF` 状态蓝点、可选用机云朵波浪体与微型黑底角标）；
+  - 新增 `DrawSoundWaveIcon`、`DrawUpArrowIcon`、`DrawMicIcon`、`DrawWinMinIcon`、`DrawWinMaxIcon`、`DrawWinCloseIcon`。
+- **`src/UI/Controls/WeChatButtons.cs` 扩展**：
+  - 增加 `IsCircle` 圆形按钮支持、自定义填充色（`FillColor`）与悬停色（`HoverFillColor`）、窗口关闭高亮模式。
+- **`src/UI/Controls/WeChatChatView.cs` 深度优化**：
+  - 自适应 840px 居中内容流（`streamLeft`、`streamRight`）；
+  - 气泡系统：自发高饱和魅紫圆角气泡（`#7946D7`，16px 圆角），对方深灰圆角卡片（`#1E1E21`，14px 圆角，微光边框）；
+  - 支持列表圆点前缀（`- `、`• `）与反引号行内代码胶囊（`...`）圆角高亮；
+  - 居中时间戳（如“今天 5:51”）与系统提示严格对齐 840px 居中流。
+- **`src/MainForm.cs`、`MainForm.Chat.cs` 与 `MainForm.Tray.cs` 布局重构**：
+  - 引入无边框窗体与 DWM 阴影，顶部浮动居中会话名称胶囊；
+  - `UpdateResponsiveLayout()` 实现窗体尺寸突变时的无感动态布局调整，彻底解决窗体伸缩僵硬死板的体验。
 
-### 3. 架构解耦重构（阶段三：网络通信层内部轻量门面解耦）
-- **高内聚职责拆分，跨端零破坏**：
-  - `src/NetworkService.cs`（154 行）：顶层门面（Facade），对外公开统一属性、事件代理（`MessageReceived`、`PeerUpdated`、`FileProgressChanged` 等）与生命周期管理（`Start`、`Dispose`）；
-  - `src/NetworkService.Interface.cs`（153 行）：物理网卡检测与过滤、TUN/VPN/WSL 虚拟网卡隔离、子网掩码计算与本地终结点自动绑定；
-  - `src/NetworkService.Discovery.cs`（396 行）：多物理网卡绑定 UDP 广播监听、254 子网高并发单播探测扫描、心跳保活、离线定时清理与节点生命周期管理；
-  - `src/NetworkService.Transfer.cs`（341 行）：TCP 监听器初始化、`LANC` 二进制协议拆包封包、文本消息双向分发与 64KB 流式分块传输引擎。
-  - 同步更新 `LanChat.Linux.csproj` 软链接配置，保持 Windows 与 Linux 跨平台源码级共享。
-
-### 4. 架构解耦重构（阶段四：应用服务层 SessionManager 独立提炼）
-- **会话与消息历史纯领域解耦**：
-  - 新增 `src/Services/SessionManager.cs`（142 行）：统一管理广播与点对点私聊消息字典 `_histories`，提供线程安全的增加、查询、摘要提取与清空能力；
-  - 彻底剥离主窗体中的 `Dictionary<string, List<ChatMessage>> _chatHistories` 字段，实现表现层与领域会话数据解耦；
-  - 保持 C# 5.0 / .NET Framework 4.0 语法兼容，零外部依赖，秒级编译产物体积稳定在 140 KB（143,872 字节）。
-
-### 5. 构建工具链 0-BOM 纯 ASCII 治理与双轨验证
-- **`Tools/` 自动化工具链无缝适配与乱码根治**：
-  - 更新 `Tools/Compile.bat`、`Tools/CompileAndLink.bat` 与 `Tools/Publish.bat`，全面引入 `src/MainForm*.cs` 与 `src/NetworkService*.cs` 批编译；
-  - 彻底去除脚本内的 UTF-8 BOM 标记（避免 Windows `cmd.exe` 将文件头误判为 `'ï»¿@echo'` 语法报错）；
-  - 彻底清理脚本内所有中文注释与非 ASCII 字符，完全采用纯英文 ASCII 格式保存，避免在中文 Windows 默认 CP936（GBK）控制台下产生多字节拆解乱码；
-  - 经由系统原生 `csc.exe`（.NET Framework 4.0 / C# 5.0）实测验证，编译耗时 < 1 秒，产物 `release/LanChat.exe` 体积稳定在 **139 KB**（142,336 字节），零运行时依赖膨胀。
-- **跨平台与现代 SDK 双轨兼容保障**：
-  - 在现代 .NET 9 SDK 环境下完成 `LanChat.csproj` 与 `LanChat.Linux.csproj` 全量构建，达成 **0 警告、0 错误**。
+### 3. 构建与发布闭环
+- 原生系统编译器 `csc.exe` 耗时 < 1 秒，0 警告 0 错误编译通过；
+- 执行 `Tools/Publish.bat` 成功生成 `release/LanChat.msi` 并更新 GitHub Release `v2.0.0` 资产。
 
 ---
 
 ## 二、 关键约束与设计原则
 
 1. **以最小实现、零冗余依赖为荣**：
-   - Windows 端保持系统自带 `csc.exe` 秒级纯编译，免去任何第三方 NuGet 与庞大运行库。
-   - Linux 端采用 Python 标准库实现微信暗黑 GUI，兼具跨发行版与跨 CPU 架构兼容性（x86_64、ARM64、龙芯、飞腾）。
-2. **严格代码规范与向后兼容**：
-   - 保持 C# 5.0 语法兼容，杜绝引入任何破坏轻量原生的 C# 8+ 高版本语言特性；
-   - 核心通信契约保持向后兼容：端口 UDP 38888、TCP 38889+，魔数 `0x4C, 0x41, 0x4E, 0x43`（`"LANC"`），LEB128 变长前缀 + UTF-8 字符串编码，64KB 流式分块传输。
-3. **纯暗黑界面与视觉规范**：
-   - 对标 WeChat Desktop Dark Mode（侧边栏 `#252526`、会话列表 `#202021`、激活绿 `#07c160`、主聊天区 `#1e1e1f`、气泡 `#07c160` 与 `#2c2c2e`），全界面杜绝任何 Win32 原生白色残留。
+   - 保持 C# 5.0 / .NET Framework 4.0 语法兼容，杜绝任何 NuGet 外部依赖。
+   - 编译产物稳定在 ~148KB，即拷即用，秒开运行。
+2. **纯中文注释与规范**：所有新增和重构代码均保留详尽中文注释与规范排版。
+3. **向后兼容与契约一致**：网络协议端口、魔数（`LANC`）、LEB128 编码与 64KB 流式传输保持 100% 兼容。
 
 ---
 
@@ -67,35 +52,26 @@
 | 模块 / 文件 | 说明 |
 | :--- | :--- |
 | `src/Program.cs` | 应用程序入口，单实例互斥（Mutex）与全局消息广播唤醒，高 DPI 感知 |
-| `src/MainForm.cs` | 主窗体核心构造、控件布局树、系统 DPI、消息广播监听与 GDI+ 绘制辅助（645行） |
-| `src/MainForm.Chat.cs` | 聊天交互、好友列表/会话状态维护、文字收发、Emoji 弹窗与手动添加 IP（468行） |
-| `src/MainForm.Files.cs` | 文件选择与拖拽监听、流式进度更新、文件接收与系统外壳调用（268行） |
-| `src/MainForm.Tray.cs` | 网络初始化、昵称修改、系统托盘右键菜单、防误关最小化与在线更新代理（272行） |
-| `src/UI/Renderers/WeChatIcon.cs` | 纯 GDI+ 矢量自绘图标系统（13 类微信高保真图标） |
-| `src/UI/Renderers/WeChatDarkMenuRenderer.cs` | 微信暗黑菜单调色板、专业菜单渲染器与暗黑悬浮 Tooltip 气泡 |
-| `src/UI/Controls/WeChatButtons.cs` | 侧栏微信导航按钮（`WeChatNavButton`）与无边框透明图标按钮（`WeChatIconButton`） |
-| `src/UI/Controls/WeChatChatView.cs` | 自绘流式消息列表视图、虚拟防越界滚动条、气泡与文件卡片渲染 |
+| `src/MainForm.cs` | 主窗体核心构造、控件布局树、Grok 响应式自适应布局协调与无边框绘制辅助 |
+| `src/MainForm.Chat.cs` | 会话管理与自适应列表卡片绘制（`ListSessions_DrawItem`）、文字收发与 Emoji 弹窗 |
+| `src/MainForm.Files.cs` | 文件选择与拖拽监听、流式分块进度更新、文件接收与系统外壳调用 |
+| `src/MainForm.Tray.cs` | 网络初始化、自适应 Hero 头像绘制（`BtnAvatar_Paint`）、托盘驻留与暗黑菜单 |
+| `src/UI/Renderers/WeChatIcon.cs` | Grok 吉祥物与矢量图标绘制引擎（Mascot Avatar、SoundWave、UpArrow 等） |
+| `src/UI/Renderers/WeChatDarkMenuRenderer.cs` | 暗黑风格右键弹出菜单渲染器与暗黑悬浮气泡 |
+| `src/UI/Controls/WeChatButtons.cs` | 圆形图标按钮（`IsCircle`）与无边框工具栏按钮（`WeChatIconButton`） |
+| `src/UI/Controls/WeChatChatView.cs` | Grok 自适应居中流式聊天视图控件（紫色气泡、深灰卡片、代码胶囊） |
+| `src/Services/SessionManager.cs` | 会话与消息历史纯领域封装，彻底解耦窗体与聊天数据 |
 | `src/Services/UpdateService.cs` | GitHub Releases 双轨在线检测、降级 Web 302 探测与暗黑更新向导弹窗 |
-| `src/Models.cs` | 跨平台共用数据实体（`PeerInfo`, `ChatMessage`, `FileTransferTask`） |
-| `src/NetworkService.cs` | 跨平台共用网络引擎（多网卡探测、UDP 发现、TCP 握手、流式分块文件收发） |
-| `src/Uninstall.cs` | 独立卸载向导源码，支持安全脱钩与彻底清理 |
-| `src/linux/lanchat.py` | Linux 纯标准库微信暗黑 GUI 与 CLI 双模通用版 |
-| `src/linux/LanChat.Linux/` | Linux 原生自包含 C# 工程（.NET 9 InvariantGlobalization 开箱即用） |
-| `assets/app.ico` / `app.png` / `lanchat.svg` | 全套跨平台高精度应用图标设计资产 |
-| `packaging/Package.wxs` | WiX 5 安装包定义，配置目录选择向导、快捷方式与图标绑定 |
-| `packaging/build-deb.py` | Linux 多架构标准 Debian 安装包构建脚本（内嵌桌面自适应启动器与日志收集） |
-| `packaging/publish-release.py` | GitHub Releases 一键发布与二进制资产覆盖上传工具 |
 | `Tools/Compile.bat` | 原生极速纯编译脚本，纯 ASCII 0-BOM，仅生成 `release\LanChat.exe` |
-| `Tools/CompileAndLink.bat` | 一键编译链接并将 `release\LanChat.exe` 热替换覆盖至 `D:\soft\LanChat\` |
+| `Tools/CompileAndLink.bat` | 一键编译链接并将程序热替换覆盖至 `D:\soft\LanChat\` |
 | `Tools/Publish.bat` | 一键打包 `release\LanChat.msi` 并自动上传发布至 GitHub Releases |
-| `release/` | 全平台安装包与二进制输出目录（EXE、MSI、DEB） |
 
 ---
 
 ## 四、 下一步计划
 
-1. **推进架构重构阶段三（网络通信层内部轻量门面解耦）**：
-   - 保持 `NetworkService` 对外 Facade 接口与公开事件不变（确保 `LanChat.Linux` 跨平台软链接 100% 编译通过）；
-   - 梳理底层职责：物理网卡与 TUN 冲突消除、UDP 广播与并发单播扫描、LANC 封包编解码、64KB 流式分块传输。
-2. **GitHub 仓库设为 Public 验证在线更新**：
-   - 将 GitHub 仓库可见性调整为 Public 后，实机点击【🔄 检查新版本...】完成双轨在线更新闭环验证。
+1. **GitHub 仓库设为 Public 并实机验证在线更新弹窗**：
+   - 需用户在 GitHub 仓库管理后台将 Visibility 设为 Public；
+   - 客户端点击菜单【🔄 检查新版本...】完成闭环校验。
+2. **实机多端互通与网络极端条件演练**：
+   - 验证 Windows 与 Linux 在复杂多网卡与断网重连下的自适应重绘与即时消息交互。

@@ -54,36 +54,28 @@ namespace LanChat
 
         private void BtnAvatar_Paint(object sender, PaintEventArgs e)
         {
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
-            // Rounded rectangle avatar (radius 4px)
-            Rectangle rect = new Rectangle(0, 0, 35, 35);
-            using (SolidBrush brush = new SolidBrush(Color.FromArgb(7, 193, 96)))
-            {
-                DrawRoundedRectangle(e.Graphics, brush, rect, 4);
-            }
+            bool isLarge = (_heroProfilePanel.Height > 88);
+            int avSize = isLarge ? 54 : 44;
+            int avX = (_heroProfilePanel.Width - avSize) / 2;
+            int avY = isLarge ? 12 : 8;
+            Rectangle avRect = new Rectangle(avX, avY, avSize, avSize);
+            WeChatIcon.DrawMascotAvatar(g, avRect, Color.FromArgb(252, 44, 62), false, true, Color.FromArgb(14, 14, 14));
 
-            // Initials
-            string nick = _netService != null ? _netService.NickName : Environment.UserName;
-            string initial = string.IsNullOrEmpty(nick) ? "我" : nick.Substring(0, 1).ToUpperInvariant();
-            using (Font f = new Font("Microsoft YaHei", 11f, FontStyle.Bold))
-            using (SolidBrush textBrush = new SolidBrush(Color.White))
+            // 头像正下方居中绘制昵称文字，留出呼吸感间距
+            string nick = _netService != null && !string.IsNullOrEmpty(_netService.NickName) ? _netService.NickName : Environment.UserName;
+            using (Font f = new Font("Microsoft YaHei", isLarge ? 9.5f : 8.5f, FontStyle.Regular))
+            using (SolidBrush textBrush = new SolidBrush(Color.FromArgb(205, 205, 210)))
             {
                 StringFormat sf = new StringFormat
                 {
                     Alignment = StringAlignment.Center,
-                    LineAlignment = StringAlignment.Center
+                    LineAlignment = StringAlignment.Near
                 };
-                e.Graphics.DrawString(initial, f, textBrush, rect, sf);
-            }
-
-            // Green online indicator dot
-            Rectangle dotRect = new Rectangle(24, 24, 9, 9);
-            using (SolidBrush dotBg = new SolidBrush(Color.FromArgb(37, 37, 38)))
-            using (SolidBrush dotFg = new SolidBrush(Color.FromArgb(7, 193, 96)))
-            {
-                e.Graphics.FillEllipse(dotBg, new Rectangle(23, 23, 11, 11));
-                e.Graphics.FillEllipse(dotFg, dotRect);
+                g.DrawString(nick, f, textBrush, new RectangleF(0, avY + avSize + (isLarge ? 7 : 5), _heroProfilePanel.Width, 20), sf);
             }
         }
 
@@ -93,8 +85,8 @@ namespace LanChat
             menu.Renderer = new WeChatDarkMenuRenderer();
             menu.ShowImageMargin = false;
             menu.ShowCheckMargin = false;
-            menu.BackColor = Color.FromArgb(44, 44, 46);
-            menu.ForeColor = Color.FromArgb(235, 235, 235);
+            menu.BackColor = Color.FromArgb(30, 30, 32);
+            menu.ForeColor = Color.FromArgb(235, 235, 240);
 
             string myNick = _netService != null ? _netService.NickName : Environment.UserName;
             IPAddress ip = _netService != null ? _netService.GetPrimaryPhysicalIp() : IPAddress.Loopback;
@@ -106,7 +98,7 @@ namespace LanChat
             menu.Items.Add("✏️ 修改昵称...", null, (s, ev) => ShowChangeNickDialog());
             menu.Items.Add("📂 打开接收文件夹", null, (s, ev) => OpenReceivedFolder());
 
-            menu.Show(_btnAvatar, new Point(_btnAvatar.Width + 4, 0));
+            menu.Show(_btnAvatar, new Point((_btnAvatar.Width - 160) / 2, _btnAvatar.Height - 6));
         }
 
         private void BtnSettings_Click(object sender, EventArgs e)
@@ -115,23 +107,22 @@ namespace LanChat
             menu.Renderer = new WeChatDarkMenuRenderer();
             menu.ShowImageMargin = false;
             menu.ShowCheckMargin = true;
-            menu.BackColor = Color.FromArgb(44, 44, 46);
-            menu.ForeColor = Color.FromArgb(235, 235, 235);
+            menu.BackColor = Color.FromArgb(30, 30, 32);
+            menu.ForeColor = Color.FromArgb(235, 235, 240);
 
             menu.Items.Add("✏️ 修改我的昵称...", null, (s, ev) => ShowChangeNickDialog());
             var autoItem = new ToolStripMenuItem("⚡ 自动接收文件") { Checked = _netService != null && _netService.AutoAcceptFiles };
             autoItem.Click += (s, ev) => {
                 _netService.AutoAcceptFiles = !_netService.AutoAcceptFiles;
-                _lblAutoAccept.Text = _netService.AutoAcceptFiles ? "⚡ 自动接收: 开" : "⏸ 自动接收: 关";
-                _lblAutoAccept.ForeColor = _netService.AutoAcceptFiles ? Color.FromArgb(7, 193, 96) : Color.FromArgb(140, 140, 140);
+                AppendChatSystem(_netService.AutoAcceptFiles ? "⚡ 已开启自动接收文件" : "⏸ 已暂停自动接收文件");
             };
             menu.Items.Add(autoItem);
             menu.Items.Add("📁 打开接收文件夹", null, (s, ev) => OpenReceivedFolder());
             menu.Items.Add("🧹 清空当前聊天记录", null, (s, ev) => ClearCurrentChat());
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("🔄 检查新版本...", null, (s, ev) => CheckForUpdates(false));
-            menu.Items.Add("ℹ️ 关于 LanChat (WeChat 风格版)", null, (s, ev) => {
-                MessageBox.Show(this, "LanChat v" + APP_VERSION + "\n局域网秒级极速通讯与文件互传\nUI: WeChat Desktop 风格 (高精度微距对标)\n零外部运行环境依赖\n开源主页: https://github.com/" + GITHUB_REPO, "关于 LanChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            menu.Items.Add("ℹ️ 关于 LanChat (Grok Bot 风格版)", null, (s, ev) => {
+                MessageBox.Show(this, "LanChat v" + APP_VERSION + "\n局域网秒级极速通讯与文件互传\nUI: Grok Bot 极简纯黑视觉 (100% 像素级复刻)\n零外部运行环境依赖\n开源主页: https://github.com/" + GITHUB_REPO, "关于 LanChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
             });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("🚪 退出 LanChat", null, (s, ev) => {
@@ -139,7 +130,8 @@ namespace LanChat
                 this.Close();
             });
 
-            menu.Show(_btnNavMenu, new Point(_btnNavMenu.Width + 4, -80));
+            Control anchor = (sender as Control) ?? _btnBottomUser ?? _btnAvatar;
+            menu.Show(anchor, new Point(0, -menu.PreferredSize.Height - 6));
         }
 
         private void ShowChangeNickDialog()
@@ -154,13 +146,15 @@ namespace LanChat
                 prompt.FormBorderStyle = FormBorderStyle.FixedDialog;
                 prompt.MaximizeBox = false;
                 prompt.MinimizeBox = false;
-                prompt.BackColor = Color.FromArgb(44, 44, 46);
+                prompt.BackColor = Color.FromArgb(24, 24, 26);
                 prompt.ForeColor = Color.White;
 
                 Label lbl = new Label { Text = "请输入新的局域网昵称:", Location = new Point(16, 16), AutoSize = true };
-                TextBox txt = new TextBox { Text = currentNick, Location = new Point(18, 42), Width = 308, BackColor = Color.FromArgb(32, 32, 34), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
-                Button btnOk = new Button { Text = "保存", Location = new Point(156, 78), Size = new Size(80, 28), DialogResult = DialogResult.OK, BackColor = Color.FromArgb(7, 193, 96), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-                Button btnCancel = new Button { Text = "取消", Location = new Point(246, 78), Size = new Size(80, 28), DialogResult = DialogResult.Cancel, BackColor = Color.FromArgb(60, 60, 62), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                TextBox txt = new TextBox { Text = currentNick, Location = new Point(18, 42), Width = 308, BackColor = Color.FromArgb(16, 16, 18), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+                Button btnOk = new Button { Text = "保存", Location = new Point(156, 78), Size = new Size(80, 28), DialogResult = DialogResult.OK, BackColor = Color.FromArgb(121, 70, 215), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                btnOk.FlatAppearance.BorderSize = 0;
+                Button btnCancel = new Button { Text = "取消", Location = new Point(246, 78), Size = new Size(80, 28), DialogResult = DialogResult.Cancel, BackColor = Color.FromArgb(46, 46, 50), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                btnCancel.FlatAppearance.BorderSize = 0;
 
                 prompt.Controls.AddRange(new Control[] { lbl, txt, btnOk, btnCancel });
                 prompt.AcceptButton = btnOk;
@@ -174,6 +168,7 @@ namespace LanChat
                         _netService.NickName = newNick;
                         _netService.BroadcastPresence("HELLO");
                         _btnAvatar.Invalidate();
+                        if (_btnBottomUser != null) _btnBottomUser.Invalidate();
                         AppendChatSystem("您的昵称已更改为: " + newNick);
                     }
                 }

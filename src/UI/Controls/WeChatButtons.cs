@@ -125,10 +125,10 @@ namespace LanChat
 
     #endregion
 
-    #region Custom WeChat Icon Button (For Header & Toolbar)
+    #region Custom Icon & Circle Button (For Grok Header, Sidebar & Input Pill)
 
     /// <summary>
-    /// 微信暗黑工具栏与标题栏轻量图标按钮（无边框透明背景、圆角暗黑悬停）
+    /// 暗黑圆形/圆角图标按钮（支持 Grok 风格正圆底色、紫色声波圆钮、蓝色上箭头圆钮及无边框窗口控制按钮）
     /// </summary>
     public class WeChatIconButton : Control
     {
@@ -136,6 +136,61 @@ namespace LanChat
         private bool _isHovered;
         private bool _isPressed;
         private string _tooltipText;
+        private bool _isCircle;
+        private Color _fillColor = Color.Transparent;
+        private Color _hoverFillColor = Color.FromArgb(46, 46, 48);
+        private Color _iconColor = Color.FromArgb(200, 200, 204);
+        private Color _borderColor = Color.Transparent;
+        private bool _isWindowClose = false;
+
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool IsCircle
+        {
+            get { return _isCircle; }
+            set { _isCircle = value; Invalidate(); }
+        }
+
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public Color FillColor
+        {
+            get { return _fillColor; }
+            set { _fillColor = value; Invalidate(); }
+        }
+
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public Color HoverFillColor
+        {
+            get { return _hoverFillColor; }
+            set { _hoverFillColor = value; Invalidate(); }
+        }
+
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public Color IconColor
+        {
+            get { return _iconColor; }
+            set { _iconColor = value; Invalidate(); }
+        }
+
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public Color BorderColor
+        {
+            get { return _borderColor; }
+            set { _borderColor = value; Invalidate(); }
+        }
+
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool IsWindowClose
+        {
+            get { return _isWindowClose; }
+            set { _isWindowClose = value; Invalidate(); }
+        }
+
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public string TooltipText
+        {
+            get { return _tooltipText; }
+            set { _tooltipText = value; }
+        }
 
         public WeChatIconButton(WeChatIconType iconType, string tooltip, int size = 28)
         {
@@ -190,24 +245,47 @@ namespace LanChat
             base.OnPaint(e);
             Graphics g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
-            if (_isPressed)
+            Color bg = _fillColor;
+            if (_isPressed || _isHovered)
             {
-                using (SolidBrush pressBg = new SolidBrush(Color.FromArgb(60, 60, 64)))
-                {
-                    MainForm.DrawRoundedRectangle(g, pressBg, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 4);
-                }
-            }
-            else if (_isHovered)
-            {
-                using (SolidBrush hoverBg = new SolidBrush(Color.FromArgb(50, 50, 50)))
-                {
-                    MainForm.DrawRoundedRectangle(g, hoverBg, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 4);
-                }
+                bg = _isWindowClose ? Color.FromArgb(232, 17, 35) : _hoverFillColor;
             }
 
-            Color iconColor = (_isHovered || _isPressed) ? Color.FromArgb(240, 240, 240) : Color.FromArgb(145, 145, 148);
-            WeChatIcon.Draw(g, _iconType, new Rectangle(0, 0, this.Width, this.Height), false, iconColor);
+            Rectangle rect = new Rectangle(0, 0, this.Width - 1, this.Height - 1);
+            if (bg != Color.Transparent)
+            {
+                using (SolidBrush b = new SolidBrush(bg))
+                {
+                    if (_isCircle)
+                    {
+                        g.FillEllipse(b, rect);
+                    }
+                    else
+                    {
+                        MainForm.DrawRoundedRectangle(g, b, rect, _isWindowClose ? 0 : 4);
+                    }
+                }
+            }
+
+            if (_borderColor != Color.Transparent)
+            {
+                using (Pen p = new Pen(_borderColor, 1f))
+                {
+                    if (_isCircle)
+                    {
+                        g.DrawEllipse(p, rect);
+                    }
+                    else
+                    {
+                        MainForm.DrawRoundedRectangle(g, p, rect, 4);
+                    }
+                }
+            }
+
+            Color ic = (_isHovered || _isPressed) ? Color.White : _iconColor;
+            WeChatIcon.Draw(g, _iconType, new Rectangle(0, 0, this.Width, this.Height), false, ic);
         }
     }
 
