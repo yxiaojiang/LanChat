@@ -85,3 +85,17 @@
      - 提取 `src/Services/UpdateService.cs`：GitHub 双轨在线更新检测服务与更新向导弹窗。
   2. 更新并验证 `Tools/Compile.bat`、`Tools/CompileAndLink.bat`、`Tools/Publish.bat`，原生系统自带 `csc.exe` 耗时 < 1 秒，产物体积保持在 139 KB（~142,336 字节）。
   3. 修复 `LanChat.Linux.csproj` 源码软链接路径并完成 .NET 9 与 Framework 4.0 双轨编译验证，达成 0 警告、0 错误。
+
+---
+
+## 归档事项 8：架构解耦重构阶段二 —— 主窗体业务逻辑 Partial 模块化（已完成）
+
+- **完成日期**：2026-10-24
+- **成果**：
+  1. 将 1838 行的 `MainForm.cs` 按业务领域彻底解耦为 4 个职责分明的 partial 类文件，所有单一文件规模均控制在 650 行以内：
+     - `src/MainForm.cs`（645 行）：主窗体核心构造、控件树构建与布局计算、DWM 暗黑标题栏、Win32 窗口消息拦截（单实例广播唤醒）与 GDI+ 圆角矩形自绘辅助函数；
+     - `src/MainForm.Chat.cs`（468 行）：好友上线/离线/信息更新、会话列表绘制与关键字筛选、文本消息收发流转、历史记录维护、Emoji 表情弹窗与手动添加 IP 直连握手；
+     - `src/MainForm.Files.cs`（268 行）：文件选择与拖拽监听、分块传输进度条更新计算、接收文件保存分发、双击打开文件及定位系统资源管理器；
+     - `src/MainForm.Tray.cs`（272 行）：网络底层初始化与网卡探测、个人昵称修改弹窗、系统托盘图标常驻、拦截关闭按钮后台静默运行、托盘微信暗黑右键菜单与在线更新委托。
+  2. 更新工具链 `Tools/Compile.bat`、`CompileAndLink.bat`、`Publish.bat`，适配 `src/MainForm*.cs` 批编译。
+  3. 原生系统 `csc.exe` 纯编译与 .NET 9 双轨验证耗时 < 1 秒，产物体积恒定在 139 KB，逻辑与界面零退化。

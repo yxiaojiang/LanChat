@@ -5,7 +5,10 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 
 ## 核心源码与构建物清单 (规范目录)
 - `src/Program.cs`：应用程序入口，具名 Mutex（`Global\LanChat_SingleInstance_Mutex_9F24FEA2`）实现单实例互斥，广播消息唤醒已运行实例；开启高 DPI 感知（`SetProcessDPIAware`），注册全局未捕获异常兜底处理。
-- `src/MainForm.cs`：主窗体核心界面控制与会话协调，包含布局容器初始化、DWM 暗黑标题栏适配、Win32 窗口消息拦截（单实例唤醒）、托盘右键退出。
+- `src/MainForm.cs`：主窗体核心界面控制与会话协调，包含布局容器初始化、DWM 暗黑标题栏适配、Win32 窗口消息拦截（单实例唤醒）、SafeInvoke 与 GDI+ 绘制辅助（645行）。
+- `src/MainForm.Chat.cs`：会话管理与聊天交互，包含好友状态监听、会话列表自绘/筛选、文本消息收发、历史记录流转、Emoji 表情选择器、手动添加 IP 直连（468行）。
+- `src/MainForm.Files.cs`：文件收发与分块跟踪，包含文件选择、拖拽监听、流式进度更新、文件接收落盘与打开文件/目录调用（268行）。
+- `src/MainForm.Tray.cs`：系统托盘与生命周期，包含底层网络启动绑定、昵称修改向导、托盘图标常驻、关闭拦截防误退、暗黑托盘菜单与在线更新代理（272行）。
 - `src/UI/Renderers/WeChatIcon.cs`：微信暗黑矢量图标绘制引擎（纯 GDI+ 路径计算抗锯齿自绘，涵盖气泡、通讯录、文件夹、刷新雷达、表情、剪刀截图等 13 类高保真图标）。
 - `src/UI/Renderers/WeChatDarkMenuRenderer.cs`：微信暗黑风格右键弹出菜单渲染器（`WeChatDarkMenuRenderer`、`WeChatDarkMenuColorTable`）与暗黑全局浮动提示组件（`WeChatDarkTooltip`）。
 - `src/UI/Controls/WeChatButtons.cs`：微信侧边栏导航按钮（`WeChatNavButton`）与无边框暗黑工具栏图标按钮（`WeChatIconButton`）。
@@ -15,7 +18,7 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `assets/app.ico`：256x256 至 16x16 全尺寸高精度多分辨率应用图标，微信绿双气泡现代扁平设计。
 - `packaging/Package.wxs`：WiX 5 安装包定义（2.0.0 版本），定义安装路径自选、桌面/开始菜单快捷方式、统一 `app.ico` 图标绑定、ExitDialog 启动复选框。
 - `packaging/publish-release.py`：GitHub Releases 自动化发布工具，一键创建 Tag 并挂载 MSI/DEB 二进制资产。
-- `Tools/Compile.bat`：原生纯编译脚本，秒级生成 `release\LanChat.exe` 与 `release\uninstall.exe`，不改动已安装目录。
+- `Tools/Compile.bat`：原生纯编译脚本，纯 ASCII 0-BOM，秒级生成 `release\LanChat.exe` 与 `release\uninstall.exe`，不改动已安装目录。
 - `Tools/CompileAndLink.bat`：一键编译链接并热替换覆盖至 `D:\soft\LanChat\`。
 - `Tools/Publish.bat`：一键调用 WiX 5 打包 `release\LanChat.msi` 并自动上传发布至 GitHub Releases。
 - `release/LanChat.exe`：原生独立免安装可执行程序 (~139 KB)。

@@ -8,16 +8,16 @@ echo.
 
 REM 1. Locate LanChat project root directory
 set "PROJECT_DIR="
-if exist "%~dp0..\src\MainForm.cs" set "PROJECT_DIR=%~dp0.."
+if exist "%~dp0..\src\MainForm*.cs" set "PROJECT_DIR=%~dp0.."
 if not defined PROJECT_DIR (
-    if exist "%~dp0..\LanChat\src\MainForm.cs" set "PROJECT_DIR=%~dp0..\LanChat"
+    if exist "%~dp0..\LanChat\src\MainForm*.cs" set "PROJECT_DIR=%~dp0..\LanChat"
 )
 if not defined PROJECT_DIR (
-    if exist "%~dp0src\MainForm.cs" set "PROJECT_DIR=%~dp0"
+    if exist "%~dp0src\MainForm*.cs" set "PROJECT_DIR=%~dp0"
 )
 
 if not defined PROJECT_DIR (
-    echo [ERROR] Could not find project source file src\MainForm.cs.
+    echo [ERROR] Could not find project source file src\MainForm*.cs.
     pause
     exit /b 1
 )
@@ -32,7 +32,7 @@ REM 2. Compile release\LanChat.exe if not present
 if not exist "release\LanChat.exe" (
     echo [INFO] LanChat.exe not found in release dir, compiling now...
     if exist "%CSC_PATH%" (
-        "%CSC_PATH%" /nologo /target:winexe /main:LanChat.Program /win32icon:assets\app.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:release\LanChat.exe src\Models.cs src\NetworkService.cs src\MainForm.cs src\Program.cs src\UI\Controls\*.cs src\UI\Renderers\*.cs src\Services\*.cs
+        "%CSC_PATH%" /nologo /target:winexe /main:LanChat.Program /win32icon:assets\app.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:release\LanChat.exe src\Models.cs src\NetworkService.cs src\MainForm*.cs src\Program.cs src\UI\Controls\*.cs src\UI\Renderers\*.cs src\Services\*.cs
         if errorlevel 1 (
             echo [ERROR] LanChat.exe compilation failed.
             pause
