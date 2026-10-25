@@ -8,13 +8,19 @@
 
 ## 仍未完成 / 活跃计划项
 
-1. **Grok Bot 惊艳清爽暗黑界面高保真交付与验证（推进闭环）**：
-   - **完成态**：通过对实机截图 `Alis.png`、`Alis2.png` 与 `Alis3.png` 进行逐像素级逆向对比，全面落地三大核心组件：
-     - **设置菜单栏（GrokSettingsMenuForm）**：对标 `Alis3.png` 弹出于左下角头像上方（x=24，高 368px，宽 342px，圆角 16px），深蓝版本横幅（#1E2E40 + 蓝胶囊安装按钮），46px 舒适行高与细线矢量图标（修改昵称、自动接收、文件目录、关于、清空、退出）；
-     - **右上角标题栏控制按钮**：对标 `Alis3.png` 贴顶 56x64 矩形块状按钮，13px 极简矢量线框（最小化水平线、最大化正方形、还原双层方块、关闭乘号），平铺悬停反馈（关闭悬停亮红 #E81123 + 白图标）；
-     - **软件图标矢量重绘**：全面重绘 `assets/app.ico` 为 Grok 魅紫吉祥物（#905AFB 正圆 + 双斜黑胶囊眼），包含 16~256 全尺寸 Windows 图标族；
-     - **侧边栏固定 420px 与聊天区全宽自适应**：82x82 Hero 吉祥物、86px 会话卡片、68px 高大圆角输入胶囊、24px 圆角气泡与卡片。
-   - **验证**：通过原生 `csc.exe` 校验（0 警告 0 错误，~148KB）并同步至 `D:\soft\LanChat\LanChat.exe`。
+1. **全弹窗与菜单 Grok Bot 惊艳清爽暗黑高保真 100% 全面交付（闭环完成）**：
+   - **完成态**：全面对标 `assets/GrokBotPics`（`ConnetctApp.png`, `CreateNewBot.png`, `About.png`, `SendFK.png`, `Alis4.png~Alis7.png`）：
+     - **更正业务称谓**：严谨统一为“连接节点”（彻底消除“连接应用”）；
+     - **连接节点（GrokConnectNodeForm）**：对标 `ConnetctApp.png` 顶部搜索胶囊、过滤芯片、局域网在线节点推荐卡片流与手动指定 IP 直连握手；
+     - **创建新节点（GrokCreateNodeForm）**：对标 `CreateNewBot.png` 居中动态吉祥物预览、起名胶囊输入框、14 种有机形态网格、11 色调色盘与圆角操作按钮；
+     - **关于与支持（GrokAboutForm）**：对标 `About.png` 居中 Squircle 吉祥物徽章、版本信息与“复制版本信息”圆角药丸按钮；
+     - **修改昵称（GrokChangeNickForm）**：对标 Grok Bot 原生暗黑圆角输入框与紫色保存按钮；
+     - **发送反馈（GrokFeedbackForm）**：对标 `SendFK.png` 多行反馈输入框、网络诊断复选框与发送按钮；
+     - **全局系统设置（GrokSettingsDialog）**：对标 `Alis4.png~Alis7.png` 左侧通用/电脑/更新/关于导航与现代卡片流；
+     - **软件更新向导（GrokUpdateForm）**：对标 `Alis7.png` 版本对比横幅、更新日志与平滑进度条；
+     - **统一暗黑提示框（GrokMessageBox）**：彻底取代原生白底 MessageBox；
+     - **任务栏图标彻底修复**：配置 `SetCurrentProcessExplicitAppUserModelID`、`WM_SETICON` 双向发送及 `SetClassLongPtr` 写入窗口类，解决任务栏图标缓存旧图标问题。
+   - **验证**：系统原生 `csc.exe` 耗时 < 1 秒，0 警告 0 错误编译通过，并热替换至 `D:\soft\LanChat\`。
 
 2. **GitHub 仓库设为 Public 并完成在线更新闭环验证**：
    - Release `v2.0.0` 已通过 `Publish.bat` 成功更新挂载 `LanChat.msi` 与 `LanChat.deb` 资产。

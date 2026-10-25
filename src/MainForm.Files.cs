@@ -17,7 +17,7 @@ namespace LanChat
                 var peers = _netService != null ? _netService.GetActivePeers() : new List<PeerInfo>();
                 if (peers.Count == 0)
                 {
-                    MessageBox.Show(this, "局域网内暂无其他在线好友，请等待好友加入或点击【➕ 添加IP】！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    GrokMessageBox.Show(this, "局域网内暂无其他在线好友，请等待好友加入或点击【连接节点】！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
 
@@ -73,7 +73,7 @@ namespace LanChat
             var peers = _netService != null ? _netService.GetActivePeers() : new List<PeerInfo>();
             if (peers.Count == 0)
             {
-                MessageBox.Show(this, "当前无在线好友，无法发送文件", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                GrokMessageBox.Show(this, "当前无在线好友，无法发送文件", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -241,7 +241,7 @@ namespace LanChat
                     }
                     else
                     {
-                        MessageBox.Show(this, "文件不存在或已被移动: " + msg.FilePath, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        GrokMessageBox.Show(this, "文件不存在或已被移动: " + msg.FilePath, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
                 }
                 else if (action == "OPEN_FOLDER")
@@ -255,7 +255,7 @@ namespace LanChat
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "打开失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                GrokMessageBox.Show(this, "打开失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

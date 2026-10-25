@@ -127,34 +127,147 @@ namespace LanChat
         /// <summary>
         /// 绘制截图同款 Grok/Bot 双眼灵动吉祥物头像（支持正圆或云朵有机轮廓 + 倾斜双胶囊眼）
         /// </summary>
+        /// <summary>
+        /// 绘制截图同款 Grok/Bot 双眼灵动吉祥物头像（支持正圆或云朵有机轮廓 + 倾斜双胶囊眼）
+        /// </summary>
         public static void DrawMascotAvatar(Graphics g, Rectangle r, Color bodyColor, bool isOrganicBlob, bool showOnlineDot, Color bgForDot, string badgeTag = null)
+        {
+            DrawMascotAvatarShape(g, r, isOrganicBlob ? 1 : 0, bodyColor, showOnlineDot, bgForDot, badgeTag);
+        }
+
+        /// <summary>
+        /// 绘制多样化有机吉祥物造型（完全对标 CreateNewBot.png 的 14 种有机形态）
+        /// </summary>
+        public static void DrawMascotAvatarShape(Graphics g, Rectangle r, int shapeIndex, Color bodyColor, bool showOnlineDot, Color bgForDot, string badgeTag = null)
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
+            float x = r.X;
+            float y = r.Y;
+            float w = r.Width;
+            float h = r.Height;
+
             using (SolidBrush bodyBrush = new SolidBrush(bodyColor))
             {
-                if (isOrganicBlob)
+                switch (shapeIndex)
                 {
-                    // 绘制截图左侧列表中特有的有机云朵/果冻状吉祥物轮廓
-                    float x = r.X;
-                    float y = r.Y;
-                    float w = r.Width;
-                    float h = r.Height;
-                    g.FillEllipse(bodyBrush, x + w * 0.08f, y + h * 0.14f, w * 0.84f, h * 0.82f);
-                    g.FillEllipse(bodyBrush, x + w * 0.02f, y + h * 0.04f, w * 0.62f, h * 0.56f);
-                    g.FillEllipse(bodyBrush, x + w * 0.28f, y + h * 0.34f, w * 0.68f, h * 0.62f);
-                }
-                else
-                {
-                    g.FillEllipse(bodyBrush, r);
+                    case 1: // 1. 云朵三连球 (对标 Karina / Alist)
+                        g.FillEllipse(bodyBrush, x + w * 0.08f, y + h * 0.14f, w * 0.84f, h * 0.82f);
+                        g.FillEllipse(bodyBrush, x + w * 0.02f, y + h * 0.04f, w * 0.62f, h * 0.56f);
+                        g.FillEllipse(bodyBrush, x + w * 0.28f, y + h * 0.34f, w * 0.68f, h * 0.62f);
+                        break;
+                    case 2: // 2. 圆角方块 (Squircle)
+                        using (GraphicsPath p2 = new GraphicsPath())
+                        {
+                            float rad = w * 0.32f;
+                            p2.AddArc(x, y, rad * 2, rad * 2, 180, 90);
+                            p2.AddArc(x + w - rad * 2, y, rad * 2, rad * 2, 270, 90);
+                            p2.AddArc(x + w - rad * 2, y + h - rad * 2, rad * 2, rad * 2, 0, 90);
+                            p2.AddArc(x, y + h - rad * 2, rad * 2, rad * 2, 90, 90);
+                            p2.CloseFigure();
+                            g.FillPath(bodyBrush, p2);
+                        }
+                        break;
+                    case 3: // 3. 四角星 / 十字花
+                        g.FillEllipse(bodyBrush, x + w * 0.05f, y + h * 0.26f, w * 0.90f, h * 0.48f);
+                        g.FillEllipse(bodyBrush, x + w * 0.26f, y + h * 0.05f, w * 0.48f, h * 0.90f);
+                        g.FillEllipse(bodyBrush, x + w * 0.20f, y + h * 0.20f, w * 0.60f, h * 0.60f);
+                        break;
+                    case 4: // 4. 爆米花 / 四叶果
+                        g.FillEllipse(bodyBrush, x + w * 0.08f, y + h * 0.08f, w * 0.48f, h * 0.48f);
+                        g.FillEllipse(bodyBrush, x + w * 0.44f, y + h * 0.06f, w * 0.50f, h * 0.50f);
+                        g.FillEllipse(bodyBrush, x + w * 0.06f, y + h * 0.44f, w * 0.50f, h * 0.50f);
+                        g.FillEllipse(bodyBrush, x + w * 0.42f, y + h * 0.42f, w * 0.52f, h * 0.52f);
+                        g.FillEllipse(bodyBrush, x + w * 0.22f, y + h * 0.22f, w * 0.56f, h * 0.56f);
+                        break;
+                    case 5: // 5. 花生 / 双头豆
+                        g.FillEllipse(bodyBrush, x + w * 0.05f, y + h * 0.15f, w * 0.52f, h * 0.62f);
+                        g.FillEllipse(bodyBrush, x + w * 0.42f, y + h * 0.22f, w * 0.54f, h * 0.64f);
+                        g.FillEllipse(bodyBrush, x + w * 0.25f, y + h * 0.24f, w * 0.50f, h * 0.50f);
+                        break;
+                    case 6: // 6. 不规则果冻 Blob
+                        g.FillEllipse(bodyBrush, x + w * 0.08f, y + h * 0.18f, w * 0.72f, h * 0.76f);
+                        g.FillEllipse(bodyBrush, x + w * 0.32f, y + h * 0.06f, w * 0.62f, h * 0.58f);
+                        g.FillEllipse(bodyBrush, x + w * 0.16f, y + h * 0.12f, w * 0.76f, h * 0.70f);
+                        break;
+                    case 7: // 7. 倒水滴 / 瓜子
+                        using (GraphicsPath p7 = new GraphicsPath())
+                        {
+                            p7.AddArc(x + w * 0.10f, y + h * 0.32f, w * 0.80f, h * 0.64f, 0, 180);
+                            p7.AddBezier(x + w * 0.10f, y + h * 0.64f, x + w * 0.16f, y + h * 0.28f, x + w * 0.44f, y + h * 0.06f, x + w * 0.50f, y + h * 0.06f);
+                            p7.AddBezier(x + w * 0.50f, y + h * 0.06f, x + w * 0.56f, y + h * 0.06f, x + w * 0.84f, y + h * 0.28f, x + w * 0.90f, y + h * 0.64f);
+                            p7.CloseFigure();
+                            g.FillPath(bodyBrush, p7);
+                        }
+                        break;
+                    case 8: // 8. 扁鹅卵石 (Pebble)
+                        g.FillEllipse(bodyBrush, x + w * 0.04f, y + h * 0.16f, w * 0.92f, h * 0.68f);
+                        g.FillEllipse(bodyBrush, x + w * 0.16f, y + h * 0.12f, w * 0.68f, h * 0.72f);
+                        break;
+                    case 9: // 9. 圆角三角 (Rounded Triangle)
+                        using (GraphicsPath p9 = new GraphicsPath())
+                        {
+                            float r9 = w * 0.24f;
+                            p9.AddArc(x + w * 0.5f - r9, y + h * 0.08f, r9 * 2, r9 * 2, 210, 120);
+                            p9.AddArc(x + w * 0.92f - r9 * 2, y + h * 0.88f - r9 * 2, r9 * 2, r9 * 2, 330, 120);
+                            p9.AddArc(x + w * 0.08f, y + h * 0.88f - r9 * 2, r9 * 2, r9 * 2, 90, 120);
+                            p9.CloseFigure();
+                            g.FillPath(bodyBrush, p9);
+                        }
+                        break;
+                    case 10: // 10. 倾斜梯形楔
+                        using (GraphicsPath p10 = new GraphicsPath())
+                        {
+                            float r10 = w * 0.22f;
+                            p10.AddArc(x + w * 0.24f, y + h * 0.08f, r10 * 2, r10 * 2, 180, 90);
+                            p10.AddArc(x + w * 0.84f - r10 * 2, y + h * 0.14f, r10 * 2, r10 * 2, 270, 90);
+                            p10.AddArc(x + w * 0.92f - r10 * 2, y + h * 0.86f - r10 * 2, r10 * 2, r10 * 2, 0, 90);
+                            p10.AddArc(x + w * 0.10f, y + h * 0.82f - r10 * 2, r10 * 2, r10 * 2, 90, 90);
+                            p10.CloseFigure();
+                            g.FillPath(bodyBrush, p10);
+                        }
+                        break;
+                    case 11: // 11. 六瓣花形
+                        g.FillEllipse(bodyBrush, x + w * 0.08f, y + h * 0.28f, w * 0.84f, h * 0.44f);
+                        g.FillEllipse(bodyBrush, x + w * 0.28f, y + h * 0.08f, w * 0.44f, h * 0.84f);
+                        g.FillEllipse(bodyBrush, x + w * 0.14f, y + h * 0.14f, w * 0.72f, h * 0.72f);
+                        break;
+                    case 12: // 12. 倾斜石块
+                        using (GraphicsPath p12 = new GraphicsPath())
+                        {
+                            float r12 = w * 0.26f;
+                            p12.AddArc(x + w * 0.16f, y + h * 0.06f, r12 * 2, r12 * 2, 180, 90);
+                            p12.AddArc(x + w * 0.86f - r12 * 2, y + h * 0.20f, r12 * 2, r12 * 2, 270, 90);
+                            p12.AddArc(x + w * 0.80f - r12 * 2, y + h * 0.88f - r12 * 2, r12 * 2, r12 * 2, 0, 90);
+                            p12.AddArc(x + w * 0.06f, y + h * 0.74f - r12 * 2, r12 * 2, r12 * 2, 90, 90);
+                            p12.CloseFigure();
+                            g.FillPath(bodyBrush, p12);
+                        }
+                        break;
+                    case 13: // 13. 南瓜 Pumpkin (对标截图带把手橘南瓜)
+                        // 顶部小绿把手
+                        using (Pen stemPen = new Pen(Color.FromArgb(90, 160, 60), Math.Max(2f, w * 0.08f)))
+                        {
+                            stemPen.StartCap = LineCap.Round;
+                            stemPen.EndCap = LineCap.Round;
+                            g.DrawLine(stemPen, x + w * 0.50f, y + h * 0.18f, x + w * 0.52f, y + h * 0.04f);
+                        }
+                        // 三条南瓜瓣椭圆
+                        g.FillEllipse(bodyBrush, x + w * 0.04f, y + h * 0.20f, w * 0.56f, h * 0.74f);
+                        g.FillEllipse(bodyBrush, x + w * 0.40f, y + h * 0.20f, w * 0.56f, h * 0.74f);
+                        g.FillEllipse(bodyBrush, x + w * 0.18f, y + h * 0.16f, w * 0.64f, h * 0.80f);
+                        break;
+                    default: // 0. 标准正圆
+                        g.FillEllipse(bodyBrush, r);
+                        break;
                 }
             }
 
             // 绘制标志性的两颗倾斜黑色胶囊灵动眼睛（向右下微看，与截图 Karina / Alist迅雷 完全一致）
             GraphicsState state = g.Save();
             float cx = r.X + r.Width * 0.54f;
-            float cy = r.Y + r.Height * 0.48f;
+            float cy = r.Y + r.Height * (shapeIndex == 13 ? 0.55f : 0.48f);
             g.TranslateTransform(cx, cy);
             g.RotateTransform(-24f);
 
@@ -162,8 +275,8 @@ namespace LanChat
             float eyeH = Math.Max(5.0f, r.Height * 0.28f);
             float eyeGap = Math.Max(2.2f, r.Width * 0.09f);
 
-            using (SolidBrush eyeBrush = new SolidBrush(Color.FromArgb(20, 20, 22)))
-            using (Pen eyePen = new Pen(Color.FromArgb(20, 20, 22), eyeW))
+            Color eyeColor = (bodyColor.R > 220 && bodyColor.G > 220 && bodyColor.B > 220) ? Color.FromArgb(20, 20, 22) : Color.FromArgb(16, 16, 18);
+            using (Pen eyePen = new Pen(eyeColor, eyeW))
             {
                 eyePen.StartCap = LineCap.Round;
                 eyePen.EndCap = LineCap.Round;

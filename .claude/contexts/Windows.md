@@ -16,6 +16,14 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `src/UI/Renderers/WeChatIcon.cs`：纯 GDI+ 矢量图标与 Grok 吉祥物绘制引擎（`DrawMascotAvatar` 支持倾斜双椭圆胶囊眼、有机轮廓、在线蓝点；包含 SoundWave、UpArrow、Mic、WinMin、WinMax、WinClose 等矢量图）。
 - `src/UI/Renderers/WeChatDarkMenuRenderer.cs`：暗黑风格右键弹出菜单渲染器与暗黑悬浮气泡组件。
 - `src/UI/Controls/GrokSettingsMenuForm.cs`：Grok Bot 原生弹出式设置菜单窗口（100% 对标 Alis3.png：左下角浮动弹出、宽 342px、圆角 16px、深蓝版本横幅、细线矢量图标与 46px 舒适行高）。
+- `src/UI/Controls/GrokConnectNodeForm.cs`：Grok Bot 原生连接节点窗口（100% 对标 ConnetctApp.png：顶部搜索胶囊、过滤芯片、局域网在线节点推荐卡片流与手动指定 IP 直连握手）。
+- `src/UI/Controls/GrokCreateNodeForm.cs`：Grok Bot 原生创建新节点/新Bot窗口（100% 对标 CreateNewBot.png：居中动态吉祥物预览、起名胶囊输入框、14 种有机形态网格、11 色调色盘）。
+- `src/UI/Controls/GrokAboutForm.cs`：Grok Bot 原生关于窗口（100% 对标 About.png：居中 Squircle 吉祥物徽章、版本信息与“复制版本信息”圆角药丸按钮）。
+- `src/UI/Controls/GrokChangeNickForm.cs`：Grok Bot 原生暗黑昵称修改窗口（吉祥物微标、暗黑圆角输入框与紫色保存按钮）。
+- `src/UI/Controls/GrokFeedbackForm.cs`：Grok Bot 原生发送反馈窗口（100% 对标 SendFK.png：多行反馈输入框、网络诊断复选框与发送反馈按钮）。
+- `src/UI/Controls/GrokSettingsDialog.cs`：Grok Bot 原生全局设置窗口（100% 对标 Alis4.png~Alis7.png：左侧通用/电脑/更新/关于导航、右侧现代卡片流）。
+- `src/UI/Controls/GrokUpdateForm.cs`：Grok Bot 原生软件更新窗口（100% 对标 Alis7.png：版本对比横幅、更新日志与平滑进度条）。
+- `src/UI/Controls/GrokMessageBox.cs`：Grok Bot 原生统一样式暗黑提示框（彻底取代系统生硬白底 MessageBox）。
 - `src/UI/Controls/WeChatButtons.cs`：无边框图标按钮（`WeChatIconButton`），扩展支持圆形按钮（`IsCircle`）、右上角 56x64 矩形标题栏控制按钮、自定义填充色与窗口关闭高亮模式。
 - `src/UI/Controls/WeChatChatView.cs`：Grok 风格自适应居中流式聊天视图控件（840px 约束舒适阅读流、右侧自发 `#7946D7` 魅紫气泡、左侧 `#1E1E21` 深灰卡片、反引号行内代码胶囊高亮、居中时间戳对齐与平滑滚动条）。
 - `src/Services/UpdateService.cs`：GitHub Releases 在线自动更新服务（REST API 优先探测 + Web 302 重定向降级更新向导弹窗与 MSI 自动下载安装）。
@@ -40,3 +48,7 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
    - 全面抛弃位图资源与旧版微信图标，应用主图标 `app.ico` 全面重绘为 Grok 魅紫吉祥物正圆（#905AFB + 双斜黑胶囊眼），包含 16~256 全尺寸 Windows 图标族。
 5. **系统托盘后台驻留与安全退出闭环**：
    - 拦截窗体关闭，最小化至托盘后台常驻，支持多网卡即时通信与后台气泡提醒。
+6. **全弹窗与菜单 Grok Bot 风格 100% 对齐与任务栏图标修复**：
+   - 全盘消除生硬白底 OS 弹窗，落地全套独立组件（`GrokConnectNodeForm`、`GrokCreateNodeForm`、`GrokAboutForm`、`GrokChangeNickForm`、`GrokFeedbackForm`、`GrokSettingsDialog`、`GrokUpdateForm`、`GrokMessageBox`）；
+   - 彻底更正为“连接节点”（对标 `ConnetctApp.png`）；
+   - 通过 AppUserModelID 与句柄层 `WM_SETICON` + `SetClassLongPtr` 解决任务栏图标缓存旧图标问题。

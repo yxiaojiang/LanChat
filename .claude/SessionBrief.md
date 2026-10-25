@@ -2,34 +2,50 @@
 
 > 最近刷新：2026-10-25。仓库：`https://github.com/yxiaojiang/LanChat.git`。
 > 项目版本：**LanChat v2.0.0**。
-> 核心里程碑：全面超越旧版微信界面风格，**100% 高保真像素级还原 Grok Bot 桌面端现代惊艳清爽暗黑风格**！基于用户提供的实机截图（`Alis.png`、`Alis2.png` 与 `Alis3.png`）完成第三轮深度逆向与重构：
-> 1. **设置菜单（GrokSettingsMenuForm）**：严格对标 `Alis3.png` 弹出位置（左下角头像上方 8px，左对齐 x=24，宽 342px，圆角 16px），顶部深蓝横幅（#1E2E40 发现新版本 + #116DD2 蓝胶囊安装按钮），46px 舒适行高，极简细线矢量图标（User, Bolt, Folder, Settings, Clear, Logout）与右侧指示文本；
-> 2. **右上角标题栏控制按钮**：严格对标 `Alis3.png` 无缝贴顶 56x64 矩形块状按钮，13px 极简线框矢量图标（13px 水平细线、13x13 空心正方形、双层还原方块、13x13 交叉乘号），全平铺矩形悬停底色（关闭键悬停 #E81123 亮红 + 白图标）；
-> 3. **软件图标矢量重绘**：全面重绘 `assets/app.ico` 为 `Alis3.png` 同款亮紫吉祥物（#905AFB 正圆 + 逆时针倾斜 22° 的双斜黑胶囊眼），内含 16 至 256 全尺寸标准 Windows 图标族；
-> 保持 C# 5.0 / .NET Framework 4.0 兼容与系统原生 `csc.exe` 秒级纯编译，零外部依赖，产物体积恒定在 ~148KB。
+> 核心里程碑：全面超越旧版界面，**全弹窗、菜单栏与交互 100% 高保真像素级还原 Grok Bot 桌面端现代惊艳清爽暗黑风格**！
+> 基于用户提供的实机参考图集（`assets/GrokBotPics`：`ConnetctApp.png`, `CreateNewBot.png`, `About.png`, `SendFK.png`, `Alis.png`~`Alis7.png`）全盘扫描重塑：
+> 1. **称谓严谨更正**：全面由“连接应用”纠正为“连接节点”；
+> 2. **连接节点弹窗（GrokConnectNodeForm）**：对标 `ConnetctApp.png` 顶部搜索胶囊、过滤芯片（全部/在线/直连）、局域网推荐节点卡片流与手动 IP 握手直连卡片；
+> 3. **创建新节点弹窗（GrokCreateNodeForm）**：对标 `CreateNewBot.png` 动态居中吉祥物 Hero 实时预览、起名胶囊、14 种有机形态选择网格与 11 种调色盘；
+> 4. **关于窗口（GrokAboutForm）**：对标 `About.png` 居中立体质感 Squircle 徽章、版本信息与“复制版本信息”圆角胶囊；
+> 5. **修改昵称与发送反馈（GrokChangeNickForm, GrokFeedbackForm）**：对标 `SendFK.png` 现代暗黑表单与多行输入；
+> 6. **全局设置与更新向导（GrokSettingsDialog, GrokUpdateForm）**：对标 `Alis4~7.png` 侧边栏导航与卡片流；
+> 7. **统一暗黑提示弹窗（GrokMessageBox）**：彻底剔除系统原生白底 MessageBox；
+> 8. **任务栏图标彻底更正**：通过 AppUserModelID + `WM_SETICON` + `SetClassLongPtr` 显式写入，解决任务栏图标缓存旧图标问题。
+> 保持 C# 5.0 / .NET Framework 4.0 兼容与原生 `csc.exe` 秒级纯编译，零外部依赖，编译体积 ~217KB。
 
 ---
 
 ## 一、 本轮工作态与交付成果总结
 
-### 1. `Alis3.png` 像素级逆向解构与对标实现
-- **设置菜单栏（GrokSettingsMenuForm）**：
-  - **位置精准锁定**：点击左下角头像徽章后，在左下角上方浮动弹出（`x = 24`，`y = 窗体高 - 84 - 368 - 8`），左边缘与底部按钮严密垂向对齐，阴影与圆角融入主窗体；
-  - **视觉结构**：
-    1. **顶部深蓝版本横幅（高 58px）**：底色 `#1E2E40`（圆角 16px），左侧淡天蓝粗体字 `发现新版本`（`#4D9BFF` 10.5pt），右侧亮蓝药丸按钮 `安装`（`#116DD2` 10pt Bold，圆角 14px）；
-    2. **6 大菜单项（项高 46px）**：包含 `修改我的昵称`（User 图标，右侧展示当前昵称）、`自动接收文件`（Bolt 图标，右侧开关状态）、`接收文件目录`（Folder 图标）、`支持与关于`（Settings 图标）、`清空聊天记录`（Clear 图标）、`退出登录`（Logout 图标）；
-    3. **悬停与交互**：悬停时呈现 `#2A2A2E` 8px 大圆角高亮卡片（左右留白 8px），点击非活动区自动失焦优雅关闭。
-- **右上角窗口控制按钮（Minimize, Maximize, Close）**：
-  - **尺寸与排布**：单键尺寸为 **56px 宽 × 64px 高**，横向贴顶平铺，无圆角无间隙；
-  - **矢量线框规格**：
-    - 最小化（—）：13px 宽、1.2px 粗细居中水平直线；
-    - 最大化（□）：13×13px、1.2px 粗细居中正方形；
-    - 向下还原（overlapping）：双层 10×10px 重叠交错方块；
-    - 关闭（×）：13×13px、1.2px 粗细交叉细线；
-  - **悬停高亮**：最小化与最大化为全矩形 `#37373A`，关闭按钮为经典 `#E81123` 亮红，图标自动反白。
-- **软件图标（`assets/app.ico`）纯矢量重构**：
-  - 彻底抛弃旧版绿色微信气泡图标，使用 PIL 高清重绘 Grok 紫色吉祥物正圆（`#905AFB`）与斜切黑胶囊眼；
-  - 打包生成包含 16x16, 24x24, 32x32, 48x48, 64x64, 128x128, 256x256 的完整 Windows 图标资源并嵌入编译输出。
+### 1. `GrokBotPics` 参照图集像素级逆向落地
+- **连接节点（GrokConnectNodeForm）**：
+  - 点击底部中间“连接节点”胶囊（或顶部加号菜单“连接节点”）弹出；
+  - 顶部 40px 高大圆角搜索胶囊（实时按昵称/主机名/IP 过滤），右侧刷新按钮；
+  - 4 种过滤芯片胶囊（全部、局域网在线、历史节点、手动直连）；
+  - 局域网节点 2 列卡片流：自绘对应有机形态吉祥物、昵称、在线状态与“连接”药丸按钮；
+  - 底部“手动指定 IP 握手直连”独立卡片：输入框 + 紫色“连接握手”按钮。
+- **创建新节点（GrokCreateNodeForm）**：
+  - 点击列表末尾“新建 Bot”或顶部“新建节点”弹出；
+  - 居中 96x96 大号吉祥物 Hero 实时预览；
+  - 14 种有机形态网格（圆、云朵、圆角方块、四角星、爆米花、花生、果冻、瓜子、鹅卵石、圆角三角、楔形、六瓣花、石块、带柄南瓜）；
+  - 11 种调色盘圆点（白色、棕色、红色、橙色、黄色、绿色、青色、蓝色、魅紫、粉色、烟灰），点击任意形态或颜色，顶部预览实时联动画出倾斜胶囊眼；
+  - 底部“取消”与“创建”药丸按钮。
+- **关于与支持（GrokAboutForm）**：
+  - 84x84 立体质感 Squircle 徽章（绘制白色立体头部与倾斜双黑胶囊眼）；
+  - 居中标题与版本、构建日期与版权；
+  - 底部“复制版本信息”胶囊按钮（点击复制并反馈“已复制 ✓”）。
+- **统一暗黑提示（GrokMessageBox）**：
+  - 替代所有原生 `MessageBox.Show`，暗黑 16px 圆角窗体与矢量图标（信息、警告、错误、询问）；
+  - 优雅平滑圆角药丸按钮（确定、取消、是、否）。
+
+### 2. 任务栏图标彻底更正
+- 在 `Program.cs` 启动时显式注册 `SetCurrentProcessExplicitAppUserModelID("Aritex.LanChat.Desktop.v2")`，强制 Windows 任务栏建立全新进程分组与图标索引；
+- 在 `MainForm.cs` 的 `OnHandleCreated` 与 `OnShown` 中，通过 `SendMessagePtr` 显式发送 `WM_SETICON`（`ICON_SMALL` 与 `ICON_BIG`），并调用 `SetClassLongPtr` 写入 `GCLP_HICON` 与 `GCLP_HICONSM`，彻底解决无边框窗体缺少 `WS_CAPTION` 时任务栏回退显示旧缓存图标的问题。
+
+### 3. 构建与热替换验证
+- 系统原生 `csc.exe` 纯编译通过，0 错误 0 警告；
+- 运行 `Tools/CompileAndLink.bat`，最新构建产物已同步替换覆盖至 `D:\soft\LanChat\LanChat.exe` 与 `D:\soft\LanChat\app.ico`。
 
 ### 2. UI 矢量绘制引擎与控件全面重塑
 - **`src/UI/Renderers/WeChatIcon.cs` 升级**：

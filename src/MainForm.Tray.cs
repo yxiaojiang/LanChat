@@ -40,7 +40,7 @@ namespace LanChat
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "启动网络服务失败: " + ex.Message, "网络错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                GrokMessageBox.Show(this, "启动网络服务失败: " + ex.Message, "网络错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -115,38 +115,20 @@ namespace LanChat
 
         private void ShowAboutDialog()
         {
-            MessageBox.Show(this, "LanChat v" + APP_VERSION + "\n局域网秒级极速通讯与文件互传\nUI: Grok Bot 极简现代纯黑视觉 (100% 像素级复刻)\n零外部运行环境依赖\n开源主页: https://github.com/" + GITHUB_REPO, "关于 LanChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            using (GrokAboutForm about = new GrokAboutForm(APP_VERSION))
+            {
+                about.ShowDialog(this);
+            }
         }
 
         private void ShowChangeNickDialog()
         {
             string currentNick = _netService != null ? _netService.NickName : Environment.UserName;
-            using (Form prompt = new Form())
+            using (GrokChangeNickForm prompt = new GrokChangeNickForm(currentNick))
             {
-                if (this.Icon != null) prompt.Icon = this.Icon;
-                prompt.Text = "修改我的昵称";
-                prompt.Size = new Size(360, 160);
-                prompt.StartPosition = FormStartPosition.CenterParent;
-                prompt.FormBorderStyle = FormBorderStyle.FixedDialog;
-                prompt.MaximizeBox = false;
-                prompt.MinimizeBox = false;
-                prompt.BackColor = Color.FromArgb(24, 24, 26);
-                prompt.ForeColor = Color.White;
-
-                Label lbl = new Label { Text = "请输入新的局域网昵称:", Location = new Point(16, 16), AutoSize = true };
-                TextBox txt = new TextBox { Text = currentNick, Location = new Point(18, 42), Width = 308, BackColor = Color.FromArgb(16, 16, 18), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
-                Button btnOk = new Button { Text = "保存", Location = new Point(156, 78), Size = new Size(80, 28), DialogResult = DialogResult.OK, BackColor = Color.FromArgb(121, 70, 215), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-                btnOk.FlatAppearance.BorderSize = 0;
-                Button btnCancel = new Button { Text = "取消", Location = new Point(246, 78), Size = new Size(80, 28), DialogResult = DialogResult.Cancel, BackColor = Color.FromArgb(46, 46, 50), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-                btnCancel.FlatAppearance.BorderSize = 0;
-
-                prompt.Controls.AddRange(new Control[] { lbl, txt, btnOk, btnCancel });
-                prompt.AcceptButton = btnOk;
-                prompt.CancelButton = btnCancel;
-
                 if (prompt.ShowDialog(this) == DialogResult.OK)
                 {
-                    string newNick = txt.Text.Trim();
+                    string newNick = prompt.NewNickName;
                     if (!string.IsNullOrEmpty(newNick) && _netService != null)
                     {
                         _netService.NickName = newNick;
@@ -156,6 +138,19 @@ namespace LanChat
                         AppendChatSystem("您的昵称已更改为: " + newNick);
                     }
                 }
+            }
+        }
+
+        private void ShowSettingsDialog(int tab = 0)
+        {
+            using (GrokSettingsDialog dlg = new GrokSettingsDialog(
+                _netService,
+                () => CheckForUpdates(false),
+                () => ShowChangeNickDialog(),
+                () => OpenReceivedFolder(),
+                tab))
+            {
+                dlg.ShowDialog(this);
             }
         }
 
@@ -183,7 +178,7 @@ namespace LanChat
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "打开文件夹失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                GrokMessageBox.Show(this, "打开文件夹失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -229,6 +224,20 @@ namespace LanChat
                 itemShow.Font = new Font(this.Font, FontStyle.Bold);
                 itemShow.Click += (s, e) => RestoreFromTray();
                 trayMenu.Items.Add(itemShow);
+
+                ToolStripMenuItem itemConnect = new ToolStripMenuItem("🔗 连接节点...");
+                itemConnect.Click += (s, e) => {
+                    RestoreFromTray();
+                    BtnConnectNode_Click(s, e);
+                };
+                trayMenu.Items.Add(itemConnect);
+
+                ToolStripMenuItem itemSettings = new ToolStripMenuItem("⚙️ 系统设置...");
+                itemSettings.Click += (s, e) => {
+                    RestoreFromTray();
+                    ShowSettingsDialog(0);
+                };
+                trayMenu.Items.Add(itemSettings);
 
                 ToolStripMenuItem itemCheckUpdate = new ToolStripMenuItem("🔄 检查新版本...");
                 itemCheckUpdate.Click += (s, e) => CheckForUpdates(false);

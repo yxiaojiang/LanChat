@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Net;
 using System.Windows.Forms;
 
 namespace LanChat
@@ -125,11 +126,12 @@ namespace LanChat
             menu.BackColor = Color.FromArgb(30, 30, 32);
             menu.ForeColor = Color.FromArgb(235, 235, 240);
 
-            menu.Items.Add("➕ 手动添加好友 IP (直连握手)...", null, (s, ev) => BtnAddIp_Click(s, ev));
+            menu.Items.Add("➕ 新建节点 (自定义外观与Bot)...", null, (s, ev) => BtnCreateNode_Click(s, ev));
+            menu.Items.Add("🔗 连接节点 (局域网与 IP 直连)...", null, (s, ev) => BtnConnectNode_Click(s, ev));
             menu.Items.Add("🔄 扫描并广播局域网节点", null, (s, ev) => RefreshPeersWithNotice());
             menu.Items.Add("📂 打开接收文件夹", null, (s, ev) => OpenReceivedFolder());
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("⚙️ 系统设置与更多...", null, (s, ev) => BtnSettings_Click(s, ev));
+            menu.Items.Add("⚙️ 系统设置与关于...", null, (s, ev) => ShowSettingsDialog(0));
 
             menu.Show(_btnAddSession, new Point(0, _btnAddSession.Height + 4));
         }
@@ -138,11 +140,11 @@ namespace LanChat
         {
             if (_listSessions.SelectedItem == null) return;
 
-            // 点击列表末尾“新建连接”项：触发手动连接 IP 弹窗并恢复原会话选中态
+            // 点击列表末尾“新建 Bot”项：弹出对标 CreateNewBot.png 的新建节点窗口
             if (_listSessions.SelectedItem is string && (string)_listSessions.SelectedItem == NEW_CONNECTION_ITEM)
             {
                 _listSessions.SelectedIndex = 0;
-                BtnAddIp_Click(this, EventArgs.Empty);
+                BtnCreateNode_Click(this, EventArgs.Empty);
                 return;
             }
 
@@ -152,7 +154,7 @@ namespace LanChat
                 if (sItem == NEW_CONNECTION_ITEM)
                 {
                     _listSessions.SelectedIndex = 0;
-                    BtnAddIp_Click(this, EventArgs.Empty);
+                    BtnCreateNode_Click(this, EventArgs.Empty);
                     return;
                 }
 
@@ -484,8 +486,27 @@ namespace LanChat
                 FormBorderStyle = FormBorderStyle.None,
                 StartPosition = FormStartPosition.Manual,
                 ShowInTaskbar = false,
-                Size = new Size(290, 200),
+                Size = new Size(300, 210),
                 BackColor = Color.FromArgb(28, 28, 30)
+            };
+
+            popup.Paint += (s, e) =>
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (Pen p = new Pen(Color.FromArgb(50, 50, 56), 1f))
+                {
+                    MainForm.DrawRoundedRectangle(e.Graphics, p, new Rectangle(0, 0, popup.Width - 1, popup.Height - 1), 14);
+                }
+            };
+
+            popup.HandleCreated += (s, e) =>
+            {
+                try
+                {
+                    IntPtr rgn = CreateRoundRectRgn(0, 0, popup.Width + 1, popup.Height + 1, 14, 14);
+                    if (rgn != IntPtr.Zero) popup.Region = Region.FromHrgn(rgn);
+                }
+                catch { }
             };
 
             Point screenPoint = _btnToolSendFile.PointToScreen(new Point(0, -popup.Height - 6));
@@ -495,7 +516,7 @@ namespace LanChat
             {
                 Dock = DockStyle.Fill,
                 AutoScroll = true,
-                Padding = new Padding(6),
+                Padding = new Padding(8),
                 BackColor = Color.FromArgb(28, 28, 30)
             };
 
@@ -540,78 +561,128 @@ namespace LanChat
 
         #endregion
 
-        #region Actions
+        #region Actions & Navigation
 
-        private void BtnAddIp_Click(object sender, EventArgs e)
+        public void SelectPeerChat(PeerInfo peer)
         {
-            using (Form inputForm = new Form())
+            if (peer == null) return;
+            for (int i = 0; i < _listSessions.Items.Count; i++)
             {
-                if (this.Icon != null) inputForm.Icon = this.Icon;
-                inputForm.Text = "连接节点 (手动输入 IP 直连握手)";
-                inputForm.Size = new Size(390, 165);
-                inputForm.StartPosition = FormStartPosition.CenterParent;
-                inputForm.FormBorderStyle = FormBorderStyle.FixedDialog;
-                inputForm.MaximizeBox = false;
-                inputForm.MinimizeBox = false;
-                inputForm.BackColor = Color.FromArgb(24, 24, 26);
-                inputForm.ForeColor = Color.White;
-
-                Label lblPrompt = new Label
+                if (_listSessions.Items[i] is PeerInfo)
                 {
-                    Text = "请输入对方计算机的 IPv4 地址 (例如 192.168.1.100):",
-                    Location = new Point(16, 16),
-                    AutoSize = true,
-                    Font = new Font("Microsoft YaHei", 9f)
-                };
-
-                TextBox txtIp = new TextBox
-                {
-                    Location = new Point(18, 42),
-                    Width = 338,
-                    Font = new Font("Microsoft YaHei", 10f),
-                    BackColor = Color.FromArgb(16, 16, 18),
-                    ForeColor = Color.White,
-                    BorderStyle = BorderStyle.FixedSingle
-                };
-
-                Button btnOk = new Button
-                {
-                    Text = "连接握手",
-                    Location = new Point(180, 78),
-                    Size = new Size(85, 30),
-                    DialogResult = DialogResult.OK,
-                    BackColor = Color.FromArgb(121, 70, 215),
-                    ForeColor = Color.White,
-                    FlatStyle = FlatStyle.Flat
-                };
-                btnOk.FlatAppearance.BorderSize = 0;
-
-                Button btnCancel = new Button
-                {
-                    Text = "取消",
-                    Location = new Point(275, 78),
-                    Size = new Size(80, 30),
-                    DialogResult = DialogResult.Cancel,
-                    BackColor = Color.FromArgb(46, 46, 50),
-                    ForeColor = Color.White,
-                    FlatStyle = FlatStyle.Flat
-                };
-                btnCancel.FlatAppearance.BorderSize = 0;
-
-                inputForm.Controls.AddRange(new Control[] { lblPrompt, txtIp, btnOk, btnCancel });
-                inputForm.AcceptButton = btnOk;
-                inputForm.CancelButton = btnCancel;
-
-                if (inputForm.ShowDialog(this) == DialogResult.OK)
-                {
-                    string ipStr = txtIp.Text.Trim();
-                    if (!string.IsNullOrEmpty(ipStr) && _netService != null)
+                    PeerInfo p = (PeerInfo)_listSessions.Items[i];
+                    if (p.Id == peer.Id || p.IP == peer.IP)
                     {
-                        AppendChatSystem("正在主动向 " + ipStr + " 发起 TCP 直连握手...");
-                        _netService.ProbeIp(ipStr, (success, msg) => {
+                        _listSessions.SelectedIndex = i;
+                        return;
+                    }
+                }
+            }
+
+            _selectedPeer = peer;
+            _activeChatKey = peer.Id;
+            _lblChatTitle.Text = peer.NickName ?? "在线节点";
+            _inputPlaceholder = string.Format("给 {0} 发消息", peer.NickName ?? "好友");
+            _chatView.ShowGroupSenderName = false;
+            SwitchActiveChatView();
+            _chatHeader.Invalidate();
+            _inputPanel.Invalidate();
+            _listSessions.Invalidate();
+        }
+
+        private void BtnConnectNode_Click(object sender, EventArgs e)
+        {
+            using (GrokConnectNodeForm form = new GrokConnectNodeForm(
+                _netService,
+                (ip) => {
+                    AppendChatSystem("正在主动向 " + ip + " 发起 TCP 直连握手...");
+                    _netService.ProbeIp(ip, (success, msg) => {
+                        SafeInvoke(() => AppendChatSystem(msg));
+                    });
+                },
+                (peer) => {
+                    SelectPeerChat(peer);
+                }))
+            {
+                form.ShowDialog(this);
+            }
+        }
+
+        private void BtnCreateNode_Click(object sender, EventArgs e)
+        {
+            using (GrokCreateNodeForm form = new GrokCreateNodeForm())
+            {
+                if (form.ShowDialog(this) == DialogResult.OK)
+                {
+                    string nameOrIp = form.NodeName;
+                    IPAddress parsedIp;
+                    if (IPAddress.TryParse(nameOrIp, out parsedIp) && _netService != null)
+                    {
+                        AppendChatSystem("正在主动向 " + nameOrIp + " 发起直连握手...");
+                        _netService.ProbeIp(nameOrIp, (success, msg) => {
                             SafeInvoke(() => AppendChatSystem(msg));
                         });
                     }
+                    else
+                    {
+                        AppendChatSystem("已创建新节点: " + nameOrIp);
+                    }
+                }
+            }
+        }
+
+        private void BtnAddIp_Click(object sender, EventArgs e)
+        {
+            BtnConnectNode_Click(sender, e);
+        }
+
+        public void ListSessions_MouseUp(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                int index = _listSessions.IndexFromPoint(e.Location);
+                if (index >= 0)
+                {
+                    _listSessions.SelectedIndex = index;
+                    object item = _listSessions.Items[index];
+
+                    ContextMenuStrip menu = new ContextMenuStrip();
+                    menu.Renderer = new WeChatDarkMenuRenderer();
+                    menu.ShowImageMargin = false;
+                    menu.ShowCheckMargin = false;
+                    menu.BackColor = Color.FromArgb(30, 30, 32);
+                    menu.ForeColor = Color.FromArgb(235, 235, 240);
+
+                    if (item is PeerInfo)
+                    {
+                        PeerInfo peer = (PeerInfo)item;
+                        menu.Items.Add("💬 发起会话", null, (s, ev) => SelectPeerChat(peer));
+                        menu.Items.Add("📁 发送文件...", null, (s, ev) => BtnSendFile_Click(s, ev));
+                        menu.Items.Add("📋 复制节点 IP (" + peer.IP + ")", null, (s, ev) => {
+                            try { Clipboard.SetText(peer.IP != null ? peer.IP.ToString() : ""); } catch { }
+                        });
+                        menu.Items.Add(new ToolStripSeparator());
+                        menu.Items.Add("🧹 清空聊天记录", null, (s, ev) => ClearCurrentChat());
+                    }
+                    else if (item is string)
+                    {
+                        string sItem = (string)item;
+                        if (sItem == NEW_CONNECTION_ITEM)
+                        {
+                            menu.Items.Add("➕ 创建新节点...", null, (s, ev) => BtnCreateNode_Click(s, ev));
+                            menu.Items.Add("🔗 连接节点...", null, (s, ev) => BtnConnectNode_Click(s, ev));
+                        }
+                        else
+                        {
+                            menu.Items.Add("💬 全员群聊", null, (s, ev) => {
+                                _listSessions.SelectedIndex = 0;
+                            });
+                            menu.Items.Add("📁 发送文件给所有人...", null, (s, ev) => BtnSendFile_Click(s, ev));
+                            menu.Items.Add("🧹 清空群聊记录", null, (s, ev) => ClearCurrentChat());
+                        }
+                    }
+
+                    menu.Show(_listSessions, e.Location);
                 }
             }
         }

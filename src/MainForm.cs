@@ -20,8 +20,14 @@ namespace LanChat
         [DllImport("user32.dll")]
         private static extern bool ReleaseCapture();
 
+        [DllImport("gdi32.dll", EntryPoint = "CreateRoundRectRgn")]
+        public static extern IntPtr CreateRoundRectRgn(int nLeftRect, int nTopRect, int nRightRect, int nBottomRect, int nWidthEllipse, int nHeightEllipse);
+
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
+
+        [DllImport("user32.dll", EntryPoint = "SendMessage")]
+        private static extern IntPtr SendMessagePtr(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
 
         private const string BROADCAST_TARGET = "📢 局域网全员群聊";
         private const string NEW_CONNECTION_ITEM = "__NEW_CONNECTION__";
@@ -112,6 +118,20 @@ namespace LanChat
         private NotifyIcon _trayIcon;
         private bool _isExplicitExit = false;
         private bool _hasShownTrayBalloon = false;
+        [DllImport("user32.dll", EntryPoint = "SetClassLong")]
+        private static extern uint SetClassLong32(IntPtr hWnd, int nIndex, uint dwNewLong);
+
+        [DllImport("user32.dll", EntryPoint = "SetClassLongPtr")]
+        private static extern IntPtr SetClassLongPtr64(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+        private static IntPtr SetClassLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong)
+        {
+            if (IntPtr.Size == 8)
+                return SetClassLongPtr64(hWnd, nIndex, dwNewLong);
+            else
+                return new IntPtr(SetClassLong32(hWnd, nIndex, (uint)dwNewLong.ToInt32()));
+        }
+
         private int _wakeupMessageId = 0;
 
         public MainForm()
@@ -166,6 +186,33 @@ namespace LanChat
                 _wakeupMessageId = Program.RegisterWindowMessage(Program.WakeupMessageName);
             }
             catch { }
+
+            // 彻底解决任务栏图标显示旧图标问题：显式向 HWND 句柄发送 WM_SETICON 并写入窗口类图标
+            if (this.Icon != null)
+            {
+                try
+                {
+                    SendMessagePtr(this.Handle, 0x0080 /* WM_SETICON */, (IntPtr)0 /* ICON_SMALL */, this.Icon.Handle);
+                    SendMessagePtr(this.Handle, 0x0080 /* WM_SETICON */, (IntPtr)1 /* ICON_BIG */, this.Icon.Handle);
+                    SetClassLongPtr(this.Handle, -14 /* GCLP_HICON */, this.Icon.Handle);
+                    SetClassLongPtr(this.Handle, -34 /* GCLP_HICONSM */, this.Icon.Handle);
+                }
+                catch { }
+            }
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            if (this.Icon != null)
+            {
+                try
+                {
+                    SendMessagePtr(this.Handle, 0x0080, (IntPtr)0, this.Icon.Handle);
+                    SendMessagePtr(this.Handle, 0x0080, (IntPtr)1, this.Icon.Handle);
+                }
+                catch { }
+            }
         }
 
         protected override void WndProc(ref Message m)
@@ -240,6 +287,8 @@ namespace LanChat
         private void InitializeComponent()
         {
             this.Text = "LanChat";
+            this.ShowIcon = true;
+            this.ShowInTaskbar = true;
             this.FormBorderStyle = FormBorderStyle.None;
             this.Size = new Size(1024, 560);
             this.MinimumSize = new Size(820, 480);
@@ -405,7 +454,7 @@ namespace LanChat
             };
             _btnBottomUser.Click += BtnSettings_Click;
 
-            // Middle pill button "连接应用" (240x54, radius 27)
+            // Middle pill button "连接节点" (240x54, radius 27, 对标 Alis.png 底部中间胶囊按钮)
             _btnBottomConnect = new Button
             {
                 Location = new Point(90, 6),
@@ -417,11 +466,14 @@ namespace LanChat
             _btnBottomConnect.FlatAppearance.BorderSize = 0;
             _btnBottomConnect.FlatAppearance.MouseOverBackColor = Color.Transparent;
             _btnBottomConnect.FlatAppearance.MouseDownBackColor = Color.Transparent;
+            bool connHover = false;
+            _btnBottomConnect.MouseEnter += (s, e) => { connHover = true; _btnBottomConnect.Invalidate(); };
+            _btnBottomConnect.MouseLeave += (s, e) => { connHover = false; _btnBottomConnect.Invalidate(); };
             _btnBottomConnect.Paint += (s, e) => {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 Rectangle r = new Rectangle(0, 0, _btnBottomConnect.Width - 1, _btnBottomConnect.Height - 1);
-                using (SolidBrush b = new SolidBrush(Color.FromArgb(31, 31, 31))) // #1F1F1F
-                using (Pen p = new Pen(Color.FromArgb(46, 46, 50), 1f))
+                using (SolidBrush b = new SolidBrush(connHover ? Color.FromArgb(42, 42, 46) : Color.FromArgb(31, 31, 31))) // #1F1F1F
+                using (Pen p = new Pen(connHover ? Color.FromArgb(64, 64, 70) : Color.FromArgb(46, 46, 50), 1f))
                 {
                     DrawRoundedRectangle(e.Graphics, b, r, 27);
                     DrawRoundedRectangle(e.Graphics, p, r, 27);
@@ -430,10 +482,10 @@ namespace LanChat
                 using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 245)))
                 {
                     StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString("连接应用", f, tb, new RectangleF(0, 1, _btnBottomConnect.Width, _btnBottomConnect.Height), sf);
+                    e.Graphics.DrawString("连接节点", f, tb, new RectangleF(0, 1, _btnBottomConnect.Width, _btnBottomConnect.Height), sf);
                 }
             };
-            _btnBottomConnect.Click += BtnAddIp_Click;
+            _btnBottomConnect.Click += BtnConnectNode_Click;
 
             // Right blue circular up-arrow scan button (54x54, #116DD2)
             _btnBottomScan = new WeChatIconButton(WeChatIconType.UpArrow, "扫描并广播刷新局域网节点", 54)
@@ -464,6 +516,7 @@ namespace LanChat
             };
             _listSessions.DrawItem += ListSessions_DrawItem;
             _listSessions.SelectedIndexChanged += ListSessions_SelectedIndexChanged;
+            _listSessions.MouseUp += ListSessions_MouseUp;
 
             _sessionsPanel.Controls.Add(_listSessions);
             _sessionsPanel.Controls.Add(_leftBottomBar);

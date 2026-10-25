@@ -10,6 +10,9 @@ namespace LanChat
         [DllImport("user32.dll")]
         private static extern bool SetProcessDPIAware();
 
+        [DllImport("shell32.dll", SetLastError = true)]
+        private static extern void SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string AppID);
+
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         public static extern int RegisterWindowMessage(string lpString);
 
@@ -28,6 +31,13 @@ namespace LanChat
                 {
                     SetProcessDPIAware();
                 }
+            }
+            catch { }
+
+            try
+            {
+                // 显式设置应用模型 ID，确保 Windows 任务栏彻底刷新为最新紫吉祥物图标并独立分组
+                SetCurrentProcessExplicitAppUserModelID("Aritex.LanChat.Desktop.v2");
             }
             catch { }
 
@@ -53,13 +63,13 @@ namespace LanChat
                 Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
                 Application.ThreadException += (s, e) =>
                 {
-                    MessageBox.Show("发生未捕获异常: " + e.Exception.Message, "系统提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    GrokMessageBox.Show("发生未捕获异常: " + e.Exception.Message, "系统提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 };
 
                 AppDomain.CurrentDomain.UnhandledException += (s, e) =>
                 {
                     Exception ex = e.ExceptionObject as Exception;
-                    MessageBox.Show("严重错误: " + (ex != null ? ex.Message : "未知错误"), "系统提示", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    GrokMessageBox.Show("严重错误: " + (ex != null ? ex.Message : "未知错误"), "系统提示", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 };
 
                 Application.Run(new MainForm());

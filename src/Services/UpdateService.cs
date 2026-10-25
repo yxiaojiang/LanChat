@@ -128,7 +128,7 @@ namespace LanChat
                             {
                                 SafeInvoke(owner, () =>
                                 {
-                                    MessageBox.Show(owner, "当前已是最新版本 (v" + APP_VERSION + ")，无需更新。", "检查更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                    GrokMessageBox.Show(owner, "当前已是最新版本 (v" + APP_VERSION + ")，无需更新。", "检查更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
                                 });
                             }
                         }
@@ -159,7 +159,7 @@ namespace LanChat
                                 }
                             }
                         }
-                        MessageBox.Show(owner, "检查新版本失败。\n\n" + tip, "检查更新", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        GrokMessageBox.Show(owner, "检查新版本失败。\n\n" + tip, "检查更新", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     });
                 }
             });
@@ -167,199 +167,16 @@ namespace LanChat
 
         public static void ShowUpdateDialog(Form owner, string version, string releaseTitle, string releaseNotes, string downloadUrl, string webUrl, Action onInstallExit = null)
         {
-            Form dlg = new Form
+            using (GrokUpdateForm dlg = new GrokUpdateForm(version, releaseTitle, releaseNotes, downloadUrl, webUrl, onInstallExit))
             {
-                Text = "发现新版本 - LanChat",
-                Size = new Size(540, 440),
-                StartPosition = FormStartPosition.CenterParent,
-                FormBorderStyle = FormBorderStyle.FixedDialog,
-                MaximizeBox = false,
-                MinimizeBox = false,
-                BackColor = Color.FromArgb(32, 32, 33),
-                ForeColor = Color.FromArgb(235, 235, 235),
-                Font = new Font("Microsoft YaHei", 9f)
-            };
-            if (owner != null && owner.Icon != null) dlg.Icon = owner.Icon;
-
-            Label lblTitle = new Label
-            {
-                Text = "🚀 发现 LanChat 新版本: v" + version,
-                Font = new Font("Microsoft YaHei", 12f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(7, 193, 96),
-                Location = new Point(24, 20),
-                AutoSize = true
-            };
-
-            Label lblSub = new Label
-            {
-                Text = string.Format("当前版本: v{0}  |  更新标题: {1}", APP_VERSION, string.IsNullOrEmpty(releaseTitle) ? "LanChat v" + version : releaseTitle),
-                ForeColor = Color.FromArgb(160, 160, 160),
-                Location = new Point(25, 48),
-                AutoSize = true
-            };
-
-            Label lblNoteTitle = new Label
-            {
-                Text = "更新日志 / 发布说明:",
-                ForeColor = Color.FromArgb(200, 200, 200),
-                Location = new Point(25, 78),
-                AutoSize = true
-            };
-
-            TextBox txtNotes = new TextBox
-            {
-                Multiline = true,
-                ReadOnly = true,
-                ScrollBars = ScrollBars.Vertical,
-                BackColor = Color.FromArgb(44, 44, 46),
-                ForeColor = Color.FromArgb(220, 220, 220),
-                BorderStyle = BorderStyle.FixedSingle,
-                Location = new Point(25, 102),
-                Size = new Size(475, 210),
-                Text = string.IsNullOrEmpty(releaseNotes) ? "此版本包含重要功能改进与问题修复。" : releaseNotes
-            };
-
-            ProgressBar prgDownload = new ProgressBar
-            {
-                Location = new Point(25, 322),
-                Size = new Size(475, 16),
-                Visible = false
-            };
-
-            Button btnDownload = new Button
-            {
-                Text = "⚡ 立即下载安装 (MSI)",
-                BackColor = Color.FromArgb(7, 193, 96),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold),
-                Location = new Point(25, 350),
-                Size = new Size(180, 36),
-                Cursor = Cursors.Hand
-            };
-            btnDownload.FlatAppearance.BorderSize = 0;
-
-            Button btnWeb = new Button
-            {
-                Text = "🌐 GitHub 页面",
-                BackColor = Color.FromArgb(50, 50, 52),
-                ForeColor = Color.FromArgb(220, 220, 220),
-                FlatStyle = FlatStyle.Flat,
-                Location = new Point(220, 350),
-                Size = new Size(130, 36),
-                Cursor = Cursors.Hand
-            };
-            btnWeb.FlatAppearance.BorderSize = 0;
-
-            Button btnCancel = new Button
-            {
-                Text = "稍后再说",
-                BackColor = Color.FromArgb(44, 44, 46),
-                ForeColor = Color.FromArgb(180, 180, 180),
-                FlatStyle = FlatStyle.Flat,
-                Location = new Point(370, 350),
-                Size = new Size(130, 36),
-                Cursor = Cursors.Hand
-            };
-            btnCancel.FlatAppearance.BorderSize = 0;
-            btnCancel.Click += (s, e) => dlg.Close();
-
-            btnWeb.Click += (s, e) =>
-            {
-                try
+                if (owner != null && owner.Visible)
                 {
-                    System.Diagnostics.Process.Start(string.IsNullOrEmpty(webUrl) ? "https://github.com/" + GITHUB_REPO + "/releases" : webUrl);
+                    dlg.ShowDialog(owner);
                 }
-                catch { }
-            };
-
-            btnDownload.Click += (s, e) =>
-            {
-                btnDownload.Enabled = false;
-                btnDownload.Text = "正在下载更新...";
-                prgDownload.Visible = true;
-                prgDownload.Value = 0;
-
-                ThreadPool.QueueUserWorkItem(_ =>
+                else
                 {
-                    try
-                    {
-                        string saveFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-                        if (!Directory.Exists(saveFolder)) Directory.CreateDirectory(saveFolder);
-                        string savePath = Path.Combine(saveFolder, "LanChat_Setup_v" + version + ".msi");
-
-                        using (var client = new WebClient())
-                        {
-                            client.Headers.Add("User-Agent", "LanChat-Client/" + APP_VERSION);
-                            client.DownloadProgressChanged += (sender, ev) =>
-                            {
-                                SafeInvoke(dlg, () =>
-                                {
-                                    if (prgDownload.Visible) prgDownload.Value = ev.ProgressPercentage;
-                                });
-                            };
-
-                            client.DownloadFileCompleted += (sender, ev) =>
-                            {
-                                SafeInvoke(dlg, () =>
-                                {
-                                    if (ev.Error != null)
-                                    {
-                                        MessageBox.Show(dlg, "下载更新失败: " + ev.Error.Message, "更新失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                                        btnDownload.Enabled = true;
-                                        btnDownload.Text = "⚡ 重试下载";
-                                    }
-                                    else
-                                    {
-                                        btnDownload.Text = "下载完成！";
-                                        var res = MessageBox.Show(dlg, "新版本安装包已下载至:\n" + savePath + "\n\n是否立即启动安装程序进行升级？", "下载完成", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                                        if (res == DialogResult.Yes)
-                                        {
-                                            try
-                                            {
-                                                System.Diagnostics.Process.Start(savePath);
-                                                dlg.Close();
-                                                if (onInstallExit != null)
-                                                {
-                                                    onInstallExit();
-                                                }
-                                            }
-                                            catch (Exception startEx)
-                                            {
-                                                MessageBox.Show(dlg, "无法自动启动安装程序: " + startEx.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                                            }
-                                        }
-                                        else
-                                        {
-                                            dlg.Close();
-                                        }
-                                    }
-                                });
-                            };
-
-                            client.DownloadFileAsync(new Uri(downloadUrl), savePath);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        SafeInvoke(dlg, () =>
-                        {
-                            MessageBox.Show(dlg, "发起下载失败: " + ex.Message, "更新失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            btnDownload.Enabled = true;
-                            btnDownload.Text = "⚡ 立即下载安装 (MSI)";
-                        });
-                    }
-                });
-            };
-
-            dlg.Controls.AddRange(new Control[] { lblTitle, lblSub, lblNoteTitle, txtNotes, prgDownload, btnDownload, btnWeb, btnCancel });
-            if (owner != null)
-            {
-                dlg.ShowDialog(owner);
-            }
-            else
-            {
-                dlg.ShowDialog();
+                    dlg.ShowDialog();
+                }
             }
         }
 
