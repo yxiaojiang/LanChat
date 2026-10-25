@@ -168,11 +168,6 @@ namespace LanChat
                 _chatView.ShowGroupSenderName = false; // 1对1私聊与截图完全一致，隐藏双方头像与昵称
             }
 
-            if (_lblSendTip != null)
-            {
-                _lblSendTip.Text = _inputPlaceholder;
-                _lblSendTip.Visible = string.IsNullOrEmpty(_txtInput.Text);
-            }
 
             SwitchActiveChatView();
             _chatHeader.Invalidate();
@@ -319,19 +314,25 @@ namespace LanChat
 
         private void TxtInput_TextChanged(object sender, EventArgs e)
         {
-            if (_lblSendTip != null)
-            {
-                _lblSendTip.Visible = string.IsNullOrEmpty(_txtInput.Text) && !_txtInput.Focused;
-            }
-            _inputPanel.Invalidate();
+            if (_bottomSendPanel != null) _bottomSendPanel.Invalidate();
         }
 
         private void TxtInput_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Enter && !e.Shift && !e.Control)
+            if (e.KeyCode == Keys.Enter)
             {
-                e.SuppressKeyPress = true;
-                SendMessage();
+                if (e.Control || e.Shift)
+                {
+                    e.SuppressKeyPress = true;
+                    int sel = _txtInput.SelectionStart;
+                    _txtInput.SelectedText = Environment.NewLine;
+                    _txtInput.SelectionStart = sel + Environment.NewLine.Length;
+                }
+                else
+                {
+                    e.SuppressKeyPress = true;
+                    SendMessage();
+                }
             }
         }
 
@@ -503,7 +504,8 @@ namespace LanChat
                 catch { }
             };
 
-            Point screenPoint = _btnToolSendFile.PointToScreen(new Point(0, -popup.Height - 6));
+            Control anchor = _btnToolEmoji ?? _btnToolSendFile ?? (Control)this;
+            Point screenPoint = anchor.PointToScreen(new Point(0, -popup.Height - 6));
             popup.Location = screenPoint;
 
             FlowLayoutPanel flow = new FlowLayoutPanel
