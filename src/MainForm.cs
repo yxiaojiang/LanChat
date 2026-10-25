@@ -678,11 +678,11 @@ namespace LanChat
             };
             _chatView.OnFileActionClick += HandleFileActionClick;
 
-            // 2.4 Bottom WeChat-Style Tall Input Area (Height: 156px, #161618, Grok Purple Send Button)
+            // 2.4 Bottom WeChat-Style Tall Input Area (Height: 160px, #161618, Grok Design System)
             _bottomSendPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 156,
+                Height = 160,
                 BackColor = Color.FromArgb(22, 22, 24)
             };
             _inputPanel = _bottomSendPanel; // 兼容指针
@@ -693,57 +693,67 @@ namespace LanChat
                 }
             };
 
-            // 2.4.1 Top Input Toolbar (Height: 34px, 6 Action Buttons)
+            // 2.4.1 Top Input Toolbar (Height: 42px, 6 Rounded Buttons, matching left column top circular buttons)
             _toolPanel = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 34,
+                Height = 42,
                 BackColor = Color.Transparent
             };
 
-            _btnToolEmoji = new WeChatIconButton(WeChatIconType.Emoji, "选择表情 (Emoji)", 28)
+            int tbBtnSize = 34;
+            int tbGap = 8;
+            int tbStartX = 20;
+            int tbY = 4;
+
+            _btnToolEmoji = new WeChatIconButton(WeChatIconType.Emoji, "选择表情 (Emoji)", tbBtnSize)
             {
-                Location = new Point(16, 3),
-                IsCircle = false,
-                IconColor = Color.FromArgb(160, 160, 168),
-                HoverFillColor = Color.FromArgb(44, 44, 48)
+                Location = new Point(tbStartX, tbY),
+                IsCircle = true,
+                FillColor = Color.FromArgb(28, 28, 32),
+                HoverFillColor = Color.FromArgb(46, 46, 52),
+                IconColor = Color.FromArgb(190, 190, 200)
             };
             _btnToolEmoji.Click += (s, e) => ShowEmojiPopup();
 
-            _btnToolBox = new WeChatIconButton(WeChatIconType.Box, "聊天记录与收藏", 28)
+            _btnToolBox = new WeChatIconButton(WeChatIconType.Box, "聊天记录与收藏", tbBtnSize)
             {
-                Location = new Point(48, 3),
-                IsCircle = false,
-                IconColor = Color.FromArgb(160, 160, 168),
-                HoverFillColor = Color.FromArgb(44, 44, 48)
+                Location = new Point(tbStartX + (tbBtnSize + tbGap) * 1, tbY),
+                IsCircle = true,
+                FillColor = Color.FromArgb(28, 28, 32),
+                HoverFillColor = Color.FromArgb(46, 46, 52),
+                IconColor = Color.FromArgb(190, 190, 200)
             };
             _btnToolBox.Click += (s, e) => OpenReceivedFolder();
 
-            _btnToolSendFile = new WeChatIconButton(WeChatIconType.Folder, "发送文件与图片", 28)
+            _btnToolSendFile = new WeChatIconButton(WeChatIconType.Folder, "发送文件与图片", tbBtnSize)
             {
-                Location = new Point(80, 3),
-                IsCircle = false,
-                IconColor = Color.FromArgb(160, 160, 168),
-                HoverFillColor = Color.FromArgb(44, 44, 48)
+                Location = new Point(tbStartX + (tbBtnSize + tbGap) * 2, tbY),
+                IsCircle = true,
+                FillColor = Color.FromArgb(28, 28, 32),
+                HoverFillColor = Color.FromArgb(46, 46, 52),
+                IconColor = Color.FromArgb(190, 190, 200)
             };
             _btnToolSendFile.Click += (s, e) => BtnSendFile_Click(this, EventArgs.Empty);
             _btnToolFolder = _btnToolSendFile;
 
-            _btnToolScissors = new WeChatIconButton(WeChatIconType.Scissors, "屏幕截图 (Alt+A)", 28)
+            _btnToolScissors = new WeChatIconButton(WeChatIconType.Scissors, "屏幕截图 (Alt+A)", tbBtnSize)
             {
-                Location = new Point(112, 3),
-                IsCircle = false,
-                IconColor = Color.FromArgb(160, 160, 168),
-                HoverFillColor = Color.FromArgb(44, 44, 48)
+                Location = new Point(tbStartX + (tbBtnSize + tbGap) * 3, tbY),
+                IsCircle = true,
+                FillColor = Color.FromArgb(28, 28, 32),
+                HoverFillColor = Color.FromArgb(46, 46, 52),
+                IconColor = Color.FromArgb(190, 190, 200)
             };
             _btnToolScissors.Click += (s, e) => TriggerScreenshot();
 
-            _btnToolMic = new WeChatIconButton(WeChatIconType.Mic, "语音消息 (右键切换自动接收)", 28)
+            _btnToolMic = new WeChatIconButton(WeChatIconType.Mic, "语音消息 (右键切换自动接收)", tbBtnSize)
             {
-                Location = new Point(144, 3),
-                IsCircle = false,
-                IconColor = Color.FromArgb(160, 160, 168),
-                HoverFillColor = Color.FromArgb(44, 44, 48)
+                Location = new Point(tbStartX + (tbBtnSize + tbGap) * 4, tbY),
+                IsCircle = true,
+                FillColor = Color.FromArgb(28, 28, 32),
+                HoverFillColor = Color.FromArgb(46, 46, 52),
+                IconColor = Color.FromArgb(190, 190, 200)
             };
             _btnToolMic.Click += (s, e) => {
                 GrokMessageBox.Show(this, "语音录制组件已就绪，长按可录制局域网语音短消息。", "语音功能", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -756,12 +766,13 @@ namespace LanChat
                 }
             };
 
-            _btnToolCall = new WeChatIconButton(WeChatIconType.Call, "语音与视频通话", 28)
+            _btnToolCall = new WeChatIconButton(WeChatIconType.Call, "语音与视频通话", tbBtnSize)
             {
-                Location = new Point(176, 3),
-                IsCircle = false,
-                IconColor = Color.FromArgb(160, 160, 168),
-                HoverFillColor = Color.FromArgb(44, 44, 48)
+                Location = new Point(tbStartX + (tbBtnSize + tbGap) * 5, tbY),
+                IsCircle = true,
+                FillColor = Color.FromArgb(28, 28, 32),
+                HoverFillColor = Color.FromArgb(46, 46, 52),
+                IconColor = Color.FromArgb(190, 190, 200)
             };
             _btnToolCall.Click += (s, e) => {
                 GrokMessageBox.Show(this, "正在向节点发起音视频呼叫...", "语音通话", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -777,18 +788,18 @@ namespace LanChat
             _toolPanel.Controls.Add(_btnToolMic);
             _toolPanel.Controls.Add(_btnToolCall);
 
-            // 2.4.2 Multiline Text Input Box
+            // 2.4.2 Multiline Text Input Box (去除原生白底滚动条，统一 11.0pt #F2F2F6)
             _txtInput = new TextBox
             {
                 Multiline = true,
-                Location = new Point(18, 38),
+                Location = new Point(20, 44),
                 Width = 500,
-                Height = 78,
+                Height = 68,
                 BorderStyle = BorderStyle.None,
                 BackColor = Color.FromArgb(22, 22, 24),
                 ForeColor = Color.FromArgb(242, 242, 246),
-                Font = new Font("Microsoft YaHei", 10.5f, FontStyle.Regular),
-                ScrollBars = ScrollBars.Vertical,
+                Font = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Regular),
+                ScrollBars = ScrollBars.None,
                 AllowDrop = true,
                 Visible = true
             };
@@ -797,10 +808,10 @@ namespace LanChat
             _txtInput.DragEnter += MainForm_DragEnter;
             _txtInput.DragDrop += MainForm_DragDrop;
 
-            // 2.4.3 Bottom Action Controls (Tip + Grok Purple Send Button)
+            // 2.4.3 Bottom Action Controls (Tip + Grok Purple Send Button, 严格遵守边距法则)
             _btnSend = new Button
             {
-                Size = new Size(82, 30),
+                Size = new Size(92, 32),
                 Location = new Point(500, 118),
                 FlatStyle = FlatStyle.Flat,
                 Text = "发送(&S)",
@@ -826,9 +837,9 @@ namespace LanChat
                 Rectangle r = new Rectangle(0, 0, _btnSend.Width - 1, _btnSend.Height - 1);
                 using (SolidBrush b = new SolidBrush(bgCol))
                 {
-                    DrawRoundedRectangle(e.Graphics, b, r, 4);
+                    DrawRoundedRectangle(e.Graphics, b, r, 6);
                 }
-                using (Font f = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold))
+                using (Font f = new Font("Microsoft YaHei UI", 10.0f, FontStyle.Bold))
                 using (SolidBrush tb = new SolidBrush(Color.White))
                 {
                     StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
@@ -841,8 +852,8 @@ namespace LanChat
             {
                 Text = "按下 Enter 发送，Ctrl+Enter 换行",
                 AutoSize = true,
-                Font = new Font("Microsoft YaHei", 8.5f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(104, 104, 114),
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular),
+                ForeColor = Color.FromArgb(142, 142, 147), // #8E8E93 (57% 明度标准规范)
                 Location = new Point(300, 124)
             };
 
@@ -929,26 +940,28 @@ namespace LanChat
                 _btnBottomConnect.Size = new Size(240, 54);
             }
 
-            // 4. 右侧微信高输入面板 (156px) 控件自适应定位
+            // 4. 右侧微信高输入面板 (160px) 控件自适应定位 (严格遵守边距法则)
             if (_bottomSendPanel != null)
             {
-                _bottomSendPanel.Height = 156;
+                _bottomSendPanel.Height = 160;
                 if (_toolPanel != null)
                 {
                     _toolPanel.Width = _bottomSendPanel.Width;
+                    _toolPanel.Height = 42;
                 }
                 if (_txtInput != null)
                 {
-                    _txtInput.Location = new Point(18, 38);
-                    _txtInput.Width = Math.Max(100, _bottomSendPanel.Width - 36);
-                    _txtInput.Height = Math.Max(40, _bottomSendPanel.Height - 38 - 42);
+                    _txtInput.Location = new Point(20, 44);
+                    _txtInput.Width = Math.Max(100, _bottomSendPanel.Width - 40);
+                    _txtInput.Height = 68;
                 }
                 if (_btnSend != null)
                 {
-                    _btnSend.Location = new Point(_bottomSendPanel.Width - 82 - 20, _bottomSendPanel.Height - 30 - 8);
+                    _btnSend.Size = new Size(92, 32);
+                    _btnSend.Location = new Point(_bottomSendPanel.Width - 92 - 20, 118);
                     if (_lblSendTip != null)
                     {
-                        _lblSendTip.Location = new Point(_btnSend.Left - _lblSendTip.Width - 12, _btnSend.Top + (_btnSend.Height - _lblSendTip.Height) / 2);
+                        _lblSendTip.Location = new Point(_btnSend.Left - _lblSendTip.Width - 14, _btnSend.Top + (_btnSend.Height - _lblSendTip.Height) / 2);
                     }
                 }
                 _bottomSendPanel.Invalidate();

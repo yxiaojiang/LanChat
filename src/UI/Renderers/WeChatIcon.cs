@@ -384,49 +384,57 @@ namespace LanChat
             }
         }
 
-        // 3. Folder icon
+        // 3. Folder icon (干净饱满的文档文件夹)
         public static void DrawFolderIcon(Graphics g, Rectangle r, Color color)
         {
-            using (Pen p = new Pen(color, 1.7f))
+            using (Pen p = new Pen(color, 1.8f))
             {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
                 p.LineJoin = LineJoin.Round;
-                float x = r.X + r.Width * 0.16f;
-                float y = r.Y + r.Height * 0.22f;
-                float w = r.Width * 0.68f;
-                float h = r.Height * 0.56f;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                float w = 16f;
+                float h = 12f;
+                float x = cx - w / 2f;
+                float y = cy - h / 2f;
 
                 GraphicsPath path = new GraphicsPath();
-                path.AddLine(x, y + 3, x + w * 0.35f, y + 3);
-                path.AddLine(x + w * 0.42f, y + 6, x + w, y + 6);
+                path.AddLine(x, y + 2.5f, x + 5.5f, y + 2.5f);
+                path.AddLine(x + 7.5f, y + 5.0f, x + w, y + 5.0f);
                 path.AddLine(x + w, y + h, x, y + h);
                 path.CloseFigure();
                 g.DrawPath(p, path);
             }
         }
 
-        // 4. Cube / Box icon
+        // 4. Box / Collection icon (高质感收藏抽屉盒)
         public static void DrawBoxIcon(Graphics g, Rectangle r, Color color)
         {
-            using (Pen p = new Pen(color, 1.6f))
+            using (Pen p = new Pen(color, 1.8f))
             {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
                 p.LineJoin = LineJoin.Round;
                 float cx = r.X + r.Width / 2f;
                 float cy = r.Y + r.Height / 2f;
-                float w = r.Width * 0.32f;
-                float h = r.Height * 0.22f;
+                float w = 16f;
+                float h = 13f;
+                float x = cx - w / 2f;
+                float y = cy - h / 2f + 1f;
 
-                PointF top = new PointF(cx, cy - h * 1.5f);
-                PointF topRight = new PointF(cx + w, cy - h * 0.5f);
-                PointF botRight = new PointF(cx + w, cy + h * 0.9f);
-                PointF bot = new PointF(cx, cy + h * 1.8f);
-                PointF botLeft = new PointF(cx - w, cy + h * 0.9f);
-                PointF topLeft = new PointF(cx - w, cy - h * 0.5f);
-                PointF center = new PointF(cx, cy);
+                // 顶部托盘横边
+                MainForm.DrawRoundedRectangle(g, p, new Rectangle((int)x, (int)y - 2, (int)w, 4), 2);
 
-                g.DrawPolygon(p, new PointF[] { top, topRight, botRight, bot, botLeft, topLeft });
-                g.DrawLine(p, center, top);
-                g.DrawLine(p, center, botRight);
-                g.DrawLine(p, center, botLeft);
+                // 盒子主体
+                GraphicsPath path = new GraphicsPath();
+                path.AddLine(x + 1.2f, y + 2f, x + 1.2f, y + h);
+                path.AddLine(x + 1.2f, y + h, x + w - 1.2f, y + h);
+                path.AddLine(x + w - 1.2f, y + h, x + w - 1.2f, y + 2f);
+                g.DrawPath(p, path);
+
+                // 居中把手凹槽
+                g.DrawLine(p, cx - 2.8f, y + 6.5f, cx + 2.8f, y + 6.5f);
             }
         }
 
@@ -487,49 +495,53 @@ namespace LanChat
             }
         }
 
-        // 8. Emoji smiley icon
+        // 8. Emoji smiley icon (GrokBot 风格灵动笑脸)
         public static void DrawEmojiIcon(Graphics g, Rectangle r, Color color)
         {
-            using (Pen p = new Pen(color, 1.6f))
+            using (Pen p = new Pen(color, 1.8f))
+            using (SolidBrush b = new SolidBrush(color))
             {
                 p.StartCap = LineCap.Round;
                 p.EndCap = LineCap.Round;
                 float cx = r.X + r.Width / 2f;
                 float cy = r.Y + r.Height / 2f;
-                float rad = r.Width * 0.35f;
+                float rad = 8.0f;
 
-                // Face circle
-                g.DrawEllipse(p, cx - rad, cy - rad, rad * 2, rad * 2);
+                // 圆脸外圈
+                g.DrawEllipse(p, cx - rad, cy - rad, rad * 2f, rad * 2f);
 
-                // Eyes
-                using (SolidBrush b = new SolidBrush(color))
-                {
-                    g.FillEllipse(b, cx - rad * 0.45f, cy - rad * 0.35f, 2.2f, 2.2f);
-                    g.FillEllipse(b, cx + rad * 0.25f, cy - rad * 0.35f, 2.2f, 2.2f);
-                }
+                // 两颗灵动黑胶囊实心眼
+                g.FillEllipse(b, cx - 4.0f, cy - 3.2f, 2.4f, 3.2f);
+                g.FillEllipse(b, cx + 1.6f, cy - 3.2f, 2.4f, 3.2f);
 
-                // Smile curve
-                g.DrawArc(p, cx - rad * 0.5f, cy - rad * 0.2f, rad, rad * 0.8f, 20, 140);
+                // 温暖圆滑微笑弧线
+                g.DrawArc(p, cx - 4.5f, cy - 1.5f, 9.0f, 6.5f, 25, 130);
             }
         }
 
-        // 9. Scissors / Screenshot icon
+        // 9. Scissors / Screenshot icon (现代平滑剪刀截图图标)
         public static void DrawScissorsIcon(Graphics g, Rectangle r, Color color)
         {
-            using (Pen p = new Pen(color, 1.5f))
+            using (Pen p = new Pen(color, 1.8f))
             {
                 p.StartCap = LineCap.Round;
                 p.EndCap = LineCap.Round;
                 float cx = r.X + r.Width / 2f;
                 float cy = r.Y + r.Height / 2f;
 
-                // Two blades
-                g.DrawLine(p, cx - 6, cy - 7, cx + 6, cy + 6);
-                g.DrawLine(p, cx - 6, cy + 7, cx + 6, cy - 6);
+                // 两个左侧指环
+                g.DrawEllipse(p, cx - 7.5f, cy - 6.5f, 5.5f, 5.5f);
+                g.DrawEllipse(p, cx - 7.5f, cy + 1.0f, 5.5f, 5.5f);
 
-                // Two handles
-                g.DrawEllipse(p, cx - 9, cy - 9, 5, 5);
-                g.DrawEllipse(p, cx - 9, cy + 4, 5, 5);
+                // 交叉向上与向下的刀刃
+                g.DrawLine(p, cx - 2.5f, cy - 4.0f, cx + 7.5f, cy + 5.5f);
+                g.DrawLine(p, cx - 2.5f, cy + 4.0f, cx + 7.5f, cy - 5.5f);
+
+                // 中心轴钉
+                using (SolidBrush b = new SolidBrush(color))
+                {
+                    g.FillEllipse(b, cx + 0.2f, cy - 1.2f, 2.4f, 2.4f);
+                }
             }
         }
 
@@ -568,16 +580,26 @@ namespace LanChat
             }
         }
 
-        // 12. Call Handset Icon
+        // 12. Call Handset Icon (现代圆滑电话手柄剪影)
         public static void DrawCallIcon(Graphics g, Rectangle r, Color color)
         {
-            using (Pen p = new Pen(color, 1.6f))
+            using (Pen p = new Pen(color, 1.8f))
+            using (SolidBrush b = new SolidBrush(color))
             {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
                 p.LineJoin = LineJoin.Round;
                 float cx = r.X + r.Width / 2f;
                 float cy = r.Y + r.Height / 2f;
+
+                // 倾斜 45 度的电话话筒剪影
                 GraphicsPath path = new GraphicsPath();
-                path.AddArc(cx - 6, cy - 6, 12, 12, 190, 80);
+                path.AddLine(cx - 6.0f, cy - 3.0f, cx - 3.0f, cy - 6.0f);
+                path.AddBezier(cx - 3.0f, cy - 6.0f, cx + 5.0f, cy - 2.0f, cx + 5.0f, cy + 3.5f, cx + 1.5f, cy + 6.5f);
+                path.AddLine(cx + 1.5f, cy + 6.5f, cx - 1.5f, cy + 3.5f);
+                path.AddBezier(cx - 1.5f, cy + 3.5f, cx + 1.2f, cy + 1.5f, cx + 1.2f, cy - 1.2f, cx - 3.8f, cy - 1.5f);
+                path.CloseFigure();
+                g.FillPath(b, path);
                 g.DrawPath(p, path);
             }
         }
@@ -595,26 +617,28 @@ namespace LanChat
             }
         }
 
-        // 14. Microphone Icon (Grok bottom input bar)
+        // 14. Microphone Icon (Grok bottom input bar, 规整麦克风)
         public static void DrawMicIcon(Graphics g, Rectangle r, Color color)
         {
-            using (Pen p = new Pen(color, 1.6f))
+            using (Pen p = new Pen(color, 1.8f))
             using (SolidBrush b = new SolidBrush(color))
             {
                 p.StartCap = LineCap.Round;
                 p.EndCap = LineCap.Round;
+                p.LineJoin = LineJoin.Round;
                 float cx = r.X + r.Width / 2f;
                 float cy = r.Y + r.Height / 2f;
 
-                // Capsule head
-                Rectangle headRect = new Rectangle((int)(cx - 2.5f), (int)(cy - 6.5f), 5, 8);
-                MainForm.DrawRoundedRectangle(g, b, headRect, 2);
+                // 麦克风实心胶囊头
+                Rectangle headRect = new Rectangle((int)(cx - 3.2f), (int)(cy - 7.5f), 6, 9);
+                MainForm.DrawRoundedRectangle(g, b, headRect, 3);
 
-                // U-cup arc
-                g.DrawArc(p, cx - 5f, cy - 4.5f, 10f, 8.5f, 0, 180);
+                // U型承托支架
+                g.DrawArc(p, cx - 6.0f, cy - 4.5f, 12.0f, 10.0f, 0, 180);
 
-                // Bottom stand
-                g.DrawLine(p, cx, cy + 4f, cx, cy + 6.5f);
+                // 底部垂直支杆与底座
+                g.DrawLine(p, cx, cy + 5.5f, cx, cy + 8.5f);
+                g.DrawLine(p, cx - 3.5f, cy + 8.5f, cx + 3.5f, cy + 8.5f);
             }
         }
 
