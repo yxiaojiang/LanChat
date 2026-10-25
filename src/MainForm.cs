@@ -261,28 +261,28 @@ namespace LanChat
             _btnToolClear = new WeChatIconButton(WeChatIconType.Clear, "", 28) { Visible = false };
 
             // ==========================================
-            // 1. Left Sidebar Column (220px ~ 300px, #0E0E0E, exact Grok Bot responsive layout)
+            // 1. Left Sidebar Column (420px Fixed, #0E0E0E, exact Grok Bot layout)
             // ==========================================
             _sessionsPanel = new Panel
             {
                 Dock = DockStyle.Left,
-                Width = 224,
+                Width = 420,
                 BackColor = Color.FromArgb(14, 14, 14) // #0E0E0E
             };
 
-            // 1.1 Top Search & Add Action Row
+            // 1.1 Top Search & Add Action Row (Height: 58px)
             _searchHeaderPanel = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 38,
+                Height = 58,
                 BackColor = Color.FromArgb(14, 14, 14)
             };
             _searchHeaderPanel.MouseDown += DragWindow_MouseDown;
 
             _searchBoxContainer = new Panel
             {
-                Location = new Point(10, 6),
-                Size = new Size(130, 26),
+                Location = new Point(20, 11),
+                Size = new Size(290, 36),
                 BackColor = Color.FromArgb(28, 28, 30),
                 Visible = false
             };
@@ -290,18 +290,18 @@ namespace LanChat
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 using (Pen pen = new Pen(Color.FromArgb(52, 52, 56), 1f))
                 {
-                    DrawRoundedRectangle(e.Graphics, pen, new Rectangle(0, 0, _searchBoxContainer.Width - 1, _searchBoxContainer.Height - 1), 13);
+                    DrawRoundedRectangle(e.Graphics, pen, new Rectangle(0, 0, _searchBoxContainer.Width - 1, _searchBoxContainer.Height - 1), 18);
                 }
             };
 
             _txtSearch = new TextBox
             {
-                Location = new Point(8, 5),
-                Width = 110,
+                Location = new Point(12, 8),
+                Width = 260,
                 BackColor = Color.FromArgb(28, 28, 30),
                 ForeColor = Color.FromArgb(230, 230, 235),
                 BorderStyle = BorderStyle.None,
-                Font = new Font("Microsoft YaHei", 8.5f)
+                Font = new Font("Microsoft YaHei", 9.5f)
             };
             _txtSearch.TextChanged += TxtSearch_TextChanged;
             _txtSearch.KeyDown += (s, e) => {
@@ -313,10 +313,10 @@ namespace LanChat
             };
             _searchBoxContainer.Controls.Add(_txtSearch);
 
-            // Top circular Search button at right
-            _btnSearchToggle = new WeChatIconButton(WeChatIconType.Search, "搜索会话", 26)
+            // Top circular Search button at right (36x36)
+            _btnSearchToggle = new WeChatIconButton(WeChatIconType.Search, "搜索会话", 36)
             {
-                Location = new Point(154, 6),
+                Location = new Point(322, 11),
                 IsCircle = true,
                 FillColor = Color.FromArgb(28, 28, 30),
                 HoverFillColor = Color.FromArgb(46, 46, 50),
@@ -328,10 +328,10 @@ namespace LanChat
                 else _txtSearch.Clear();
             };
 
-            // Top circular Plus button at right
-            _btnAddSession = new WeChatIconButton(WeChatIconType.Add, "新建连接 / 更多操作", 26)
+            // Top circular Plus button at right (36x36)
+            _btnAddSession = new WeChatIconButton(WeChatIconType.Add, "新建连接 / 更多操作", 36)
             {
-                Location = new Point(186, 6),
+                Location = new Point(368, 11),
                 IsCircle = true,
                 FillColor = Color.FromArgb(28, 28, 30),
                 HoverFillColor = Color.FromArgb(46, 46, 50),
@@ -343,11 +343,11 @@ namespace LanChat
             _searchHeaderPanel.Controls.Add(_btnSearchToggle);
             _searchHeaderPanel.Controls.Add(_btnAddSession);
 
-            // 1.2 Center Hero Profile Section (Red Mascot Avatar + Blue Dot + Centered Nickname)
+            // 1.2 Center Hero Profile Section (82x82 Red Mascot Avatar + Blue Dot + Centered Nickname)
             _heroProfilePanel = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 80,
+                Height = 175,
                 BackColor = Color.FromArgb(14, 14, 14),
                 Cursor = Cursors.Hand
             };
@@ -355,19 +355,19 @@ namespace LanChat
             _heroProfilePanel.Click += BtnAvatar_Click;
             _btnAvatar = _heroProfilePanel;
 
-            // 1.3 Bottom 3-Part Action Bar ([用户圆钮] [连接节点胶囊] [↑蓝圆钮])
+            // 1.3 Bottom 3-Part Action Bar ([用户圆钮] [连接节点胶囊] [↑蓝圆钮]) (Height: 84px)
             _leftBottomBar = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 44,
+                Height = 84,
                 BackColor = Color.FromArgb(14, 14, 14)
             };
 
-            // Left circular user badge
+            // Left circular user badge (54x54)
             _btnBottomUser = new Button
             {
-                Location = new Point(10, 8),
-                Size = new Size(28, 28),
+                Location = new Point(24, 6),
+                Size = new Size(54, 54),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand
@@ -378,15 +378,15 @@ namespace LanChat
             _btnBottomUser.Paint += (s, e) => {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 Rectangle r = new Rectangle(0, 0, _btnBottomUser.Width - 1, _btnBottomUser.Height - 1);
-                using (SolidBrush b = new SolidBrush(Color.FromArgb(28, 28, 30)))
-                using (Pen p = new Pen(Color.FromArgb(48, 48, 52), 1f))
+                using (SolidBrush b = new SolidBrush(Color.FromArgb(48, 48, 48))) // #303030
+                using (Pen p = new Pen(Color.FromArgb(64, 64, 68), 1f))
                 {
                     e.Graphics.FillEllipse(b, r);
                     e.Graphics.DrawEllipse(p, r);
                 }
                 string nick = _netService != null && !string.IsNullOrEmpty(_netService.NickName) ? _netService.NickName : Environment.UserName;
                 if (nick.Length > 2) nick = nick.Substring(0, 2);
-                using (Font f = new Font("Microsoft YaHei", 7.5f, FontStyle.Regular))
+                using (Font f = new Font("Microsoft YaHei", 10f, FontStyle.Regular))
                 using (SolidBrush tb = new SolidBrush(Color.FromArgb(215, 215, 220)))
                 {
                     StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
@@ -395,11 +395,11 @@ namespace LanChat
             };
             _btnBottomUser.Click += BtnSettings_Click;
 
-            // Middle pill button "连接节点"
+            // Middle pill button "连接应用" (240x54, radius 27)
             _btnBottomConnect = new Button
             {
-                Location = new Point(44, 8),
-                Size = new Size(130, 28),
+                Location = new Point(90, 6),
+                Size = new Size(240, 54),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand
@@ -410,29 +410,28 @@ namespace LanChat
             _btnBottomConnect.Paint += (s, e) => {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 Rectangle r = new Rectangle(0, 0, _btnBottomConnect.Width - 1, _btnBottomConnect.Height - 1);
-                int radius = Math.Max(4, _btnBottomConnect.Height / 2);
-                using (SolidBrush b = new SolidBrush(Color.FromArgb(20, 20, 22)))
-                using (Pen p = new Pen(Color.FromArgb(44, 44, 50), 1f))
+                using (SolidBrush b = new SolidBrush(Color.FromArgb(31, 31, 31))) // #1F1F1F
+                using (Pen p = new Pen(Color.FromArgb(46, 46, 50), 1f))
                 {
-                    DrawRoundedRectangle(e.Graphics, b, r, radius);
-                    DrawRoundedRectangle(e.Graphics, p, r, radius);
+                    DrawRoundedRectangle(e.Graphics, b, r, 27);
+                    DrawRoundedRectangle(e.Graphics, p, r, 27);
                 }
-                using (Font f = new Font("Microsoft YaHei", 8.5f, FontStyle.Bold))
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(235, 235, 240)))
+                using (Font f = new Font("Microsoft YaHei", 10.5f, FontStyle.Bold))
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 245)))
                 {
                     StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString("连接节点", f, tb, new RectangleF(0, 1, _btnBottomConnect.Width, _btnBottomConnect.Height), sf);
+                    e.Graphics.DrawString("连接应用", f, tb, new RectangleF(0, 1, _btnBottomConnect.Width, _btnBottomConnect.Height), sf);
                 }
             };
             _btnBottomConnect.Click += BtnAddIp_Click;
 
-            // Right blue circular up-arrow scan button (#1B88F5)
-            _btnBottomScan = new WeChatIconButton(WeChatIconType.UpArrow, "扫描并广播刷新局域网节点", 28)
+            // Right blue circular up-arrow scan button (54x54, #116DD2)
+            _btnBottomScan = new WeChatIconButton(WeChatIconType.UpArrow, "扫描并广播刷新局域网节点", 54)
             {
-                Location = new Point(184, 8),
+                Location = new Point(341, 6),
                 IsCircle = true,
-                FillColor = Color.FromArgb(27, 136, 245),
-                HoverFillColor = Color.FromArgb(48, 150, 255),
+                FillColor = Color.FromArgb(17, 109, 210),
+                HoverFillColor = Color.FromArgb(32, 128, 232),
                 IconColor = Color.White
             };
             _btnBottomScan.Click += (s, e) => RefreshPeersWithNotice();
@@ -441,15 +440,15 @@ namespace LanChat
             _leftBottomBar.Controls.Add(_btnBottomConnect);
             _leftBottomBar.Controls.Add(_btnBottomScan);
 
-            // 1.4 Sessions ListBox (Height: 48px/56px per item, OwnerDrawn, #0E0E0E)
+            // 1.4 Sessions ListBox (Height: 86px per item, OwnerDrawn, #0E0E0E)
             _listSessions = new ListBox
             {
                 Dock = DockStyle.Fill,
                 BorderStyle = BorderStyle.None,
                 BackColor = Color.FromArgb(14, 14, 14),
                 ForeColor = Color.White,
-                Font = new Font("Microsoft YaHei", 9f),
-                ItemHeight = 48,
+                Font = new Font("Microsoft YaHei", 10.5f),
+                ItemHeight = 86,
                 DrawMode = DrawMode.OwnerDrawFixed,
                 IntegralHeight = false
             };
@@ -474,7 +473,7 @@ namespace LanChat
             _chatHeader = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 48,
+                Height = 64,
                 BackColor = Color.FromArgb(18, 18, 18)
             };
             _chatHeader.MouseDown += DragWindow_MouseDown;
@@ -491,31 +490,31 @@ namespace LanChat
                 g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
                 string pillTitle = _lblChatTitle.Text ?? "局域网全员群聊";
-                using (Font pillFont = new Font("Microsoft YaHei", 9f, FontStyle.Bold))
+                using (Font pillFont = new Font("Microsoft YaHei", 10.5f, FontStyle.Bold))
                 {
                     SizeF tsz = g.MeasureString(pillTitle, pillFont);
-                    int pillW = Math.Max(110, (int)Math.Ceiling(tsz.Width) + 44);
-                    int pillH = 28;
+                    int pillW = Math.Max(120, (int)Math.Ceiling(tsz.Width) + 54);
+                    int pillH = 38;
                     int pillX = (_chatHeader.Width - pillW) / 2;
                     int pillY = (_chatHeader.Height - pillH) / 2;
 
                     Rectangle pillRect = new Rectangle(pillX, pillY, pillW, pillH);
-                    using (SolidBrush pillBg = new SolidBrush(Color.FromArgb(32, 32, 36)))
-                    using (Pen pillBorder = new Pen(Color.FromArgb(46, 46, 54), 1f))
+                    using (SolidBrush pillBg = new SolidBrush(Color.FromArgb(32, 32, 34)))
+                    using (Pen pillBorder = new Pen(Color.FromArgb(46, 46, 50), 1f))
                     {
-                        DrawRoundedRectangle(g, pillBg, pillRect, 14);
-                        DrawRoundedRectangle(g, pillBorder, pillRect, 14);
+                        DrawRoundedRectangle(g, pillBg, pillRect, 19);
+                        DrawRoundedRectangle(g, pillBorder, pillRect, 19);
                     }
 
                     // Draw mini mascot avatar inside floating pill
-                    Rectangle avRect = new Rectangle(pillX + 8, pillY + 5, 18, 18);
+                    Rectangle avRect = new Rectangle(pillX + 10, pillY + 7, 24, 24);
                     Color avColor = _selectedPeer == null ? Color.FromArgb(144, 90, 251) : Color.FromArgb(246, 148, 18);
                     WeChatIcon.DrawMascotAvatar(g, avRect, avColor, false, false, Color.Transparent);
 
                     using (SolidBrush tb = new SolidBrush(Color.FromArgb(242, 242, 246)))
                     {
                         float ty = pillY + (pillH - pillFont.GetHeight(g)) / 2f;
-                        g.DrawString(pillTitle, pillFont, tb, pillX + 32, ty);
+                        g.DrawString(pillTitle, pillFont, tb, pillX + 40, ty);
                     }
                 }
             };
@@ -529,24 +528,24 @@ namespace LanChat
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false,
                 BackColor = Color.Transparent,
-                Padding = new Padding(0, 4, 8, 0)
+                Padding = new Padding(0, 10, 12, 0)
             };
 
-            _btnWinMin = new WeChatIconButton(WeChatIconType.WinMin, "最小化", 34)
+            _btnWinMin = new WeChatIconButton(WeChatIconType.WinMin, "最小化", 36)
             {
                 IconColor = Color.FromArgb(170, 170, 175),
                 HoverFillColor = Color.FromArgb(38, 38, 40)
             };
             _btnWinMin.Click += (s, e) => { this.WindowState = FormWindowState.Minimized; };
 
-            _btnWinMax = new WeChatIconButton(WeChatIconType.WinMax, "最大化 / 还原", 34)
+            _btnWinMax = new WeChatIconButton(WeChatIconType.WinMax, "最大化 / 还原", 36)
             {
                 IconColor = Color.FromArgb(170, 170, 175),
                 HoverFillColor = Color.FromArgb(38, 38, 40)
             };
             _btnWinMax.Click += (s, e) => ToggleMaximize();
 
-            _btnWinClose = new WeChatIconButton(WeChatIconType.WinClose, "隐藏到托盘", 34)
+            _btnWinClose = new WeChatIconButton(WeChatIconType.WinClose, "隐藏到托盘", 36)
             {
                 IconColor = Color.FromArgb(170, 170, 175),
                 IsWindowClose = true
@@ -568,7 +567,7 @@ namespace LanChat
             _lblProgressInfo = new Label
             {
                 Text = "准备传输...",
-                Font = new Font("Microsoft YaHei", 8.5f),
+                Font = new Font("Microsoft YaHei", 9f),
                 ForeColor = Color.FromArgb(164, 132, 245),
                 AutoSize = true,
                 Location = new Point(18, 5)
@@ -595,13 +594,13 @@ namespace LanChat
             };
             _chatView.OnFileActionClick += HandleFileActionClick;
 
-            // 2.4 Bottom Full-Width Pill Input Bar (自适应居中对齐阅读流，高 40px/46px 大胶囊)
+            // 2.4 Bottom Full-Width Pill Input Bar (自适应横跨全宽，左空 28px 右空 28px 底空 24px，高 68px 大胶囊)
             _bottomSendPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 54,
+                Height = 96,
                 BackColor = Color.FromArgb(18, 18, 18),
-                Padding = new Padding(32, 4, 32, 10)
+                Padding = new Padding(28, 4, 28, 24)
             };
 
             _inputPanel = new Panel
@@ -613,9 +612,9 @@ namespace LanChat
                 Graphics g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 Rectangle pillRect = new Rectangle(0, 0, _inputPanel.Width - 1, _inputPanel.Height - 1);
-                int radius = Math.Max(6, _inputPanel.Height / 2);
-                using (SolidBrush bg = new SolidBrush(Color.FromArgb(32, 32, 36))) // #202024
-                using (Pen border = new Pen(Color.FromArgb(46, 46, 54), 1f))
+                int radius = Math.Max(8, _inputPanel.Height / 2);
+                using (SolidBrush bg = new SolidBrush(Color.FromArgb(32, 32, 34))) // #202022
+                using (Pen border = new Pen(Color.FromArgb(44, 44, 48), 1f))
                 {
                     DrawRoundedRectangle(g, bg, pillRect, radius);
                     DrawRoundedRectangle(g, border, pillRect, radius);
@@ -624,11 +623,11 @@ namespace LanChat
                 // Draw placeholder when input is empty
                 if (string.IsNullOrEmpty(_txtInput.Text))
                 {
-                    using (Font pf = new Font("Microsoft YaHei", 9f))
-                    using (SolidBrush pb = new SolidBrush(Color.FromArgb(115, 115, 122)))
+                    using (Font pf = new Font("Microsoft YaHei", 10.5f))
+                    using (SolidBrush pb = new SolidBrush(Color.FromArgb(120, 120, 130)))
                     {
                         float py = (_inputPanel.Height - pf.GetHeight(g)) / 2f;
-                        g.DrawString(_inputPlaceholder, pf, pb, 42, py);
+                        g.DrawString(_inputPlaceholder, pf, pb, 62, py);
                     }
                 }
             };
@@ -639,14 +638,14 @@ namespace LanChat
                 _inputPanel.Invalidate();
             };
 
-            // Left circular [+] button inside input pill (Sends file / Quick menu)
-            _btnToolSendFile = new WeChatIconButton(WeChatIconType.Add, "发送文件 (右键打开表情/清屏菜单)", 26)
+            // Left circular [+] button inside input pill (Sends file / Quick menu) (32x32)
+            _btnToolSendFile = new WeChatIconButton(WeChatIconType.Add, "发送文件 (右键打开表情/清屏菜单)", 32)
             {
-                Location = new Point(6, 7),
+                Location = new Point(20, 18),
                 IsCircle = true,
-                FillColor = Color.FromArgb(44, 44, 48),
-                HoverFillColor = Color.FromArgb(60, 60, 66),
-                IconColor = Color.FromArgb(200, 200, 206)
+                FillColor = Color.FromArgb(46, 46, 50),
+                HoverFillColor = Color.FromArgb(64, 64, 70),
+                IconColor = Color.FromArgb(205, 205, 212)
             };
             _btnToolSendFile.Click += BtnSendFile_Click;
             _btnToolSendFile.MouseUp += (s, e) => {
@@ -661,11 +660,11 @@ namespace LanChat
             _txtInput = new TextBox
             {
                 Multiline = false,
-                Font = new Font("Microsoft YaHei", 9.5f),
-                BackColor = Color.FromArgb(32, 32, 36),
+                Font = new Font("Microsoft YaHei", 10.5f),
+                BackColor = Color.FromArgb(32, 32, 34),
                 ForeColor = Color.FromArgb(238, 238, 242),
                 BorderStyle = BorderStyle.None,
-                Location = new Point(42, 10),
+                Location = new Point(62, 22),
                 Width = 500,
                 Visible = false,
                 AllowDrop = true
@@ -679,12 +678,12 @@ namespace LanChat
             _txtInput.DragEnter += MainForm_DragEnter;
             _txtInput.DragDrop += MainForm_DragDrop;
 
-            // Right mic / folder icon inside pill
-            _btnToolFolder = new WeChatIconButton(WeChatIconType.Mic, "打开接收文件夹 (右键切换自动接收)", 26)
+            // Right mic / folder icon inside pill (32x32)
+            _btnToolFolder = new WeChatIconButton(WeChatIconType.Mic, "打开接收文件夹 (右键切换自动接收)", 32)
             {
                 IsCircle = true,
                 FillColor = Color.Transparent,
-                HoverFillColor = Color.FromArgb(48, 48, 54),
+                HoverFillColor = Color.FromArgb(46, 46, 52),
                 IconColor = Color.FromArgb(155, 155, 164)
             };
             _btnToolFolder.Click += (s, e) => OpenReceivedFolder();
@@ -696,8 +695,8 @@ namespace LanChat
                 }
             };
 
-            // Far-right signature Purple SoundWave / Send circle button (#8E64DC)
-            _btnSendWave = new WeChatIconButton(WeChatIconType.SoundWave, "发送消息 (Enter)", 30)
+            // Far-right signature Purple SoundWave / Send circle button (42x42, #8E64DC)
+            _btnSendWave = new WeChatIconButton(WeChatIconType.SoundWave, "发送消息 (Enter)", 42)
             {
                 IsCircle = true,
                 FillColor = Color.FromArgb(142, 100, 220),
@@ -709,20 +708,20 @@ namespace LanChat
             _inputPanel.Resize += (s, e) => {
                 int w = _inputPanel.Width;
                 int h = _inputPanel.Height;
-                int waveSize = Math.Max(26, h - 10);
+                int waveSize = 42;
                 _btnSendWave.Size = new Size(waveSize, waveSize);
-                _btnSendWave.Location = new Point(w - waveSize - 5, (h - waveSize) / 2);
+                _btnSendWave.Location = new Point(w - waveSize - 14, (h - waveSize) / 2);
 
-                int micSize = Math.Max(24, h - 14);
+                int micSize = 32;
                 _btnToolFolder.Size = new Size(micSize, micSize);
-                _btnToolFolder.Location = new Point(w - waveSize - micSize - 10, (h - micSize) / 2);
+                _btnToolFolder.Location = new Point(w - waveSize - 14 - micSize - 14, (h - micSize) / 2);
 
-                int plusSize = Math.Max(24, h - 14);
+                int plusSize = 32;
                 _btnToolSendFile.Size = new Size(plusSize, plusSize);
-                _btnToolSendFile.Location = new Point(6, (h - plusSize) / 2);
+                _btnToolSendFile.Location = new Point(20, (h - plusSize) / 2);
 
-                _txtInput.Location = new Point(plusSize + 12, (h - _txtInput.Height) / 2);
-                _txtInput.Width = Math.Max(60, _btnToolFolder.Left - _txtInput.Left - 8);
+                _txtInput.Location = new Point(62, (h - _txtInput.Height) / 2);
+                _txtInput.Width = Math.Max(60, _btnToolFolder.Left - 72);
                 _inputPanel.Invalidate();
             };
 
@@ -756,86 +755,51 @@ namespace LanChat
         {
             if (this.Width <= 200 || this.Height <= 200) return;
 
-            bool isLarge = (this.Height >= 700 || this.Width >= 1200);
-
-            // 1. 侧边栏宽度随窗口尺寸智能弹性缩放（220px ~ 300px，约占窗体宽度的 21%~23%）
-            int targetSidebarW = Math.Max(220, Math.Min(300, (int)(this.Width * 0.22f)));
+            // 1. 左侧边栏宽度在正常桌面尺寸下严格固定为 420px（对标 Grok Bot 原生两张截图无论最大化还是缩小均固定 420px）
+            int targetSidebarW = 420;
+            if (this.Width < 850)
+            {
+                targetSidebarW = Math.Max(260, Math.Min(420, (int)(this.Width * 0.35f)));
+            }
             if (_sessionsPanel != null && _sessionsPanel.Width != targetSidebarW)
             {
                 _sessionsPanel.Width = targetSidebarW;
             }
 
-            // 2. 会话列表项高自适应
-            int targetItemH = isLarge ? 56 : 48;
-            if (_listSessions != null && _listSessions.ItemHeight != targetItemH)
+            // 2. 顶部搜索栏与右侧圆钮动态定位 (36x36)
+            if (_searchHeaderPanel != null && _btnSearchToggle != null && _btnAddSession != null)
             {
-                _listSessions.ItemHeight = targetItemH;
-            }
+                _btnAddSession.Location = new Point(_searchHeaderPanel.Width - 52, 11);
+                _btnSearchToggle.Location = new Point(_searchHeaderPanel.Width - 98, 11);
 
-            // 3. 顶部个人英雄区自适应高度
-            int targetHeroH = isLarge ? 98 : 80;
-            if (_heroProfilePanel != null && _heroProfilePanel.Height != targetHeroH)
-            {
-                _heroProfilePanel.Height = targetHeroH;
-            }
-
-            // 4. 顶部搜索栏与右侧圆钮动态定位
-            int targetSearchH = isLarge ? 46 : 38;
-            if (_searchHeaderPanel != null)
-            {
-                if (_searchHeaderPanel.Height != targetSearchH) _searchHeaderPanel.Height = targetSearchH;
-                if (_btnSearchToggle != null && _btnAddSession != null)
+                if (_searchBoxContainer != null)
                 {
-                    int btnSize = isLarge ? 28 : 26;
-                    int btnY = (targetSearchH - btnSize) / 2;
-                    _btnAddSession.Size = new Size(btnSize, btnSize);
-                    _btnAddSession.Location = new Point(_searchHeaderPanel.Width - btnSize - 8, btnY);
-                    _btnSearchToggle.Size = new Size(btnSize, btnSize);
-                    _btnSearchToggle.Location = new Point(_searchHeaderPanel.Width - btnSize * 2 - 14, btnY);
-
-                    if (_searchBoxContainer != null)
+                    _searchBoxContainer.Width = Math.Max(60, _searchHeaderPanel.Width - 130);
+                    _searchBoxContainer.Location = new Point(20, 11);
+                    if (_txtSearch != null)
                     {
-                        _searchBoxContainer.Width = Math.Max(60, _searchHeaderPanel.Width - btnSize * 2 - 28);
-                        _searchBoxContainer.Height = btnSize;
-                        _searchBoxContainer.Location = new Point(10, btnY);
-                        if (_txtSearch != null)
-                        {
-                            _txtSearch.Width = Math.Max(40, _searchBoxContainer.Width - 16);
-                            _txtSearch.Location = new Point(8, (_searchBoxContainer.Height - _txtSearch.Height) / 2);
-                        }
+                        _txtSearch.Width = Math.Max(40, _searchBoxContainer.Width - 24);
+                        _txtSearch.Location = new Point(12, (_searchBoxContainer.Height - _txtSearch.Height) / 2);
                     }
                 }
             }
 
-            // 5. 底部三联栏控制按钮自适应间距
-            int targetBottomH = isLarge ? 52 : 44;
-            if (_leftBottomBar != null)
+            // 3. 底部三联栏控制按钮定位 (54px 高圆钮与胶囊)
+            if (_leftBottomBar != null && _btnBottomUser != null && _btnBottomConnect != null && _btnBottomScan != null)
             {
-                if (_leftBottomBar.Height != targetBottomH) _leftBottomBar.Height = targetBottomH;
-                if (_btnBottomUser != null && _btnBottomConnect != null && _btnBottomScan != null)
-                {
-                    int btnH = isLarge ? 34 : 28;
-                    int btnY = (targetBottomH - btnH) / 2;
-                    _btnBottomUser.Location = new Point(10, btnY);
-                    _btnBottomUser.Size = new Size(btnH, btnH);
-                    _btnBottomScan.Location = new Point(_leftBottomBar.Width - btnH - 10, btnY);
-                    _btnBottomScan.Size = new Size(btnH, btnH);
-                    _btnBottomConnect.Location = new Point(btnH + 16, btnY);
-                    _btnBottomConnect.Size = new Size(Math.Max(60, _leftBottomBar.Width - (btnH * 2) - 26), btnH);
-                }
+                _btnBottomUser.Location = new Point(24, 6);
+                _btnBottomUser.Size = new Size(54, 54);
+                _btnBottomScan.Location = new Point(341, 6);
+                _btnBottomScan.Size = new Size(54, 54);
+                _btnBottomConnect.Location = new Point(90, 6);
+                _btnBottomConnect.Size = new Size(240, 54);
             }
 
-            // 6. 右侧聊天区底部全宽输入胶囊自适应居中对齐阅读流（大屏/最大化限制 840px 居中对齐）
-            if (_chatPanel != null && _bottomSendPanel != null)
+            // 4. 右侧输入胶囊横向满铺（左 28px 右 28px 底 24px，完美对标 Grok Bot Alis.png 与 Alis2.png）
+            if (_bottomSendPanel != null)
             {
-                int maxContentW = 840;
-                int streamW = Math.Min(maxContentW, _chatPanel.Width - 48);
-                if (streamW < 240) streamW = Math.Max(120, _chatPanel.Width - 24);
-                int streamLeft = (_chatPanel.Width - streamW) / 2;
-                int streamRightPadding = _chatPanel.Width - streamLeft - streamW;
-                int panelH = isLarge ? 62 : 54;
-                _bottomSendPanel.Height = panelH;
-                _bottomSendPanel.Padding = new Padding(streamLeft, 4, streamRightPadding, isLarge ? 12 : 8);
+                _bottomSendPanel.Padding = new Padding(28, 4, 28, 24);
+                _bottomSendPanel.Height = 96;
             }
 
             if (_heroProfilePanel != null)

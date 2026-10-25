@@ -131,20 +131,20 @@ namespace LanChat
             int viewWidth = this.Width - (_vScrollBar.Visible ? _vScrollBar.Width : 0);
             if (viewWidth < 200) viewWidth = 200;
 
-            // 自适应居中内容流：大屏/最大化限制在 840px 舒适阅读宽度，两端留出充裕且对等的留白空间
-            int maxContentW = 840;
-            int streamW = Math.Min(maxContentW, viewWidth - 56);
-            if (streamW < 240) streamW = Math.Max(120, viewWidth - 24);
-            int streamLeft = (viewWidth - streamW) / 2;
-            int streamRight = streamLeft + streamW;
+            // 对标 Grok Bot Alis.png 与 Alis2.png 真实布局：
+            // 边缘留出 28px 舒适边距（与底部输入胶囊左右边缘严格对齐）
+            // 左侧消息靠左对齐，右侧消息靠右对齐，单条消息最大宽度锁定在 840px
+            int leftMargin = 28;
+            int rightMargin = 28;
+            int maxBubbleW = Math.Min(840, Math.Max(200, viewWidth - leftMargin - rightMargin));
 
             int currentY = 16;
             DateTime lastTime = DateTime.MinValue;
             string lastSenderKey = null;
 
             using (Graphics g = this.CreateGraphics())
-            using (Font timeFont = new Font("Microsoft YaHei", 9f))
-            using (Font msgFont = new Font("Microsoft YaHei", 9.5f))
+            using (Font timeFont = new Font("Microsoft YaHei", 9.5f))
+            using (Font msgFont = new Font("Microsoft YaHei", 10.5f))
             {
                 for (int i = 0; i < _messages.Count; i++)
                 {
@@ -154,86 +154,86 @@ namespace LanChat
                     {
                         lastTime = msg.Timestamp;
                         showTime = true;
-                        currentY += 36;
+                        currentY += 40;
                     }
 
                     if (msg.IsSystem)
                     {
-                        SizeF sz = g.MeasureString(msg.Content, timeFont, streamW - 40);
-                        int h = (int)Math.Ceiling(sz.Height) + 12;
+                        SizeF sz = g.MeasureString(msg.Content, timeFont, maxBubbleW - 40);
+                        int h = (int)Math.Ceiling(sz.Height) + 16;
+                        int x = (viewWidth - (int)Math.Ceiling(sz.Width) - 40) / 2;
                         MessageRenderItem r = new MessageRenderItem
                         {
                             Message = msg,
                             Bounds = new Rectangle(0, currentY, viewWidth, h),
-                            BubbleBounds = new Rectangle(streamLeft, currentY, streamW, h),
+                            BubbleBounds = new Rectangle(x, currentY, (int)Math.Ceiling(sz.Width) + 40, h),
                             ShowTimeHeader = showTime
                         };
                         _renderItems.Add(r);
-                        currentY += h + 8;
+                        currentY += h + 10;
                         lastSenderKey = "SYS";
                     }
                     else if (msg.IsFile)
                     {
-                        int cardW = Math.Min(streamW, 280);
-                        int cardH = 78;
-                        int x = msg.IsSelf ? (streamRight - cardW) : streamLeft;
+                        int cardW = Math.Min(maxBubbleW, 340);
+                        int cardH = 88;
+                        int x = msg.IsSelf ? (viewWidth - rightMargin - cardW) : leftMargin;
                         bool showSender = !msg.IsSelf && (_showGroupSenderName || msg.IsBroadcast) && lastSenderKey != ("PEER:" + msg.SenderNick);
-                        int topOffset = showSender ? 20 : 2;
+                        int topOffset = showSender ? 22 : 2;
 
                         MessageRenderItem r = new MessageRenderItem
                         {
                             Message = msg,
-                            Bounds = new Rectangle(0, currentY, viewWidth, cardH + topOffset + 6),
+                            Bounds = new Rectangle(0, currentY, viewWidth, cardH + topOffset + 8),
                             BubbleBounds = new Rectangle(x, currentY + topOffset, cardW, cardH),
-                            FileOpenBounds = new Rectangle(x + 14, currentY + topOffset + 50, 72, 20),
-                            FileFolderBounds = new Rectangle(x + 94, currentY + topOffset + 50, 80, 20),
+                            FileOpenBounds = new Rectangle(x + 18, currentY + topOffset + 56, 80, 22),
+                            FileFolderBounds = new Rectangle(x + 108, currentY + topOffset + 56, 90, 22),
                             ShowTimeHeader = showTime,
                             ShowSenderHeader = showSender
                         };
                         _renderItems.Add(r);
-                        currentY += cardH + topOffset + 8;
+                        currentY += cardH + topOffset + 10;
                         lastSenderKey = msg.IsSelf ? "SELF" : ("PEER:" + msg.SenderNick);
                     }
                     else
                     {
-                        // 气泡最大宽度占居中流的 80%，避免短句过度拉伸，长句保留优雅折行
-                        int maxTextW = Math.Max(180, (int)(streamW * 0.80));
                         string raw = msg.Content ?? "";
                         string cleanContent = raw.Replace("`", "  ");
-                        SizeF sz = g.MeasureString(cleanContent, msgFont, maxTextW);
-                        int extraH = (raw.IndexOf('`') >= 0 || raw.IndexOf('\n') >= 0) ? 22 : 0;
-                        int bubbleW = Math.Max(52, (int)Math.Ceiling(sz.Width) + 36);
-                        if (bubbleW > streamW) bubbleW = streamW;
-                        int bubbleH = Math.Max(38, (int)Math.Ceiling(sz.Height) + 20 + extraH);
+                        int padH = msg.IsSelf ? 48 : 52;
+                        int padV = msg.IsSelf ? 36 : 40;
+                        SizeF sz = g.MeasureString(cleanContent, msgFont, maxBubbleW - padH);
+                        int extraH = (raw.IndexOf('`') >= 0 || raw.IndexOf('\n') >= 0) ? 28 : 0;
+                        int bubbleW = Math.Max(64, (int)Math.Ceiling(sz.Width) + padH);
+                        if (bubbleW > maxBubbleW) bubbleW = maxBubbleW;
+                        int bubbleH = Math.Max(48, (int)Math.Ceiling(sz.Height) + padV + extraH);
 
-                        int x = msg.IsSelf ? (streamRight - bubbleW) : streamLeft;
+                        int x = msg.IsSelf ? (viewWidth - rightMargin - bubbleW) : leftMargin;
                         string curKey = msg.IsSelf ? "SELF" : ("PEER:" + msg.SenderNick);
                         bool isConsecutive = (curKey == lastSenderKey) && !showTime;
                         bool showSender = !msg.IsSelf && (_showGroupSenderName || msg.IsBroadcast) && !isConsecutive;
 
                         if (!isConsecutive && i > 0 && !showTime)
                         {
-                            currentY += 10;
+                            currentY += 12;
                         }
 
-                        int topOffset = showSender ? 20 : 0;
+                        int topOffset = showSender ? 22 : 0;
                         MessageRenderItem r = new MessageRenderItem
                         {
                             Message = msg,
-                            Bounds = new Rectangle(0, currentY, viewWidth, bubbleH + topOffset + 4),
+                            Bounds = new Rectangle(0, currentY, viewWidth, bubbleH + topOffset + 6),
                             BubbleBounds = new Rectangle(x, currentY + topOffset, bubbleW, bubbleH),
                             ShowTimeHeader = showTime,
                             ShowSenderHeader = showSender
                         };
                         _renderItems.Add(r);
-                        // 紧凑堆叠间距仅 6px，对标 Grok Bot
-                        currentY += bubbleH + topOffset + 6;
+                        currentY += bubbleH + topOffset + 10;
                         lastSenderKey = curKey;
                     }
                 }
             }
 
-            _totalHeight = currentY + 24;
+            _totalHeight = currentY + 30;
 
             if (_totalHeight > this.Height && this.Height > 0)
             {
@@ -279,16 +279,16 @@ namespace LanChat
             if (streamW < 240) streamW = Math.Max(120, viewWidth - 24);
             int streamLeft = (viewWidth - streamW) / 2;
 
-            using (Font timeFont = new Font("Microsoft YaHei", 8.5f))
-            using (Font msgFont = new Font("Microsoft YaHei", 9.5f))
-            using (Font codeFont = new Font("Consolas", 9f))
-            using (Font nickFont = new Font("Microsoft YaHei", 8f, FontStyle.Bold))
-            using (SolidBrush textLight = new SolidBrush(Color.FromArgb(236, 236, 240)))
+            using (Font timeFont = new Font("Microsoft YaHei", 9.5f))
+            using (Font msgFont = new Font("Microsoft YaHei", 10.5f))
+            using (Font codeFont = new Font("Consolas", 10f))
+            using (Font nickFont = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold))
+            using (SolidBrush textLight = new SolidBrush(Color.FromArgb(238, 238, 242)))
             using (SolidBrush selfTextBrush = new SolidBrush(Color.FromArgb(250, 248, 255)))
-            using (SolidBrush grayText = new SolidBrush(Color.FromArgb(138, 138, 142)))
+            using (SolidBrush grayText = new SolidBrush(Color.FromArgb(130, 130, 136)))
             using (SolidBrush nickBrush = new SolidBrush(Color.FromArgb(164, 132, 245)))
-            using (SolidBrush otherBubbleBrush = new SolidBrush(Color.FromArgb(31, 31, 33)))   // Grok Dark Card #1F1F21 / #202020
-            using (Pen otherBubbleBorder = new Pen(Color.FromArgb(42, 42, 45), 1f))
+            using (SolidBrush otherBubbleBrush = new SolidBrush(Color.FromArgb(34, 34, 34)))   // Grok Dark Card #222222
+            using (Pen otherBubbleBorder = new Pen(Color.FromArgb(46, 46, 50), 1f))
             using (SolidBrush selfBubbleBrush = new SolidBrush(Color.FromArgb(121, 70, 215)))  // Grok Purple Bubble #7946D7
             {
                 foreach (var item in _renderItems)
@@ -300,19 +300,19 @@ namespace LanChat
 
                     ChatMessage msg = item.Message;
 
-                    // 居中时间标签（如 "今天 5:51"），对齐居中阅读流
+                    // 居中时间标签（如 "今天 5:51"）
                     if (item.ShowTimeHeader)
                     {
                         string timeStr = FormatGrokTimestamp(msg.Timestamp);
                         SizeF tsz = g.MeasureString(timeStr, timeFont);
-                        float tx = streamLeft + (streamW - tsz.Width) / 2f;
-                        g.DrawString(timeStr, timeFont, grayText, tx, itemTop - 24);
+                        float tx = (viewWidth - tsz.Width) / 2f;
+                        g.DrawString(timeStr, timeFont, grayText, tx, itemTop - 28);
                     }
 
                     if (msg.IsSystem)
                     {
-                        SizeF sz = g.MeasureString(msg.Content, timeFont, streamW - 40);
-                        float sx = streamLeft + (streamW - sz.Width) / 2f;
+                        SizeF sz = g.MeasureString(msg.Content, timeFont, viewWidth - 60);
+                        float sx = (viewWidth - sz.Width) / 2f;
                         g.DrawString(msg.Content, timeFont, grayText, new RectangleF(sx, itemTop + 2, sz.Width + 4, sz.Height + 4));
                     }
                     else if (msg.IsFile)
@@ -320,31 +320,31 @@ namespace LanChat
                         Rectangle bb = new Rectangle(item.BubbleBounds.X, item.BubbleBounds.Y - scrollY, item.BubbleBounds.Width, item.BubbleBounds.Height);
                         if (item.ShowSenderHeader)
                         {
-                            g.DrawString(msg.SenderNick ?? "节点", nickFont, nickBrush, bb.Left + 4, bb.Top - 16);
+                            g.DrawString(msg.SenderNick ?? "节点", nickFont, nickBrush, bb.Left + 6, bb.Top - 18);
                         }
 
-                        MainForm.DrawRoundedRectangle(g, otherBubbleBrush, bb, 12);
-                        MainForm.DrawRoundedRectangle(g, otherBubbleBorder, bb, 12);
+                        MainForm.DrawRoundedRectangle(g, otherBubbleBrush, bb, 20);
+                        MainForm.DrawRoundedRectangle(g, otherBubbleBorder, bb, 20);
 
                         // 紫色文件图标徽章
-                        Rectangle badgeRect = new Rectangle(bb.Left + 12, bb.Top + 12, 32, 32);
+                        Rectangle badgeRect = new Rectangle(bb.Left + 16, bb.Top + 16, 36, 36);
                         using (SolidBrush badgeBg = new SolidBrush(Color.FromArgb(121, 70, 215)))
                         {
-                            MainForm.DrawRoundedRectangle(g, badgeBg, badgeRect, 8);
+                            MainForm.DrawRoundedRectangle(g, badgeBg, badgeRect, 10);
                         }
                         StringFormat bsf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                        using (Font ff = new Font("Microsoft YaHei", 7.5f, FontStyle.Bold))
+                        using (Font ff = new Font("Microsoft YaHei", 8.0f, FontStyle.Bold))
                         {
                             g.DrawString("FILE", ff, selfTextBrush, badgeRect, bsf);
                         }
 
                         string nameSnippet = msg.FileName ?? "未知文件";
                         if (nameSnippet.Length > 17) nameSnippet = nameSnippet.Substring(0, 16) + "...";
-                        using (Font fnFont = new Font("Microsoft YaHei", 9f, FontStyle.Bold))
+                        using (Font fnFont = new Font("Microsoft YaHei", 10.5f, FontStyle.Bold))
                         {
-                            g.DrawString(nameSnippet, fnFont, textLight, bb.Left + 52, bb.Top + 10);
+                            g.DrawString(nameSnippet, fnFont, textLight, bb.Left + 62, bb.Top + 14);
                         }
-                        g.DrawString(FormatFileSize(msg.FileSize), timeFont, grayText, bb.Left + 52, bb.Top + 28);
+                        g.DrawString(FormatFileSize(msg.FileSize), timeFont, grayText, bb.Left + 62, bb.Top + 38);
 
                         Rectangle bOpen = new Rectangle(item.FileOpenBounds.X, item.FileOpenBounds.Y - scrollY, item.FileOpenBounds.Width, item.FileOpenBounds.Height);
                         Rectangle bFolder = new Rectangle(item.FileFolderBounds.X, item.FileFolderBounds.Y - scrollY, item.FileFolderBounds.Width, item.FileFolderBounds.Height);
@@ -361,23 +361,23 @@ namespace LanChat
 
                         if (msg.IsSelf)
                         {
-                            // 右侧高饱和紫色圆角气泡 (#7946D7)，14px 大圆角，无头像与尖角，自适应居中流
-                            MainForm.DrawRoundedRectangle(g, selfBubbleBrush, bb, 14);
-                            Rectangle textRect = new Rectangle(bb.Left + 16, bb.Top + 10, bb.Width - 32, bb.Height - 20);
+                            // 右侧高饱和紫色圆角气泡 (#7946D7)，24px 大圆角，无头像与尖角，右对齐
+                            MainForm.DrawRoundedRectangle(g, selfBubbleBrush, bb, 24);
+                            Rectangle textRect = new Rectangle(bb.Left + 24, bb.Top + 18, bb.Width - 48, bb.Height - 36);
                             DrawStyledBubbleText(g, msg.Content ?? "", msgFont, codeFont, selfTextBrush, textRect, true);
                         }
                         else
                         {
                             if (item.ShowSenderHeader)
                             {
-                                g.DrawString(msg.SenderNick ?? "好友", nickFont, nickBrush, bb.Left + 4, bb.Top - 18);
+                                g.DrawString(msg.SenderNick ?? "好友", nickFont, nickBrush, bb.Left + 6, bb.Top - 20);
                             }
 
-                            // 左侧深灰圆角卡片 (#1F1F22)，14px 大圆角，微光边框，无头像与尖角
-                            MainForm.DrawRoundedRectangle(g, otherBubbleBrush, bb, 14);
-                            MainForm.DrawRoundedRectangle(g, otherBubbleBorder, bb, 14);
+                            // 左侧深灰圆角卡片 (#222222)，24px 大圆角，微光边框，左对齐
+                            MainForm.DrawRoundedRectangle(g, otherBubbleBrush, bb, 24);
+                            MainForm.DrawRoundedRectangle(g, otherBubbleBorder, bb, 24);
 
-                            Rectangle textRect = new Rectangle(bb.Left + 16, bb.Top + 10, bb.Width - 32, bb.Height - 20);
+                            Rectangle textRect = new Rectangle(bb.Left + 26, bb.Top + 20, bb.Width - 52, bb.Height - 40);
                             DrawStyledBubbleText(g, msg.Content ?? "", msgFont, codeFont, textLight, textRect, false);
                         }
                     }
@@ -400,7 +400,7 @@ namespace LanChat
             // 按行解析，支持反引号代码胶囊背景与 @路径 下划线（复刻截图效果）
             string[] lines = content.Replace("\r\n", "\n").Split('\n');
             float curY = textRect.Top;
-            float lineHeight = msgFont.GetHeight(g) + 3f;
+            float lineHeight = msgFont.GetHeight(g) + 5f;
 
             using (SolidBrush codeBg = new SolidBrush(isSelf ? Color.FromArgb(98, 52, 185) : Color.FromArgb(42, 42, 46)))
             using (Pen codeBorder = new Pen(isSelf ? Color.FromArgb(145, 98, 230) : Color.FromArgb(58, 58, 64), 1f))

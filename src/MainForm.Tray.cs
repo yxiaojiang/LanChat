@@ -58,24 +58,23 @@ namespace LanChat
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
-            bool isLarge = (_heroProfilePanel.Height > 88);
-            int avSize = isLarge ? 54 : 44;
+            int avSize = 82;
             int avX = (_heroProfilePanel.Width - avSize) / 2;
-            int avY = isLarge ? 12 : 8;
+            int avY = 20;
             Rectangle avRect = new Rectangle(avX, avY, avSize, avSize);
             WeChatIcon.DrawMascotAvatar(g, avRect, Color.FromArgb(252, 44, 62), false, true, Color.FromArgb(14, 14, 14));
 
-            // 头像正下方居中绘制昵称文字，留出呼吸感间距
+            // 头像正下方居中绘制昵称文字 (10.5pt Microsoft YaHei, 完美对标 Grok Bot Karina)
             string nick = _netService != null && !string.IsNullOrEmpty(_netService.NickName) ? _netService.NickName : Environment.UserName;
-            using (Font f = new Font("Microsoft YaHei", isLarge ? 9.5f : 8.5f, FontStyle.Regular))
-            using (SolidBrush textBrush = new SolidBrush(Color.FromArgb(205, 205, 210)))
+            using (Font f = new Font("Microsoft YaHei", 10.5f, FontStyle.Regular))
+            using (SolidBrush textBrush = new SolidBrush(Color.FromArgb(208, 208, 214)))
             {
                 StringFormat sf = new StringFormat
                 {
                     Alignment = StringAlignment.Center,
                     LineAlignment = StringAlignment.Near
                 };
-                g.DrawString(nick, f, textBrush, new RectangleF(0, avY + avSize + (isLarge ? 7 : 5), _heroProfilePanel.Width, 20), sf);
+                g.DrawString(nick, f, textBrush, new RectangleF(0, avY + avSize + 16, _heroProfilePanel.Width, 24), sf);
             }
         }
 

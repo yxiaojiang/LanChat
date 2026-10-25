@@ -146,13 +146,21 @@ namespace LanChat
                 return;
             }
 
-            if (_listSessions.SelectedItem is string && (string)_listSessions.SelectedItem == BROADCAST_TARGET)
+            if (_listSessions.SelectedItem is string)
             {
+                string sItem = (string)_listSessions.SelectedItem;
+                if (sItem == NEW_CONNECTION_ITEM)
+                {
+                    _listSessions.SelectedIndex = 0;
+                    BtnAddIp_Click(this, EventArgs.Empty);
+                    return;
+                }
+
                 _selectedPeer = null;
                 _activeChatKey = "BROADCAST";
-                _lblChatTitle.Text = "局域网全员群聊";
-                _inputPlaceholder = "给 局域网全员群聊 发消息";
-                _chatView.ShowGroupSenderName = true;
+                _lblChatTitle.Text = sItem;
+                _inputPlaceholder = string.Format("给 {0} 发消息", sItem);
+                _chatView.ShowGroupSenderName = (sItem == BROADCAST_TARGET);
             }
             else if (_listSessions.SelectedItem is PeerInfo)
             {
@@ -200,33 +208,33 @@ namespace LanChat
                 g.FillRectangle(bgBrush, r);
             }
 
-            bool isLarge = (r.Height > 50);
-            int cardMarginX = isLarge ? 10 : 8;
-            int cardMarginY = isLarge ? 3 : 2;
-            int cardRadius = isLarge ? 11 : 9;
+            int cardMarginX = 19;
+            int cardMarginY = 3;
+            int cardRadius = 16;
 
-            // 2. 选中态绘制 #222226 圆角卡片背景（与截图选中项 Alist迅雷 100% 一致）
+            // 2. 选中态绘制 #222222 圆角卡片背景（与截图选中项 Alist迅雷 100% 一致）
             if (isSelected)
             {
-                Rectangle cardRect = new Rectangle(r.Left + cardMarginX, r.Top + cardMarginY, r.Width - cardMarginX * 2, r.Height - cardMarginY * 2);
-                using (SolidBrush cardBrush = new SolidBrush(Color.FromArgb(34, 34, 38)))
+                Rectangle cardRect = new Rectangle(r.Left + cardMarginX, r.Top + cardMarginY, r.Width - cardMarginX * 2, 80);
+                using (SolidBrush cardBrush = new SolidBrush(Color.FromArgb(34, 34, 34))) // #222222
                 {
                     DrawRoundedRectangle(g, cardBrush, cardRect, cardRadius);
                 }
             }
 
-            int avSize = isLarge ? 32 : 26;
-            int avX = r.Left + (isLarge ? 18 : 14);
-            int avY = r.Top + (r.Height - avSize) / 2;
+            // 48x48 饱满吉祥物头像
+            int avSize = 48;
+            int avX = r.Left + 32;
+            int avY = r.Top + 16;
             Rectangle avatarRect = new Rectangle(avX, avY, avSize, avSize);
-            int textX = avX + avSize + (isLarge ? 10 : 8);
+            int textX = r.Left + 96;
 
             if (isNewConnItem)
             {
                 // 底部“新建连接”项：有机橙黄云朵吉祥物 + 单行粗体白字（复刻截图底部“新建 Bot”）
                 WeChatIcon.DrawMascotAvatar(g, avatarRect, Color.FromArgb(246, 148, 18), true, false, Color.FromArgb(14, 14, 14));
 
-                using (Font titleFont = new Font("Microsoft YaHei", isLarge ? 9.5f : 9.0f, FontStyle.Bold))
+                using (Font titleFont = new Font("Microsoft YaHei", 11.0f, FontStyle.Bold))
                 using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(240, 240, 245)))
                 {
                     float ty = r.Top + (r.Height - titleFont.GetHeight(g)) / 2f;
@@ -237,25 +245,30 @@ namespace LanChat
 
             if (item is string)
             {
-                // 顶部第一项（局域网全员群聊）：亮紫色正圆吉祥物 (#905AFB，复刻截图 Alist迅雷)
+                string sItem = (string)item;
+                // 顶部第一项（局域网全员群聊 / 专属会话）：亮紫色正圆吉祥物 (#905AFB，复刻截图 Alist迅雷)
                 WeChatIcon.DrawMascotAvatar(g, avatarRect, Color.FromArgb(144, 90, 251), false, false, Color.FromArgb(14, 14, 14));
 
-                using (Font titleFont = new Font("Microsoft YaHei", isLarge ? 9.5f : 9.0f, FontStyle.Bold))
-                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(242, 242, 245)))
+                using (Font titleFont = new Font("Microsoft YaHei", 11.0f, FontStyle.Bold))
+                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(245, 245, 248)))
                 {
-                    int onlineCount = _netService != null ? _netService.GetActivePeers().Count : 0;
-                    string title = onlineCount > 0 ? string.Format("局域网全员群聊 ({0})", onlineCount) : "局域网全员群聊";
-                    g.DrawString(title, titleFont, titleBrush, new PointF(textX, r.Top + (isLarge ? 8 : 5)));
+                    string title = sItem;
+                    if (sItem == BROADCAST_TARGET)
+                    {
+                        int onlineCount = _netService != null ? _netService.GetActivePeers().Count : 0;
+                        title = onlineCount > 0 ? string.Format("局域网全员群聊 ({0})", onlineCount) : "局域网全员群聊";
+                    }
+                    g.DrawString(title, titleFont, titleBrush, new PointF(textX, r.Top + 18));
                 }
 
-                string snippet = _sessionManager.GetLastMessageSnippet(SessionManager.BROADCAST_KEY, 18);
-                if (string.IsNullOrEmpty(snippet)) snippet = "已按 Rules 刷新本机局域网广播...";
+                string snippet = _sessionManager != null ? _sessionManager.GetLastMessageSnippet(SessionManager.BROADCAST_KEY, 24) : null;
+                if (string.IsNullOrEmpty(snippet)) snippet = "已按 Rules 刷新本机记忆 (刷新...";
 
-                using (Font subFont = new Font("Microsoft YaHei", isLarge ? 8.5f : 8.0f))
-                using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(135, 135, 140)))
+                using (Font subFont = new Font("Microsoft YaHei", 9.5f))
+                using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(136, 136, 142)))
                 {
-                    if (snippet.Length > 16) snippet = snippet.Substring(0, 15) + "...";
-                    g.DrawString(snippet, subFont, subBrush, new PointF(textX, r.Top + (isLarge ? 28 : 24)));
+                    if (snippet.Length > 20) snippet = snippet.Substring(0, 19) + "...";
+                    g.DrawString(snippet, subFont, subBrush, new PointF(textX, r.Top + 46));
                 }
             }
             else if (item is PeerInfo)
@@ -268,12 +281,12 @@ namespace LanChat
                 string badge = useCoralStyle ? "节点" : null;
                 WeChatIcon.DrawMascotAvatar(g, avatarRect, bodyColor, !useCoralStyle, false, Color.FromArgb(14, 14, 14), badge);
 
-                using (Font titleFont = new Font("Microsoft YaHei", isLarge ? 9.5f : 9.0f, FontStyle.Bold))
-                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(242, 242, 245)))
+                using (Font titleFont = new Font("Microsoft YaHei", 11.0f, FontStyle.Bold))
+                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(245, 245, 248)))
                 {
                     string name = peer.NickName ?? "未知节点";
                     if (name.Length > 13) name = name.Substring(0, 12) + "...";
-                    g.DrawString(name, titleFont, titleBrush, new PointF(textX, r.Top + (isLarge ? 8 : 5)));
+                    g.DrawString(name, titleFont, titleBrush, new PointF(textX, r.Top + 18));
                 }
 
                 string snippet = peer.LastMessage;
@@ -281,11 +294,11 @@ namespace LanChat
                 {
                     snippet = string.Format("{0} ({1})", peer.HostName, peer.IP);
                 }
-                using (Font subFont = new Font("Microsoft YaHei", isLarge ? 8.5f : 8.0f))
-                using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(135, 135, 140)))
+                using (Font subFont = new Font("Microsoft YaHei", 9.5f))
+                using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(136, 136, 142)))
                 {
                     if (snippet.Length > 16) snippet = snippet.Substring(0, 15) + "...";
-                    g.DrawString(snippet, subFont, subBrush, new PointF(textX, r.Top + (isLarge ? 28 : 24)));
+                    g.DrawString(snippet, subFont, subBrush, new PointF(textX, r.Top + 46));
                 }
             }
         }
