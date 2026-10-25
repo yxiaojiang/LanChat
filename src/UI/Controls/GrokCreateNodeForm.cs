@@ -309,9 +309,9 @@ namespace LanChat
                 MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 16);
             }
 
-            // 2. 标题 "创建新 Bot" (完全对标 CreateNewBot.png)
-            using (Font titleFont = new Font("Microsoft YaHei", 13.5f, FontStyle.Bold))
-            using (SolidBrush tb = new SolidBrush(Color.FromArgb(245, 245, 250)))
+            // 2. 标题 "创建新 Bot" (18.0pt 加粗明亮白，完全对标 CreateNewBot.png)
+            using (Font titleFont = new Font("Microsoft YaHei UI", 18f, FontStyle.Bold))
+            using (SolidBrush tb = new SolidBrush(Color.FromArgb(250, 250, 255)))
             {
                 g.DrawString("创建新 Bot", titleFont, tb, new PointF(24, 18));
             }

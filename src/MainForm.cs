@@ -138,12 +138,21 @@ namespace LanChat
         {
             try
             {
-                string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
-                if (File.Exists(iconPath))
+                string[] possibleIconPaths = new string[]
                 {
-                    this.Icon = new Icon(iconPath);
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "assets", "app.ico"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "assets", "app.ico"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "assets", "app.ico")
+                };
+                foreach (string p in possibleIconPaths)
+                {
+                    if (File.Exists(p))
+                    {
+                        try { this.Icon = new Icon(p); break; } catch { }
+                    }
                 }
-                else
+                if (this.Icon == null)
                 {
                     string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
                     if (File.Exists(exePath))
@@ -668,11 +677,11 @@ namespace LanChat
             };
             _chatView.OnFileActionClick += HandleFileActionClick;
 
-            // 2.4 Bottom Full-Width Pill Input Bar (自适应横跨全宽，左空 28px 右空 28px 底空 24px，高 68px 大胶囊)
+            // 2.4 Bottom Full-Width Pill Input Bar (自适应横跨全宽，左空 28px 右空 28px 底空 24px，高 64px 大胶囊，100% 对齐 GrokBot)
             _bottomSendPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 96,
+                Height = 92,
                 BackColor = Color.FromArgb(18, 18, 18),
                 Padding = new Padding(28, 4, 28, 24)
             };
@@ -685,23 +694,24 @@ namespace LanChat
             _inputPanel.Paint += (s, e) => {
                 Graphics g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
                 Rectangle pillRect = new Rectangle(0, 0, _inputPanel.Width - 1, _inputPanel.Height - 1);
                 int radius = Math.Max(8, _inputPanel.Height / 2);
-                using (SolidBrush bg = new SolidBrush(Color.FromArgb(32, 32, 34))) // #202022
-                using (Pen border = new Pen(Color.FromArgb(44, 44, 48), 1f))
+                using (SolidBrush bg = new SolidBrush(Color.FromArgb(32, 32, 36))) // #202024
+                using (Pen border = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32 微妙暗黑边框，坚决杜绝亮蓝边框
                 {
                     DrawRoundedRectangle(g, bg, pillRect, radius);
                     DrawRoundedRectangle(g, border, pillRect, radius);
                 }
 
-                // Draw placeholder when input is empty
+                // Draw placeholder when input is empty (11.0pt，绝对数学垂直居中)
                 if (string.IsNullOrEmpty(_txtInput.Text))
                 {
-                    using (Font pf = new Font("Microsoft YaHei", 10.5f))
-                    using (SolidBrush pb = new SolidBrush(Color.FromArgb(120, 120, 130)))
+                    using (Font pf = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Regular))
+                    using (SolidBrush pb = new SolidBrush(Color.FromArgb(94, 94, 102))) // #5E5E66
                     {
                         float py = (_inputPanel.Height - pf.GetHeight(g)) / 2f;
-                        g.DrawString(_inputPlaceholder, pf, pb, 62, py);
+                        g.DrawString(_inputPlaceholder, pf, pb, 64, py);
                     }
                 }
             };
@@ -712,16 +722,16 @@ namespace LanChat
                 _inputPanel.Invalidate();
             };
 
-            // Left circular [+] button inside input pill (Sends file / Quick menu) (32x32)
-            _btnToolSendFile = new WeChatIconButton(WeChatIconType.Add, "发送文件 (右键打开表情/清屏菜单)", 32)
+            // Left circular [+] button inside input pill (Sends file / Quick menu) (36x36, #2A2A2E)
+            _btnToolSendFile = new WeChatIconButton(WeChatIconType.Add, "附件与快捷操作 (点击打开菜单)", 36)
             {
-                Location = new Point(20, 18),
+                Location = new Point(14, 14),
                 IsCircle = true,
-                FillColor = Color.FromArgb(46, 46, 50),
-                HoverFillColor = Color.FromArgb(64, 64, 70),
-                IconColor = Color.FromArgb(205, 205, 212)
+                FillColor = Color.FromArgb(42, 42, 46),
+                HoverFillColor = Color.FromArgb(56, 56, 62),
+                IconColor = Color.FromArgb(160, 160, 165)
             };
-            _btnToolSendFile.Click += BtnSendFile_Click;
+            _btnToolSendFile.Click += (s, e) => ShowInputPlusContextMenu();
             _btnToolSendFile.MouseUp += (s, e) => {
                 if (e.Button == MouseButtons.Right)
                 {
@@ -730,15 +740,15 @@ namespace LanChat
             };
             _btnToolEmoji = _btnToolSendFile;
 
-            // Single/clean borderless input box inside pill
+            // Single/clean borderless input box inside pill (11.0pt, #F2F2F6 高亮白)
             _txtInput = new TextBox
             {
                 Multiline = false,
-                Font = new Font("Microsoft YaHei", 10.5f),
-                BackColor = Color.FromArgb(32, 32, 34),
-                ForeColor = Color.FromArgb(238, 238, 242),
+                Font = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Regular),
+                BackColor = Color.FromArgb(32, 32, 36),
+                ForeColor = Color.FromArgb(242, 242, 246),
                 BorderStyle = BorderStyle.None,
-                Location = new Point(62, 22),
+                Location = new Point(64, 21),
                 Width = 500,
                 Visible = false,
                 AllowDrop = true
@@ -752,13 +762,13 @@ namespace LanChat
             _txtInput.DragEnter += MainForm_DragEnter;
             _txtInput.DragDrop += MainForm_DragDrop;
 
-            // Right mic / folder icon inside pill (32x32)
+            // Right mic icon inside pill (32x32, #8E8E93)
             _btnToolFolder = new WeChatIconButton(WeChatIconType.Mic, "打开接收文件夹 (右键切换自动接收)", 32)
             {
                 IsCircle = true,
                 FillColor = Color.Transparent,
                 HoverFillColor = Color.FromArgb(46, 46, 52),
-                IconColor = Color.FromArgb(155, 155, 164)
+                IconColor = Color.FromArgb(142, 142, 147)
             };
             _btnToolFolder.Click += (s, e) => OpenReceivedFolder();
             _btnToolFolder.MouseUp += (s, e) => {
@@ -769,12 +779,12 @@ namespace LanChat
                 }
             };
 
-            // Far-right signature Purple SoundWave / Send circle button (42x42, #8E64DC)
-            _btnSendWave = new WeChatIconButton(WeChatIconType.SoundWave, "发送消息 (Enter)", 42)
+            // Far-right signature Purple UpArrow Send circle button (44x44, #8E64DC)
+            _btnSendWave = new WeChatIconButton(WeChatIconType.UpArrow, "发送消息 (Enter)", 44)
             {
                 IsCircle = true,
                 FillColor = Color.FromArgb(142, 100, 220),
-                HoverFillColor = Color.FromArgb(160, 118, 238),
+                HoverFillColor = Color.FromArgb(157, 117, 236),
                 IconColor = Color.White
             };
             _btnSendWave.Click += BtnSend_Click;
@@ -782,20 +792,20 @@ namespace LanChat
             _inputPanel.Resize += (s, e) => {
                 int w = _inputPanel.Width;
                 int h = _inputPanel.Height;
-                int waveSize = 42;
-                _btnSendWave.Size = new Size(waveSize, waveSize);
-                _btnSendWave.Location = new Point(w - waveSize - 14, (h - waveSize) / 2);
+                int sendSize = 44;
+                _btnSendWave.Size = new Size(sendSize, sendSize);
+                _btnSendWave.Location = new Point(w - sendSize - 10, (h - sendSize) / 2);
 
                 int micSize = 32;
                 _btnToolFolder.Size = new Size(micSize, micSize);
-                _btnToolFolder.Location = new Point(w - waveSize - 14 - micSize - 14, (h - micSize) / 2);
+                _btnToolFolder.Location = new Point(w - sendSize - 10 - micSize - 14, (h - micSize) / 2);
 
-                int plusSize = 32;
+                int plusSize = 36;
                 _btnToolSendFile.Size = new Size(plusSize, plusSize);
-                _btnToolSendFile.Location = new Point(20, (h - plusSize) / 2);
+                _btnToolSendFile.Location = new Point(14, (h - plusSize) / 2);
 
-                _txtInput.Location = new Point(62, (h - _txtInput.Height) / 2);
-                _txtInput.Width = Math.Max(60, _btnToolFolder.Left - 72);
+                _txtInput.Location = new Point(64, (h - _txtInput.Height) / 2);
+                _txtInput.Width = Math.Max(60, _btnToolFolder.Left - 76);
                 _inputPanel.Invalidate();
             };
 
@@ -906,19 +916,14 @@ namespace LanChat
 
         private void ShowInputPlusContextMenu()
         {
-            ContextMenuStrip menu = new ContextMenuStrip();
-            menu.Renderer = new WeChatDarkMenuRenderer();
-            menu.ShowImageMargin = false;
-            menu.ShowCheckMargin = false;
-            menu.BackColor = Color.FromArgb(32, 32, 34);
-            menu.ForeColor = Color.FromArgb(235, 235, 235);
+            GrokPopupMenu menu = new GrokPopupMenu();
+            menu.AddItem("选择并发送文件...", WeChatIconType.Folder, () => BtnSendFile_Click(this, EventArgs.Empty))
+                .AddItem("插入 Emoji 表情...", WeChatIconType.Emoji, () => ShowEmojiPopup())
+                .AddItem("打开接收文件夹", WeChatIconType.Folder, () => OpenReceivedFolder())
+                .AddSeparator()
+                .AddItem("清空当前对话记录", WeChatIconType.Clear, () => ClearCurrentChat(), null, true);
 
-            menu.Items.Add("📁 选择并发送文件...", null, (s, e) => BtnSendFile_Click(s, e));
-            menu.Items.Add("😊 插入 Emoji 表情...", null, (s, e) => ShowEmojiPopup());
-            menu.Items.Add("📂 打开接收文件夹", null, (s, e) => OpenReceivedFolder());
-            menu.Items.Add("🧹 清空当前对话记录", null, (s, e) => ClearCurrentChat());
-
-            menu.Show(_btnToolSendFile, new Point(0, -menu.PreferredSize.Height - 4));
+            menu.Show(_btnToolSendFile, new Point(0, -210));
         }
 
         #region SafeInvoke & Helpers

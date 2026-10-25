@@ -212,48 +212,31 @@ namespace LanChat
                     RestoreFromTray();
                 };
 
-                // WeChat Dark 风格暗黑托盘右键菜单
-                ContextMenuStrip trayMenu = new ContextMenuStrip();
-                trayMenu.Renderer = new WeChatDarkMenuRenderer();
-                trayMenu.ShowImageMargin = false;
-                trayMenu.ShowCheckMargin = false;
-                trayMenu.BackColor = Color.FromArgb(44, 44, 46);
-                trayMenu.ForeColor = Color.FromArgb(235, 235, 235);
+                // Grok 风格 16px 圆角高雅托盘右键悬浮菜单 (彻底废除原生直角 ContextMenuStrip)
+                _trayIcon.ContextMenuStrip = null;
+                _trayIcon.MouseUp += (s, e) => {
+                    if (e.Button == MouseButtons.Right)
+                    {
+                        GrokPopupMenu trayMenu = new GrokPopupMenu();
+                        trayMenu.AddItem("显示主界面", WeChatIconType.Chat, () => RestoreFromTray())
+                                .AddItem("连接节点...", WeChatIconType.Bolt, () => {
+                                    RestoreFromTray();
+                                    BtnConnectNode_Click(this, EventArgs.Empty);
+                                })
+                                .AddItem("系统设置...", WeChatIconType.Settings, () => {
+                                    RestoreFromTray();
+                                    ShowSettingsDialog(0);
+                                })
+                                .AddItem("检查新版本...", WeChatIconType.Refresh, () => CheckForUpdates(false))
+                                .AddSeparator()
+                                .AddItem("退出 LanChat", WeChatIconType.Logout, () => {
+                                    _isExplicitExit = true;
+                                    this.Close();
+                                }, null, true);
 
-                ToolStripMenuItem itemShow = new ToolStripMenuItem("显示主界面");
-                itemShow.Font = new Font(this.Font, FontStyle.Bold);
-                itemShow.Click += (s, e) => RestoreFromTray();
-                trayMenu.Items.Add(itemShow);
-
-                ToolStripMenuItem itemConnect = new ToolStripMenuItem("🔗 连接节点...");
-                itemConnect.Click += (s, e) => {
-                    RestoreFromTray();
-                    BtnConnectNode_Click(s, e);
+                        trayMenu.ShowAt(Cursor.Position);
+                    }
                 };
-                trayMenu.Items.Add(itemConnect);
-
-                ToolStripMenuItem itemSettings = new ToolStripMenuItem("⚙️ 系统设置...");
-                itemSettings.Click += (s, e) => {
-                    RestoreFromTray();
-                    ShowSettingsDialog(0);
-                };
-                trayMenu.Items.Add(itemSettings);
-
-                ToolStripMenuItem itemCheckUpdate = new ToolStripMenuItem("🔄 检查新版本...");
-                itemCheckUpdate.Click += (s, e) => CheckForUpdates(false);
-                trayMenu.Items.Add(itemCheckUpdate);
-
-                trayMenu.Items.Add(new ToolStripSeparator());
-
-                ToolStripMenuItem itemExit = new ToolStripMenuItem("退出 LanChat");
-                itemExit.Click += (s, e) =>
-                {
-                    _isExplicitExit = true;
-                    this.Close();
-                };
-                trayMenu.Items.Add(itemExit);
-
-                _trayIcon.ContextMenuStrip = trayMenu;
             }
             catch { }
         }

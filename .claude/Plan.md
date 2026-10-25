@@ -1,25 +1,21 @@
 # Plan.md — 当前活跃计划
 
 > 最近刷新：2026-10-25。仓库：`https://github.com/yxiaojiang/LanChat.git`。
-> 项目版本：**LanChat v2.0.0**。
-> 架构解耦重构（阶段一至四）与 Grok Bot 惊艳清爽暗黑界面 100% 高保真还原已全部落地并归档至 `Plan-archive.md`。
+> 项目版本：**LanChat v2.1.0**。
+> GrokBot UI 设计规范确立、全盘废除系统直角菜单（`GrokPopupMenu`）、主输入胶囊与全局设置界面重塑已全部落地。
 
 ---
 
 ## 仍未完成 / 活跃计划项
 
-1. **全弹窗与菜单 Grok Bot 惊艳清爽暗黑高保真 100% 全面交付（闭环完成）**：
-   - **完成态**：全面对标 `assets/GrokBotPics`（`ConnetctApp.png`, `CreateNewBot.png`, `About.png`, `SendFK.png`, `Alis4.png~Alis7.png`）：
-     - **更正业务称谓**：严谨统一为“连接节点”（彻底消除“连接应用”）；
-     - **连接节点（GrokConnectNodeForm）**：对标 `ConnetctApp.png` 顶部搜索胶囊、过滤芯片、局域网在线节点推荐卡片流与手动指定 IP 直连握手；
-     - **创建新节点（GrokCreateNodeForm）**：对标 `CreateNewBot.png` 居中动态吉祥物预览、起名胶囊输入框、14 种有机形态网格、11 色调色盘与圆角操作按钮；
-     - **关于与支持（GrokAboutForm）**：对标 `About.png` 居中 Squircle 吉祥物徽章、版本信息与“复制版本信息”圆角药丸按钮；
-     - **修改昵称（GrokChangeNickForm）**：对标 Grok Bot 原生暗黑圆角输入框与紫色保存按钮；
-     - **发送反馈（GrokFeedbackForm）**：对标 `SendFK.png` 多行反馈输入框、网络诊断复选框与发送按钮；
-     - **全局系统设置（GrokSettingsDialog）**：对标 `Alis4.png~Alis7.png` 左侧通用/电脑/更新/关于导航与现代卡片流；
-     - **软件更新向导（GrokUpdateForm）**：对标 `Alis7.png` 版本对比横幅、更新日志与平滑进度条；
-     - **统一暗黑提示框（GrokMessageBox）**：彻底取代原生白底 MessageBox；
-     - **任务栏图标彻底修复**：配置 `SetCurrentProcessExplicitAppUserModelID`、`WM_SETICON` 双向发送及 `SetClassLongPtr` 写入窗口类，解决任务栏图标缓存旧图标问题。
+1. **GrokBot UI 全面设计规范与视觉对齐交付（已闭环落地）**：
+   - **完成态**：
+     - **编写设计系统规范**：建立 `Docs/GrokBot_UI_Design_System.md` 与 `.claude/contexts/GrokUI.md`，制定 5 级暗黑纵深、字体排版矩阵、边框距离法则与圆角比例体系；
+     - **废除 ContextMenuStrip**：通用圆角浮动菜单 `GrokPopupMenu` 全盘替换会话加号菜单、输入附件菜单、列表右键菜单与托盘右键菜单；
+     - **主输入胶囊重构**：消除蓝色发光边框，重构为 64px 高、32px 满圆角 `#202024` 胶囊（1px 微光边框 `#2C2C32`），11.0pt `#F2F2F6` 居中文本，36x36 附件圆钮，细线矢量麦克风，44x44 魅紫向上箭头 `↑` 发送圆钮；
+     - **设置窗口（GrokSettingsDialog）重塑**：扩充为 920x640 宽屏比例，移除侧边栏分割线，依靠 `#0E0E0E` 与 `#121212` 纯底色自然分离，18.0pt 加粗明亮大标题，10.5pt 加粗中性灰分组标签，54px 卡片行，22px 内边距，32px 药丸下拉胶囊；
+     - **举一反三全窗体统一**：`GrokConnectNodeForm`、`GrokCreateNodeForm`、`GrokFeedbackForm`、`GrokChangeNickForm`、`GrokUpdateForm` 窗口大标题统一升级为 18.0pt 加粗明亮纯白，外边框微光与阴影统一；
+     - **称谓与图标闭环**：全代码库统一为“连接节点”；通过 `SetCurrentProcessExplicitAppUserModelID`、`WM_SETICON` 双向发送及 `SetClassLongPtr` 彻底刷新任务栏紫吉祥物图标。
    - **验证**：系统原生 `csc.exe` 耗时 < 1 秒，0 警告 0 错误编译通过，并热替换至 `D:\soft\LanChat\`。
 
 2. **GitHub 仓库设为 Public 并完成在线更新闭环验证**：
@@ -40,4 +36,4 @@
 - 零第三方依赖：Windows 端由系统原生 `csc.exe` 产出绿色版 `LanChat.exe`，由 WiX 产出 `LanChat.msi`；Linux 端提供纯 Python 标准库 Tkinter 暗黑 GUI 与自包含 deb 安装包。
 - 编译与语法：严格保持 C# 5.0 / .NET Framework 4.0 语法兼容，杜绝引入任何破坏轻量原生的 C# 8+ 高版本特性。
 - 在线更新：支持 GitHub REST API 优先 + Web 302 重定向免限流降级双轨架构。
-- 视觉规范：深度对标 Grok Bot 桌面客户端现代清爽暗黑设计（侧边栏纯黑 `#0E0E0E`、主聊天区 `#121212`、魅紫 `#7946D7` / `#8E64DC`、深灰卡片 `#1E1E21`、输入胶囊 `#202024`）。
+- 视觉规范：深度对标 Grok Bot 桌面客户端现代清爽暗黑设计（侧边栏纯黑 `#0E0E0E`、主聊天区 `#121212`、魅紫 `#8E64DC`、深灰卡片 `#1C1C1F`、输入胶囊 `#202024`）。

@@ -433,9 +433,9 @@ namespace LanChat
                 MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 16);
             }
 
-            // 2. 标题 "连接节点" (完全对标 ConnetctApp.png，用户强调：“我们明明是'连接节点'，不是'连接应用'”)
-            using (Font titleFont = new Font("Microsoft YaHei", 14f, FontStyle.Bold))
-            using (SolidBrush tb = new SolidBrush(Color.FromArgb(245, 245, 250)))
+            // 2. 标题 "连接节点" (18.0pt 加粗明亮纯白，完全对标 ConnetctApp.png 与 GrokBot 规范)
+            using (Font titleFont = new Font("Microsoft YaHei UI", 18f, FontStyle.Bold))
+            using (SolidBrush tb = new SolidBrush(Color.FromArgb(250, 250, 255)))
             {
                 g.DrawString("连接节点", titleFont, tb, new PointF(30, 18));
             }

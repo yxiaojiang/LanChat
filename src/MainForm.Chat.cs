@@ -119,21 +119,15 @@ namespace LanChat
 
         private void BtnAddSession_Click(object sender, EventArgs e)
         {
-            ContextMenuStrip menu = new ContextMenuStrip();
-            menu.Renderer = new WeChatDarkMenuRenderer();
-            menu.ShowImageMargin = false;
-            menu.ShowCheckMargin = false;
-            menu.BackColor = Color.FromArgb(30, 30, 32);
-            menu.ForeColor = Color.FromArgb(235, 235, 240);
+            GrokPopupMenu menu = new GrokPopupMenu();
+            menu.AddItem("新建节点 (自定义外观与Bot)", WeChatIconType.Add, () => BtnCreateNode_Click(this, EventArgs.Empty))
+                .AddItem("连接节点 (局域网与 IP 直连)", WeChatIconType.Bolt, () => BtnConnectNode_Click(this, EventArgs.Empty))
+                .AddItem("扫描并广播局域网节点", WeChatIconType.Refresh, () => RefreshPeersWithNotice())
+                .AddItem("打开接收文件夹", WeChatIconType.Folder, () => OpenReceivedFolder())
+                .AddSeparator()
+                .AddItem("系统设置与偏好", WeChatIconType.Settings, () => ShowSettingsDialog(0));
 
-            menu.Items.Add("➕ 新建节点 (自定义外观与Bot)...", null, (s, ev) => BtnCreateNode_Click(s, ev));
-            menu.Items.Add("🔗 连接节点 (局域网与 IP 直连)...", null, (s, ev) => BtnConnectNode_Click(s, ev));
-            menu.Items.Add("🔄 扫描并广播局域网节点", null, (s, ev) => RefreshPeersWithNotice());
-            menu.Items.Add("📂 打开接收文件夹", null, (s, ev) => OpenReceivedFolder());
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("⚙️ 系统设置与关于...", null, (s, ev) => ShowSettingsDialog(0));
-
-            menu.Show(_btnAddSession, new Point(0, _btnAddSession.Height + 4));
+            menu.Show(_btnAddSession, new Point(0, _btnAddSession.Height + 6));
         }
 
         private void ListSessions_SelectedIndexChanged(object sender, EventArgs e)
@@ -646,43 +640,42 @@ namespace LanChat
                     _listSessions.SelectedIndex = index;
                     object item = _listSessions.Items[index];
 
-                    ContextMenuStrip menu = new ContextMenuStrip();
-                    menu.Renderer = new WeChatDarkMenuRenderer();
-                    menu.ShowImageMargin = false;
-                    menu.ShowCheckMargin = false;
-                    menu.BackColor = Color.FromArgb(30, 30, 32);
-                    menu.ForeColor = Color.FromArgb(235, 235, 240);
-
                     if (item is PeerInfo)
                     {
                         PeerInfo peer = (PeerInfo)item;
-                        menu.Items.Add("💬 发起会话", null, (s, ev) => SelectPeerChat(peer));
-                        menu.Items.Add("📁 发送文件...", null, (s, ev) => BtnSendFile_Click(s, ev));
-                        menu.Items.Add("📋 复制节点 IP (" + peer.IP + ")", null, (s, ev) => {
-                            try { Clipboard.SetText(peer.IP != null ? peer.IP.ToString() : ""); } catch { }
-                        });
-                        menu.Items.Add(new ToolStripSeparator());
-                        menu.Items.Add("🧹 清空聊天记录", null, (s, ev) => ClearCurrentChat());
+                        GrokPopupMenu menu = new GrokPopupMenu();
+                        menu.AddItem("发起会话", WeChatIconType.Chat, () => SelectPeerChat(peer))
+                            .AddItem("发送文件...", WeChatIconType.Folder, () => BtnSendFile_Click(this, EventArgs.Empty))
+                            .AddItem("复制节点 IP (" + peer.IP + ")", WeChatIconType.Contacts, () => {
+                                try { Clipboard.SetText(peer.IP != null ? peer.IP.ToString() : ""); } catch { }
+                            })
+                            .AddSeparator()
+                            .AddItem("清空聊天记录", WeChatIconType.Clear, () => ClearCurrentChat(), null, true);
+
+                        menu.Show(_listSessions, e.Location);
                     }
                     else if (item is string)
                     {
                         string sItem = (string)item;
                         if (sItem == NEW_CONNECTION_ITEM)
                         {
-                            menu.Items.Add("➕ 创建新节点...", null, (s, ev) => BtnCreateNode_Click(s, ev));
-                            menu.Items.Add("🔗 连接节点...", null, (s, ev) => BtnConnectNode_Click(s, ev));
+                            GrokPopupMenu menu = new GrokPopupMenu();
+                            menu.AddItem("新建节点 (自定义外观)...", WeChatIconType.Add, () => BtnCreateNode_Click(this, EventArgs.Empty))
+                                .AddItem("连接节点 (局域网与IP)...", WeChatIconType.Bolt, () => BtnConnectNode_Click(this, EventArgs.Empty));
+                            menu.Show(_listSessions, e.Location);
                         }
                         else
                         {
-                            menu.Items.Add("💬 全员群聊", null, (s, ev) => {
+                            GrokPopupMenu menu = new GrokPopupMenu();
+                            menu.AddItem("全员群聊", WeChatIconType.Chat, () => {
                                 _listSessions.SelectedIndex = 0;
-                            });
-                            menu.Items.Add("📁 发送文件给所有人...", null, (s, ev) => BtnSendFile_Click(s, ev));
-                            menu.Items.Add("🧹 清空群聊记录", null, (s, ev) => ClearCurrentChat());
+                            })
+                            .AddItem("发送文件给所有人...", WeChatIconType.Folder, () => BtnSendFile_Click(this, EventArgs.Empty))
+                            .AddSeparator()
+                            .AddItem("清空群聊记录", WeChatIconType.Clear, () => ClearCurrentChat(), null, true);
+                            menu.Show(_listSessions, e.Location);
                         }
                     }
-
-                    menu.Show(_listSessions, e.Location);
                 }
             }
         }

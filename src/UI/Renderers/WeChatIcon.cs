@@ -635,10 +635,10 @@ namespace LanChat
             }
         }
 
-        // 16. Up Arrow Icon (Grok bottom-left blue scan circle button)
+        // 16. Up Arrow Icon (Grok signature upward arrow ↑ for send button)
         public static void DrawUpArrowIcon(Graphics g, Rectangle r, Color color)
         {
-            using (Pen p = new Pen(color, 1.8f))
+            using (Pen p = new Pen(color, 2.2f))
             {
                 p.StartCap = LineCap.Round;
                 p.EndCap = LineCap.Round;
@@ -646,11 +646,13 @@ namespace LanChat
                 float cx = r.X + r.Width / 2f;
                 float cy = r.Y + r.Height / 2f;
 
-                g.DrawLine(p, cx, cy + 5f, cx, cy - 5f);
+                // Vertical stem
+                g.DrawLine(p, cx, cy + 6.0f, cx, cy - 6.0f);
+                // 90-degree arrowhead
                 g.DrawLines(p, new PointF[] {
-                    new PointF(cx - 4.2f, cy - 1f),
-                    new PointF(cx, cy - 5.2f),
-                    new PointF(cx + 4.2f, cy - 1f)
+                    new PointF(cx - 5.0f, cy - 1.2f),
+                    new PointF(cx, cy - 6.2f),
+                    new PointF(cx + 5.0f, cy - 1.2f)
                 });
             }
         }

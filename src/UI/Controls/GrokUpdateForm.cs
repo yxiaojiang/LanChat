@@ -348,9 +348,9 @@ namespace LanChat
                 MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 16);
             }
 
-            // 2. 标题 "软件更新" (完全对标 Alis7.png)
-            using (Font titleFont = new Font("Microsoft YaHei", 14f, FontStyle.Bold))
-            using (SolidBrush tb = new SolidBrush(Color.FromArgb(245, 245, 250)))
+            // 2. 标题 "软件更新" (18.0pt 加粗明亮纯白，完全对标 Alis7.png)
+            using (Font titleFont = new Font("Microsoft YaHei UI", 18f, FontStyle.Bold))
+            using (SolidBrush tb = new SolidBrush(Color.FromArgb(250, 250, 255)))
             {
                 g.DrawString("软件更新", titleFont, tb, new PointF(28, 18));
             }

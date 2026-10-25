@@ -9,8 +9,11 @@ using System.Windows.Forms;
 namespace LanChat
 {
     /// <summary>
-    /// Grok Bot 100% 像素级对标原生全局设置窗口 (完全对标 Alis4.png ~ Alis7.png)
-    /// 包含左侧侧边栏导航 (通用/电脑/更新/关于)、右侧现代圆角卡片流与原生暗黑开关控制
+    /// Grok Bot 100% 像素级对齐原生全局设置窗口 (完全对标 Alis4.png ~ Alis7.png 与 Image 3 实测比对)
+    /// 包含：
+    /// 1. 宽屏比例 920x640，左侧 220px 纯黑侧边栏与右侧无界过渡 (无竖直粗线)
+    /// 2. 18.0pt 加粗明亮大标题，10.5pt 加粗中性灰分组标签
+    /// 3. 54px 舒适行高卡片流、22px 边缘内边距与 32px 药丸下拉控制组件
     /// </summary>
     public class GrokSettingsDialog : Form
     {
@@ -33,6 +36,9 @@ namespace LanChat
         private bool _isCloseHover = false;
         private Panel _contentPanel;
 
+        private const int SIDEBAR_WIDTH = 220;
+        private const int CARD_WIDTH = 636;
+
         public GrokSettingsDialog(
             NetworkService netService,
             Action onCheckUpdate,
@@ -49,10 +55,10 @@ namespace LanChat
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.CenterParent;
             this.ShowInTaskbar = false;
-            this.Size = new Size(820, 580);
-            this.BackColor = Color.FromArgb(20, 20, 22); // #141416
+            this.Size = new Size(920, 640);
+            this.BackColor = Color.FromArgb(18, 18, 18); // #121212 主视口纯正暗黑
             this.DoubleBuffered = true;
-            this.Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular);
+            this.Font = new Font("Microsoft YaHei UI", 10.0f, FontStyle.Regular);
 
             BuildLayout();
         }
@@ -85,8 +91,8 @@ namespace LanChat
         {
             _contentPanel = new Panel
             {
-                Location = new Point(220, 56),
-                Size = new Size(576, 500),
+                Location = new Point(252, 76),
+                Size = new Size(642, 540),
                 AutoScroll = true,
                 BackColor = Color.Transparent
             };
@@ -117,37 +123,46 @@ namespace LanChat
             Invalidate();
         }
 
-        #region Tab 0: 通用 (对标 Alis4.png)
+        #region Tab 0: 通用 (完全对标 Alis4.png 与 Image 3)
 
         private void BuildGeneralTab()
         {
-            int cardW = 550;
-            int curY = 10;
+            int curY = 6;
 
-            // 1. 账户卡片 (我的昵称与身份)
-            Panel cardUser = CreateCardPanel(cardW, 78);
+            // 1. 分组标签: "账户" (10.5pt 加粗 #8E8E93)
+            Label lblUser = CreateSectionHeader("账户", curY);
+            _contentPanel.Controls.Add(lblUser);
+            curY += 28;
+
+            // 账户信息大卡片 (高 82px)
+            Panel cardUser = CreateCardPanel(CARD_WIDTH, 82);
             cardUser.Location = new Point(0, curY);
 
-            // 头像徽章
-            int avSize = 46;
-            Rectangle avRect = new Rectangle(16, (78 - avSize) / 2, avSize, avSize);
+            int avSize = 48;
+            Rectangle avRect = new Rectangle(20, (82 - avSize) / 2, avSize, avSize);
             cardUser.Paint += (s, e) =>
             {
-                WeChatIcon.DrawMascotAvatarShape(e.Graphics, avRect, 0, Color.FromArgb(252, 44, 62), true, Color.FromArgb(26, 26, 30));
-                using (Font nf = new Font("Microsoft YaHei", 11f, FontStyle.Bold))
-                using (Font sf = new Font("Microsoft YaHei", 9f, FontStyle.Regular))
-                using (SolidBrush nb = new SolidBrush(Color.FromArgb(242, 242, 246)))
-                using (SolidBrush sb = new SolidBrush(Color.FromArgb(150, 150, 156)))
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+                // 头像绘制
+                WeChatIcon.DrawMascotAvatarShape(g, avRect, 0, Color.FromArgb(252, 44, 62), true, Color.FromArgb(28, 28, 31));
+
+                using (Font nf = new Font("Microsoft YaHei UI", 11.5f, FontStyle.Bold))
+                using (Font sf = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
+                using (SolidBrush nb = new SolidBrush(Color.FromArgb(245, 245, 247)))
+                using (SolidBrush sb = new SolidBrush(Color.FromArgb(142, 142, 147)))
                 {
                     string nick = _netService != null ? _netService.NickName : Environment.UserName;
-                    e.Graphics.DrawString(nick, nf, nb, new PointF(72, 18));
-                    e.Graphics.DrawString("主机: " + Environment.MachineName + " · 局域网在线", sf, sb, new PointF(72, 42));
+                    g.DrawString(nick, nf, nb, new PointF(80, 20));
+                    g.DrawString("主机: " + Environment.MachineName + " · 局域网在线", sf, sb, new PointF(80, 46));
                 }
             };
 
-            // "修改" 药丸按钮
-            Button btnEditNick = CreateCardActionButton("修改昵称", 86, 32);
-            btnEditNick.Location = new Point(cardW - 98, (78 - 32) / 2);
+            // "修改昵称" 药丸按钮 (高 32px)
+            Button btnEditNick = CreateCardActionButton("修改昵称", 96, 32);
+            btnEditNick.Location = new Point(CARD_WIDTH - 118, (82 - 32) / 2);
             btnEditNick.Click += (s, e) =>
             {
                 if (_onShowChangeNick != null)
@@ -159,51 +174,83 @@ namespace LanChat
             cardUser.Controls.Add(btnEditNick);
             _contentPanel.Controls.Add(cardUser);
 
-            curY += 92;
+            curY += 100;
 
-            // 2. 外观卡片 (对标 Alis4.png 下方外观大卡片)
-            Panel cardTheme = CreateCardPanel(cardW, 140);
+            // 2. 分组标签: "外观与偏好"
+            Label lblTheme = CreateSectionHeader("外观与偏好", curY);
+            _contentPanel.Controls.Add(lblTheme);
+            curY += 28;
+
+            // 外观大卡片 (3 行，每行 54px，总高 164px)
+            Panel cardTheme = CreateCardPanel(CARD_WIDTH, 164);
             cardTheme.Location = new Point(0, curY);
             cardTheme.Paint += (s, e) =>
             {
-                using (Font f = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular))
-                using (Font vf = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold))
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(220, 220, 225)))
-                using (SolidBrush vb = new SolidBrush(Color.FromArgb(170, 170, 178)))
-                using (Pen sepPen = new Pen(Color.FromArgb(38, 38, 44), 1f))
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+                using (Font f = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Regular))
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 244)))
+                using (Pen sepPen = new Pen(Color.FromArgb(38, 38, 43), 1f))
                 {
-                    // Row 1: 主题
-                    e.Graphics.DrawString("主题模式", f, tb, new PointF(20, 14));
-                    e.Graphics.DrawString("深色 (Grok Dark)  ›", vf, vb, new PointF(cardW - 160, 14));
-                    e.Graphics.DrawLine(sepPen, 20, 46, cardW - 20, 46);
+                    // Row 1 (y = 0..54)
+                    g.DrawString("主题模式", f, tb, new PointF(22, (54 - f.GetHeight(g)) / 2f));
+                    g.DrawLine(sepPen, 22, 54, CARD_WIDTH - 22, 54);
 
-                    // Row 2: 强调色
-                    e.Graphics.DrawString("强调色", f, tb, new PointF(20, 58));
-                    e.Graphics.DrawString("魅紫 (#7946D7)  ›", vf, vb, new PointF(cardW - 160, 58));
-                    e.Graphics.DrawLine(sepPen, 20, 92, cardW - 20, 92);
+                    // Row 2 (y = 54..108)
+                    g.DrawString("强调色", f, tb, new PointF(22, 54 + (54 - f.GetHeight(g)) / 2f));
+                    g.DrawLine(sepPen, 22, 108, CARD_WIDTH - 22, 108);
 
-                    // Row 3: 界面语言
-                    e.Graphics.DrawString("界面语言", f, tb, new PointF(20, 104));
-                    e.Graphics.DrawString("跟随系统 (简体中文)  ›", vf, vb, new PointF(cardW - 190, 104));
+                    // Row 3 (y = 108..162)
+                    g.DrawString("界面语言", f, tb, new PointF(22, 108 + (54 - f.GetHeight(g)) / 2f));
                 }
             };
+
+            // Row 1 右侧药丸胶囊: 深色 (Grok Dark)
+            Button btnThemePill = CreateDropdownPill("深色 (Grok Dark)  ∨", 160, 32);
+            btnThemePill.Location = new Point(CARD_WIDTH - 182, (54 - 32) / 2);
+            cardTheme.Controls.Add(btnThemePill);
+
+            // Row 2 右侧药丸胶囊: 魅紫 (#8E64DC)
+            Button btnAccentPill = CreateDropdownPill("魅紫 (#8E64DC)  ∨", 160, 32);
+            btnAccentPill.Location = new Point(CARD_WIDTH - 182, 54 + (54 - 32) / 2);
+            cardTheme.Controls.Add(btnAccentPill);
+
+            // Row 3 右侧药丸胶囊: 跟随系统 (简体中文)
+            Button btnLangPill = CreateDropdownPill("跟随系统 (简体中文)  ∨", 190, 32);
+            btnLangPill.Location = new Point(CARD_WIDTH - 212, 108 + (54 - 32) / 2);
+            cardTheme.Controls.Add(btnLangPill);
+
             _contentPanel.Controls.Add(cardTheme);
 
-            curY += 154;
+            curY += 182;
 
-            // 3. 反馈快捷卡片
-            Panel cardFk = CreateCardPanel(cardW, 64);
+            // 3. 分组标签: "支持与反馈"
+            Label lblFk = CreateSectionHeader("支持与反馈", curY);
+            _contentPanel.Controls.Add(lblFk);
+            curY += 28;
+
+            // 反馈快捷卡片 (高 72px)
+            Panel cardFk = CreateCardPanel(CARD_WIDTH, 72);
             cardFk.Location = new Point(0, curY);
             cardFk.Paint += (s, e) =>
             {
-                using (Font f = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular))
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(220, 220, 225)))
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+                using (Font f = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Regular))
+                using (Font sf = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 244)))
+                using (SolidBrush sb = new SolidBrush(Color.FromArgb(142, 142, 147)))
                 {
-                    e.Graphics.DrawString("意见与问题反馈", f, tb, new PointF(20, 22));
+                    g.DrawString("意见与问题反馈", f, tb, new PointF(22, 17));
+                    g.DrawString("帮助我们将 LanChat 打磨得更贴合你的直觉与习惯", sf, sb, new PointF(22, 41));
                 }
             };
-            Button btnOpenFk = CreateCardActionButton("发送反馈", 86, 32);
-            btnOpenFk.Location = new Point(cardW - 98, (64 - 32) / 2);
+            Button btnOpenFk = CreateCardActionButton("发送反馈", 96, 32);
+            btnOpenFk.Location = new Point(CARD_WIDTH - 118, (72 - 32) / 2);
             btnOpenFk.Click += (s, e) =>
             {
                 using (GrokFeedbackForm fk = new GrokFeedbackForm())
@@ -221,66 +268,86 @@ namespace LanChat
 
         private void BuildComputerTab()
         {
-            int cardW = 550;
-            int curY = 10;
+            int curY = 6;
 
-            // 1. 本机网络设备信息卡片 (对标 Alis5.png 管理设备)
-            Panel cardNet = CreateCardPanel(cardW, 90);
+            Label lblDev = CreateSectionHeader("网络设备", curY);
+            _contentPanel.Controls.Add(lblDev);
+            curY += 28;
+
+            // 本机设备卡片 (高 88px)
+            Panel cardNet = CreateCardPanel(CARD_WIDTH, 88);
             cardNet.Location = new Point(0, curY);
             cardNet.Paint += (s, e) =>
             {
-                Rectangle iconBox = new Rectangle(18, 22, 44, 44);
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+                Rectangle iconBox = new Rectangle(20, (88 - 46) / 2, 46, 46);
                 using (SolidBrush bb = new SolidBrush(Color.FromArgb(36, 36, 42)))
                 {
-                    MainForm.DrawRoundedRectangle(e.Graphics, bb, iconBox, 10);
+                    MainForm.DrawRoundedRectangle(g, bb, iconBox, 12);
                 }
-                WeChatIcon.Draw(e.Graphics, WeChatIconType.Contacts, new Rectangle(28, 32, 24, 24), false, Color.FromArgb(144, 90, 251));
+                WeChatIcon.Draw(g, WeChatIconType.Contacts, new Rectangle(iconBox.X + 11, iconBox.Y + 11, 24, 24), false, Color.FromArgb(142, 100, 220));
 
                 string ipStr = _netService != null ? _netService.GetPrimaryPhysicalIp().ToString() : "127.0.0.1";
                 int port = _netService != null ? _netService.LocalTcpPort : 38889;
 
-                using (Font nf = new Font("Microsoft YaHei", 10.5f, FontStyle.Bold))
-                using (Font sf = new Font("Microsoft YaHei", 9f, FontStyle.Regular))
-                using (SolidBrush nb = new SolidBrush(Color.FromArgb(242, 242, 246)))
-                using (SolidBrush sb = new SolidBrush(Color.FromArgb(150, 150, 156)))
+                using (Font nf = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Bold))
+                using (Font sf = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
+                using (SolidBrush nb = new SolidBrush(Color.FromArgb(245, 245, 247)))
+                using (SolidBrush sb = new SolidBrush(Color.FromArgb(142, 142, 147)))
                 {
-                    e.Graphics.DrawString(Environment.MachineName, nf, nb, new PointF(74, 22));
-                    e.Graphics.DrawString("IP 绑定: " + ipStr + ":" + port + "  ·  物理网卡 · 在线", sf, sb, new PointF(74, 46));
+                    g.DrawString(Environment.MachineName, nf, nb, new PointF(80, 22));
+                    g.DrawString("IP 绑定: " + ipStr + ":" + port + "  ·  物理以太网/Wi-Fi", sf, sb, new PointF(80, 48));
                 }
             };
+
+            // 在线状态药丸
+            Button btnStatusPill = CreateDropdownPill("● 局域网在线", 120, 32);
+            btnStatusPill.Location = new Point(CARD_WIDTH - 142, (88 - 32) / 2);
+            cardNet.Controls.Add(btnStatusPill);
             _contentPanel.Controls.Add(cardNet);
 
-            curY += 104;
+            curY += 106;
 
-            // 2. 文件传输与自动接收开关卡片
-            Panel cardFile = CreateCardPanel(cardW, 116);
+            Label lblPref = CreateSectionHeader("文件传输偏好", curY);
+            _contentPanel.Controls.Add(lblPref);
+            curY += 28;
+
+            // 文件传输大卡片 (2 行，每行 54px，总高 112px)
+            Panel cardFile = CreateCardPanel(CARD_WIDTH, 112);
             cardFile.Location = new Point(0, curY);
             bool autoAccept = _netService != null && _netService.AutoAcceptFiles;
             string saveDir = _netService != null ? _netService.SaveDirectory : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ReceivedFiles");
 
             cardFile.Paint += (s, e) =>
             {
-                using (Font f = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular))
-                using (Font sf = new Font("Microsoft YaHei", 8.5f, FontStyle.Regular))
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(220, 220, 225)))
-                using (SolidBrush sb = new SolidBrush(Color.FromArgb(140, 140, 146)))
-                using (Pen sep = new Pen(Color.FromArgb(38, 38, 44), 1f))
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+                using (Font f = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Regular))
+                using (Font sf = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 244)))
+                using (SolidBrush sb = new SolidBrush(Color.FromArgb(142, 142, 147)))
+                using (Pen sep = new Pen(Color.FromArgb(38, 38, 43), 1f))
                 {
-                    // Row 1: 自动接收
-                    e.Graphics.DrawString("自动接收好友文件", f, tb, new PointF(20, 14));
-                    e.Graphics.DrawString("局域网接收文件时无需手动每次确认", sf, sb, new PointF(20, 34));
-                    e.Graphics.DrawLine(sep, 20, 56, cardW - 20, 56);
+                    // Row 1: 自动接收好友文件
+                    g.DrawString("自动接收好友文件", f, tb, new PointF(22, 10));
+                    g.DrawString("局域网内接收文件时无需手动逐一确认保存", sf, sb, new PointF(22, 32));
+                    g.DrawLine(sep, 22, 56, CARD_WIDTH - 22, 56);
 
                     // Row 2: 存储目录
-                    e.Graphics.DrawString("文件保存目录", f, tb, new PointF(20, 68));
-                    string shortDir = saveDir.Length > 36 ? "..." + saveDir.Substring(saveDir.Length - 33) : saveDir;
-                    e.Graphics.DrawString(shortDir, sf, sb, new PointF(20, 88));
+                    g.DrawString("文件默认存储目录", f, tb, new PointF(22, 66));
+                    string shortDir = saveDir.Length > 44 ? "..." + saveDir.Substring(saveDir.Length - 41) : saveDir;
+                    g.DrawString(shortDir, sf, sb, new PointF(22, 88));
                 }
             };
 
             // 自动接收开关按钮 (药丸切换)
-            Button btnAutoAccept = CreateCardActionButton(autoAccept ? "已开启" : "已关闭", 78, 30);
-            btnAutoAccept.Location = new Point(cardW - 90, 16);
+            Button btnAutoAccept = CreateCardActionButton(autoAccept ? "已开启" : "已关闭", 84, 32);
+            btnAutoAccept.Location = new Point(CARD_WIDTH - 106, (56 - 32) / 2);
             btnAutoAccept.Click += (s, e) =>
             {
                 if (_netService != null)
@@ -294,8 +361,8 @@ namespace LanChat
             cardFile.Controls.Add(btnAutoAccept);
 
             // 打开接收目录按钮
-            Button btnOpenDir = CreateCardActionButton("打开目录", 78, 30);
-            btnOpenDir.Location = new Point(cardW - 90, 70);
+            Button btnOpenDir = CreateCardActionButton("打开文件夹", 96, 32);
+            btnOpenDir.Location = new Point(CARD_WIDTH - 118, 56 + (56 - 32) / 2);
             btnOpenDir.Click += (s, e) =>
             {
                 if (_onOpenFolder != null) _onOpenFolder();
@@ -311,47 +378,79 @@ namespace LanChat
 
         private void BuildUpdateTab()
         {
-            int cardW = 550;
-            int curY = 10;
+            int curY = 6;
 
-            // 对标 Alis7.png 经典更新卡片
-            Panel cardUpdate = CreateCardPanel(cardW, 110);
-            cardUpdate.Location = new Point(0, curY);
+            Label lblBanner = CreateSectionHeader("更新状态", curY);
+            _contentPanel.Controls.Add(lblBanner);
+            curY += 28;
 
-            cardUpdate.Paint += (s, e) =>
+            // 顶部版本横幅卡片 (对标 Alis7.png 经典更新卡片，深蓝微光底色)
+            Panel cardBanner = CreateCardPanel(CARD_WIDTH, 84);
+            cardBanner.Location = new Point(0, curY);
+            cardBanner.Paint += (s, e) =>
             {
-                using (Font f = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular))
-                using (Font sf = new Font("Microsoft YaHei", 8.5f, FontStyle.Regular))
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(220, 220, 225)))
-                using (SolidBrush sb = new SolidBrush(Color.FromArgb(140, 140, 146)))
-                using (Pen sep = new Pen(Color.FromArgb(38, 38, 44), 1f))
-                {
-                    // Row 1: 自动检查更新
-                    e.Graphics.DrawString("自动检查更新", f, tb, new PointF(20, 14));
-                    e.Graphics.DrawString("在程序启动与网络空闲时检测 GitHub 最新 Release", sf, sb, new PointF(20, 34));
-                    e.Graphics.DrawLine(sep, 20, 56, cardW - 20, 56);
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
-                    // Row 2: 版本状态
-                    e.Graphics.DrawString("版本 " + MainForm.APP_VERSION, f, tb, new PointF(20, 68));
-                    e.Graphics.DrawString("当前版本运行良好，已包含全套 Grok Bot 视觉对齐", sf, sb, new PointF(20, 88));
+                using (Font tf = new Font("Microsoft YaHei UI", 11.5f, FontStyle.Bold))
+                using (Font sf = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(245, 245, 250)))
+                using (SolidBrush sb = new SolidBrush(Color.FromArgb(142, 142, 147)))
+                {
+                    g.DrawString("LanChat v" + MainForm.APP_VERSION, tf, tb, new PointF(22, 18));
+                    g.DrawString("当前版本运行良好，已完整对齐 Grok Bot 全套暗黑规范", sf, sb, new PointF(22, 46));
                 }
             };
 
-            // 开关
-            Button btnAutoSw = CreateCardActionButton("已开启", 78, 30);
-            btnAutoSw.Location = new Point(cardW - 90, 16);
-            cardUpdate.Controls.Add(btnAutoSw);
-
-            // 检查更新按钮
-            Button btnCheck = CreateCardActionButton("检查更新", 84, 30);
-            btnCheck.Location = new Point(cardW - 96, 68);
-            btnCheck.Click += (s, e) =>
+            Button btnCheckNow = CreateCardActionButton("检查新版本", 106, 32);
+            btnCheckNow.Location = new Point(CARD_WIDTH - 128, (84 - 32) / 2);
+            btnCheckNow.Click += (s, e) =>
             {
                 if (_onCheckUpdate != null) _onCheckUpdate();
             };
-            cardUpdate.Controls.Add(btnCheck);
+            cardBanner.Controls.Add(btnCheckNow);
+            _contentPanel.Controls.Add(cardBanner);
 
-            _contentPanel.Controls.Add(cardUpdate);
+            curY += 102;
+
+            Label lblChannel = CreateSectionHeader("通道与偏好", curY);
+            _contentPanel.Controls.Add(lblChannel);
+            curY += 28;
+
+            // 更新通道大卡片 (2 行，每行 54px，总高 112px)
+            Panel cardChannel = CreateCardPanel(CARD_WIDTH, 112);
+            cardChannel.Location = new Point(0, curY);
+            cardChannel.Paint += (s, e) =>
+            {
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+                using (Font f = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Regular))
+                using (Font sf = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 244)))
+                using (SolidBrush sb = new SolidBrush(Color.FromArgb(142, 142, 147)))
+                using (Pen sep = new Pen(Color.FromArgb(38, 38, 43), 1f))
+                {
+                    g.DrawString("更新通道", f, tb, new PointF(22, 10));
+                    g.DrawString("接收经过全面测试与实机验证的正式发布版本", sf, sb, new PointF(22, 32));
+                    g.DrawLine(sep, 22, 56, CARD_WIDTH - 22, 56);
+
+                    g.DrawString("自动检查更新", f, tb, new PointF(22, 66));
+                    g.DrawString("程序启动与网络空闲时检测 GitHub Release", sf, sb, new PointF(22, 88));
+                }
+            };
+
+            Button btnChannelPill = CreateDropdownPill("正式稳定版 (Stable)  ∨", 175, 32);
+            btnChannelPill.Location = new Point(CARD_WIDTH - 197, (56 - 32) / 2);
+            cardChannel.Controls.Add(btnChannelPill);
+
+            Button btnAutoSw = CreateCardActionButton("已开启", 84, 32);
+            btnAutoSw.Location = new Point(CARD_WIDTH - 106, 56 + (56 - 32) / 2);
+            cardChannel.Controls.Add(btnAutoSw);
+
+            _contentPanel.Controls.Add(cardChannel);
         }
 
         #endregion
@@ -360,53 +459,71 @@ namespace LanChat
 
         private void BuildAboutTab()
         {
-            int cardW = 550;
+            int curY = 6;
 
-            Panel cardAbout = CreateCardPanel(cardW, 260);
-            cardAbout.Location = new Point(0, 10);
+            Label lblAbout = CreateSectionHeader("关于产品", curY);
+            _contentPanel.Controls.Add(lblAbout);
+            curY += 28;
+
+            Panel cardAbout = CreateCardPanel(CARD_WIDTH, 340);
+            cardAbout.Location = new Point(0, curY);
 
             cardAbout.Paint += (s, e) =>
             {
                 Graphics g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
-                // 居中 Squircle 吉祥物徽章
-                int bSize = 72;
-                int bx = (cardW - bSize) / 2;
-                int by = 26;
+                // 居中 Squircle 吉祥物徽章 (68x68)
+                int bSize = 68;
+                int bx = (CARD_WIDTH - bSize) / 2;
+                int by = 24;
                 Rectangle bRect = new Rectangle(bx, by, bSize, bSize);
 
-                using (SolidBrush bb = new SolidBrush(Color.FromArgb(38, 38, 42)))
-                using (Pen bp = new Pen(Color.FromArgb(54, 54, 60), 1f))
+                using (SolidBrush bb = new SolidBrush(Color.FromArgb(36, 36, 42)))
+                using (Pen bp = new Pen(Color.FromArgb(52, 52, 60), 1f))
                 {
-                    MainForm.DrawRoundedRectangle(g, bb, bRect, 20);
-                    MainForm.DrawRoundedRectangle(g, bp, bRect, 20);
+                    MainForm.DrawRoundedRectangle(g, bb, bRect, 18);
+                    MainForm.DrawRoundedRectangle(g, bp, bRect, 18);
                 }
 
-                Rectangle mRect = new Rectangle(bx + 10, by + 10, 52, 52);
-                WeChatIcon.DrawMascotAvatarShape(g, mRect, 0, Color.FromArgb(240, 240, 245), false, Color.Transparent);
+                Rectangle mRect = new Rectangle(bx + 9, by + 9, 50, 50);
+                WeChatIcon.DrawMascotAvatarShape(g, mRect, 0, Color.FromArgb(245, 245, 250), false, Color.Transparent);
 
                 // 文字说明
-                using (Font tf = new Font("Microsoft YaHei", 14f, FontStyle.Bold))
-                using (Font sf = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular))
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(245, 245, 250)))
-                using (SolidBrush sb = new SolidBrush(Color.FromArgb(160, 160, 168)))
+                using (Font tf = new Font("Microsoft YaHei UI", 15f, FontStyle.Bold))
+                using (Font mf = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular))
+                using (Font sf = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(250, 250, 255)))
+                using (SolidBrush mb = new SolidBrush(Color.FromArgb(170, 170, 178)))
+                using (SolidBrush sb = new SolidBrush(Color.FromArgb(130, 130, 138)))
                 {
                     StringFormat csf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    g.DrawString("LanChat", tf, tb, new RectangleF(0, by + bSize + 12, cardW, 26), csf);
-                    g.DrawString("版本 " + MainForm.APP_VERSION + " · 构建于 2026年10月25日", sf, sb, new RectangleF(0, by + bSize + 40, cardW, 22), csf);
-                    g.DrawString("版权所有 © 2026 Aritex LanChat · 100% Grok Bot 视觉对标", sf, sb, new RectangleF(0, by + bSize + 62, cardW, 22), csf);
+                    g.DrawString("LanChat", tf, tb, new RectangleF(0, by + bSize + 12, CARD_WIDTH, 26), csf);
+                    g.DrawString("版本 " + MainForm.APP_VERSION + " · Grok Bot 100% 视觉对标标准", mf, mb, new RectangleF(0, by + bSize + 40, CARD_WIDTH, 22), csf);
+                    g.DrawString("局域网秒级多点通讯 · 原生高性能零依赖架构", sf, sb, new RectangleF(0, by + bSize + 64, CARD_WIDTH, 20), csf);
+                    g.DrawString("版权所有 © 2026 Aritex LanChat Team. All rights reserved.", sf, sb, new RectangleF(0, by + bSize + 84, CARD_WIDTH, 20), csf);
                 }
             };
 
-            // 复制信息按钮
-            Button btnCopy = CreateCardActionButton("复制版本信息", 120, 34);
-            btnCopy.Location = new Point((cardW - 120) / 2, 196);
+            // 操作药丸按钮
+            Button btnCheck = CreateCardActionButton("检查新版本", 116, 34);
+            btnCheck.Location = new Point(CARD_WIDTH / 2 - 126, 260);
+            btnCheck.Click += (s, e) =>
+            {
+                if (_onCheckUpdate != null) _onCheckUpdate();
+            };
+            cardAbout.Controls.Add(btnCheck);
+
+            Button btnCopy = CreateCardActionButton("复制诊断信息", 116, 34);
+            btnCopy.Location = new Point(CARD_WIDTH / 2 + 10, 260);
             btnCopy.Click += (s, e) =>
             {
                 try
                 {
-                    Clipboard.SetText("LanChat v" + MainForm.APP_VERSION + "\n局域网秒级通讯与文件传输\nUI: 100% 对标 Grok Bot");
+                    string info = string.Format("LanChat v{0}\nOS: {1}\nMachine: {2}\nCLR: {3}\nDesign: GrokBot UI System v2.1",
+                        MainForm.APP_VERSION, Environment.OSVersion, Environment.MachineName, Environment.Version);
+                    Clipboard.SetText(info);
                     btnCopy.Text = "已复制 ✓";
                 }
                 catch { }
@@ -418,7 +535,21 @@ namespace LanChat
 
         #endregion
 
-        #region UI Helpers
+        #region UI Component Helpers
+
+        private Label CreateSectionHeader(string text, int curY)
+        {
+            Label lbl = new Label
+            {
+                Text = text,
+                Location = new Point(2, curY),
+                Size = new Size(300, 22),
+                Font = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(142, 142, 147), // #8E8E93
+                BackColor = Color.Transparent
+            };
+            return lbl;
+        }
 
         private Panel CreateCardPanel(int w, int h)
         {
@@ -431,11 +562,11 @@ namespace LanChat
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 Rectangle r = new Rectangle(0, 0, w - 1, h - 1);
-                using (SolidBrush b = new SolidBrush(Color.FromArgb(26, 26, 30)))
-                using (Pen pen = new Pen(Color.FromArgb(42, 42, 48), 1f))
+                using (SolidBrush b = new SolidBrush(Color.FromArgb(28, 28, 31))) // #1C1C1F
+                using (Pen pen = new Pen(Color.FromArgb(44, 44, 50), 1f))        // #2C2C32
                 {
-                    MainForm.DrawRoundedRectangle(e.Graphics, b, r, 14);
-                    MainForm.DrawRoundedRectangle(e.Graphics, pen, r, 14);
+                    MainForm.DrawRoundedRectangle(e.Graphics, b, r, 16);
+                    MainForm.DrawRoundedRectangle(e.Graphics, pen, r, 16);
                 }
             };
             return p;
@@ -450,7 +581,7 @@ namespace LanChat
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei", 9.0f, FontStyle.Bold)
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)
             };
             btn.FlatAppearance.BorderSize = 0;
             btn.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -462,18 +593,60 @@ namespace LanChat
 
             btn.Paint += (s, e) =>
             {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
                 Rectangle r = new Rectangle(0, 0, btn.Width - 1, btn.Height - 1);
-                using (SolidBrush b = new SolidBrush(hover ? Color.FromArgb(50, 50, 56) : Color.FromArgb(36, 36, 40)))
-                using (Pen p = new Pen(Color.FromArgb(54, 54, 60), 1f))
+                using (SolidBrush b = new SolidBrush(hover ? Color.FromArgb(56, 56, 64) : Color.FromArgb(42, 42, 48)))
+                using (Pen p = new Pen(Color.FromArgb(60, 60, 68), 1f))
                 {
-                    MainForm.DrawRoundedRectangle(e.Graphics, b, r, 15);
-                    MainForm.DrawRoundedRectangle(e.Graphics, p, r, 15);
+                    MainForm.DrawRoundedRectangle(g, b, r, 16);
+                    MainForm.DrawRoundedRectangle(g, p, r, 16);
                 }
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(225, 225, 230)))
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(242, 242, 246)))
                 {
                     StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString(btn.Text, btn.Font, tb, new RectangleF(0, 1, btn.Width, btn.Height), sf);
+                    g.DrawString(btn.Text, btn.Font, tb, new RectangleF(0, 0, btn.Width, btn.Height), sf);
+                }
+            };
+            return btn;
+        }
+
+        private Button CreateDropdownPill(string text, int w, int h)
+        {
+            Button btn = new Button
+            {
+                Text = text,
+                Size = new Size(w, h),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent,
+                Cursor = Cursors.Hand,
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular)
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            btn.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            btn.FlatAppearance.MouseDownBackColor = Color.Transparent;
+
+            bool hover = false;
+            btn.MouseEnter += (s, e) => { hover = true; btn.Invalidate(); };
+            btn.MouseLeave += (s, e) => { hover = false; btn.Invalidate(); };
+
+            btn.Paint += (s, e) =>
+            {
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                Rectangle r = new Rectangle(0, 0, btn.Width - 1, btn.Height - 1);
+                using (SolidBrush b = new SolidBrush(hover ? Color.FromArgb(46, 46, 52) : Color.FromArgb(36, 36, 40)))
+                using (Pen p = new Pen(Color.FromArgb(50, 50, 56), 1f))
+                {
+                    MainForm.DrawRoundedRectangle(g, b, r, 16);
+                    MainForm.DrawRoundedRectangle(g, p, r, 16);
+                }
+                using (SolidBrush tb = new SolidBrush(hover ? Color.White : Color.FromArgb(224, 224, 229)))
+                {
+                    StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                    g.DrawString(btn.Text, btn.Font, tb, new RectangleF(0, 0, btn.Width, btn.Height), sf);
                 }
             };
             return btn;
@@ -489,21 +662,21 @@ namespace LanChat
             if (e.Button == MouseButtons.Left)
             {
                 // 关闭按钮
-                Rectangle closeRect = new Rectangle(this.Width - 38, 16, 22, 22);
+                Rectangle closeRect = new Rectangle(this.Width - 44, 20, 28, 28);
                 if (closeRect.Contains(e.Location))
                 {
                     this.Close();
                     return;
                 }
 
-                // 检查左侧导航选项卡点击 (width 200)
-                if (e.X < 200 && e.Y > 50)
+                // 检查左侧导航选项卡点击 (width 220)
+                if (e.X < SIDEBAR_WIDTH && e.Y > 60)
                 {
-                    int itemH = 44;
-                    int startY = 60;
+                    int itemH = 46;
+                    int startY = 72;
                     for (int i = 0; i < 4; i++)
                     {
-                        Rectangle itemR = new Rectangle(14, startY + i * itemH, 186, itemH - 4);
+                        Rectangle itemR = new Rectangle(16, startY + i * itemH, 188, 42);
                         if (itemR.Contains(e.Location))
                         {
                             _activeTab = i;
@@ -525,7 +698,7 @@ namespace LanChat
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
-            Rectangle closeRect = new Rectangle(this.Width - 38, 16, 22, 22);
+            Rectangle closeRect = new Rectangle(this.Width - 44, 20, 28, 28);
             bool cHover = closeRect.Contains(e.Location);
             if (cHover != _isCloseHover)
             {
@@ -535,13 +708,13 @@ namespace LanChat
 
             int oldTab = _hoverTab;
             _hoverTab = -1;
-            if (e.X < 200 && e.Y > 50)
+            if (e.X < SIDEBAR_WIDTH && e.Y > 60)
             {
-                int itemH = 44;
-                int startY = 60;
+                int itemH = 46;
+                int startY = 72;
                 for (int i = 0; i < 4; i++)
                 {
-                    Rectangle itemR = new Rectangle(14, startY + i * itemH, 186, itemH - 4);
+                    Rectangle itemR = new Rectangle(16, startY + i * itemH, 188, 42);
                     if (itemR.Contains(e.Location))
                     {
                         _hoverTab = i;
@@ -551,7 +724,7 @@ namespace LanChat
             }
             if (_hoverTab != oldTab)
             {
-                Invalidate(new Rectangle(10, 50, 195, 200));
+                Invalidate(new Rectangle(12, 60, 200, 220));
             }
         }
 
@@ -569,83 +742,86 @@ namespace LanChat
             base.OnPaint(e);
             Graphics g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
-            // 1. 背景与外边框
-            using (Pen borderPen = new Pen(Color.FromArgb(46, 46, 52), 1f))
+            // 1. 左侧侧边栏纯黑底色基板 (Level 0: #0E0E0E，绝无竖向单线，纯靠底色差过渡)
+            using (SolidBrush sideBrush = new SolidBrush(Color.FromArgb(14, 14, 14)))
             {
-                MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 16);
+                g.FillRectangle(sideBrush, 0, 0, SIDEBAR_WIDTH, this.Height);
             }
 
-            // 2. 左侧侧边栏竖向分割线 (x = 206)
-            using (Pen divPen = new Pen(Color.FromArgb(34, 34, 38), 1f))
+            // 2. 外部 1px 微妙圆角描边
+            using (Pen borderPen = new Pen(Color.FromArgb(44, 44, 50), 1f))
             {
-                g.DrawLine(divPen, 206, 0, 206, this.Height);
+                MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 16);
             }
 
             // 3. 左侧导航选项卡
             string[] tabNames = new string[] { "通用", "电脑", "更新", "关于" };
             WeChatIconType[] tabIcons = new WeChatIconType[] { WeChatIconType.Settings, WeChatIconType.Contacts, WeChatIconType.Refresh, WeChatIconType.User };
-            int startY = 60;
-            int itemH = 44;
+            int startY = 72;
+            int itemH = 46;
 
-            using (Font tabFont = new Font("Microsoft YaHei", 10.0f, FontStyle.Regular))
+            using (Font tabFont = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Regular))
+            using (Font tabActiveFont = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Bold))
             {
                 for (int i = 0; i < tabNames.Length; i++)
                 {
                     int iy = startY + i * itemH;
-                    Rectangle itemR = new Rectangle(14, iy, 182, itemH - 4);
+                    Rectangle itemR = new Rectangle(16, iy, 188, 42);
 
                     if (_activeTab == i)
                     {
-                        // 激活态圆角背景
-                        using (SolidBrush ab = new SolidBrush(Color.FromArgb(38, 38, 44)))
+                        // 激活态圆角背景卡片 (#242428)
+                        using (SolidBrush ab = new SolidBrush(Color.FromArgb(36, 36, 40)))
                         {
-                            MainForm.DrawRoundedRectangle(g, ab, itemR, 8);
+                            MainForm.DrawRoundedRectangle(g, ab, itemR, 10);
                         }
                     }
                     else if (_hoverTab == i)
                     {
-                        using (SolidBrush hb = new SolidBrush(Color.FromArgb(28, 28, 32)))
+                        using (SolidBrush hb = new SolidBrush(Color.FromArgb(26, 26, 30)))
                         {
-                            MainForm.DrawRoundedRectangle(g, hb, itemR, 8);
+                            MainForm.DrawRoundedRectangle(g, hb, itemR, 10);
                         }
                     }
 
                     // 图标与文字
-                    Rectangle iconR = new Rectangle(28, iy + (itemH - 4 - 18) / 2, 18, 18);
-                    Color ic = (_activeTab == i) ? Color.White : Color.FromArgb(170, 170, 178);
+                    Rectangle iconR = new Rectangle(itemR.X + 16, iy + (42 - 18) / 2, 18, 18);
+                    Color ic = (_activeTab == i) ? Color.White : (_hoverTab == i ? Color.FromArgb(200, 200, 208) : Color.FromArgb(142, 142, 147));
                     WeChatIcon.Draw(g, tabIcons[i], iconR, false, ic);
 
-                    Color tc = (_activeTab == i) ? Color.White : Color.FromArgb(190, 190, 198);
+                    Color tc = (_activeTab == i) ? Color.FromArgb(245, 245, 247) : (_hoverTab == i ? Color.FromArgb(212, 212, 218) : Color.FromArgb(142, 142, 147));
+                    Font tf = (_activeTab == i) ? tabActiveFont : tabFont;
                     using (SolidBrush tb = new SolidBrush(tc))
                     {
-                        g.DrawString(tabNames[i], tabFont, tb, new PointF(58, iy + (itemH - 4 - tabFont.GetHeight(g)) / 2f));
+                        g.DrawString(tabNames[i], tf, tb, new PointF(itemR.X + 46, iy + (42 - tf.GetHeight(g)) / 2f));
                     }
                 }
             }
 
-            // 4. 右侧顶部标题
+            // 4. 右侧顶部大标题 (18.0pt 加粗明亮纯白 #FFFFFF，对齐 Alis4.png)
             string[] titles = new string[] { "通用", "电脑与网络", "软件更新", "关于 LanChat" };
-            using (Font titleFont = new Font("Microsoft YaHei", 14f, FontStyle.Bold))
-            using (SolidBrush tb = new SolidBrush(Color.FromArgb(245, 245, 250)))
+            using (Font titleFont = new Font("Microsoft YaHei UI", 18f, FontStyle.Bold))
+            using (SolidBrush tb = new SolidBrush(Color.White))
             {
-                g.DrawString(titles[_activeTab], titleFont, tb, new PointF(220, 18));
+                g.DrawString(titles[_activeTab], titleFont, tb, new PointF(252, 28));
             }
 
             // 5. 右上角极简关闭叉叉 (×)
-            Rectangle closeRect = new Rectangle(this.Width - 38, 16, 22, 22);
+            Rectangle closeRect = new Rectangle(this.Width - 44, 20, 28, 28);
             if (_isCloseHover)
             {
-                using (SolidBrush hb = new SolidBrush(Color.FromArgb(48, 48, 54)))
+                using (SolidBrush hb = new SolidBrush(Color.FromArgb(46, 46, 52)))
                 {
                     g.FillEllipse(hb, closeRect);
                 }
             }
-            using (Pen cp = new Pen(_isCloseHover ? Color.White : Color.FromArgb(160, 160, 166), 1.5f))
+            using (Pen cp = new Pen(_isCloseHover ? Color.White : Color.FromArgb(142, 142, 147), 1.6f))
             {
                 cp.StartCap = LineCap.Round;
                 cp.EndCap = LineCap.Round;
-                int pad = 5;
+                int pad = 8;
                 g.DrawLine(cp, closeRect.X + pad, closeRect.Y + pad, closeRect.Right - pad, closeRect.Bottom - pad);
                 g.DrawLine(cp, closeRect.Right - pad, closeRect.Y + pad, closeRect.X + pad, closeRect.Bottom - pad);
             }

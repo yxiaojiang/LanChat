@@ -221,9 +221,9 @@ namespace LanChat
                 MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 16);
             }
 
-            // 2. 标题 "发送反馈" (14pt Bold)
-            using (Font titleFont = new Font("Microsoft YaHei", 13.5f, FontStyle.Bold))
-            using (SolidBrush tb = new SolidBrush(Color.FromArgb(245, 245, 250)))
+            // 2. 标题 "发送反馈" (18.0pt 加粗明亮白)
+            using (Font titleFont = new Font("Microsoft YaHei UI", 18f, FontStyle.Bold))
+            using (SolidBrush tb = new SolidBrush(Color.FromArgb(250, 250, 255)))
             {
                 g.DrawString("发送反馈", titleFont, tb, new PointF(26, 18));
             }
