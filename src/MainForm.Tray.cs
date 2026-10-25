@@ -80,57 +80,42 @@ namespace LanChat
 
         private void BtnAvatar_Click(object sender, EventArgs e)
         {
-            ContextMenuStrip menu = new ContextMenuStrip();
-            menu.Renderer = new WeChatDarkMenuRenderer();
-            menu.ShowImageMargin = false;
-            menu.ShowCheckMargin = false;
-            menu.BackColor = Color.FromArgb(30, 30, 32);
-            menu.ForeColor = Color.FromArgb(235, 235, 240);
-
-            string myNick = _netService != null ? _netService.NickName : Environment.UserName;
-            IPAddress ip = _netService != null ? _netService.GetPrimaryPhysicalIp() : IPAddress.Loopback;
-            int port = _netService != null ? _netService.LocalTcpPort : 38889;
-
-            menu.Items.Add(new ToolStripMenuItem("👤 我的昵称: " + myNick) { Enabled = false });
-            menu.Items.Add(new ToolStripMenuItem(string.Format("🌐 本机地址: {0}:{1}", ip, port)) { Enabled = false });
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("✏️ 修改昵称...", null, (s, ev) => ShowChangeNickDialog());
-            menu.Items.Add("📂 打开接收文件夹", null, (s, ev) => OpenReceivedFolder());
-
-            menu.Show(_btnAvatar, new Point((_btnAvatar.Width - 160) / 2, _btnAvatar.Height - 6));
+            BtnSettings_Click(sender, e);
         }
 
         private void BtnSettings_Click(object sender, EventArgs e)
         {
-            ContextMenuStrip menu = new ContextMenuStrip();
-            menu.Renderer = new WeChatDarkMenuRenderer();
-            menu.ShowImageMargin = false;
-            menu.ShowCheckMargin = true;
-            menu.BackColor = Color.FromArgb(30, 30, 32);
-            menu.ForeColor = Color.FromArgb(235, 235, 240);
-
-            menu.Items.Add("✏️ 修改我的昵称...", null, (s, ev) => ShowChangeNickDialog());
-            var autoItem = new ToolStripMenuItem("⚡ 自动接收文件") { Checked = _netService != null && _netService.AutoAcceptFiles };
-            autoItem.Click += (s, ev) => {
-                _netService.AutoAcceptFiles = !_netService.AutoAcceptFiles;
-                AppendChatSystem(_netService.AutoAcceptFiles ? "⚡ 已开启自动接收文件" : "⏸ 已暂停自动接收文件");
-            };
-            menu.Items.Add(autoItem);
-            menu.Items.Add("📁 打开接收文件夹", null, (s, ev) => OpenReceivedFolder());
-            menu.Items.Add("🧹 清空当前聊天记录", null, (s, ev) => ClearCurrentChat());
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("🔄 检查新版本...", null, (s, ev) => CheckForUpdates(false));
-            menu.Items.Add("ℹ️ 关于 LanChat (Grok Bot 风格版)", null, (s, ev) => {
-                MessageBox.Show(this, "LanChat v" + APP_VERSION + "\n局域网秒级极速通讯与文件互传\nUI: Grok Bot 极简纯黑视觉 (100% 像素级复刻)\n零外部运行环境依赖\n开源主页: https://github.com/" + GITHUB_REPO, "关于 LanChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            });
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("🚪 退出 LanChat", null, (s, ev) => {
-                _isExplicitExit = true;
-                this.Close();
-            });
-
             Control anchor = (sender as Control) ?? _btnBottomUser ?? _btnAvatar;
-            menu.Show(anchor, new Point(0, -menu.PreferredSize.Height - 6));
+            Point screenPt = anchor.PointToScreen(Point.Empty);
+            int menuH = 368;
+            int x = screenPt.X;
+            int y = screenPt.Y - menuH - 8;
+
+            // 若上方空间不足（如靠顶部的 Hero 头像点击），向下弹出
+            if (y < 40)
+            {
+                y = screenPt.Y + anchor.Height + 8;
+            }
+
+            GrokSettingsMenuForm menu = new GrokSettingsMenuForm(
+                _netService,
+                () => CheckForUpdates(false),
+                () => ShowChangeNickDialog(),
+                () => OpenReceivedFolder(),
+                () => ClearCurrentChat(),
+                () => ShowAboutDialog(),
+                () => {
+                    _isExplicitExit = true;
+                    this.Close();
+                }
+            );
+            menu.Location = new Point(x, y);
+            menu.Show(this);
+        }
+
+        private void ShowAboutDialog()
+        {
+            MessageBox.Show(this, "LanChat v" + APP_VERSION + "\n局域网秒级极速通讯与文件互传\nUI: Grok Bot 极简现代纯黑视觉 (100% 像素级复刻)\n零外部运行环境依赖\n开源主页: https://github.com/" + GITHUB_REPO, "关于 LanChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void ShowChangeNickDialog()

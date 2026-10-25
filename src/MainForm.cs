@@ -218,11 +218,21 @@ namespace LanChat
             if (this.WindowState == FormWindowState.Maximized)
             {
                 this.WindowState = FormWindowState.Normal;
+                if (_btnWinMax != null)
+                {
+                    _btnWinMax.IconType = WeChatIconType.WinMax;
+                    _btnWinMax.TooltipText = "最大化";
+                }
             }
             else
             {
                 this.MaximizedBounds = Screen.FromHandle(this.Handle).WorkingArea;
                 this.WindowState = FormWindowState.Maximized;
+                if (_btnWinMax != null)
+                {
+                    _btnWinMax.IconType = WeChatIconType.WinRestore;
+                    _btnWinMax.TooltipText = "向下还原";
+                }
             }
             Invalidate(true);
         }
@@ -520,40 +530,51 @@ namespace LanChat
             };
             _chatHeader.Resize += (s, e) => _chatHeader.Invalidate();
 
-            // Window control buttons at top-right (— □ ×)
-            FlowLayoutPanel winCtrlFlow = new FlowLayoutPanel
+            // Window control buttons at top-right (— □ ×) (Grok Bot 56x64 矩形无缝标题栏按钮，对标 Alis3.png)
+            Panel winCtrlPanel = new Panel
             {
                 Dock = DockStyle.Right,
-                AutoSize = true,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
+                Width = 168,
+                Height = 64,
                 BackColor = Color.Transparent,
-                Padding = new Padding(0, 10, 12, 0)
+                Margin = new Padding(0),
+                Padding = new Padding(0)
             };
 
-            _btnWinMin = new WeChatIconButton(WeChatIconType.WinMin, "最小化", 36)
+            _btnWinMin = new WeChatIconButton(WeChatIconType.WinMin, "最小化", 56)
             {
-                IconColor = Color.FromArgb(170, 170, 175),
-                HoverFillColor = Color.FromArgb(38, 38, 40)
+                Location = new Point(0, 0),
+                Size = new Size(56, 64),
+                IconColor = Color.FromArgb(205, 205, 210),
+                HoverFillColor = Color.FromArgb(55, 55, 58),
+                IsCircle = false
             };
             _btnWinMin.Click += (s, e) => { this.WindowState = FormWindowState.Minimized; };
 
-            _btnWinMax = new WeChatIconButton(WeChatIconType.WinMax, "最大化 / 还原", 36)
+            _btnWinMax = new WeChatIconButton(WeChatIconType.WinMax, "最大化", 56)
             {
-                IconColor = Color.FromArgb(170, 170, 175),
-                HoverFillColor = Color.FromArgb(38, 38, 40)
+                Location = new Point(56, 0),
+                Size = new Size(56, 64),
+                IconColor = Color.FromArgb(205, 205, 210),
+                HoverFillColor = Color.FromArgb(55, 55, 58),
+                IsCircle = false
             };
             _btnWinMax.Click += (s, e) => ToggleMaximize();
 
-            _btnWinClose = new WeChatIconButton(WeChatIconType.WinClose, "隐藏到托盘", 36)
+            _btnWinClose = new WeChatIconButton(WeChatIconType.WinClose, "关闭", 56)
             {
-                IconColor = Color.FromArgb(170, 170, 175),
-                IsWindowClose = true
+                Location = new Point(112, 0),
+                Size = new Size(56, 64),
+                IconColor = Color.FromArgb(205, 205, 210),
+                IsWindowClose = true,
+                IsCircle = false
             };
             _btnWinClose.Click += (s, e) => this.Close();
 
-            winCtrlFlow.Controls.AddRange(new Control[] { _btnWinMin, _btnWinMax, _btnWinClose });
-            _chatHeader.Controls.Add(winCtrlFlow);
+            winCtrlPanel.Controls.Add(_btnWinMin);
+            winCtrlPanel.Controls.Add(_btnWinMax);
+            winCtrlPanel.Controls.Add(_btnWinClose);
+            _chatHeader.Controls.Add(winCtrlPanel);
 
             // 2.2 Collapsible Transfer Progress Banner
             _progressPanel = new Panel
@@ -754,6 +775,20 @@ namespace LanChat
         private void UpdateResponsiveLayout()
         {
             if (this.Width <= 200 || this.Height <= 200) return;
+
+            if (_btnWinMax != null)
+            {
+                if (this.WindowState == FormWindowState.Maximized)
+                {
+                    _btnWinMax.IconType = WeChatIconType.WinRestore;
+                    _btnWinMax.TooltipText = "向下还原";
+                }
+                else
+                {
+                    _btnWinMax.IconType = WeChatIconType.WinMax;
+                    _btnWinMax.TooltipText = "最大化";
+                }
+            }
 
             // 1. 左侧边栏宽度在正常桌面尺寸下严格固定为 420px（对标 Grok Bot 原生两张截图无论最大化还是缩小均固定 420px）
             int targetSidebarW = 420;

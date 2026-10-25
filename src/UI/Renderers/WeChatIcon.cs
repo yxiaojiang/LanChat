@@ -29,7 +29,12 @@ namespace LanChat
         UpArrow,
         WinMin,
         WinMax,
-        WinClose
+        WinRestore,
+        WinClose,
+        User,
+        Bolt,
+        Settings,
+        Logout
     }
 
     /// <summary>
@@ -98,8 +103,23 @@ namespace LanChat
                 case WeChatIconType.WinMax:
                     DrawWinMaxIcon(g, bounds, color);
                     break;
+                case WeChatIconType.WinRestore:
+                    DrawWinRestoreIcon(g, bounds, color);
+                    break;
                 case WeChatIconType.WinClose:
                     DrawWinCloseIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.User:
+                    DrawUserIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.Bolt:
+                    DrawBoltIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.Settings:
+                    DrawSettingsIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.Logout:
+                    DrawLogoutIcon(g, bounds, color);
                     break;
             }
         }
@@ -522,37 +542,118 @@ namespace LanChat
             }
         }
 
-        // 17. Frameless Window Minimize Icon (—)
+        // 17. Frameless Window Minimize Icon (—，对标 Alis3.png: 13px 宽水平细线)
         public static void DrawWinMinIcon(Graphics g, Rectangle r, Color color)
         {
             using (Pen p = new Pen(color, 1.2f))
             {
                 float cx = r.X + r.Width / 2f;
                 float cy = r.Y + r.Height / 2f;
-                g.DrawLine(p, cx - 5f, cy, cx + 5f, cy);
+                g.DrawLine(p, cx - 6.5f, cy, cx + 6.5f, cy);
             }
         }
 
-        // 18. Frameless Window Maximize Icon (□)
+        // 18. Frameless Window Maximize Icon (□，对标 Alis3.png: 13x13px 空心正方形)
         public static void DrawWinMaxIcon(Graphics g, Rectangle r, Color color)
         {
             using (Pen p = new Pen(color, 1.2f))
             {
                 float cx = r.X + r.Width / 2f;
                 float cy = r.Y + r.Height / 2f;
-                g.DrawRectangle(p, cx - 4.5f, cy - 4.5f, 9f, 9f);
+                g.DrawRectangle(p, cx - 6.5f, cy - 6.5f, 13f, 13f);
             }
         }
 
-        // 19. Frameless Window Close Icon (×)
-        public static void DrawWinCloseIcon(Graphics g, Rectangle r, Color color)
+        // 18b. Frameless Window Restore Icon (双层重叠方块，对标还原态)
+        public static void DrawWinRestoreIcon(Graphics g, Rectangle r, Color color)
         {
-            using (Pen p = new Pen(color, 1.3f))
+            using (Pen p = new Pen(color, 1.2f))
             {
                 float cx = r.X + r.Width / 2f;
                 float cy = r.Y + r.Height / 2f;
-                g.DrawLine(p, cx - 4.5f, cy - 4.5f, cx + 4.5f, cy + 4.5f);
-                g.DrawLine(p, cx + 4.5f, cy - 4.5f, cx - 4.5f, cy + 4.5f);
+                // 后层方块
+                g.DrawRectangle(p, cx - 3.5f, cy - 6.5f, 10f, 10f);
+                // 前层方块底色遮罩与边框
+                using (SolidBrush bg = new SolidBrush(Color.FromArgb(18, 18, 18)))
+                {
+                    g.FillRectangle(bg, cx - 6.5f, cy - 3.5f, 10f, 10f);
+                }
+                g.DrawRectangle(p, cx - 6.5f, cy - 3.5f, 10f, 10f);
+            }
+        }
+
+        // 19. Frameless Window Close Icon (×，对标 Alis3.png: 13x13px 交叉细线)
+        public static void DrawWinCloseIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.2f))
+            {
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                g.DrawLine(p, cx - 6.5f, cy - 6.5f, cx + 6.5f, cy + 6.5f);
+                g.DrawLine(p, cx + 6.5f, cy - 6.5f, cx - 6.5f, cy + 6.5f);
+            }
+        }
+
+        // 20. Menu User / Nick Icon
+        public static void DrawUserIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.4f))
+            {
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                g.DrawEllipse(p, cx - 3.5f, cy - 7f, 7f, 7f);
+                g.DrawArc(p, cx - 7f, cy - 1f, 14f, 13f, 200, 140);
+            }
+        }
+
+        // 21. Menu Bolt / Flash Icon
+        public static void DrawBoltIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.4f))
+            {
+                p.LineJoin = LineJoin.Round;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                PointF[] pts = new PointF[] {
+                    new PointF(cx + 1f, cy - 7f),
+                    new PointF(cx - 5f, cy),
+                    new PointF(cx, cy),
+                    new PointF(cx - 1f, cy + 7f),
+                    new PointF(cx + 5f, cy),
+                    new PointF(cx, cy)
+                };
+                g.DrawPolygon(p, pts);
+            }
+        }
+
+        // 22. Menu Settings / Gear Icon
+        public static void DrawSettingsIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.4f))
+            {
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                g.DrawEllipse(p, cx - 3f, cy - 3f, 6f, 6f);
+                g.DrawEllipse(p, cx - 6f, cy - 6f, 12f, 12f);
+            }
+        }
+
+        // 23. Menu Logout / Door Icon
+        public static void DrawLogoutIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.4f))
+            {
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                g.DrawLines(p, new PointF[] {
+                    new PointF(cx - 1f, cy - 6f),
+                    new PointF(cx + 6f, cy - 6f),
+                    new PointF(cx + 6f, cy + 6f),
+                    new PointF(cx - 1f, cy + 6f)
+                });
+                g.DrawLine(p, cx + 2f, cy, cx - 6f, cy);
+                g.DrawLine(p, cx - 3f, cy - 3f, cx - 6f, cy);
+                g.DrawLine(p, cx - 3f, cy + 3f, cx - 6f, cy);
             }
         }
     }

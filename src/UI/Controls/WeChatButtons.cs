@@ -144,6 +144,13 @@ namespace LanChat
         private bool _isWindowClose = false;
 
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public WeChatIconType IconType
+        {
+            get { return _iconType; }
+            set { _iconType = value; Invalidate(); }
+        }
+
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool IsCircle
         {
             get { return _isCircle; }
@@ -262,9 +269,13 @@ namespace LanChat
                     {
                         g.FillEllipse(b, rect);
                     }
+                    else if (_isWindowClose || _hoverFillColor == Color.FromArgb(55, 55, 58))
+                    {
+                        g.FillRectangle(b, new Rectangle(0, 0, this.Width, this.Height));
+                    }
                     else
                     {
-                        MainForm.DrawRoundedRectangle(g, b, rect, _isWindowClose ? 0 : 4);
+                        MainForm.DrawRoundedRectangle(g, b, rect, 4);
                     }
                 }
             }

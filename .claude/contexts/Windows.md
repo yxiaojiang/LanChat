@@ -15,7 +15,8 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `src/NetworkService.Transfer.cs`：LANC 二进制协议解包与 64KB 流式传输引擎。
 - `src/UI/Renderers/WeChatIcon.cs`：纯 GDI+ 矢量图标与 Grok 吉祥物绘制引擎（`DrawMascotAvatar` 支持倾斜双椭圆胶囊眼、有机轮廓、在线蓝点；包含 SoundWave、UpArrow、Mic、WinMin、WinMax、WinClose 等矢量图）。
 - `src/UI/Renderers/WeChatDarkMenuRenderer.cs`：暗黑风格右键弹出菜单渲染器与暗黑悬浮气泡组件。
-- `src/UI/Controls/WeChatButtons.cs`：无边框图标按钮（`WeChatIconButton`），扩展支持圆形按钮（`IsCircle`）、自定义填充色与窗口关闭高亮模式。
+- `src/UI/Controls/GrokSettingsMenuForm.cs`：Grok Bot 原生弹出式设置菜单窗口（100% 对标 Alis3.png：左下角浮动弹出、宽 342px、圆角 16px、深蓝版本横幅、细线矢量图标与 46px 舒适行高）。
+- `src/UI/Controls/WeChatButtons.cs`：无边框图标按钮（`WeChatIconButton`），扩展支持圆形按钮（`IsCircle`）、右上角 56x64 矩形标题栏控制按钮、自定义填充色与窗口关闭高亮模式。
 - `src/UI/Controls/WeChatChatView.cs`：Grok 风格自适应居中流式聊天视图控件（840px 约束舒适阅读流、右侧自发 `#7946D7` 魅紫气泡、左侧 `#1E1E21` 深灰卡片、反引号行内代码胶囊高亮、居中时间戳对齐与平滑滚动条）。
 - `src/Services/UpdateService.cs`：GitHub Releases 在线自动更新服务（REST API 优先探测 + Web 302 重定向降级更新向导弹窗与 MSI 自动下载安装）。
 - `src/Services/SessionManager.cs`：会话与消息历史纯领域解耦服务，统一提供线程安全的会话管理与摘要提取。
@@ -30,10 +31,12 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
    - 侧边栏纯黑底色 `#0E0E0E`，主聊天区 `#121212`，输入胶囊 `#202024`，高饱和魅紫主色 `#7946D7`，深灰卡片 `#222222`，卡片与气泡大圆角 24px。
 2. **固定侧边栏与全宽自适应聊天区**：
    - 侧边栏宽度固定为 420px（125% DPI 标准桌面尺寸），包含 82x82 Hero 吉祥物、86px 会话卡片与底部 84px 三联栏 Dock（沉底留白 25px）；
-   - 聊天区完全自适应：底部输入胶囊横向铺满视口（高 68px、圆角 34px、左右边距 28px、底部间距 24px）；左侧深灰卡片左对齐 28px（最大宽 840px）；右侧魅紫气泡右对齐 28px（最大宽 840px）；顶部会话胶囊居中浮动（高 38px、圆角 19px）。
-3. **自适应输入胶囊**：
-   - 包含左侧 `+` 号圆形按钮、中间无边框单行文本框与占位提示语（`给 ... 发消息`）、右侧麦克风图标与招牌 42x42 高饱和魅紫声波圆钮。
-4. **纯矢量自绘图标与吉祥物 (`WeChatIcon`)**：
-   - 全面抛弃位图资源与 Emoji，纯 GDI+ 抗锯齿自绘 Grok 吉祥物（斜眼、蓝点、有机云朵）与各种状态矢量图形。
+   - 聊天区完全自适应：底部输入胶囊横向铺满视口（高 68px、圆角 34px、左右边距 28px、底部间距 24px）；左侧深灰卡片左对齐 28px（最大宽 840px）；右侧魅紫气泡右对齐 28px（最大宽 840px）；顶部会话胶囊居中浮动（高 38px、圆角 19px）；
+   - 右上角贴顶无缝窗口控制按钮：单键 56x64 矩形，13px 极简矢量线框（最小化、最大化、还原、关闭），关闭键悬停反白亮红。
+3. **原生弹出设置菜单 (`GrokSettingsMenuForm`)**：
+   - 点击左下角头像上方精准弹出（x=24，宽 342px，圆角 16px，DWM 阴影）；
+   - 顶部深蓝横幅（#1E2E40 + 蓝胶囊安装按钮），46px 舒适行高，极简矢量线框图标（修改昵称、自动接收文件、接收目录、支持关于、清空、退出）。
+4. **纯矢量自绘图标与吉祥物应用图标**：
+   - 全面抛弃位图资源与旧版微信图标，应用主图标 `app.ico` 全面重绘为 Grok 魅紫吉祥物正圆（#905AFB + 双斜黑胶囊眼），包含 16~256 全尺寸 Windows 图标族。
 5. **系统托盘后台驻留与安全退出闭环**：
    - 拦截窗体关闭，最小化至托盘后台常驻，支持多网卡即时通信与后台气泡提醒。
