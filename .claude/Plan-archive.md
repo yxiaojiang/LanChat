@@ -133,3 +133,18 @@
   3. 双轨编译验证：
      - 原生系统 `csc.exe`（.NET Framework 4.0 / C# 5.0）秒级编译，产物体积仅为 143,872 字节（~140 KB）；
      - 现代 .NET 9 SDK（Windows + Linux）构建达成 **0 警告、0 错误**。
+
+---
+
+## 归档事项 11：GrokBot UI 全面设计规范与视觉对齐交付 (v2.1.0)
+
+- **完成日期**：2026-10-25
+- **成果**：
+  1. **编写设计系统规范**：建立 `Docs/GrokBot_UI_Design_System.md` 与 `.claude/contexts/GrokUI.md`，制定 5 级暗黑纵深、排版矩阵、边框法则与圆角比例体系。
+  2. **废除系统原生直角菜单**：通用圆角浮动菜单 `GrokPopupMenu`（16px圆角、44px舒适行高、8px悬停圆角卡片、纯 GDI+ 矢量图标）全盘替换会话加号、附件、右键与托盘菜单。
+  3. **主输入胶囊重塑**：64px 高、32px 满圆角 `#202024` 胶囊（1px 微光边框 `#2C2C32`），11.0pt `#F2F2F6` 文本垂直居中，36x36 附件圆钮，44x44 魅紫向上箭头 `↑` 发送圆钮。
+  4. **设置窗口（GrokSettingsDialog）重塑**：920x640 宽屏比例，移除侧边栏分割线，依靠 `#0E0E0E` 与 `#121212` 纯底色阶差自然分离，18.0pt 加粗明亮大标题，10.5pt 加粗中性灰分组标签，54px 卡片行，22px 内边距，32px 药丸下拉胶囊。
+  5. **举一反三全窗体统一**：`GrokConnectNodeForm`、`GrokCreateNodeForm`、`GrokFeedbackForm`、`GrokChangeNickForm`、`GrokUpdateForm` 窗口大标题统一升级为 18.0pt 加粗明亮纯白，外边框微光与阴影统一；称谓统一为“连接节点”；刷新任务栏紫吉祥物图标。
+  6. **稳定基线打 Tag**：在 `main` 分支提交 `3bf788d` 打上稳定发布 Tag `v2.1.0` 与 `LanChat-v2.1.0` 并推送至 GitHub 远端。
+
+
