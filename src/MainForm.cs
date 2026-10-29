@@ -68,8 +68,10 @@ namespace LanChat
         private TextBox _txtSearch;
         private WeChatIconButton _btnSearchToggle;
         private WeChatIconButton _btnAddSession;
-        private ListBox _listSessions;
+        private SessionListBox _listSessions;
         private List<object> _allSessionItems = new List<object>();
+        private int _hoverSessionIndex = -1;
+        private bool _suppressSessionSelect;
 
         // Chat Header Controls (Floating Pill + Window Buttons)
         private Panel _chatHeader;
@@ -522,21 +524,23 @@ namespace LanChat
             _leftBottomBar.Controls.Add(_btnBottomConnect);
             _leftBottomBar.Controls.Add(_btnBottomScan);
 
-            // 1.4 Sessions ListBox (Height: 86px per item, OwnerDrawn, #0E0E0E)
-            _listSessions = new ListBox
+            // 1.4 Sessions ListBox (Height: 72px denser Grok rows, OwnerDrawn double-buffered)
+            _listSessions = new SessionListBox
             {
                 Dock = DockStyle.Fill,
                 BorderStyle = BorderStyle.None,
                 BackColor = Color.FromArgb(14, 14, 14),
                 ForeColor = Color.White,
                 Font = new Font("Microsoft YaHei UI", 11.0f),
-                ItemHeight = 86,
+                ItemHeight = 72,
                 DrawMode = DrawMode.OwnerDrawFixed,
                 IntegralHeight = false
             };
             _listSessions.DrawItem += ListSessions_DrawItem;
             _listSessions.SelectedIndexChanged += ListSessions_SelectedIndexChanged;
             _listSessions.MouseUp += ListSessions_MouseUp;
+            _listSessions.MouseMove += ListSessions_MouseMove;
+            _listSessions.MouseLeave += ListSessions_MouseLeave;
 
             _sessionsPanel.Controls.Add(_listSessions);
             _sessionsPanel.Controls.Add(_leftBottomBar);

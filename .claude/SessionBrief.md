@@ -2,32 +2,28 @@
 
 > 最近刷新：2026-10-29。仓库：`https://github.com/yxiaojiang/LanChat.git`。
 > 当前分支：`feature/wechat-ui`（稳定基线 Tag `v2.1.0`）。
-> 核心里程碑：**GrokBot 1:1**；P0 64px 胶囊已恢复；**本步 soft AA + 字重/亮度收紧（磁盘已改，父代理 Windows 编译，未 commit）**；方案 B 冻结。
+> 核心里程碑：**GrokBot 1:1**；P0 64px 胶囊已恢复；**本步左侧会话列表：闪屏修复 + hover + 密排字重（磁盘已改，父代理 Windows 编译，未 commit）**；方案 B 冻结。
 > 注：WinForms/GDI+ 无法与 Electron 像素级完全一致；本步用 grayscale AntiAlias + Bold/luma 逼近。
 
 ---
 
-## 一、 本轮工作态（P1 侧栏 + 菜单弹窗 polish）
+## 一、 本轮工作态（左侧会话列表 flash / hover / typography）
 
 ### 1. 用户反馈
-- 胶囊恢复后：左侧栏图标与文字大小仍有差别；所有菜单与弹出窗口样式也不一致（owner: 还有啊，左侧的栏…）。
+- 点击左侧会话项时**整个主界面闪一下**。
+- 无悬停卡片；选中态与标题/副标题字重亮度仍偏暗、偏挤（对标 Grok 截图）。
 
 ### 2. 本步已改（未 commit）
-- **Typography soft-AA pass（对标 GrokBot 截图粗细/亮度）：** `GrokTheme.DrawUiText*` 改 GDI+ `DrawString` + `TextRenderingHint.AntiAlias`（`PrepareSoftText`，弃 ClearType/TextRenderer）；`TextPlaceholder`→**#5E5E66**；`TextPill`→**#F5F5F7**。底栏用户徽标 **Bold 9.5** TextPill；「连接节点」**Bold 10.5** TextPill；占位 **Regular 11 / #5E5E66**；标题栏 pill **Bold 10.0**；会话标题 **Bold 10.5**（副标题仍 Regular 9 / #8E8E93）；Hero 昵称 Regular 12 + soft AA。SanitizeUiText 保留。未改胶囊布局/网络。**无法做到与 Electron 像素级一模一样**；soft AA + 字重/亮度是 WinForms 下的逼近路径。
-
-- 新增 `src/UI/Controls/GrokTheme.cs`（Level0–3、文本/边框/强调色、1040×720 常量、Font 工厂）。
-- 全 `src/**/*.cs` 字体统一 `Microsoft YaHei UI`。
-- 侧栏：Search/Add 34 圆钮 `#202024` / 图标 `#A0A0A5` + 圆钮 inset；Hero 12 Regular soft AA `#F2F2F6`；会话选中 `#28282C`；标题 **Bold 10.5** / 副标题 9 `#8E8E93`；底栏用户徽标 Bold 9.5 TextPill / 连接胶囊 Bold 10.5 TextPill / 扫描 54 蓝钮；主窗 `1040×720`。
-- 聊天：对端气泡 `#1E1E21`；时间戳 9pt `#8E8E93`。
-- 菜单：`GrokPopupMenu` Level1/`#2C2C32`/`#2E2E34`；`GrokSettingsMenuForm` 行高 44、图标 x=20、字 x=48。
-- 弹窗：About/ChangeNick/Feedback/MessageBox/Connect/Create/Update 底色 Level1、边框与次要字色对齐；Feedback 尺寸 520×460。
-- 未改网络/协议；未 commit；父代理请用 `Tools/CompileAndLink.bat` 热替换验收。
+- **Flash 修复：** 新增 `SessionListBox`（OptimizedDoubleBuffer + AllPaintingInWmPaint + UserPaint + ResizeRedraw + `WS_EX_COMPOSITED` + 自绘 OnPaint）；`ShowGroupSenderName` 同值 early-return、改值只写字段（由 `SetMessages` 单次 Recalculate）；`SelectedIndexChanged` 同 session early-return、`_suppressSessionSelect` 避免「新建连接」嵌套重入、`SuspendLayout` 聊天面板、只 Invalidate header/input。
+- **Hover：** `_hoverSessionIndex` + MouseMove/Leave 仅 Invalidate 旧/新 item rect；非选中 hover 卡 `#222226`（`GrokTheme.SessionHover`）。
+- **Typography / 选中卡：** ItemHeight **86→72**；选中卡 `#28282C` marginX≈17 marginY≈5 radius 14；标题 **Bold 11 / #FFFFFF**；副标题 **Regular 9.5 / #A1A1A6**；textX 右移加大 icon→text 间距；头像 48 垂直居中。
+- 胶囊/输入区未动。未改网络/协议；未 commit；父代理请用 `Tools/CompileAndLink.bat` 热替换验收。
 
 ### 3. 已知剩余缺口（下一 pass）
 - Create 窗 Docs `680×620`、About Docs `440×560` 需重排绝对布局后才能改尺寸。
 - Settings 卡片内部分 RGB 与 54px 行已较近，仍可对照 Alis4 像素微调。
-- WinForms ListBox 选中焦点矩形/原生滚动条、无 CS_DROPSHADOW 的平台差异无法 1:1 GrokBot。
-- `GrokTheme` 令牌尚未全面替换散落的 `FromArgb`（本步优先可见漂移）。
+- WinForms ListBox 原生滚动条、无 CS_DROPSHADOW 的平台差异无法 1:1 GrokBot。
+- `GrokTheme` 令牌尚未全面替换散落的 `FromArgb`。
 
 ---
 
@@ -43,10 +39,8 @@
 
 | 模块 / 文件 | 说明 |
 | :--- | :--- |
-| `src/UI/Controls/GrokTheme.cs` | **新增** 共享设计令牌 |
-| `src/MainForm.cs` / `.Chat.cs` / `.Tray.cs` | 主窗尺寸、侧栏图标文字、会话选中、Hero 昵称、底栏 |
-| `src/UI/Controls/GrokPopupMenu.cs` 等 Grok* 窗体 | 菜单/弹窗字体色阶统一 |
-| `src/UI/Controls/WeChatChatView.cs` | 对端气泡 `#1E1E21` |
-| `src/UI/Controls/WeChatButtons.cs` | 圆钮图标 inset |
-| `Docs/GrokBot_UI_Design_System.md` | 视觉契约 |
+| `src/UI/Controls/SessionListBox.cs` | **新增** 双缓冲 owner-draw 会话列表 |
+| `src/UI/Controls/GrokTheme.cs` | SessionHover / TextSubtitle 令牌 |
+| `src/MainForm.cs` / `.Chat.cs` | SessionListBox、hover、选中逻辑、DrawItem 密排 |
+| `src/UI/Controls/WeChatChatView.cs` | ShowGroupSenderName 防双 layout |
 | `Tools/CompileAndLink.bat` | Windows 热替换编译 |

@@ -26,7 +26,13 @@ namespace LanChat
         public bool ShowGroupSenderName
         {
             get { return _showGroupSenderName; }
-            set { _showGroupSenderName = value; RecalculateLayout(false); Invalidate(); }
+            set
+            {
+                // Same value: no-op. Value change: field only — SetMessages/Resize do the single Recalculate
+                // to avoid double layout flash when switching sessions.
+                if (_showGroupSenderName == value) return;
+                _showGroupSenderName = value;
+            }
         }
 
         private class MessageRenderItem

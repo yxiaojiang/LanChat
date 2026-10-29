@@ -29,6 +29,7 @@ namespace LanChat
         public static readonly Color TextPrimary = Color.FromArgb(242, 242, 246);   // #F2F2F6
         public static readonly Color TextTitle = Color.FromArgb(255, 255, 255);     // #FFFFFF
         public static readonly Color TextSecondary = Color.FromArgb(142, 142, 147); // #8E8E93
+        public static readonly Color TextSubtitle = Color.FromArgb(161, 161, 166);   // #A1A1A6 brighter session subtitle
         // Capsule placeholder: dimmer muted gray (closer to Grok Electron muted)
         public static readonly Color TextPlaceholder = Color.FromArgb(94, 94, 102); // #5E5E66
         public static readonly Color TextDisabled = Color.FromArgb(74, 74, 80);     // #4A4A50
@@ -49,6 +50,7 @@ namespace LanChat
 
         // Chat / selection surfaces
         public static readonly Color SessionSelected = Color.FromArgb(40, 40, 44);  // #28282C
+        public static readonly Color SessionHover = Color.FromArgb(34, 34, 38);     // #222226 soft hover card
         public static readonly Color PeerBubble = Color.FromArgb(30, 30, 33);       // #1E1E21
         public static readonly Color InputPlus = Color.FromArgb(42, 42, 46);        // #2A2A2E
         public static readonly Color IconMuted = Color.FromArgb(160, 160, 165);     // #A0A0A5
