@@ -57,6 +57,7 @@ namespace LanChat
             Graphics g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            GrokTheme.PrepareClearType(g);
 
             int avSize = 82;
             int avX = (_heroProfilePanel.Width - avSize) / 2;
@@ -64,17 +65,16 @@ namespace LanChat
             Rectangle avRect = new Rectangle(avX, avY, avSize, avSize);
             WeChatIcon.DrawMascotAvatar(g, avRect, Color.FromArgb(252, 44, 62), false, true, Color.FromArgb(14, 14, 14));
 
-            // Hero 昵称：12.0pt YaHei UI Regular #F2F2F6（对标 Alis Karina）
+            // Hero 昵称：12.0pt YaHei UI Regular #F2F2F6 + TextRenderer（对标 Alis Karina）
             string nick = _netService != null && !string.IsNullOrEmpty(_netService.NickName) ? _netService.NickName : Environment.UserName;
             using (Font f = new Font("Microsoft YaHei UI", 12.0f, FontStyle.Regular))
-            using (SolidBrush textBrush = new SolidBrush(Color.FromArgb(242, 242, 246))) // #F2F2F6
             {
-                StringFormat sf = new StringFormat
-                {
-                    Alignment = StringAlignment.Center,
-                    LineAlignment = StringAlignment.Near
-                };
-                g.DrawString(nick, f, textBrush, new RectangleF(0, avY + avSize + 14, _heroProfilePanel.Width, 28), sf);
+                GrokTheme.DrawUiText(g, nick, f, Color.FromArgb(242, 242, 246),
+                    new Rectangle(0, avY + avSize + 14, _heroProfilePanel.Width, 28),
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.Top |
+                    TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding |
+                    TextFormatFlags.EndEllipsis | TextFormatFlags.PreserveGraphicsClipping |
+                    TextFormatFlags.PreserveGraphicsTranslateTransform);
             }
         }
 

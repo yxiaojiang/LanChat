@@ -154,8 +154,8 @@ namespace LanChat
 
                 _selectedPeer = null;
                 _activeChatKey = "BROADCAST";
-                _lblChatTitle.Text = sItem;
-                _inputPlaceholder = string.Format("给 {0} 发消息", sItem);
+                _lblChatTitle.Text = GrokTheme.SanitizeUiText(sItem);
+                _inputPlaceholder = GrokTheme.SanitizeUiText(string.Format("给 {0} 发消息", sItem));
                 _chatView.ShowGroupSenderName = (sItem == BROADCAST_TARGET);
             }
             else if (_listSessions.SelectedItem is PeerInfo)
@@ -163,8 +163,8 @@ namespace LanChat
                 _selectedPeer = (PeerInfo)_listSessions.SelectedItem;
                 _activeChatKey = _selectedPeer.Id;
                 _selectedPeer.UnreadCount = 0;
-                _lblChatTitle.Text = _selectedPeer.NickName ?? "在线节点";
-                _inputPlaceholder = string.Format("给 {0} 发消息", _selectedPeer.NickName ?? "好友");
+                _lblChatTitle.Text = GrokTheme.SanitizeUiText(_selectedPeer.NickName ?? "在线节点");
+                _inputPlaceholder = GrokTheme.SanitizeUiText(string.Format("给 {0} 发消息", _selectedPeer.NickName ?? "好友"));
                 _chatView.ShowGroupSenderName = false; // 1对1私聊与截图完全一致，隐藏双方头像与昵称
             }
 
@@ -187,6 +187,7 @@ namespace LanChat
             Graphics g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            GrokTheme.PrepareClearType(g);
 
             Rectangle r = e.Bounds;
             object item = _listSessions.Items[e.Index];
@@ -219,17 +220,17 @@ namespace LanChat
             int avY = r.Top + 16;
             Rectangle avatarRect = new Rectangle(avX, avY, avSize, avSize);
             int textX = r.Left + 96;
+            int textW = Math.Max(40, r.Right - textX - 16);
 
             if (isNewConnItem)
             {
-                // 底部“新建连接”项：有机橙黄云朵吉祥物 + 单行粗体白字（复刻截图底部“新建 Bot”）
+                // 底部“新建连接”项：Regular 11 + TextRenderer（Grok 列表名非 Bold）
                 WeChatIcon.DrawMascotAvatar(g, avatarRect, Color.FromArgb(246, 148, 18), true, false, Color.FromArgb(14, 14, 14));
 
-                using (Font titleFont = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Bold))
-                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(242, 242, 246))) // #F2F2F6
+                using (Font titleFont = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Regular))
                 {
-                    float ty = r.Top + (r.Height - titleFont.GetHeight(g)) / 2f;
-                    g.DrawString("新建连接", titleFont, titleBrush, new PointF(textX, ty));
+                    GrokTheme.DrawUiTextLeft(g, "新建连接", titleFont, Color.FromArgb(242, 242, 246),
+                        textX, r.Top, textW, r.Height);
                 }
                 return;
             }
@@ -240,8 +241,7 @@ namespace LanChat
                 // 顶部第一项（局域网全员群聊 / 专属会话）：亮紫色正圆吉祥物 (#905AFB，复刻截图 Alist迅雷)
                 WeChatIcon.DrawMascotAvatar(g, avatarRect, Color.FromArgb(144, 90, 251), false, false, Color.FromArgb(14, 14, 14));
 
-                using (Font titleFont = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Bold))
-                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(242, 242, 246))) // #F2F2F6
+                using (Font titleFont = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Regular))
                 {
                     string title = sItem;
                     if (sItem == BROADCAST_TARGET)
@@ -249,17 +249,18 @@ namespace LanChat
                         int onlineCount = _netService != null ? _netService.GetActivePeers().Count : 0;
                         title = onlineCount > 0 ? string.Format("局域网全员群聊 ({0})", onlineCount) : "局域网全员群聊";
                     }
-                    g.DrawString(title, titleFont, titleBrush, new PointF(textX, r.Top + 18));
+                    GrokTheme.DrawUiTextLeft(g, title, titleFont, Color.FromArgb(242, 242, 246),
+                        textX, r.Top + 14, textW, 24);
                 }
 
                 string snippet = _sessionManager != null ? _sessionManager.GetLastMessageSnippet(SessionManager.BROADCAST_KEY, 24) : null;
                 if (string.IsNullOrEmpty(snippet)) snippet = "已按 Rules 刷新本机记忆 (刷新...";
 
-                using (Font subFont = new Font("Microsoft YaHei UI", 9.0f))
-                using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(142, 142, 147))) // #8E8E93
+                using (Font subFont = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
                 {
                     if (snippet.Length > 20) snippet = snippet.Substring(0, 19) + "...";
-                    g.DrawString(snippet, subFont, subBrush, new PointF(textX, r.Top + 46));
+                    GrokTheme.DrawUiTextLeft(g, snippet, subFont, Color.FromArgb(142, 142, 147),
+                        textX, r.Top + 42, textW, 22);
                 }
             }
             else if (item is PeerInfo)
@@ -272,12 +273,12 @@ namespace LanChat
                 string badge = useCoralStyle ? "节点" : null;
                 WeChatIcon.DrawMascotAvatar(g, avatarRect, bodyColor, !useCoralStyle, false, Color.FromArgb(14, 14, 14), badge);
 
-                using (Font titleFont = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Bold))
-                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(242, 242, 246))) // #F2F2F6
+                using (Font titleFont = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Regular))
                 {
                     string name = peer.NickName ?? "未知节点";
                     if (name.Length > 13) name = name.Substring(0, 12) + "...";
-                    g.DrawString(name, titleFont, titleBrush, new PointF(textX, r.Top + 18));
+                    GrokTheme.DrawUiTextLeft(g, name, titleFont, Color.FromArgb(242, 242, 246),
+                        textX, r.Top + 14, textW, 24);
                 }
 
                 string snippet = peer.LastMessage;
@@ -285,11 +286,11 @@ namespace LanChat
                 {
                     snippet = string.Format("{0} ({1})", peer.HostName, peer.IP);
                 }
-                using (Font subFont = new Font("Microsoft YaHei UI", 9.0f))
-                using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(142, 142, 147))) // #8E8E93
+                using (Font subFont = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
                 {
                     if (snippet.Length > 16) snippet = snippet.Substring(0, 15) + "...";
-                    g.DrawString(snippet, subFont, subBrush, new PointF(textX, r.Top + 46));
+                    GrokTheme.DrawUiTextLeft(g, snippet, subFont, Color.FromArgb(142, 142, 147),
+                        textX, r.Top + 42, textW, 22);
                 }
             }
         }
@@ -573,8 +574,8 @@ namespace LanChat
 
             _selectedPeer = peer;
             _activeChatKey = peer.Id;
-            _lblChatTitle.Text = peer.NickName ?? "在线节点";
-            _inputPlaceholder = string.Format("给 {0} 发消息", peer.NickName ?? "好友");
+            _lblChatTitle.Text = GrokTheme.SanitizeUiText(peer.NickName ?? "在线节点");
+            _inputPlaceholder = GrokTheme.SanitizeUiText(string.Format("给 {0} 发消息", peer.NickName ?? "好友"));
             _chatView.ShowGroupSenderName = false;
             SwitchActiveChatView();
             _chatHeader.Invalidate();

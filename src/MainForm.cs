@@ -452,6 +452,7 @@ namespace LanChat
             _btnBottomUser.FlatAppearance.MouseDownBackColor = Color.Transparent;
             _btnBottomUser.Paint += (s, e) => {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                GrokTheme.PrepareClearType(e.Graphics);
                 Rectangle r = new Rectangle(0, 0, _btnBottomUser.Width - 1, _btnBottomUser.Height - 1);
                 using (SolidBrush b = new SolidBrush(Color.FromArgb(40, 40, 44))) // #28282C Level3
                 using (Pen p = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
@@ -460,12 +461,14 @@ namespace LanChat
                     e.Graphics.DrawEllipse(p, r);
                 }
                 string nick = _netService != null && !string.IsNullOrEmpty(_netService.NickName) ? _netService.NickName : Environment.UserName;
+                nick = GrokTheme.SanitizeUiText(nick);
+                if (string.IsNullOrEmpty(nick)) nick = "?";
                 if (nick.Length > 2) nick = nick.Substring(0, 2);
-                using (Font f = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold))
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(242, 242, 246))) // #F2F2F6
+                // Regular ~9.5 + TextRenderer — softer badge glyph like Grok user chip
+                using (Font f = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular))
                 {
-                    StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString(nick, f, tb, new RectangleF(0, 1, _btnBottomUser.Width, _btnBottomUser.Height), sf);
+                    GrokTheme.DrawUiTextCentered(e.Graphics, nick, f, Color.FromArgb(242, 242, 246),
+                        new Rectangle(0, 0, _btnBottomUser.Width, _btnBottomUser.Height));
                 }
             };
             _btnBottomUser.Click += BtnSettings_Click;
@@ -487,6 +490,7 @@ namespace LanChat
             _btnBottomConnect.MouseLeave += (s, e) => { connHover = false; _btnBottomConnect.Invalidate(); };
             _btnBottomConnect.Paint += (s, e) => {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                GrokTheme.PrepareClearType(e.Graphics);
                 Rectangle r = new Rectangle(0, 0, _btnBottomConnect.Width - 1, _btnBottomConnect.Height - 1);
                 using (SolidBrush b = new SolidBrush(connHover ? Color.FromArgb(46, 46, 52) : Color.FromArgb(40, 40, 44))) // Level3 / hot
                 using (Pen p = new Pen(connHover ? Color.FromArgb(56, 56, 64) : Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
@@ -494,11 +498,11 @@ namespace LanChat
                     DrawRoundedRectangle(e.Graphics, b, r, 27);
                     DrawRoundedRectangle(e.Graphics, p, r, 27);
                 }
-                using (Font f = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)) // pill text 9.5pt
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 245))) // #F0F0F5
+                // Regular 10.5 — closest to Grok "连接应用" (NOT Bold)
+                using (Font f = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Regular))
                 {
-                    StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString("连接节点", f, tb, new RectangleF(0, 1, _btnBottomConnect.Width, _btnBottomConnect.Height), sf);
+                    GrokTheme.DrawUiTextCentered(e.Graphics, "连接节点", f, Color.FromArgb(240, 240, 245),
+                        new Rectangle(0, 0, _btnBottomConnect.Width, _btnBottomConnect.Height));
                 }
             };
             _btnBottomConnect.Click += BtnConnectNode_Click;
@@ -567,12 +571,13 @@ namespace LanChat
                 Graphics g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                GrokTheme.PrepareClearType(g);
 
-                string pillTitle = _lblChatTitle.Text ?? "局域网全员群聊";
-                using (Font pillFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold))
+                string pillTitle = GrokTheme.SanitizeUiText(_lblChatTitle.Text ?? "局域网全员群聊");
+                using (Font pillFont = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Regular))
                 {
-                    SizeF tsz = g.MeasureString(pillTitle, pillFont);
-                    int pillW = Math.Max(120, (int)Math.Ceiling(tsz.Width) + 54);
+                    Size tsz = GrokTheme.MeasureUiText(g, pillTitle, pillFont);
+                    int pillW = Math.Max(120, tsz.Width + 54);
                     int pillH = 38;
                     int pillX = (_chatHeader.Width - pillW) / 2;
                     int pillY = (_chatHeader.Height - pillH) / 2;
@@ -590,11 +595,8 @@ namespace LanChat
                     Color avColor = _selectedPeer == null ? Color.FromArgb(144, 90, 251) : Color.FromArgb(246, 148, 18);
                     WeChatIcon.DrawMascotAvatar(g, avRect, avColor, false, false, Color.Transparent);
 
-                    using (SolidBrush tb = new SolidBrush(Color.FromArgb(242, 242, 246)))
-                    {
-                        float ty = pillY + (pillH - pillFont.GetHeight(g)) / 2f;
-                        g.DrawString(pillTitle, pillFont, tb, pillX + 40, ty);
-                    }
+                    GrokTheme.DrawUiTextLeft(g, pillTitle, pillFont, Color.FromArgb(242, 242, 246),
+                        pillX + 40, pillY, pillW - 48, pillH);
                 }
             };
             _chatHeader.Resize += (s, e) => _chatHeader.Invalidate();
@@ -711,14 +713,13 @@ namespace LanChat
                     DrawRoundedRectangle(g, border, pillRect, radius);
                 }
 
-                // 空输入时绘制占位符（11.0pt #5E5E66，与文本同坐标垂直居中）
+                // 空输入时绘制占位符（11.25 Regular #8E8E93 + TextRenderer，对标 Grok 胶囊）
                 if (_txtInput != null && string.IsNullOrEmpty(_txtInput.Text))
                 {
-                    using (Font pf = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Regular))
-                    using (SolidBrush pb = new SolidBrush(Color.FromArgb(94, 94, 102))) // #5E5E66
+                    using (Font pf = new Font("Microsoft YaHei UI", 11.25f, FontStyle.Regular))
                     {
-                        float py = (_inputPanel.Height - pf.GetHeight(g)) / 2f;
-                        g.DrawString(_inputPlaceholder, pf, pb, 64, py);
+                        GrokTheme.DrawUiTextLeft(g, _inputPlaceholder, pf, GrokTheme.TextPlaceholder,
+                            64, 0, Math.Max(40, _inputPanel.Width - 64 - 56), _inputPanel.Height);
                     }
                 }
             };

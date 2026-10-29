@@ -2,7 +2,7 @@
 
 > 最近刷新：2026-10-29。仓库：`https://github.com/yxiaojiang/LanChat.git`。
 > 当前分支：`feature/wechat-ui`（稳定基线 Tag `v2.1.0`）。
-> 核心里程碑：**GrokBot 1:1**；P0 64px 胶囊已恢复；**本步完成侧栏图标/文字与全部菜单弹窗 YaHei UI + 色阶对齐（磁盘已改，父代理 Windows 编译，未 commit）**；方案 B 冻结。
+> 核心里程碑：**GrokBot 1:1**；P0 64px 胶囊已恢复；**本步完成侧栏/胶囊/标题栏 typography ClearType 对齐（磁盘已改，父代理 Windows 编译，未 commit）**；方案 B 冻结。
 
 ---
 
@@ -12,9 +12,11 @@
 - 胶囊恢复后：左侧栏图标与文字大小仍有差别；所有菜单与弹出窗口样式也不一致（owner: 还有啊，左侧的栏…）。
 
 ### 2. 本步已改（未 commit）
+- **Typography pass（对标 GrokBot 截图）：** `GrokTheme` 增加 `PrepareClearType` / `SanitizeUiText` / `DrawUiText*`（TextRenderer）；底栏「连接节点」Bold 9.5→**Regular 10.5**；用户徽标 Bold→Regular 9.5；会话标题 Bold 11→**Regular 11**；胶囊占位 11/#5E5E66→**11.25/#8E8E93** + 去 emoji 豆腐□；标题栏 pill Bold 9.5→Regular 10.5；Hero 昵称改 TextRenderer。未改胶囊布局/网络。
+
 - 新增 `src/UI/Controls/GrokTheme.cs`（Level0–3、文本/边框/强调色、1040×720 常量、Font 工厂）。
 - 全 `src/**/*.cs` 字体统一 `Microsoft YaHei UI`。
-- 侧栏：Search/Add 34 圆钮 `#202024` / 图标 `#A0A0A5` + 圆钮 inset；Hero 12pt `#F2F2F6`；会话选中 `#28282C`；标题 11 Bold / 副标题 9 `#8E8E93`；底栏用户徽标/连接胶囊 9.5 Bold / 扫描 54 蓝钮；主窗 `1040×720`。
+- 侧栏：Search/Add 34 圆钮 `#202024` / 图标 `#A0A0A5` + 圆钮 inset；Hero 12pt `#F2F2F6`；会话选中 `#28282C`；标题 11 Regular / 副标题 9 `#8E8E93`；底栏用户徽标 9.5 Regular / 连接胶囊 10.5 Regular / 扫描 54 蓝钮；主窗 `1040×720`。
 - 聊天：对端气泡 `#1E1E21`；时间戳 9pt `#8E8E93`。
 - 菜单：`GrokPopupMenu` Level1/`#2C2C32`/`#2E2E34`；`GrokSettingsMenuForm` 行高 44、图标 x=20、字 x=48。
 - 弹窗：About/ChangeNick/Feedback/MessageBox/Connect/Create/Update 底色 Level1、边框与次要字色对齐；Feedback 尺寸 520×460。
