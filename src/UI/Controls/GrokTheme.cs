@@ -1,7 +1,6 @@
 using System.Drawing;
 using System.Drawing.Text;
 using System.Text;
-using System.Windows.Forms;
 
 namespace LanChat
 {
@@ -30,11 +29,11 @@ namespace LanChat
         public static readonly Color TextPrimary = Color.FromArgb(242, 242, 246);   // #F2F2F6
         public static readonly Color TextTitle = Color.FromArgb(255, 255, 255);     // #FFFFFF
         public static readonly Color TextSecondary = Color.FromArgb(142, 142, 147); // #8E8E93
-        // Capsule placeholder: match Grok readable medium gray (was dim #5E5E66)
-        public static readonly Color TextPlaceholder = Color.FromArgb(142, 142, 147); // #8E8E93
+        // Capsule placeholder: dimmer muted gray (closer to Grok Electron muted)
+        public static readonly Color TextPlaceholder = Color.FromArgb(94, 94, 102); // #5E5E66
         public static readonly Color TextDisabled = Color.FromArgb(74, 74, 80);     // #4A4A50
         public static readonly Color TextMenu = Color.FromArgb(228, 228, 232);      // #E4E4E8
-        public static readonly Color TextPill = Color.FromArgb(240, 240, 245);      // #F0F0F5
+        public static readonly Color TextPill = Color.FromArgb(245, 245, 247);      // #F5F5F7 warmer/brighter pill white
         public static readonly Color TextCard = Color.FromArgb(240, 240, 244);      // #F0F0F4
         public static readonly Color TextDestructive = Color.FromArgb(252, 68, 85); // #FC4455
         public static readonly Color TextDestructiveHot = Color.FromArgb(255, 92, 108);
@@ -74,12 +73,12 @@ namespace LanChat
         }
 
         /// <summary>
-        /// Prefer ClearType before any remaining GDI+ DrawString calls.
+        /// Soft grayscale AA for dark UI (closer to Chromium/Electron than ClearType).
         /// </summary>
-        public static void PrepareClearType(Graphics g)
+        public static void PrepareSoftText(Graphics g)
         {
             if (g == null) return;
-            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+            g.TextRenderingHint = TextRenderingHint.AntiAlias;
         }
 
         /// <summary>
@@ -125,32 +124,40 @@ namespace LanChat
             return cleaned.Trim();
         }
 
-        public static readonly TextFormatFlags UiTextFlags =
-            TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding |
-            TextFormatFlags.EndEllipsis | TextFormatFlags.PreserveGraphicsClipping |
-            TextFormatFlags.PreserveGraphicsTranslateTransform;
-
-        public static readonly TextFormatFlags UiTextCenterFlags =
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-            TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding |
-            TextFormatFlags.EndEllipsis | TextFormatFlags.PreserveGraphicsClipping |
-            TextFormatFlags.PreserveGraphicsTranslateTransform;
+        private static StringFormat CreateUiFormat(StringAlignment align, StringAlignment lineAlign)
+        {
+            StringFormat sf = new StringFormat(StringFormatFlags.NoWrap);
+            sf.Alignment = align;
+            sf.LineAlignment = lineAlign;
+            sf.Trimming = StringTrimming.EllipsisCharacter;
+            sf.HotkeyPrefix = HotkeyPrefix.None;
+            return sf;
+        }
 
         /// <summary>
-        /// Draw UI copy via TextRenderer (native Win32 / ClearType), not GDI+ DrawString.
+        /// Draw UI copy via GDI+ DrawString + grayscale AntiAlias (not ClearType/TextRenderer).
         /// </summary>
-        public static void DrawUiText(Graphics g, string text, Font font, Color color, Rectangle bounds, TextFormatFlags flags)
+        public static void DrawUiText(Graphics g, string text, Font font, Color color, Rectangle bounds, StringFormat format)
         {
             if (g == null || font == null) return;
             string safe = SanitizeUiText(text);
             if (string.IsNullOrEmpty(safe)) return;
-            PrepareClearType(g);
-            TextRenderer.DrawText(g, safe, font, bounds, color, flags);
+            PrepareSoftText(g);
+            using (SolidBrush brush = new SolidBrush(color))
+            {
+                if (format != null)
+                    g.DrawString(safe, font, brush, bounds, format);
+                else
+                    g.DrawString(safe, font, brush, bounds);
+            }
         }
 
         public static void DrawUiTextCentered(Graphics g, string text, Font font, Color color, Rectangle bounds)
         {
-            DrawUiText(g, text, font, color, bounds, UiTextCenterFlags);
+            using (StringFormat sf = CreateUiFormat(StringAlignment.Center, StringAlignment.Center))
+            {
+                DrawUiText(g, text, font, color, bounds, sf);
+            }
         }
 
         /// <summary>
@@ -159,20 +166,31 @@ namespace LanChat
         public static void DrawUiTextLeft(Graphics g, string text, Font font, Color color, int x, int y, int width, int height)
         {
             Rectangle bounds = new Rectangle(x, y, width, height);
-            DrawUiText(g, text, font, color, bounds,
-                TextFormatFlags.Left | TextFormatFlags.VerticalCenter |
-                TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding |
-                TextFormatFlags.EndEllipsis | TextFormatFlags.PreserveGraphicsClipping |
-                TextFormatFlags.PreserveGraphicsTranslateTransform);
+            using (StringFormat sf = CreateUiFormat(StringAlignment.Near, StringAlignment.Center))
+            {
+                DrawUiText(g, text, font, color, bounds, sf);
+            }
         }
 
         public static Size MeasureUiText(Graphics g, string text, Font font)
         {
             string safe = SanitizeUiText(text);
             if (string.IsNullOrEmpty(safe) || font == null) return Size.Empty;
+
             if (g != null)
-                return TextRenderer.MeasureText(g, safe, font, new Size(int.MaxValue, int.MaxValue), UiTextFlags);
-            return TextRenderer.MeasureText(safe, font, new Size(int.MaxValue, int.MaxValue), UiTextFlags);
+            {
+                PrepareSoftText(g);
+                SizeF sz = g.MeasureString(safe, font);
+                return Size.Ceiling(sz);
+            }
+
+            using (Bitmap bmp = new Bitmap(1, 1))
+            using (Graphics tg = Graphics.FromImage(bmp))
+            {
+                PrepareSoftText(tg);
+                SizeF sz = tg.MeasureString(safe, font);
+                return Size.Ceiling(sz);
+            }
         }
     }
 }
