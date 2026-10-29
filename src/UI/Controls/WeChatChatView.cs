@@ -143,8 +143,8 @@ namespace LanChat
             string lastSenderKey = null;
 
             using (Graphics g = this.CreateGraphics())
-            using (Font timeFont = new Font("Microsoft YaHei", 9.5f))
-            using (Font msgFont = new Font("Microsoft YaHei", 10.5f))
+            using (Font timeFont = new Font("Microsoft YaHei UI", 9.0f))
+            using (Font msgFont = new Font("Microsoft YaHei UI", 10.5f))
             {
                 for (int i = 0; i < _messages.Count; i++)
                 {
@@ -279,16 +279,16 @@ namespace LanChat
             if (streamW < 240) streamW = Math.Max(120, viewWidth - 24);
             int streamLeft = (viewWidth - streamW) / 2;
 
-            using (Font timeFont = new Font("Microsoft YaHei", 9.5f))
-            using (Font msgFont = new Font("Microsoft YaHei", 10.5f))
+            using (Font timeFont = new Font("Microsoft YaHei UI", 9.0f))
+            using (Font msgFont = new Font("Microsoft YaHei UI", 10.5f))
             using (Font codeFont = new Font("Consolas", 10f))
-            using (Font nickFont = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold))
-            using (SolidBrush textLight = new SolidBrush(Color.FromArgb(238, 238, 242)))
+            using (Font nickFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold))
+            using (SolidBrush textLight = new SolidBrush(Color.FromArgb(242, 242, 246))) // #F2F2F6
             using (SolidBrush selfTextBrush = new SolidBrush(Color.FromArgb(250, 248, 255)))
-            using (SolidBrush grayText = new SolidBrush(Color.FromArgb(130, 130, 136)))
+            using (SolidBrush grayText = new SolidBrush(Color.FromArgb(142, 142, 147))) // #8E8E93
             using (SolidBrush nickBrush = new SolidBrush(Color.FromArgb(164, 132, 245)))
-            using (SolidBrush otherBubbleBrush = new SolidBrush(Color.FromArgb(34, 34, 34)))   // Grok Dark Card #222222
-            using (Pen otherBubbleBorder = new Pen(Color.FromArgb(46, 46, 50), 1f))
+            using (SolidBrush otherBubbleBrush = new SolidBrush(Color.FromArgb(30, 30, 33)))   // Peer bubble #1E1E21
+            using (Pen otherBubbleBorder = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
             using (SolidBrush selfBubbleBrush = new SolidBrush(Color.FromArgb(121, 70, 215)))  // Grok Purple Bubble #7946D7
             {
                 foreach (var item in _renderItems)
@@ -333,14 +333,14 @@ namespace LanChat
                             MainForm.DrawRoundedRectangle(g, badgeBg, badgeRect, 10);
                         }
                         StringFormat bsf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                        using (Font ff = new Font("Microsoft YaHei", 8.0f, FontStyle.Bold))
+                        using (Font ff = new Font("Microsoft YaHei UI", 8.0f, FontStyle.Bold))
                         {
                             g.DrawString("FILE", ff, selfTextBrush, badgeRect, bsf);
                         }
 
                         string nameSnippet = msg.FileName ?? "未知文件";
                         if (nameSnippet.Length > 17) nameSnippet = nameSnippet.Substring(0, 16) + "...";
-                        using (Font fnFont = new Font("Microsoft YaHei", 10.5f, FontStyle.Bold))
+                        using (Font fnFont = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Bold))
                         {
                             g.DrawString(nameSnippet, fnFont, textLight, bb.Left + 62, bb.Top + 14);
                         }

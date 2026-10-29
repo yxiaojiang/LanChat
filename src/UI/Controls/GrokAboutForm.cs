@@ -39,7 +39,7 @@ namespace LanChat
             this.StartPosition = FormStartPosition.CenterParent;
             this.ShowInTaskbar = false;
             this.Size = new Size(360, 370);
-            this.BackColor = Color.FromArgb(28, 28, 30); // #1C1C1E
+            this.BackColor = Color.FromArgb(28, 28, 31); // #1C1C1F Level1
             this.DoubleBuffered = true;
             this.Cursor = Cursors.Default;
 
@@ -67,7 +67,7 @@ namespace LanChat
             base.OnHandleCreated(e);
             try
             {
-                IntPtr rgn = CreateRoundRectRgn(0, 0, this.Width + 1, this.Height + 1, 18, 18);
+                IntPtr rgn = CreateRoundRectRgn(0, 0, this.Width + 1, this.Height + 1, 16, 16);
                 if (rgn != IntPtr.Zero)
                 {
                     this.Region = Region.FromHrgn(rgn);
@@ -168,12 +168,12 @@ namespace LanChat
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
             // 1. 背景与微光外边框
-            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(28, 28, 30)))
-            using (Pen borderPen = new Pen(Color.FromArgb(48, 48, 52), 1f))
+            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(28, 28, 31)))
+            using (Pen borderPen = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
             {
                 Rectangle totalRect = new Rectangle(0, 0, this.Width - 1, this.Height - 1);
-                MainForm.DrawRoundedRectangle(g, bgBrush, totalRect, 18);
-                MainForm.DrawRoundedRectangle(g, borderPen, totalRect, 18);
+                MainForm.DrawRoundedRectangle(g, bgBrush, totalRect, 16);
+                MainForm.DrawRoundedRectangle(g, borderPen, totalRect, 16);
             }
 
             // 2. 右上角极简叉号 (×)
@@ -222,16 +222,16 @@ namespace LanChat
             WeChatIcon.DrawMascotAvatarShape(g, mascotRect, 0, Color.FromArgb(240, 240, 244), false, Color.Transparent);
 
             // 4. 应用主标题 "LanChat" (17pt YaHei Bold White)
-            using (Font titleFont = new Font("Microsoft YaHei", 17f, FontStyle.Bold))
-            using (SolidBrush tb = new SolidBrush(Color.FromArgb(246, 246, 250)))
+            using (Font titleFont = new Font("Microsoft YaHei UI", 18f, FontStyle.Bold))
+            using (SolidBrush tb = new SolidBrush(Color.FromArgb(255, 255, 255)))
             {
                 StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 g.DrawString("LanChat", titleFont, tb, new RectangleF(0, badgeY + badgeSize + 14, this.Width, 30), sf);
             }
 
             // 5. 版本与构建信息三行文本
-            using (Font subFont = new Font("Microsoft YaHei", 10.0f, FontStyle.Regular))
-            using (SolidBrush sb = new SolidBrush(Color.FromArgb(170, 170, 176)))
+            using (Font subFont = new Font("Microsoft YaHei UI", 10.0f, FontStyle.Regular))
+            using (SolidBrush sb = new SolidBrush(Color.FromArgb(142, 142, 147))) // #8E8E93
             {
                 StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 float textY = badgeY + badgeSize + 52;
@@ -242,8 +242,8 @@ namespace LanChat
 
             // 6. 底部药丸按钮: 复制版本信息 (156x38, 圆角 19px, 对标 About.png)
             Rectangle btnRect = new Rectangle((this.Width - 156) / 2, 290, 156, 38);
-            Color btnBg = _isCopied ? Color.FromArgb(30, 70, 45) : (_isBtnHover ? Color.FromArgb(56, 56, 62) : Color.FromArgb(44, 44, 48));
-            Color btnBorder = _isCopied ? Color.FromArgb(40, 140, 70) : (_isBtnHover ? Color.FromArgb(76, 76, 84) : Color.FromArgb(60, 60, 66));
+            Color btnBg = _isCopied ? Color.FromArgb(30, 70, 45) : (_isBtnHover ? Color.FromArgb(46, 46, 52) : Color.FromArgb(40, 40, 44));
+            Color btnBorder = _isCopied ? Color.FromArgb(40, 140, 70) : (_isBtnHover ? Color.FromArgb(56, 56, 64) : Color.FromArgb(44, 44, 50));
             string btnText = _isCopied ? "已复制 ✓" : "复制版本信息";
 
             using (SolidBrush bBrush = new SolidBrush(btnBg))
@@ -253,8 +253,8 @@ namespace LanChat
                 MainForm.DrawRoundedRectangle(g, bPen, btnRect, 19);
             }
 
-            using (Font btnFont = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular))
-            using (SolidBrush tb = new SolidBrush(_isCopied ? Color.FromArgb(120, 240, 150) : Color.FromArgb(235, 235, 240)))
+            using (Font btnFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular))
+            using (SolidBrush tb = new SolidBrush(_isCopied ? Color.FromArgb(120, 240, 150) : Color.FromArgb(240, 240, 245)))
             {
                 StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 g.DrawString(btnText, btnFont, tb, btnRect, sf);

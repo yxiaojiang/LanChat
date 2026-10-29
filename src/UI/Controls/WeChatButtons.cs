@@ -296,7 +296,10 @@ namespace LanChat
             }
 
             Color ic = (_isHovered || _isPressed) ? Color.White : _iconColor;
-            WeChatIcon.Draw(g, _iconType, new Rectangle(0, 0, this.Width, this.Height), false, ic);
+            // Circle pills: inset glyph ~22% so Search/Add match Alis visual weight
+            int pad = _isCircle ? Math.Max(6, this.Width * 22 / 100) : 0;
+            Rectangle iconRect = new Rectangle(pad, pad, this.Width - pad * 2, this.Height - pad * 2);
+            WeChatIcon.Draw(g, _iconType, iconRect, false, ic);
         }
     }
 

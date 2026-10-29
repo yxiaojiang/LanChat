@@ -299,7 +299,7 @@ namespace LanChat
                     g.FillEllipse(bBg, badgeRect);
                     g.DrawEllipse(bPen, badgeRect);
                 }
-                using (Font bf = new Font("Microsoft YaHei", 5.0f, FontStyle.Regular))
+                using (Font bf = new Font("Microsoft YaHei UI", 5.0f, FontStyle.Regular))
                 using (SolidBrush tb = new SolidBrush(Color.FromArgb(210, 210, 210)))
                 {
                     StringFormat sf = new StringFormat(StringFormatFlags.NoWrap) { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };

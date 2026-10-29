@@ -28,7 +28,7 @@ namespace LanChat
 
         private int _hoverIndex = -1; // -2: banner button, 0..5: menu items
         private const int ITEM_COUNT = 6;
-        private const int ROW_HEIGHT = 46;
+        private const int ROW_HEIGHT = 44; // Docs menu row 44px
         private const int BANNER_HEIGHT = 58;
 
         public GrokSettingsMenuForm(
@@ -51,8 +51,8 @@ namespace LanChat
             this.FormBorderStyle = FormBorderStyle.None;
             this.ShowInTaskbar = false;
             this.StartPosition = FormStartPosition.Manual;
-            this.Size = new Size(342, 368);
-            this.BackColor = Color.FromArgb(31, 31, 31); // #1F1F1F
+            this.Size = new Size(342, 356);
+            this.BackColor = Color.FromArgb(28, 28, 31); // #1C1C1F Level1
             this.DoubleBuffered = true;
             this.Cursor = Cursors.Default;
 
@@ -189,8 +189,8 @@ namespace LanChat
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
             // 1. 全局深灰底色 (#1F1F1F) 与微光外边框 (#2C2C30)
-            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(31, 31, 31)))
-            using (Pen borderPen = new Pen(Color.FromArgb(46, 46, 50), 1f))
+            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(28, 28, 31))) // #1C1C1F
+            using (Pen borderPen = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
             {
                 Rectangle totalRect = new Rectangle(0, 0, this.Width - 1, this.Height - 1);
                 MainForm.DrawRoundedRectangle(g, bgBrush, totalRect, 16);
@@ -213,7 +213,7 @@ namespace LanChat
             }
 
             // 横幅文字：发现新版本
-            using (Font bf = new Font("Microsoft YaHei", 10.5f, FontStyle.Bold))
+            using (Font bf = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Bold))
             using (SolidBrush bb = new SolidBrush(Color.FromArgb(77, 155, 255))) // #4D9BFF
             {
                 g.DrawString("发现新版本", bf, bb, new PointF(22, 19));
@@ -226,7 +226,7 @@ namespace LanChat
             {
                 MainForm.DrawRoundedRectangle(g, btnBrush, btnRect, 14);
             }
-            using (Font btnFont = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold))
+            using (Font btnFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold))
             using (SolidBrush btnTextBrush = new SolidBrush(Color.White))
             {
                 StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
@@ -248,11 +248,11 @@ namespace LanChat
             };
 
             int startY = BANNER_HEIGHT + 6;
-            using (Font itemFont = new Font("Microsoft YaHei", 10.0f, FontStyle.Regular))
-            using (Font subFont = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular))
-            using (SolidBrush textBrush = new SolidBrush(Color.FromArgb(242, 242, 246)))
-            using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(136, 136, 142)))
-            using (SolidBrush hoverBg = new SolidBrush(Color.FromArgb(42, 42, 46)))
+            using (Font itemFont = new Font("Microsoft YaHei UI", 10.0f, FontStyle.Regular))
+            using (Font subFont = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
+            using (SolidBrush textBrush = new SolidBrush(Color.FromArgb(228, 228, 232))) // #E4E4E8
+            using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(142, 142, 147))) // #8E8E93
+            using (SolidBrush hoverBg = new SolidBrush(Color.FromArgb(46, 46, 52))) // #2E2E34
             {
                 for (int i = 0; i < items.Length; i++)
                 {
@@ -262,7 +262,7 @@ namespace LanChat
                     if (i == 4)
                     {
                         int sepY = startY + 4 * ROW_HEIGHT + 4;
-                        using (Pen sepPen = new Pen(Color.FromArgb(46, 46, 50), 1f))
+                        using (Pen sepPen = new Pen(Color.FromArgb(44, 44, 52), 1f)) // #2C2C34
                         {
                             g.DrawLine(sepPen, 18, sepY, this.Width - 18, sepY);
                         }
@@ -276,13 +276,13 @@ namespace LanChat
                     }
 
                     // 左侧矢量图标 (18x18, 居中对齐)
-                    Rectangle iconRect = new Rectangle(22, itemY + (ROW_HEIGHT - 18) / 2 - 1, 18, 18);
-                    Color iconColor = (_hoverIndex == i) ? Color.FromArgb(245, 245, 248) : Color.FromArgb(170, 170, 175);
+                    Rectangle iconRect = new Rectangle(20, itemY + (ROW_HEIGHT - 18) / 2, 18, 18);
+                    Color iconColor = (_hoverIndex == i) ? Color.FromArgb(250, 250, 252) : Color.FromArgb(160, 160, 165);
                     WeChatIcon.Draw(g, items[i].Icon, iconRect, false, iconColor);
 
-                    // 主标题文字
-                    float ty = itemY + (ROW_HEIGHT - itemFont.GetHeight(g)) / 2f - 1;
-                    g.DrawString(items[i].Title, itemFont, textBrush, new PointF(52, ty));
+                    // 主标题文字 (x=48 per Docs §7)
+                    float ty = itemY + (ROW_HEIGHT - itemFont.GetHeight(g)) / 2f;
+                    g.DrawString(items[i].Title, itemFont, textBrush, new PointF(48, ty));
 
                     // 右侧副标题与箭头指示符 (如 "已开启 ›" 或 "mimovr ›")
                     if (!string.IsNullOrEmpty(items[i].SubText))

@@ -97,7 +97,7 @@ namespace LanChat
                 ListBox lb = new ListBox
                 {
                     Dock = DockStyle.Fill,
-                    Font = new System.Drawing.Font("Microsoft YaHei", 9.5f),
+                    Font = new System.Drawing.Font("Microsoft YaHei UI", 9.5f),
                     BackColor = System.Drawing.Color.FromArgb(18, 18, 20),
                     ForeColor = System.Drawing.Color.White
                 };

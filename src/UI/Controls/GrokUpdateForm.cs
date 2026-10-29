@@ -54,7 +54,7 @@ namespace LanChat
             this.Size = new Size(580, 480);
             this.BackColor = Color.FromArgb(22, 22, 24); // #161618
             this.DoubleBuffered = true;
-            this.Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular);
+            this.Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular);
 
             BuildControls();
         }
@@ -95,7 +95,7 @@ namespace LanChat
                 Size = new Size(512, 220),
                 BackColor = Color.FromArgb(16, 16, 18),
                 ForeColor = Color.FromArgb(225, 225, 230),
-                Font = new Font("Microsoft YaHei", 9.5f),
+                Font = new Font("Microsoft YaHei UI", 9.5f),
                 BorderStyle = BorderStyle.None,
                 Text = _releaseNotes
             };
@@ -110,7 +110,7 @@ namespace LanChat
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold)
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)
             };
             _btnDownload.FlatAppearance.BorderSize = 0;
             _btnDownload.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -147,7 +147,7 @@ namespace LanChat
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular)
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular)
             };
             _btnWeb.FlatAppearance.BorderSize = 0;
             _btnWeb.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -190,7 +190,7 @@ namespace LanChat
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular)
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular)
             };
             _btnCancel.FlatAppearance.BorderSize = 0;
             _btnCancel.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -208,7 +208,7 @@ namespace LanChat
                     MainForm.DrawRoundedRectangle(e.Graphics, b, r, 18);
                     MainForm.DrawRoundedRectangle(e.Graphics, p, r, 18);
                 }
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(170, 170, 176)))
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(142, 142, 147)))
                 {
                     StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                     e.Graphics.DrawString("稍后再说", _btnCancel.Font, tb, new RectangleF(0, 1, _btnCancel.Width, _btnCancel.Height), sf);
@@ -390,8 +390,8 @@ namespace LanChat
             }
             WeChatIcon.Draw(g, WeChatIconType.Bolt, new Rectangle(52, 80, 24, 24), false, Color.FromArgb(144, 90, 251));
 
-            using (Font vf = new Font("Microsoft YaHei", 11f, FontStyle.Bold))
-            using (Font sf = new Font("Microsoft YaHei", 9f, FontStyle.Regular))
+            using (Font vf = new Font("Microsoft YaHei UI", 11f, FontStyle.Bold))
+            using (Font sf = new Font("Microsoft YaHei UI", 9f, FontStyle.Regular))
             using (SolidBrush vb = new SolidBrush(Color.FromArgb(245, 245, 250)))
             using (SolidBrush sb = new SolidBrush(Color.FromArgb(160, 160, 166)))
             {
@@ -400,7 +400,7 @@ namespace LanChat
             }
 
             // 5. 更新日志说明边框
-            using (Font ntf = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold))
+            using (Font ntf = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold))
             using (SolidBrush ntb = new SolidBrush(Color.FromArgb(210, 210, 216)))
             {
                 g.DrawString("更新日志 / 发布说明:", ntf, ntb, new PointF(30, 134));

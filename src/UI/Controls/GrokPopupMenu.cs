@@ -44,7 +44,7 @@ namespace LanChat
             this.ShowInTaskbar = false;
             this.StartPosition = FormStartPosition.Manual;
             this.TopMost = true;
-            this.BackColor = Color.FromArgb(28, 28, 32); // #1C1C20
+            this.BackColor = Color.FromArgb(28, 28, 31); // #1C1C1F Level1
             this.DoubleBuffered = true;
             this.Cursor = Cursors.Default;
             this.Font = new Font("Microsoft YaHei UI", 10f, FontStyle.Regular);
@@ -171,8 +171,8 @@ namespace LanChat
 
             // 1. 背景与 1px 微妙描边
             Rectangle fullRect = new Rectangle(0, 0, this.Width - 1, this.Height - 1);
-            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(28, 28, 32)))
-            using (Pen borderPen = new Pen(Color.FromArgb(46, 46, 52), 1f))
+            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(28, 28, 31))) // #1C1C1F
+            using (Pen borderPen = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
             {
                 MainForm.DrawRoundedRectangle(g, bgBrush, fullRect, 16);
                 MainForm.DrawRoundedRectangle(g, borderPen, fullRect, 16);
@@ -185,7 +185,7 @@ namespace LanChat
                 MenuItemInfo item = _items[i];
                 if (item.IsSeparator)
                 {
-                    using (Pen sepPen = new Pen(Color.FromArgb(44, 44, 50), 1f))
+                    using (Pen sepPen = new Pen(Color.FromArgb(44, 44, 52), 1f)) // #2C2C34
                     {
                         int lineY = curY + SEPARATOR_HEIGHT / 2;
                         g.DrawLine(sepPen, PADDING_H + 8, lineY, this.Width - PADDING_H - 8, lineY);
@@ -200,7 +200,7 @@ namespace LanChat
                 // 悬停高亮圆角卡片 (#2E2E34)
                 if (isHover)
                 {
-                    Color hoverColor = item.IsDestructive ? Color.FromArgb(60, 24, 28) : Color.FromArgb(46, 46, 54);
+                    Color hoverColor = item.IsDestructive ? Color.FromArgb(60, 24, 28) : Color.FromArgb(46, 46, 52); // #2E2E34
                     using (SolidBrush hb = new SolidBrush(hoverColor))
                     {
                         MainForm.DrawRoundedRectangle(g, hb, itemRect, 8);
@@ -213,11 +213,11 @@ namespace LanChat
                 Color iconColor;
                 if (item.IsDestructive)
                 {
-                    iconColor = isHover ? Color.FromArgb(255, 90, 100) : Color.FromArgb(235, 75, 85);
+                    iconColor = isHover ? Color.FromArgb(255, 92, 108) : Color.FromArgb(252, 68, 85); // #FC4455
                 }
                 else
                 {
-                    iconColor = isHover ? Color.FromArgb(250, 250, 252) : Color.FromArgb(160, 160, 168);
+                    iconColor = isHover ? Color.FromArgb(250, 250, 252) : Color.FromArgb(160, 160, 165);
                 }
                 WeChatIcon.Draw(g, item.IconType, iconRect, false, iconColor);
 
@@ -225,11 +225,11 @@ namespace LanChat
                 Color textColor;
                 if (item.IsDestructive)
                 {
-                    textColor = isHover ? Color.FromArgb(255, 90, 100) : Color.FromArgb(235, 75, 85);
+                    textColor = isHover ? Color.FromArgb(255, 92, 108) : Color.FromArgb(252, 68, 85);
                 }
                 else
                 {
-                    textColor = isHover ? Color.FromArgb(255, 255, 255) : Color.FromArgb(226, 226, 232);
+                    textColor = isHover ? Color.FromArgb(255, 255, 255) : Color.FromArgb(228, 228, 232); // #E4E4E8
                 }
 
                 using (SolidBrush textBrush = new SolidBrush(textColor))
@@ -247,7 +247,7 @@ namespace LanChat
                 // 副文本 / 快捷提示 (若有)
                 if (!string.IsNullOrEmpty(item.Hint))
                 {
-                    using (SolidBrush hintBrush = new SolidBrush(Color.FromArgb(130, 130, 140)))
+                    using (SolidBrush hintBrush = new SolidBrush(Color.FromArgb(142, 142, 147))) // #8E8E93
                     using (Font hintFont = new Font("Microsoft YaHei UI", 9f))
                     using (StringFormat sfHint = new StringFormat
                     {

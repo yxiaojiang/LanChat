@@ -34,9 +34,9 @@ namespace LanChat
             this.StartPosition = FormStartPosition.CenterParent;
             this.ShowInTaskbar = false;
             this.Size = new Size(420, 250);
-            this.BackColor = Color.FromArgb(24, 24, 26); // #18181A
+            this.BackColor = Color.FromArgb(28, 28, 31); // #1C1C1F Level1
             this.DoubleBuffered = true;
-            this.Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular);
+            this.Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular);
 
             BuildControls(currentNick);
         }
@@ -72,9 +72,9 @@ namespace LanChat
                 Text = currentNick,
                 Location = new Point(36, 126),
                 Size = new Size(348, 26),
-                BackColor = Color.FromArgb(16, 16, 18),
-                ForeColor = Color.FromArgb(240, 240, 245),
-                Font = new Font("Microsoft YaHei", 10.5f),
+                BackColor = Color.FromArgb(18, 18, 18),
+                ForeColor = Color.FromArgb(242, 242, 246),
+                Font = new Font("Microsoft YaHei UI", 10.5f),
                 BorderStyle = BorderStyle.None
             };
             this.Controls.Add(_txtNick);
@@ -89,7 +89,7 @@ namespace LanChat
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular)
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular)
             };
             _btnCancel.FlatAppearance.BorderSize = 0;
             _btnCancel.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -101,13 +101,13 @@ namespace LanChat
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 Rectangle r = new Rectangle(0, 0, _btnCancel.Width - 1, _btnCancel.Height - 1);
-                using (SolidBrush b = new SolidBrush(cancelHover ? Color.FromArgb(50, 50, 56) : Color.FromArgb(38, 38, 42)))
-                using (Pen p = new Pen(Color.FromArgb(60, 60, 68), 1f))
+                using (SolidBrush b = new SolidBrush(cancelHover ? Color.FromArgb(46, 46, 52) : Color.FromArgb(40, 40, 44)))
+                using (Pen p = new Pen(Color.FromArgb(44, 44, 50), 1f))
                 {
                     MainForm.DrawRoundedRectangle(e.Graphics, b, r, 17);
                     MainForm.DrawRoundedRectangle(e.Graphics, p, r, 17);
                 }
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(220, 220, 225)))
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 245)))
                 {
                     StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                     e.Graphics.DrawString("取消", _btnCancel.Font, tb, new RectangleF(0, 1, _btnCancel.Width, _btnCancel.Height), sf);
@@ -126,7 +126,7 @@ namespace LanChat
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold)
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)
             };
             _btnSave.FlatAppearance.BorderSize = 0;
             _btnSave.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -208,14 +208,14 @@ namespace LanChat
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
             // 1. 背景边框
-            using (Pen borderPen = new Pen(Color.FromArgb(46, 46, 50), 1f))
+            using (Pen borderPen = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
             {
                 MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 16);
             }
 
             // 2. 标题 "修改我的昵称" (16.0pt 加粗明亮纯白)
-            using (Font titleFont = new Font("Microsoft YaHei UI", 16f, FontStyle.Bold))
-            using (SolidBrush tb = new SolidBrush(Color.FromArgb(250, 250, 255)))
+            using (Font titleFont = new Font("Microsoft YaHei UI", 18f, FontStyle.Bold))
+            using (SolidBrush tb = new SolidBrush(Color.FromArgb(255, 255, 255)))
             {
                 g.DrawString("修改我的昵称", titleFont, tb, new PointF(24, 18));
             }
@@ -240,17 +240,17 @@ namespace LanChat
 
             // 4. 吉祥物头像微标 (38x38) 与提示
             Rectangle avRect = new Rectangle(26, 58, 38, 38);
-            WeChatIcon.DrawMascotAvatarShape(g, avRect, 0, Color.FromArgb(252, 44, 62), true, Color.FromArgb(24, 24, 26));
+            WeChatIcon.DrawMascotAvatarShape(g, avRect, 0, Color.FromArgb(252, 44, 62), true, Color.FromArgb(28, 28, 31));
 
-            using (Font tipFont = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular))
-            using (SolidBrush sb = new SolidBrush(Color.FromArgb(170, 170, 176)))
+            using (Font tipFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular))
+            using (SolidBrush sb = new SolidBrush(Color.FromArgb(142, 142, 147))) // #8E8E93
             {
                 g.DrawString("在局域网内向其他节点展示您的身份名称:", tipFont, sb, new PointF(74, 68));
             }
 
             // 5. 输入框暗黑容器 (高 40px, 圆角 8px)
             Rectangle boxRect = new Rectangle(24, 118, 372, 42);
-            using (SolidBrush bb = new SolidBrush(Color.FromArgb(16, 16, 18)))
+            using (SolidBrush bb = new SolidBrush(Color.FromArgb(18, 18, 18))) // #121212
             using (Pen bp = new Pen(_txtNick.Focused ? Color.FromArgb(142, 100, 220) : Color.FromArgb(46, 46, 52), 1f))
             {
                 MainForm.DrawRoundedRectangle(g, bb, boxRect, 8);

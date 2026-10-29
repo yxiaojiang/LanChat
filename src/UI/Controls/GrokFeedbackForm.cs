@@ -31,10 +31,10 @@ namespace LanChat
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.CenterParent;
             this.ShowInTaskbar = false;
-            this.Size = new Size(520, 420);
-            this.BackColor = Color.FromArgb(24, 24, 26); // #18181A
+            this.Size = new Size(520, 460); // Docs §9 Feedback 520x460
+            this.BackColor = Color.FromArgb(28, 28, 31); // #1C1C1F Level1
             this.DoubleBuffered = true;
-            this.Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular);
+            this.Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular);
 
             BuildControls();
         }
@@ -70,10 +70,10 @@ namespace LanChat
             {
                 Multiline = true,
                 Location = new Point(28, 96),
-                Size = new Size(464, 200),
-                BackColor = Color.FromArgb(18, 18, 20),
-                ForeColor = Color.FromArgb(235, 235, 240),
-                Font = new Font("Microsoft YaHei", 10.0f),
+                Size = new Size(464, 230),
+                BackColor = Color.FromArgb(18, 18, 18),
+                ForeColor = Color.FromArgb(242, 242, 246),
+                Font = new Font("Microsoft YaHei UI", 10.0f),
                 BorderStyle = BorderStyle.None
             };
             this.Controls.Add(_txtFeedback);
@@ -82,12 +82,12 @@ namespace LanChat
             _btnCancel = new Button
             {
                 Text = "取消",
-                Location = new Point(310, 360),
+                Location = new Point(310, 400),
                 Size = new Size(82, 34),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular)
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular)
             };
             _btnCancel.FlatAppearance.BorderSize = 0;
             _btnCancel.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -118,12 +118,12 @@ namespace LanChat
             _btnSubmit = new Button
             {
                 Text = "发送反馈",
-                Location = new Point(402, 360),
+                Location = new Point(402, 400),
                 Size = new Size(92, 34),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold)
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)
             };
             _btnSubmit.FlatAppearance.BorderSize = 0;
             _btnSubmit.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -181,7 +181,7 @@ namespace LanChat
                 }
 
                 // 点击 Checkbox 切换
-                Rectangle chkRect = new Rectangle(28, 312, 220, 24);
+                Rectangle chkRect = new Rectangle(28, 352, 220, 24);
                 if (chkRect.Contains(e.Location))
                 {
                     _includeDiag = !_includeDiag;
@@ -216,7 +216,7 @@ namespace LanChat
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
             // 1. 背景与外边框
-            using (Pen borderPen = new Pen(Color.FromArgb(46, 46, 50), 1f))
+            using (Pen borderPen = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
             {
                 MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 16);
             }
@@ -247,16 +247,16 @@ namespace LanChat
             }
 
             // 4. 副标题 (完全对标 SendFK.png)
-            using (Font subFont = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular))
-            using (SolidBrush sb = new SolidBrush(Color.FromArgb(170, 170, 176)))
+            using (Font subFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular))
+            using (SolidBrush sb = new SolidBrush(Color.FromArgb(142, 142, 147))) // #8E8E93
             {
                 g.DrawString("我们重视所有反馈，无论是错误、想法还是问题", subFont, sb, new PointF(28, 58));
             }
 
             // 5. 文本框容器边框与占位提示
             Rectangle boxRect = new Rectangle(22, 90, 476, 212);
-            using (SolidBrush bb = new SolidBrush(Color.FromArgb(18, 18, 20)))
-            using (Pen bp = new Pen(Color.FromArgb(46, 46, 52), 1f))
+            using (SolidBrush bb = new SolidBrush(Color.FromArgb(18, 18, 18)))
+            using (Pen bp = new Pen(Color.FromArgb(44, 44, 50), 1f))
             {
                 MainForm.DrawRoundedRectangle(g, bb, boxRect, 10);
                 MainForm.DrawRoundedRectangle(g, bp, boxRect, 10);
@@ -264,7 +264,7 @@ namespace LanChat
 
             if (string.IsNullOrEmpty(_txtFeedback.Text))
             {
-                using (Font pf = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular))
+                using (Font pf = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular))
                 using (SolidBrush pb = new SolidBrush(Color.FromArgb(110, 110, 116)))
                 {
                     g.DrawString("问题描述与预期结果", pf, pb, new PointF(30, 98));
@@ -272,7 +272,7 @@ namespace LanChat
             }
 
             // 6. Checkbox: "包含当前诊断与网络状态" (完全对标 SendFK.png 蓝底白勾)
-            Rectangle chkBox = new Rectangle(28, 314, 18, 18);
+            Rectangle chkBox = new Rectangle(28, 354, 18, 18);
             if (_includeDiag)
             {
                 using (SolidBrush cb = new SolidBrush(Color.FromArgb(17, 109, 210)))
@@ -298,10 +298,10 @@ namespace LanChat
                 }
             }
 
-            using (Font lblFont = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular))
+            using (Font lblFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular))
             using (SolidBrush lb = new SolidBrush(Color.FromArgb(220, 220, 225)))
             {
-                g.DrawString("包含当前节点与网络诊断信息", lblFont, lb, new PointF(54, 314));
+                g.DrawString("包含当前节点与网络诊断信息", lblFont, lb, new PointF(54, 354));
             }
         }
     }

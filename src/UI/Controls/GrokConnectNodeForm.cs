@@ -46,9 +46,9 @@ namespace LanChat
             this.StartPosition = FormStartPosition.CenterParent;
             this.ShowInTaskbar = false;
             this.Size = new Size(760, 600);
-            this.BackColor = Color.FromArgb(20, 20, 22); // #141416
+            this.BackColor = Color.FromArgb(28, 28, 31); // #1C1C1F Level1
             this.DoubleBuffered = true;
-            this.Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular);
+            this.Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular);
 
             BuildControls();
             PopulatePeers();
@@ -87,7 +87,7 @@ namespace LanChat
                 Size = new Size(490, 24),
                 BackColor = Color.FromArgb(16, 16, 18),
                 ForeColor = Color.FromArgb(240, 240, 245),
-                Font = new Font("Microsoft YaHei", 10.0f),
+                Font = new Font("Microsoft YaHei UI", 10.0f),
                 BorderStyle = BorderStyle.None
             };
             _txtSearch.TextChanged += (s, e) =>
@@ -106,7 +106,7 @@ namespace LanChat
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold)
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)
             };
             _btnRefresh.FlatAppearance.BorderSize = 0;
             _btnRefresh.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -157,7 +157,7 @@ namespace LanChat
                 Size = new Size(420, 24),
                 BackColor = Color.FromArgb(16, 16, 18),
                 ForeColor = Color.FromArgb(240, 240, 245),
-                Font = new Font("Microsoft YaHei", 10.0f),
+                Font = new Font("Microsoft YaHei UI", 10.0f),
                 BorderStyle = BorderStyle.None
             };
             this.Controls.Add(_txtManualIp);
@@ -170,7 +170,7 @@ namespace LanChat
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold)
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)
             };
             _btnManualConnect.FlatAppearance.BorderSize = 0;
             _btnManualConnect.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -239,7 +239,7 @@ namespace LanChat
                 {
                     Text = string.IsNullOrEmpty(_searchFilter) ? "局域网内暂未发现其他节点，请尝试点击右上角【⟳ 扫描刷新】或在下方手动输入对方 IP 直连握手" : "未找到匹配此关键词的节点",
                     ForeColor = Color.FromArgb(140, 140, 146),
-                    Font = new Font("Microsoft YaHei", 9.5f),
+                    Font = new Font("Microsoft YaHei UI", 9.5f),
                     Location = new Point(20, 40),
                     Size = new Size(650, 48),
                     TextAlign = ContentAlignment.MiddleCenter
@@ -284,7 +284,7 @@ namespace LanChat
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold)
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)
             };
             btnAction.FlatAppearance.BorderSize = 0;
             btnAction.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -347,8 +347,8 @@ namespace LanChat
                 WeChatIcon.DrawMascotAvatarShape(g, avRect, shapeIdx, avColor, true, Color.FromArgb(25, 25, 28));
 
                 // 节点名称与 IP 说明文字
-                using (Font nameFont = new Font("Microsoft YaHei", 10.5f, FontStyle.Bold))
-                using (Font subFont = new Font("Microsoft YaHei", 9.0f, FontStyle.Regular))
+                using (Font nameFont = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Bold))
+                using (Font subFont = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
                 using (SolidBrush nb = new SolidBrush(Color.FromArgb(242, 242, 246)))
                 using (SolidBrush sb = new SolidBrush(Color.FromArgb(150, 150, 156)))
                 {
@@ -443,8 +443,8 @@ namespace LanChat
             // 右上角指示器 "已连接 N 个 >"
             int peerCount = _netService != null ? _netService.GetActivePeers().Count : 0;
             string countText = string.Format("已连接 {0} 个  ›", peerCount);
-            using (Font countFont = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular))
-            using (SolidBrush cb = new SolidBrush(Color.FromArgb(170, 170, 176)))
+            using (Font countFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular))
+            using (SolidBrush cb = new SolidBrush(Color.FromArgb(142, 142, 147)))
             {
                 SizeF csz = g.MeasureString(countText, countFont);
                 g.DrawString(countText, countFont, cb, new PointF(this.Width - 48 - csz.Width, 20));
@@ -483,7 +483,7 @@ namespace LanChat
 
             if (string.IsNullOrEmpty(_txtSearch.Text))
             {
-                using (Font pf = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular))
+                using (Font pf = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular))
                 using (SolidBrush pb = new SolidBrush(Color.FromArgb(110, 110, 116)))
                 {
                     g.DrawString("在节点中搜索 (主机名 / IP / 昵称)...", pf, pb, new PointF(66, 74));
@@ -494,7 +494,7 @@ namespace LanChat
             int chipY = 118;
             string[] chips = new string[] { "全部", "局域网在线", "历史节点", "手动直连" };
             int curX = 32;
-            using (Font chipFont = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular))
+            using (Font chipFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular))
             {
                 for (int i = 0; i < chips.Length; i++)
                 {
@@ -522,14 +522,14 @@ namespace LanChat
             }
 
             // 5. 分组标题: "为你推荐 / 局域网节点"
-            using (Font groupFont = new Font("Microsoft YaHei", 11.0f, FontStyle.Bold))
+            using (Font groupFont = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Bold))
             using (SolidBrush gb = new SolidBrush(Color.FromArgb(240, 240, 246)))
             {
                 g.DrawString("局域网节点", groupFont, gb, new PointF(32, 158));
             }
 
             // 6. 分组标题: "手动 IP 握手直连" (完全对标 ConnetctApp.png 密码管理器单卡片)
-            using (Font groupFont = new Font("Microsoft YaHei", 11.0f, FontStyle.Bold))
+            using (Font groupFont = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Bold))
             using (SolidBrush gb = new SolidBrush(Color.FromArgb(240, 240, 246)))
             {
                 g.DrawString("手动指定 IP 握手直连", groupFont, gb, new PointF(32, 462));
@@ -553,7 +553,7 @@ namespace LanChat
             WeChatIcon.Draw(g, WeChatIconType.Bolt, new Rectangle(54, 511, 20, 20), false, Color.FromArgb(144, 90, 251));
 
             // 输入提示与输入框占位符
-            using (Font ipLblFont = new Font("Microsoft YaHei", 9.0f, FontStyle.Regular))
+            using (Font ipLblFont = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
             using (SolidBrush tb = new SolidBrush(Color.FromArgb(150, 150, 156)))
             {
                 g.DrawString("输入对方 IPv4:", ipLblFont, tb, new PointF(90, 498));
@@ -570,7 +570,7 @@ namespace LanChat
 
             if (string.IsNullOrEmpty(_txtManualIp.Text))
             {
-                using (Font pf = new Font("Microsoft YaHei", 9.0f, FontStyle.Regular))
+                using (Font pf = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
                 using (SolidBrush pb = new SolidBrush(Color.FromArgb(110, 110, 116)))
                 {
                     g.DrawString("例如: 192.168.1.100 (无需加端口号)", pf, pb, new PointF(134, 516));

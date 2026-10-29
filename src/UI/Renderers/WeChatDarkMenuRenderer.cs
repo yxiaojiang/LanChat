@@ -12,9 +12,9 @@ namespace LanChat
     /// </summary>
     public class WeChatDarkMenuColorTable : ProfessionalColorTable
     {
-        private readonly Color _bg = Color.FromArgb(30, 30, 32);
-        private readonly Color _border = Color.FromArgb(48, 48, 52);
-        private readonly Color _selected = Color.FromArgb(46, 46, 50);
+        private readonly Color _bg = Color.FromArgb(28, 28, 31);
+        private readonly Color _border = Color.FromArgb(44, 44, 50);
+        private readonly Color _selected = Color.FromArgb(46, 46, 52);
         private readonly Color _separator = Color.FromArgb(44, 44, 48);
 
         public override Color ToolStripDropDownBackground { get { return _bg; } }
@@ -76,7 +76,7 @@ namespace LanChat
 
         protected override void OnRenderImageMargin(ToolStripRenderEventArgs e)
         {
-            using (SolidBrush b = new SolidBrush(Color.FromArgb(30, 30, 32)))
+            using (SolidBrush b = new SolidBrush(Color.FromArgb(28, 28, 31)))
             {
                 e.Graphics.FillRectangle(b, e.AffectedBounds);
             }
@@ -115,7 +115,7 @@ namespace LanChat
                 _lblText = new Label
                 {
                     ForeColor = Color.FromArgb(225, 225, 229), // #e1e1e5
-                    Font = new Font("Microsoft YaHei", 8.5f),
+                    Font = new Font("Microsoft YaHei UI", 8.5f),
                     AutoSize = true,
                     BackColor = Color.Transparent
                 };

@@ -203,11 +203,11 @@ namespace LanChat
             int cardMarginY = 3;
             int cardRadius = 16;
 
-            // 2. 选中态绘制 #222222 圆角卡片背景（与截图选中项 Alist迅雷 100% 一致）
+            // 2. 选中态绘制 Level3 #28282C 圆角卡片（Docs §2 Level3 / Alis 选中项）
             if (isSelected)
             {
                 Rectangle cardRect = new Rectangle(r.Left + cardMarginX, r.Top + cardMarginY, r.Width - cardMarginX * 2, 80);
-                using (SolidBrush cardBrush = new SolidBrush(Color.FromArgb(34, 34, 34))) // #222222
+                using (SolidBrush cardBrush = new SolidBrush(Color.FromArgb(40, 40, 44))) // #28282C
                 {
                     DrawRoundedRectangle(g, cardBrush, cardRect, cardRadius);
                 }
@@ -225,8 +225,8 @@ namespace LanChat
                 // 底部“新建连接”项：有机橙黄云朵吉祥物 + 单行粗体白字（复刻截图底部“新建 Bot”）
                 WeChatIcon.DrawMascotAvatar(g, avatarRect, Color.FromArgb(246, 148, 18), true, false, Color.FromArgb(14, 14, 14));
 
-                using (Font titleFont = new Font("Microsoft YaHei", 11.0f, FontStyle.Bold))
-                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(240, 240, 245)))
+                using (Font titleFont = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Bold))
+                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(242, 242, 246))) // #F2F2F6
                 {
                     float ty = r.Top + (r.Height - titleFont.GetHeight(g)) / 2f;
                     g.DrawString("新建连接", titleFont, titleBrush, new PointF(textX, ty));
@@ -240,8 +240,8 @@ namespace LanChat
                 // 顶部第一项（局域网全员群聊 / 专属会话）：亮紫色正圆吉祥物 (#905AFB，复刻截图 Alist迅雷)
                 WeChatIcon.DrawMascotAvatar(g, avatarRect, Color.FromArgb(144, 90, 251), false, false, Color.FromArgb(14, 14, 14));
 
-                using (Font titleFont = new Font("Microsoft YaHei", 11.0f, FontStyle.Bold))
-                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(245, 245, 248)))
+                using (Font titleFont = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Bold))
+                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(242, 242, 246))) // #F2F2F6
                 {
                     string title = sItem;
                     if (sItem == BROADCAST_TARGET)
@@ -255,8 +255,8 @@ namespace LanChat
                 string snippet = _sessionManager != null ? _sessionManager.GetLastMessageSnippet(SessionManager.BROADCAST_KEY, 24) : null;
                 if (string.IsNullOrEmpty(snippet)) snippet = "已按 Rules 刷新本机记忆 (刷新...";
 
-                using (Font subFont = new Font("Microsoft YaHei", 9.5f))
-                using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(136, 136, 142)))
+                using (Font subFont = new Font("Microsoft YaHei UI", 9.0f))
+                using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(142, 142, 147))) // #8E8E93
                 {
                     if (snippet.Length > 20) snippet = snippet.Substring(0, 19) + "...";
                     g.DrawString(snippet, subFont, subBrush, new PointF(textX, r.Top + 46));
@@ -272,8 +272,8 @@ namespace LanChat
                 string badge = useCoralStyle ? "节点" : null;
                 WeChatIcon.DrawMascotAvatar(g, avatarRect, bodyColor, !useCoralStyle, false, Color.FromArgb(14, 14, 14), badge);
 
-                using (Font titleFont = new Font("Microsoft YaHei", 11.0f, FontStyle.Bold))
-                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(245, 245, 248)))
+                using (Font titleFont = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Bold))
+                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(242, 242, 246))) // #F2F2F6
                 {
                     string name = peer.NickName ?? "未知节点";
                     if (name.Length > 13) name = name.Substring(0, 12) + "...";
@@ -285,8 +285,8 @@ namespace LanChat
                 {
                     snippet = string.Format("{0} ({1})", peer.HostName, peer.IP);
                 }
-                using (Font subFont = new Font("Microsoft YaHei", 9.5f))
-                using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(136, 136, 142)))
+                using (Font subFont = new Font("Microsoft YaHei UI", 9.0f))
+                using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(142, 142, 147))) // #8E8E93
                 {
                     if (snippet.Length > 16) snippet = snippet.Substring(0, 15) + "...";
                     g.DrawString(snippet, subFont, subBrush, new PointF(textX, r.Top + 46));

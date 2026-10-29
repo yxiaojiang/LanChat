@@ -54,10 +54,10 @@ namespace LanChat
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.CenterParent;
             this.ShowInTaskbar = false;
-            this.Size = new Size(450, 580);
-            this.BackColor = Color.FromArgb(24, 24, 26); // #18181A
+            this.Size = new Size(450, 580); // keep absolute layout; Docs 680x620 needs layout pass
+            this.BackColor = Color.FromArgb(28, 28, 31); // #1C1C1F Level1
             this.DoubleBuffered = true;
-            this.Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular);
+            this.Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular);
 
             BuildControls(initialName);
         }
@@ -96,7 +96,7 @@ namespace LanChat
                 Size = new Size(354, 24),
                 BackColor = Color.FromArgb(20, 20, 22),
                 ForeColor = Color.FromArgb(240, 240, 245),
-                Font = new Font("Microsoft YaHei", 10.5f),
+                Font = new Font("Microsoft YaHei UI", 10.5f),
                 BorderStyle = BorderStyle.None,
                 TextAlign = HorizontalAlignment.Center
             };
@@ -112,7 +112,7 @@ namespace LanChat
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular)
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular)
             };
             _btnCancel.FlatAppearance.BorderSize = 0;
             _btnCancel.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -149,7 +149,7 @@ namespace LanChat
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold)
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)
             };
             _btnCreate.FlatAppearance.BorderSize = 0;
             _btnCreate.FlatAppearance.MouseOverBackColor = Color.Transparent;
@@ -304,7 +304,7 @@ namespace LanChat
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
             // 1. 背景与微光外边框
-            using (Pen borderPen = new Pen(Color.FromArgb(46, 46, 50), 1f))
+            using (Pen borderPen = new Pen(Color.FromArgb(44, 44, 50), 1f))
             {
                 MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 16);
             }
@@ -352,7 +352,7 @@ namespace LanChat
 
             if (string.IsNullOrEmpty(_txtName.Text))
             {
-                using (Font pf = new Font("Microsoft YaHei", 10.0f, FontStyle.Regular))
+                using (Font pf = new Font("Microsoft YaHei UI", 10.0f, FontStyle.Regular))
                 using (SolidBrush pb = new SolidBrush(Color.FromArgb(120, 120, 126)))
                 {
                     StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };

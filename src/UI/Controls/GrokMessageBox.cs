@@ -34,9 +34,9 @@ namespace LanChat
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.CenterParent;
             this.ShowInTaskbar = false;
-            this.BackColor = Color.FromArgb(24, 24, 26); // #18181A
+            this.BackColor = Color.FromArgb(28, 28, 31); // #1C1C1F Level1
             this.DoubleBuffered = true;
-            this.Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular);
+            this.Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular);
 
             BuildLayout(buttons);
         }
@@ -72,7 +72,7 @@ namespace LanChat
             int maxTextW = baseW - 88;
             Size textSize;
             using (Graphics g = this.CreateGraphics())
-            using (Font f = new Font("Microsoft YaHei", 9.5f))
+            using (Font f = new Font("Microsoft YaHei UI", 9.5f))
             {
                 SizeF sz = g.MeasureString(_message, f, maxTextW);
                 textSize = new Size((int)Math.Ceiling(sz.Width), (int)Math.Ceiling(sz.Height));
@@ -88,9 +88,9 @@ namespace LanChat
                 Text = _message,
                 Location = new Point(68, 52),
                 Size = new Size(maxTextW, contentH),
-                ForeColor = Color.FromArgb(228, 228, 234),
+                ForeColor = Color.FromArgb(242, 242, 246),
                 BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular)
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular)
             };
             this.Controls.Add(lbl);
 
@@ -152,7 +152,7 @@ namespace LanChat
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Bold),
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold),
                 Margin = new Padding(6, 0, 0, 0)
             };
             btn.FlatAppearance.BorderSize = 0;
@@ -224,13 +224,13 @@ namespace LanChat
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
             // 边框
-            using (Pen borderPen = new Pen(Color.FromArgb(46, 46, 50), 1f))
+            using (Pen borderPen = new Pen(Color.FromArgb(44, 44, 50), 1f))
             {
                 MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 16);
             }
 
             // 顶部标题
-            using (Font titleFont = new Font("Microsoft YaHei", 10.5f, FontStyle.Bold))
+            using (Font titleFont = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Bold))
             using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 245)))
             {
                 g.DrawString(_title, titleFont, tb, new PointF(22, 14));
@@ -287,7 +287,7 @@ namespace LanChat
                             g.FillPath(wb, wp);
                         }
                     }
-                    using (SolidBrush exb = new SolidBrush(Color.FromArgb(24, 24, 26)))
+                    using (SolidBrush exb = new SolidBrush(Color.FromArgb(28, 28, 31)))
                     {
                         g.FillRectangle(exb, r.X + r.Width / 2f - 1.2f, r.Y + 12, 2.4f, 9f);
                         g.FillEllipse(exb, r.X + r.Width / 2f - 1.5f, r.Y + 23, 3f, 3f);

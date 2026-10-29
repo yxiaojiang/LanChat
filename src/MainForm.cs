@@ -303,10 +303,10 @@ namespace LanChat
             this.ShowIcon = true;
             this.ShowInTaskbar = true;
             this.FormBorderStyle = FormBorderStyle.None;
-            this.Size = new Size(1024, 620);
-            this.MinimumSize = new Size(820, 520);
+            this.Size = new Size(1040, 720); // GrokBot Main 1040x720
+            this.MinimumSize = new Size(880, 560);
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.Font = new Font("Microsoft YaHei", 9.5f, FontStyle.Regular);
+            this.Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular);
             this.BackColor = Color.FromArgb(18, 18, 18); // Grok Main Dark #121212
             this.DoubleBuffered = true;
             this.AllowDrop = true;
@@ -358,12 +358,12 @@ namespace LanChat
             {
                 Location = new Point(20, 11),
                 Size = new Size(290, 36),
-                BackColor = Color.FromArgb(28, 28, 30),
+                BackColor = Color.FromArgb(32, 32, 36), // #202024
                 Visible = false
             };
             _searchBoxContainer.Paint += (s, e) => {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                using (Pen pen = new Pen(Color.FromArgb(52, 52, 56), 1f))
+                using (Pen pen = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
                 {
                     DrawRoundedRectangle(e.Graphics, pen, new Rectangle(0, 0, _searchBoxContainer.Width - 1, _searchBoxContainer.Height - 1), 18);
                 }
@@ -373,10 +373,10 @@ namespace LanChat
             {
                 Location = new Point(12, 8),
                 Width = 260,
-                BackColor = Color.FromArgb(28, 28, 30),
-                ForeColor = Color.FromArgb(230, 230, 235),
+                BackColor = Color.FromArgb(32, 32, 36),
+                ForeColor = Color.FromArgb(242, 242, 246), // #F2F2F6
                 BorderStyle = BorderStyle.None,
-                Font = new Font("Microsoft YaHei", 9.5f)
+                Font = new Font("Microsoft YaHei UI", 10.0f)
             };
             _txtSearch.TextChanged += TxtSearch_TextChanged;
             _txtSearch.KeyDown += (s, e) => {
@@ -389,13 +389,13 @@ namespace LanChat
             _searchBoxContainer.Controls.Add(_txtSearch);
 
             // Top circular Search button at right (36x36)
-            _btnSearchToggle = new WeChatIconButton(WeChatIconType.Search, "搜索会话", 36)
+            _btnSearchToggle = new WeChatIconButton(WeChatIconType.Search, "搜索会话", 34)
             {
-                Location = new Point(322, 11),
+                Location = new Point(322, 12),
                 IsCircle = true,
-                FillColor = Color.FromArgb(28, 28, 30),
-                HoverFillColor = Color.FromArgb(46, 46, 50),
-                IconColor = Color.FromArgb(205, 205, 210)
+                FillColor = Color.FromArgb(32, 32, 36), // #202024 Level2
+                HoverFillColor = Color.FromArgb(46, 46, 52), // #2E2E34
+                IconColor = Color.FromArgb(160, 160, 165) // #A0A0A5
             };
             _btnSearchToggle.Click += (s, e) => {
                 _searchBoxContainer.Visible = !_searchBoxContainer.Visible;
@@ -404,13 +404,13 @@ namespace LanChat
             };
 
             // Top circular Plus button at right (36x36)
-            _btnAddSession = new WeChatIconButton(WeChatIconType.Add, "新建连接 / 更多操作", 36)
+            _btnAddSession = new WeChatIconButton(WeChatIconType.Add, "新建连接 / 更多操作", 34)
             {
-                Location = new Point(368, 11),
+                Location = new Point(368, 12),
                 IsCircle = true,
-                FillColor = Color.FromArgb(28, 28, 30),
-                HoverFillColor = Color.FromArgb(46, 46, 50),
-                IconColor = Color.FromArgb(220, 220, 225)
+                FillColor = Color.FromArgb(32, 32, 36), // #202024 Level2
+                HoverFillColor = Color.FromArgb(46, 46, 52), // #2E2E34
+                IconColor = Color.FromArgb(160, 160, 165) // #A0A0A5
             };
             _btnAddSession.Click += BtnAddSession_Click;
 
@@ -453,16 +453,16 @@ namespace LanChat
             _btnBottomUser.Paint += (s, e) => {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 Rectangle r = new Rectangle(0, 0, _btnBottomUser.Width - 1, _btnBottomUser.Height - 1);
-                using (SolidBrush b = new SolidBrush(Color.FromArgb(48, 48, 48))) // #303030
-                using (Pen p = new Pen(Color.FromArgb(64, 64, 68), 1f))
+                using (SolidBrush b = new SolidBrush(Color.FromArgb(40, 40, 44))) // #28282C Level3
+                using (Pen p = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
                 {
                     e.Graphics.FillEllipse(b, r);
                     e.Graphics.DrawEllipse(p, r);
                 }
                 string nick = _netService != null && !string.IsNullOrEmpty(_netService.NickName) ? _netService.NickName : Environment.UserName;
                 if (nick.Length > 2) nick = nick.Substring(0, 2);
-                using (Font f = new Font("Microsoft YaHei", 10f, FontStyle.Regular))
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(215, 215, 220)))
+                using (Font f = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold))
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(242, 242, 246))) // #F2F2F6
                 {
                     StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                     e.Graphics.DrawString(nick, f, tb, new RectangleF(0, 1, _btnBottomUser.Width, _btnBottomUser.Height), sf);
@@ -488,14 +488,14 @@ namespace LanChat
             _btnBottomConnect.Paint += (s, e) => {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 Rectangle r = new Rectangle(0, 0, _btnBottomConnect.Width - 1, _btnBottomConnect.Height - 1);
-                using (SolidBrush b = new SolidBrush(connHover ? Color.FromArgb(42, 42, 46) : Color.FromArgb(31, 31, 31))) // #1F1F1F
-                using (Pen p = new Pen(connHover ? Color.FromArgb(64, 64, 70) : Color.FromArgb(46, 46, 50), 1f))
+                using (SolidBrush b = new SolidBrush(connHover ? Color.FromArgb(46, 46, 52) : Color.FromArgb(40, 40, 44))) // Level3 / hot
+                using (Pen p = new Pen(connHover ? Color.FromArgb(56, 56, 64) : Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
                 {
                     DrawRoundedRectangle(e.Graphics, b, r, 27);
                     DrawRoundedRectangle(e.Graphics, p, r, 27);
                 }
-                using (Font f = new Font("Microsoft YaHei", 10.5f, FontStyle.Bold))
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 245)))
+                using (Font f = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)) // pill text 9.5pt
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 245))) // #F0F0F5
                 {
                     StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                     e.Graphics.DrawString("连接节点", f, tb, new RectangleF(0, 1, _btnBottomConnect.Width, _btnBottomConnect.Height), sf);
@@ -525,7 +525,7 @@ namespace LanChat
                 BorderStyle = BorderStyle.None,
                 BackColor = Color.FromArgb(14, 14, 14),
                 ForeColor = Color.White,
-                Font = new Font("Microsoft YaHei", 10.5f),
+                Font = new Font("Microsoft YaHei UI", 11.0f),
                 ItemHeight = 86,
                 DrawMode = DrawMode.OwnerDrawFixed,
                 IntegralHeight = false
@@ -569,7 +569,7 @@ namespace LanChat
                 g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
                 string pillTitle = _lblChatTitle.Text ?? "局域网全员群聊";
-                using (Font pillFont = new Font("Microsoft YaHei", 10.5f, FontStyle.Bold))
+                using (Font pillFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold))
                 {
                     SizeF tsz = g.MeasureString(pillTitle, pillFont);
                     int pillW = Math.Max(120, (int)Math.Ceiling(tsz.Width) + 54);
@@ -657,8 +657,8 @@ namespace LanChat
             _lblProgressInfo = new Label
             {
                 Text = "准备传输...",
-                Font = new Font("Microsoft YaHei", 9f),
-                ForeColor = Color.FromArgb(164, 132, 245),
+                Font = new Font("Microsoft YaHei UI", 9.0f),
+                ForeColor = Color.FromArgb(142, 142, 147), // #8E8E93 secondary
                 AutoSize = true,
                 Location = new Point(18, 5)
             };
@@ -885,8 +885,8 @@ namespace LanChat
             // 2. 顶部搜索栏与右侧圆钮动态定位 (36x36)
             if (_searchHeaderPanel != null && _btnSearchToggle != null && _btnAddSession != null)
             {
-                _btnAddSession.Location = new Point(_searchHeaderPanel.Width - 52, 11);
-                _btnSearchToggle.Location = new Point(_searchHeaderPanel.Width - 98, 11);
+                _btnAddSession.Location = new Point(_searchHeaderPanel.Width - 50, 12);
+                _btnSearchToggle.Location = new Point(_searchHeaderPanel.Width - 94, 12);
 
                 if (_searchBoxContainer != null)
                 {
