@@ -314,23 +314,19 @@ namespace LanChat
 
         private void TxtInput_TextChanged(object sender, EventArgs e)
         {
+            // 单行胶囊：重绘占位符；多行换行逻辑已随 Multiline=false 移除
+            if (_inputPanel != null) _inputPanel.Invalidate();
             if (_bottomSendPanel != null) _bottomSendPanel.Invalidate();
         }
 
         private void TxtInput_KeyDown(object sender, KeyEventArgs e)
         {
+            // 单行胶囊：Enter 发送；Ctrl/Shift+Enter 不适用换行
             if (e.KeyCode == Keys.Enter)
             {
-                if (e.Control || e.Shift)
+                e.SuppressKeyPress = true;
+                if (!e.Control && !e.Shift)
                 {
-                    e.SuppressKeyPress = true;
-                    int sel = _txtInput.SelectionStart;
-                    _txtInput.SelectedText = Environment.NewLine;
-                    _txtInput.SelectionStart = sel + Environment.NewLine.Length;
-                }
-                else
-                {
-                    e.SuppressKeyPress = true;
                     SendMessage();
                 }
             }

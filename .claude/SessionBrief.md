@@ -1,30 +1,28 @@
 # SessionBrief.md — 当前接手摘要
 
-> 最近刷新：2026-10-25。仓库：`https://github.com/yxiaojiang/LanChat.git`。
+> 最近刷新：2026-10-29。仓库：`https://github.com/yxiaojiang/LanChat.git`。
 > 当前分支：`feature/wechat-ui`（稳定基线：`main` 分支 Tag `v2.1.0` / `LanChat-v2.1.0`，Commit `3bf788d`）。
-> 核心里程碑：**严格依照 GrokBot 设计规范与 UI 硬约束（Rule 9），圆满完成微信高输入区与 6 联圆形矢量工具栏（方案 A）重塑与热替换验证**！
+> 核心里程碑：**用户确认 GrokBot 1:1**；P0 已在代码侧恢复 64px 浮动输入胶囊（替换方案 A 的 160px 微信高输入区）；**方案 B 冻结**。
 
 ---
 
-## 一、 本轮工作态与方案 A 交付成果
+## 一、 本轮工作态（GrokBot 1:1 / P0 胶囊恢复）
 
-### 1. 策略隔离与硬约束确立
-- **稳定基线锁定与分支隔离**：在 `main` 分支完整锁定 GrokBot 暗黑基线并打上 `v2.1.0` 与 `LanChat-v2.1.0` 标签推送远端，随后创建并切换至 `feature/wechat-ui` 分支，杜绝大步快跑导致界面失控；
-- **确立 Rule 9 硬约束**：在 `.claude/Rules.md` 写入第 9 条 UI 硬约束，严禁随意手绘粗糙线条或非标字号，所有控件、字体、图标必须 100% 严格执行 `Docs/GrokBot_UI_Design_System.md`。
+### 1. 策略转向
+- 用户确认优先 **GrokBot 1:1**，不再继续推进微信布局方案 B；
+- **方案 B（56px 窄导航）冻结**，待 GrokBot 1:1 完成后再评估；
+- Rule 9 与 `Docs/GrokBot_UI_Design_System.md` 继续作为唯一视觉契约。
 
-### 2. 方案 A：微信高输入区全面对齐落地
-- **保留左侧稳定结构**：左侧会话栏保持 420px，完整保留 82x82 Hero 吉祥物、86px 会话卡片与底部三联 Dock，保证功能稳固；
-- **重构右侧 160px 微信大输入框**：配置 `#232326` 顶分割线与 `#121212` 暗黑背景，包含 42px 工具栏、多行文本输入框与底部操作条；
-- **6 联 34x34 圆形矢量工具栏**：
-  - 工具按钮统一为 34x34 正圆容器（`#1C1C20`，鼠标悬停 `#2E2E34`，8px 间距），与左侧成熟圆钮视觉张力完全一致；
-  - 纯 GDI+ 1.8f 矢量重绘（`WeChatIcon.cs`）：Emoji（椭圆胶囊眼+温和微笑弧线）、Box（收藏抽屉盒）、Folder（现代文档折角文件夹）、Scissors（交叉利刃+手柄孔）、Mic（胶囊头+U型托架+底座）、Call（45度微仰电话听筒剪影）；
-- **彻底消灭系统原生白色滚动条**：多行文本框配置 `ScrollBars = ScrollBars.None`，彻底消除刺眼的 Win32 白色滚动条，完整保留鼠标滚轮与键盘平滑滚动；
-- **严格执行排版规范**：输入框字体设定为 `11.0pt (15px)` `Microsoft YaHei UI` `#F2F2F6`（95% 明度）；底部提示文字为 `9.5pt` `#8E8E93`（57% 明度）；发送按钮为 92x32 魅紫 `#8E64DC`（圆角 6px，10.0pt Bold 纯白字，右边距 20px，下边距 10px）。
+### 2. P0：恢复 64px 浮动输入胶囊（本步代码已完成）
+- 移除方案 A 的 160px 微信高输入区与 6 联工具栏（Emoji/Box/Folder/Scissors/Mic/Call 作为底栏工具条）；
+- 恢复 Docs §4.2 / §8 胶囊：高 64 / 半径 32 / bg `#202024` / 边框 `#2C2C32` / 左右边距 28 / 底边距 22；
+- (+) 36×36 `#2A2A2E`（`WeChatIconType.Add`）→ `ShowInputPlusContextMenu`；Mic 32×32；发送 44×44 魅紫 ↑（`_btnSendWave` → `BtnSend_Click`）；
+- 单行输入 `Microsoft YaHei UI` 11.0pt `#F2F2F6`，占位 `#5E5E66`；Enter 发送；保留拖放；
+- 文件：`src/MainForm.cs`、`src/MainForm.Chat.cs`；未改网络/协议。
 
-### 3. 构建与热替换实测
-- 系统原生 `csc.exe` 秒级编译，0 警告 0 错误；
-- 调用 `Tools/CompileAndLink.bat` 成功热替换至本地安装目录 `D:\soft\LanChat\LanChat.exe`；
-- 代码已完整提交并 Push 至远端分支 `feature/wechat-ui`（Commit `0f1102b`）。
+### 3. 待父代理 / 用户 Windows 实机验证
+- 请用 `Tools/CompileAndLink.bat` 在本机编译热替换后目视：胶囊浮动、(+)/Mic/↑、Enter 发送、拖放、附件菜单。
+- 本步未 Push；Linux box 不跑 WinForms GUI 编译。
 
 ---
 
@@ -43,8 +41,8 @@
   - 解决了 WinForms TextBox 在暗黑模式下暴露原生白色滚动条的系统缺陷；
   - 解决了图标线条粗细不一、缺乏按钮容器衬托的视觉脱节问题。
 - **未关闭风险 / 下阶段待办**：
-  - 用户将在新会话中验收方案 A 的本地运行效果；
-  - 随后按序推进方案 B：在左侧加入 56px 微信极窄导航栏，并移除会话栏底部的“连接节点”与蓝扫描按钮，让 86px 会话卡片纵向铺满。
+  - Windows 实机验收 P0 64px 胶囊（编译热替换）；
+  - 继续 GrokBot 1:1 其余对齐项；**方案 B 冻结**。
 
 ---
 
@@ -53,8 +51,8 @@
 | 模块 / 文件 | 说明 |
 | :--- | :--- |
 | `src/Program.cs` | 应用程序入口，单实例互斥（Mutex）与广播唤醒，高 DPI 感知，AppUserModelID 注册 |
-| `src/MainForm.cs` | 主窗体核心构造、控件布局树、响应式自适应布局、160px 微信大输入框容器构建 |
-| `src/MainForm.Chat.cs` | 会话管理与自适应卡片绘制（86px）、文字收发、6 联工具栏按钮响应与 GrokPopupMenu |
+| `src/MainForm.cs` | 主窗体核心构造、控件布局树、响应式自适应布局、**64px GrokBot 浮动输入胶囊** |
+| `src/MainForm.Chat.cs` | 会话管理与自适应卡片绘制（86px）、文字收发、输入 KeyDown/发送与 GrokPopupMenu |
 | `src/MainForm.Files.cs` | 文件选择与拖拽监听、流式分块进度更新、文件接收与系统外壳调用 |
 | `src/MainForm.Tray.cs` | 网络初始化、自适应 Hero 头像绘制（`BtnAvatar_Paint`）、托盘驻留与 GrokPopupMenu 托盘菜单 |
 | `src/UI/Renderers/WeChatIcon.cs` | 纯 GDI+ 1.8f 矢量图标与 Grok 吉祥物绘制引擎（Emoji、Box、Folder、Scissors、Mic、Call 等） |
