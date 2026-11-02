@@ -22,16 +22,18 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `src/UI/Controls/GrokChangeNickForm.cs`：暗黑昵称修改窗口（吉祥物微标、暗黑圆角输入框与紫色保存按钮）。
 - `src/UI/Controls/GrokFeedbackForm.cs`：发送反馈窗口（多行反馈输入框、网络诊断复选框与发送反馈按钮）。
 - `src/UI/Controls/GrokUpdateForm.cs`：软件更新窗口（版本对比横幅、更新日志与平滑进度条）。
-- `src/UI/Controls/GrokMessageBox.cs`：暗黑提示框（彻底取代系统生硬白底 MessageBox）。
+- `src/UI/Controls/GrokMessageBox.cs`：暗黑提示框（彻底取代系统生硬白底 MessageBox），使用 TextRenderer.MeasureText 静态度量并动态绑定 Region，杜绝半边裁切。
+- `src/UI/Controls/SessionListBox.cs`：自绘双缓冲 ListBox（`OptimizedDoubleBuffer` + `UserPaint` + 拦截 `OnPaintBackground`），杜绝会话点击与 hover 闪烁，严禁挂载 `WS_EX_COMPOSITED`。
 - `src/UI/Renderers/WeChatIcon.cs`：纯 GDI+ 矢量图标与 Grok 吉祥物绘制引擎（1.8f 线宽、圆头圆角：Emoji 表情、Box 收藏抽屉盒、Folder 文件、Scissors 剪刀、Mic 麦克风、Call 电话手柄、吉祥物头像、WinMin/WinMax/WinClose 等）。
 - `src/UI/Controls/WeChatButtons.cs`：无边框图标按钮（`WeChatIconButton`），扩展支持圆形按钮（`IsCircle`，34x34 悬停微光）、右上角 56x64 矩形标题栏控制按钮、自定义填充色与窗口关闭高亮模式。
 - `src/UI/Controls/WeChatChatView.cs`：Grok 风格自适应居中流式聊天视图控件（840px 约束舒适阅读流、右侧自发 `#7946D7` 魅紫气泡、左侧 `#1E1E21` 深灰卡片、反引号行内代码胶囊高亮、居中时间戳对齐与平滑滚动条）。
 - `src/Services/UpdateService.cs`：GitHub Releases 在线自动更新服务。
 - `src/Services/SessionManager.cs`：会话与消息历史纯领域解耦服务。
+- `packaging/bump-version.py`：全工程版本号自动自增与原子同步脚本。
 - `Docs/GrokBot_UI_Design_System.md`：完整 GrokBot UI 设计规范与视觉对齐标准文档。
 - `Tools/Compile.bat`：原生纯编译脚本，纯 ASCII 0-BOM，秒级生成 `release\LanChat.exe` 与 `release\uninstall.exe`。
 - `Tools/CompileAndLink.bat`：一键编译链接并热替换覆盖至 `D:\soft\LanChat\`。
-- `Tools/Publish.bat`：一键调用 WiX 5 打包 `release\LanChat.msi` 并自动上传发布至 GitHub Releases。
+- `Tools/Publish.bat`：全自动版本自增、强制编译、WiX 5 打包与带网络重试的 GitHub Releases 发布脚本。
 
 ## 关键设计点与演进状态
 1. **暗黑设计系统规范 (Rule 9 硬约束)**：

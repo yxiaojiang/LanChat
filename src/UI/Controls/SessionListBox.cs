@@ -10,8 +10,6 @@ namespace LanChat
     /// </summary>
     public class SessionListBox : ListBox
     {
-        private const int WS_EX_COMPOSITED = 0x02000000;
-
         public SessionListBox()
         {
             SetStyle(
@@ -21,17 +19,6 @@ namespace LanChat
                 | ControlStyles.ResizeRedraw,
                 true);
             DoubleBuffered = true;
-        }
-
-        protected override CreateParams CreateParams
-        {
-            get
-            {
-                CreateParams cp = base.CreateParams;
-                // Composited paint for this list only — reduces selection flash with owner-draw.
-                cp.ExStyle |= WS_EX_COMPOSITED;
-                return cp;
-            }
         }
 
         protected override void OnPaintBackground(PaintEventArgs pevent)

@@ -117,7 +117,7 @@ namespace LanChat
         private int _currentNavTab = 0;
 
         // Constants
-        public const string APP_VERSION = "2.0.0";
+        public const string APP_VERSION = "2.0.1";
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
 
         // System Tray & Single Instance

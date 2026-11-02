@@ -13,6 +13,7 @@ Features:
 
 import sys
 import os
+import queue
 import socket
 import threading
 import time
@@ -32,7 +33,7 @@ try:
 except ImportError:
     HAS_TK = False
 
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.0.1"
 GITHUB_REPO = "yxiaojiang/LanChat"
 UDP_PORT = 38888
 TCP_BASE_PORT = 38889
@@ -551,16 +552,41 @@ class LanChatService:
         try: self.udp_sock.close()
         except: pass
 
-# ==================== Linux 微信暗黑风格图形界面 (WeChatGui) ====================
+# ==================== Linux GrokBot 暗黑现代图形界面 (WeChatGui) ====================
 if HAS_TK:
+    def get_ui_font(size=10, weight="normal"):
+        """自适应跨平台字体：在 Linux 提供完善的中文字体回退链，彻底杜绝生硬粗糙点阵字"""
+        if sys.platform == "win32":
+            return ("Microsoft YaHei UI", size, weight)
+        candidates = [
+            "WenQuanYi Micro Hei",
+            "Noto Sans CJK SC",
+            "Source Han Sans CN",
+            "Droid Sans Fallback",
+            "DejaVu Sans",
+            "sans-serif"
+        ]
+        try:
+            import tkinter.font as tkfont
+            avail = set(tkfont.families())
+            for cand in candidates:
+                if cand in avail:
+                    return (cand, size, weight)
+        except Exception:
+            pass
+        return ("sans-serif", size, weight)
+
     class WeChatGui:
         def __init__(self, service: LanChatService):
             self.service = service
             self.root = tk.Tk()
             self.root.title("LanChat")
-            self.root.geometry("980x660")
-            self.root.minsize(820, 540)
-            self.root.configure(bg="#1e1e1f")
+            self.root.geometry("1020x680")
+            self.root.minsize(840, 560)
+            self.root.configure(bg="#121212")
+
+            # 跨线程安全通信事件队列 (彻底根治 Linux/X11 下 Tcl/Tk 跨线程死锁与按钮假死)
+            self.event_queue = queue.Queue()
 
             # 图标绑定
             for icon_path in [
@@ -582,81 +608,88 @@ if HAS_TK:
             self.unread_counts = {}              # key -> count
             self.peer_items = {}                 # key -> UI components
 
-            # 颜色规范：深度对标 WeChat Desktop Dark Mode
-            self.C_SIDEBAR = "#252526"
-            self.C_SESSIONS = "#202021"
-            self.C_CHAT = "#1e1e1f"
-            self.C_BORDER = "#2b2b2d"
-            self.C_GREEN = "#07c160"
-            self.C_GREEN_HOVER = "#06ad56"
-            self.C_BUBBLE_OTHER = "#2c2c2e"
-            self.C_BUBBLE_SELF = "#07c160"
-            self.C_TEXT_WHITE = "#f0f0f0"
-            self.C_TEXT_MUTED = "#888888"
-            self.C_SESSION_SELECT = "#333335"
-            self.C_SESSION_HOVER = "#2a2a2b"
+            # 颜色规范：100% 对标 GrokBot UI 设计体系 (纯黑深邃 + 魅紫 #8E64DC)
+            self.C_BG = "#121212"
+            self.C_SIDEBAR = "#1C1C20"
+            self.C_SESSIONS = "#161618"
+            self.C_CHAT = "#121212"
+            self.C_BORDER = "#28282C"
+            self.C_PURPLE = "#8E64DC"
+            self.C_PURPLE_HOVER = "#A078E6"
+            self.C_BUBBLE_OTHER = "#1E1E21"
+            self.C_BUBBLE_SELF = "#8E64DC"
+            self.C_TEXT_WHITE = "#F2F2F6"
+            self.C_TEXT_MUTED = "#8E8E93"
+            self.C_SESSION_SELECT = "#28282C"
+            self.C_SESSION_HOVER = "#222226"
 
             self._build_ui()
             self._wire_callbacks()
 
+            # 启动主线程安全事件泵循环 (每 25ms 消费事件，永不死锁)
+            self.root.after(25, self._poll_event_queue)
             self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         def _build_ui(self):
-            # 1. 左侧边栏 (导航与头像)
-            self.sidebar = tk.Frame(self.root, bg=self.C_SIDEBAR, width=58)
+            # 1. 左侧边栏 (导航与头像，Grok Level1 #1C1C20)
+            self.sidebar = tk.Frame(self.root, bg=self.C_SIDEBAR, width=64)
             self.sidebar.pack(side="left", fill="y")
             self.sidebar.pack_propagate(False)
 
-            self.avatar_canvas = tk.Canvas(self.sidebar, width=42, height=42, bg=self.C_SIDEBAR, highlightthickness=0)
-            self.avatar_canvas.pack(pady=(16, 20))
+            self.avatar_canvas = tk.Canvas(self.sidebar, width=44, height=44, bg=self.C_SIDEBAR, highlightthickness=0)
+            self.avatar_canvas.pack(pady=(16, 16))
             self._draw_avatar()
 
             self.btn_nav_chat = tk.Button(
-                self.sidebar, text="💬", font=("Microsoft YaHei", 15),
-                bg=self.C_SIDEBAR, fg=self.C_GREEN, relief="flat", bd=0, cursor="hand2"
+                self.sidebar, text="会话", font=get_ui_font(10, "bold"),
+                bg=self.C_SESSION_SELECT, fg=self.C_PURPLE, activebackground="#333336",
+                activeforeground=self.C_PURPLE_HOVER, relief="flat", bd=0, padx=6, pady=6, cursor="hand2"
             )
-            self.btn_nav_chat.pack(pady=6)
+            self.btn_nav_chat.pack(pady=4, fill="x", padx=8)
 
             self.btn_nav_refresh = tk.Button(
-                self.sidebar, text="🔄", font=("Microsoft YaHei", 13),
-                bg=self.C_SIDEBAR, fg=self.C_TEXT_MUTED, relief="flat", bd=0, cursor="hand2",
+                self.sidebar, text="刷新", font=get_ui_font(10),
+                bg=self.C_SIDEBAR, fg=self.C_TEXT_WHITE, activebackground="#28282C",
+                activeforeground=self.C_TEXT_WHITE, relief="flat", bd=0, padx=6, pady=6, cursor="hand2",
                 command=self._on_refresh
             )
-            self.btn_nav_refresh.pack(pady=6)
+            self.btn_nav_refresh.pack(pady=4, fill="x", padx=8)
 
             self.btn_nav_add = tk.Button(
-                self.sidebar, text="➕", font=("Microsoft YaHei", 13),
-                bg=self.C_SIDEBAR, fg=self.C_TEXT_MUTED, relief="flat", bd=0, cursor="hand2",
+                self.sidebar, text="连接", font=get_ui_font(10),
+                bg=self.C_SIDEBAR, fg=self.C_TEXT_WHITE, activebackground="#28282C",
+                activeforeground=self.C_TEXT_WHITE, relief="flat", bd=0, padx=6, pady=6, cursor="hand2",
                 command=self._on_add_ip
             )
-            self.btn_nav_add.pack(pady=6)
+            self.btn_nav_add.pack(pady=4, fill="x", padx=8)
 
             self.btn_settings = tk.Button(
-                self.sidebar, text="≡", font=("Microsoft YaHei", 16, "bold"),
-                bg=self.C_SIDEBAR, fg=self.C_TEXT_MUTED, relief="flat", bd=0, cursor="hand2",
+                self.sidebar, text="设置", font=get_ui_font(10),
+                bg=self.C_SIDEBAR, fg=self.C_TEXT_MUTED, activebackground="#28282C",
+                activeforeground=self.C_TEXT_WHITE, relief="flat", bd=0, padx=6, pady=6, cursor="hand2",
                 command=self._show_settings_menu
             )
-            self.btn_settings.pack(side="bottom", pady=16)
+            self.btn_settings.pack(side="bottom", pady=16, fill="x", padx=8)
 
-            # 2. 中间会话列表栏
-            self.sessions_panel = tk.Frame(self.root, bg=self.C_SESSIONS, width=240)
+            # 2. 中间会话列表栏 (Grok Level0 紧密列表 #161618)
+            self.sessions_panel = tk.Frame(self.root, bg=self.C_SESSIONS, width=250)
             self.sessions_panel.pack(side="left", fill="y")
             self.sessions_panel.pack_propagate(False)
 
             search_frame = tk.Frame(self.sessions_panel, bg=self.C_SESSIONS, height=52)
             search_frame.pack(fill="x", padx=10, pady=(12, 6))
 
-            search_box = tk.Frame(search_frame, bg="#2c2c2e", bd=0)
+            search_box = tk.Frame(search_frame, bg="#222226", bd=0)
             search_box.pack(fill="x")
 
-            lbl_lens = tk.Label(search_box, text="🔍", bg="#2c2c2e", fg="#888888", font=("Microsoft YaHei", 9))
-            lbl_lens.pack(side="left", padx=(6, 2))
+            lbl_lens = tk.Label(search_box, text="[搜索]", bg="#222226", fg=self.C_TEXT_MUTED, font=get_ui_font(8))
+            lbl_lens.pack(side="left", padx=(8, 4))
 
             self.entry_search = tk.Entry(
-                search_box, bg="#2c2c2e", fg="#e0e0e0", insertbackground="#ffffff",
-                relief="flat", font=("Microsoft YaHei", 9), bd=0
+                search_box, bg="#222226", fg=self.C_TEXT_WHITE, insertbackground="#ffffff",
+                relief="flat", font=get_ui_font(9), bd=0
             )
-            self.entry_search.pack(side="left", fill="x", expand=True, ipady=4, padx=(0, 6))
+            self.entry_search.pack(side="left", fill="x", expand=True, ipady=5, padx=(0, 8))
             self.entry_search.bind("<KeyRelease>", lambda e: self._render_sessions())
 
             sep1 = tk.Frame(self.sessions_panel, bg=self.C_BORDER, height=1)
@@ -665,43 +698,43 @@ if HAS_TK:
             self.sessions_container = tk.Frame(self.sessions_panel, bg=self.C_SESSIONS)
             self.sessions_container.pack(fill="both", expand=True)
 
-            # 3. 右侧主聊天区
+            # 3. 右侧主聊天区 (Grok Level0 #121212)
             self.chat_panel = tk.Frame(self.root, bg=self.C_CHAT)
             self.chat_panel.pack(side="right", fill="both", expand=True)
 
             # 顶部标头
-            self.header_frame = tk.Frame(self.chat_panel, bg=self.C_CHAT, height=54)
+            self.header_frame = tk.Frame(self.chat_panel, bg=self.C_CHAT, height=56)
             self.header_frame.pack(fill="x")
             self.header_frame.pack_propagate(False)
 
             header_info = tk.Frame(self.header_frame, bg=self.C_CHAT)
-            header_info.pack(side="left", padx=16, pady=8)
+            header_info.pack(side="left", padx=18, pady=8)
 
             self.lbl_chat_title = tk.Label(
-                header_info, text="📢 局域网全员群聊", font=("Microsoft YaHei", 12, "bold"),
+                header_info, text="局域网全员群聊", font=get_ui_font(12, "bold"),
                 bg=self.C_CHAT, fg=self.C_TEXT_WHITE
             )
             self.lbl_chat_title.pack(anchor="w")
 
             self.lbl_chat_sub = tk.Label(
-                header_info, text="局域网广播模式 (所有人可见)", font=("Microsoft YaHei", 8),
+                header_info, text="局域网广播模式 (所有人可见)", font=get_ui_font(8),
                 bg=self.C_CHAT, fg=self.C_TEXT_MUTED
             )
             self.lbl_chat_sub.pack(anchor="w")
 
             header_actions = tk.Frame(self.header_frame, bg=self.C_CHAT)
-            header_actions.pack(side="right", padx=16, pady=10)
+            header_actions.pack(side="right", padx=16, pady=12)
 
             for text, cmd in [
-                ("🔄 刷新", self._on_refresh),
-                ("➕ 加IP", self._on_add_ip),
-                ("📂 接收目录", self._open_save_folder),
-                ("🧹 清屏", self._clear_current_chat)
+                ("刷新", self._on_refresh),
+                ("加节点", self._on_add_ip),
+                ("接收目录", self._open_save_folder),
+                ("清屏", self._clear_current_chat)
             ]:
                 b = tk.Button(
-                    header_actions, text=text, font=("Microsoft YaHei", 8),
-                    bg="#262628", fg="#cccccc", activebackground="#333336",
-                    activeforeground="#ffffff", relief="flat", bd=0, padx=8, pady=3,
+                    header_actions, text=text, font=get_ui_font(8),
+                    bg="#1E1E22", fg=self.C_TEXT_WHITE, activebackground="#2A2A30",
+                    activeforeground="#ffffff", relief="flat", bd=0, padx=10, pady=4,
                     cursor="hand2", command=cmd
                 )
                 b.pack(side="left", padx=3)
@@ -710,9 +743,9 @@ if HAS_TK:
             sep2.pack(fill="x")
 
             # 传输进度条条幅 (默认隐藏)
-            self.progress_frame = tk.Frame(self.chat_panel, bg="#262628", height=28)
-            self.lbl_progress = tk.Label(self.progress_frame, text="", font=("Microsoft YaHei", 8), bg="#262628", fg=self.C_GREEN)
-            self.lbl_progress.pack(side="left", padx=12, pady=4)
+            self.progress_frame = tk.Frame(self.chat_panel, bg="#1E1E22", height=30)
+            self.lbl_progress = tk.Label(self.progress_frame, text="", font=get_ui_font(8), bg="#1E1E22", fg=self.C_PURPLE)
+            self.lbl_progress.pack(side="left", padx=14, pady=4)
 
             # 消息流视图
             msg_container = tk.Frame(self.chat_panel, bg=self.C_CHAT)
@@ -720,9 +753,9 @@ if HAS_TK:
 
             self.txt_history = tk.Text(
                 msg_container, bg=self.C_CHAT, fg=self.C_TEXT_WHITE,
-                relief="flat", bd=0, font=("Microsoft YaHei", 10),
-                padx=16, pady=10, state="disabled", wrap="word",
-                selectbackground=self.C_GREEN, selectforeground="#ffffff"
+                relief="flat", bd=0, font=get_ui_font(10),
+                padx=20, pady=12, state="disabled", wrap="word",
+                selectbackground=self.C_PURPLE, selectforeground="#ffffff"
             )
             history_scroll = tk.Scrollbar(msg_container, orient="vertical", command=self.txt_history.yview)
             self.txt_history.configure(yscrollcommand=history_scroll.set)
@@ -730,96 +763,133 @@ if HAS_TK:
             history_scroll.pack(side="right", fill="y")
             self.txt_history.pack(side="left", fill="both", expand=True)
 
-            # 气泡标签配置
-            self.txt_history.tag_configure("sys_msg", justify="center", foreground="#888888", font=("Microsoft YaHei", 8), spacing1=6, spacing3=6)
-            self.txt_history.tag_configure("center_time", justify="center", foreground="#666666", font=("Microsoft YaHei", 8), spacing1=6, spacing3=4)
-            self.txt_history.tag_configure("other_nick", justify="left", foreground="#999999", font=("Microsoft YaHei", 8), spacing1=6, spacing3=2)
-            self.txt_history.tag_configure("other_bubble", justify="left", background=self.C_BUBBLE_OTHER, foreground="#f0f0f0", font=("Microsoft YaHei", 10), lmargin1=10, lmargin2=10, rmargin=140, spacing1=4, spacing3=4)
-            self.txt_history.tag_configure("self_nick", justify="right", foreground="#999999", font=("Microsoft YaHei", 8), spacing1=6, spacing3=2)
-            self.txt_history.tag_configure("self_bubble", justify="right", background="#069c4e", foreground="#ffffff", font=("Microsoft YaHei", 10), lmargin1=140, rmargin=10, spacing1=4, spacing3=4)
-            self.txt_history.tag_configure("file_card", justify="left", background="#28282b", foreground=self.C_GREEN, font=("Microsoft YaHei", 9, "bold"), spacing1=4, spacing3=4)
+            # 气泡标签配置 (对标 GrokBot 魅紫与深灰卡片)
+            self.txt_history.tag_configure("sys_msg", justify="center", foreground=self.C_TEXT_MUTED, font=get_ui_font(8), spacing1=6, spacing3=6)
+            self.txt_history.tag_configure("center_time", justify="center", foreground="#666668", font=get_ui_font(8), spacing1=6, spacing3=4)
+            self.txt_history.tag_configure("other_nick", justify="left", foreground=self.C_TEXT_MUTED, font=get_ui_font(8), spacing1=6, spacing3=2)
+            self.txt_history.tag_configure("other_bubble", justify="left", background=self.C_BUBBLE_OTHER, foreground=self.C_TEXT_WHITE, font=get_ui_font(10), lmargin1=12, lmargin2=12, rmargin=160, spacing1=4, spacing3=4)
+            self.txt_history.tag_configure("self_nick", justify="right", foreground=self.C_TEXT_MUTED, font=get_ui_font(8), spacing1=6, spacing3=2)
+            self.txt_history.tag_configure("self_bubble", justify="right", background=self.C_PURPLE, foreground="#ffffff", font=get_ui_font(10), lmargin1=160, rmargin=12, spacing1=4, spacing3=4)
+            self.txt_history.tag_configure("file_card", justify="left", background="#222226", foreground=self.C_PURPLE, font=get_ui_font(9, "bold"), spacing1=4, spacing3=4)
 
             # 输入工具栏
             sep3 = tk.Frame(self.chat_panel, bg=self.C_BORDER, height=1)
             sep3.pack(fill="x")
 
-            tool_frame = tk.Frame(self.chat_panel, bg=self.C_CHAT, height=32)
-            tool_frame.pack(fill="x", padx=12, pady=4)
+            tool_frame = tk.Frame(self.chat_panel, bg=self.C_CHAT, height=36)
+            tool_frame.pack(fill="x", padx=16, pady=4)
 
             btn_send_file = tk.Button(
-                tool_frame, text="📁 发送文件", font=("Microsoft YaHei", 8),
-                bg=self.C_CHAT, fg="#cccccc", activebackground="#2c2c2e", activeforeground="#ffffff",
-                relief="flat", bd=0, padx=6, pady=2, cursor="hand2", command=self._on_send_file
+                tool_frame, text="发送文件", font=get_ui_font(8),
+                bg="#1E1E22", fg=self.C_TEXT_WHITE, activebackground="#2A2A30", activeforeground="#ffffff",
+                relief="flat", bd=0, padx=10, pady=3, cursor="hand2", command=self._on_send_file
             )
             btn_send_file.pack(side="left", padx=4)
 
             self.btn_auto_accept = tk.Button(
-                tool_frame, text="⚡ 自动接收: 开", font=("Microsoft YaHei", 8),
-                bg=self.C_CHAT, fg=self.C_GREEN, activebackground="#2c2c2e", activeforeground=self.C_GREEN,
-                relief="flat", bd=0, padx=6, pady=2, cursor="hand2", command=self._toggle_auto_accept
+                tool_frame, text="自动接收: 开", font=get_ui_font(8),
+                bg="#1E1E22", fg=self.C_PURPLE, activebackground="#2A2A30", activeforeground=self.C_PURPLE_HOVER,
+                relief="flat", bd=0, padx=10, pady=3, cursor="hand2", command=self._toggle_auto_accept
             )
             self.btn_auto_accept.pack(side="left", padx=4)
 
             btn_folder = tk.Button(
-                tool_frame, text="📂 接收目录", font=("Microsoft YaHei", 8),
-                bg=self.C_CHAT, fg="#cccccc", activebackground="#2c2c2e", activeforeground="#ffffff",
-                relief="flat", bd=0, padx=6, pady=2, cursor="hand2", command=self._open_save_folder
+                tool_frame, text="接收目录", font=get_ui_font(8),
+                bg="#1E1E22", fg=self.C_TEXT_WHITE, activebackground="#2A2A30", activeforeground="#ffffff",
+                relief="flat", bd=0, padx=10, pady=3, cursor="hand2", command=self._open_save_folder
             )
             btn_folder.pack(side="left", padx=4)
 
             btn_clear = tk.Button(
-                tool_frame, text="🧹 清屏", font=("Microsoft YaHei", 8),
-                bg=self.C_CHAT, fg="#cccccc", activebackground="#2c2c2e", activeforeground="#ffffff",
-                relief="flat", bd=0, padx=6, pady=2, cursor="hand2", command=self._clear_current_chat
+                tool_frame, text="清屏", font=get_ui_font(8),
+                bg="#1E1E22", fg=self.C_TEXT_WHITE, activebackground="#2A2A30", activeforeground="#ffffff",
+                relief="flat", bd=0, padx=10, pady=3, cursor="hand2", command=self._clear_current_chat
             )
             btn_clear.pack(side="left", padx=4)
 
             # 多行输入框
             input_container = tk.Frame(self.chat_panel, bg=self.C_CHAT)
-            input_container.pack(fill="x", padx=12, pady=(0, 4))
+            input_container.pack(fill="x", padx=16, pady=(0, 4))
 
             self.txt_input = tk.Text(
-                input_container, bg=self.C_CHAT, fg="#f0f0f0", insertbackground="#ffffff",
-                font=("Microsoft YaHei", 10), height=4, relief="flat", bd=0,
-                padx=4, pady=4, wrap="word"
+                input_container, bg="#18181A", fg=self.C_TEXT_WHITE, insertbackground="#ffffff",
+                font=get_ui_font(10), height=4, relief="flat", bd=0,
+                padx=8, pady=8, wrap="word"
             )
             self.txt_input.pack(fill="x")
             self.txt_input.bind("<Return>", self._on_enter_pressed)
             self.txt_input.bind("<Control-Return>", lambda e: self.txt_input.insert("insert", "\n"))
 
             # 底部发送面板
-            bottom_frame = tk.Frame(self.chat_panel, bg=self.C_CHAT, height=36)
-            bottom_frame.pack(fill="x", padx=16, pady=(0, 10))
+            bottom_frame = tk.Frame(self.chat_panel, bg=self.C_CHAT, height=38)
+            bottom_frame.pack(fill="x", padx=18, pady=(0, 12))
 
-            lbl_tip = tk.Label(bottom_frame, text="按 Enter 发送，Ctrl+Enter 换行", font=("Microsoft YaHei", 8), bg=self.C_CHAT, fg="#666666")
+            lbl_tip = tk.Label(bottom_frame, text="按 Enter 发送，Ctrl+Enter 换行", font=get_ui_font(8), bg=self.C_CHAT, fg=self.C_TEXT_MUTED)
             lbl_tip.pack(side="left")
 
             self.btn_send = tk.Button(
-                bottom_frame, text="发送 (S)", font=("Microsoft YaHei", 9, "bold"),
-                bg=self.C_GREEN, fg="#ffffff", activebackground=self.C_GREEN_HOVER,
-                activeforeground="#ffffff", relief="flat", bd=0, padx=18, pady=4,
+                bottom_frame, text="发送 (S)", font=get_ui_font(9, "bold"),
+                bg=self.C_PURPLE, fg="#ffffff", activebackground=self.C_PURPLE_HOVER,
+                activeforeground="#ffffff", relief="flat", bd=0, padx=22, pady=5,
                 cursor="hand2", command=self._send_message
             )
             self.btn_send.pack(side="right")
 
             # 初始化渲染
             self._render_sessions()
-            self._append_system_message("欢迎使用 LanChat 局域网即时通讯客户端 (Linux 微信暗黑版)！")
+            self._append_system_message("欢迎使用 LanChat 局域网即时通讯客户端 (Linux GrokBot 暗黑版)！")
             self._append_system_message(f"本机 IP: {self.service.primary_ip}:{self.service.tcp_port} | 昵称: {self.service.nickname}")
 
         def _draw_avatar(self):
             self.avatar_canvas.delete("all")
-            self.avatar_canvas.create_oval(2, 2, 40, 40, fill=self.C_GREEN, outline="")
+            self.avatar_canvas.create_oval(2, 2, 42, 42, fill=self.C_PURPLE, outline="")
             initial = (self.service.nickname[0] if self.service.nickname else "L").upper()
-            self.avatar_canvas.create_text(21, 21, text=initial, fill="#ffffff", font=("Microsoft YaHei", 12, "bold"))
+            self.avatar_canvas.create_text(22, 22, text=initial, fill="#ffffff", font=get_ui_font(13, "bold"))
 
         def _wire_callbacks(self):
-            self.service.on_peer_joined = lambda p: self.root.after(0, self._handle_peer_joined, p)
-            self.service.on_peer_updated = lambda p: self.root.after(0, self._handle_peer_updated, p)
-            self.service.on_peer_left = lambda pid: self.root.after(0, self._handle_peer_left, pid)
-            self.service.on_message_received = lambda nick, cnt, is_bc, pid, ts: self.root.after(0, self._handle_msg_recv, nick, cnt, is_bc, pid, ts)
-            self.service.on_file_received = lambda nick, fn, path, sz: self.root.after(0, self._handle_file_recv, nick, fn, path, sz)
-            self.service.on_file_progress = lambda fn, tr, tot, spd, sending: self.root.after(0, self._handle_file_prog, fn, tr, tot, spd, sending)
+            # 将网络工作线程事件完全投递至线程安全队列，彻底杜绝跨线程直接调用 Tkinter
+            self.service.on_peer_joined = lambda p: self.event_queue.put(("peer_joined", p))
+            self.service.on_peer_updated = lambda p: self.event_queue.put(("peer_updated", p))
+            self.service.on_peer_left = lambda pid: self.event_queue.put(("peer_left", pid))
+            self.service.on_message_received = lambda nick, cnt, is_bc, pid, ts: self.event_queue.put(("msg_recv", (nick, cnt, is_bc, pid, ts)))
+            self.service.on_file_received = lambda nick, fn, path, sz: self.event_queue.put(("file_recv", (nick, fn, path, sz)))
+            self.service.on_file_progress = lambda fn, tr, tot, spd, sending: self.event_queue.put(("file_prog", (fn, tr, tot, spd, sending)))
+
+        def _poll_event_queue(self):
+            """主线程安全事件循环分发器：每 25ms 消费事件队列并刷新 UI"""
+            try:
+                while True:
+                    event_type, data = self.event_queue.get_nowait()
+                    if event_type == "peer_joined":
+                        self._handle_peer_joined(data)
+                    elif event_type == "peer_updated":
+                        self._handle_peer_updated(data)
+                    elif event_type == "peer_left":
+                        self._handle_peer_left(data)
+                    elif event_type == "msg_recv":
+                        self._handle_msg_recv(*data)
+                    elif event_type == "file_recv":
+                        self._handle_file_recv(*data)
+                    elif event_type == "file_prog":
+                        self._handle_file_prog(*data)
+                    elif event_type == "show_update":
+                        self._show_update_dialog(*data)
+                    elif event_type == "info_box":
+                        title, msg = data
+                        messagebox.showinfo(title, msg)
+                    elif event_type == "warning_box":
+                        title, msg = data
+                        messagebox.showwarning(title, msg)
+            except queue.Empty:
+                pass
+            except Exception as ex:
+                log_message("ERROR", f"事件队列消费异常: {ex}")
+            finally:
+                if self.root:
+                    try:
+                        self.root.after(25, self._poll_event_queue)
+                    except Exception:
+                        pass
 
         def _render_sessions(self):
             for widget in self.sessions_container.winfo_children():
@@ -827,25 +897,25 @@ if HAS_TK:
 
             keyword = self.entry_search.get().strip().lower()
 
-            # 1. 广播群聊
+            # 1. 广播群聊项
             if not keyword or "群聊" in keyword or "broadcast" in keyword:
                 bg = self.C_SESSION_SELECT if self.current_conv_key == "BROADCAST" else self.C_SESSIONS
-                f_bc = tk.Frame(self.sessions_container, bg=bg, height=54, cursor="hand2")
-                f_bc.pack(fill="x", padx=4, pady=2)
+                f_bc = tk.Frame(self.sessions_container, bg=bg, height=56, cursor="hand2")
+                f_bc.pack(fill="x", padx=6, pady=2)
                 f_bc.pack_propagate(False)
 
-                lbl_t = tk.Label(f_bc, text="📢 局域网全员群聊", font=("Microsoft YaHei", 9, "bold"), bg=bg, fg=self.C_TEXT_WHITE)
+                lbl_t = tk.Label(f_bc, text="● 局域网全员群聊", font=get_ui_font(9, "bold"), bg=bg, fg=self.C_TEXT_WHITE)
                 lbl_t.pack(anchor="w", padx=10, pady=(8, 0))
 
                 with self.service.lock:
                     count = len(self.service.peers)
-                lbl_sub = tk.Label(f_bc, text=f"在线成员: {count} 人", font=("Microsoft YaHei", 8), bg=bg, fg=self.C_TEXT_MUTED)
+                lbl_sub = tk.Label(f_bc, text=f"在线成员: {count} 人", font=get_ui_font(8), bg=bg, fg=self.C_TEXT_MUTED)
                 lbl_sub.pack(anchor="w", padx=10)
 
                 for w in (f_bc, lbl_t, lbl_sub):
                     w.bind("<Button-1>", lambda e: self._select_session("BROADCAST"))
 
-            # 2. 好友列表
+            # 2. 在线好友列表项
             with self.service.lock:
                 peers_list = list(self.service.peers.values())
 
@@ -854,24 +924,24 @@ if HAS_TK:
                     continue
 
                 bg = self.C_SESSION_SELECT if self.current_conv_key == p.id else self.C_SESSIONS
-                f_p = tk.Frame(self.sessions_container, bg=bg, height=54, cursor="hand2")
-                f_p.pack(fill="x", padx=4, pady=2)
+                f_p = tk.Frame(self.sessions_container, bg=bg, height=56, cursor="hand2")
+                f_p.pack(fill="x", padx=6, pady=2)
                 f_p.pack_propagate(False)
 
                 top_box = tk.Frame(f_p, bg=bg)
                 top_box.pack(fill="x", padx=10, pady=(6, 0))
 
-                lbl_dot = tk.Label(top_box, text="●", font=("Microsoft YaHei", 8), bg=bg, fg=self.C_GREEN)
+                lbl_dot = tk.Label(top_box, text="●", font=get_ui_font(8), bg=bg, fg=self.C_PURPLE)
                 lbl_dot.pack(side="left")
 
-                lbl_nick = tk.Label(top_box, text=p.nick, font=("Microsoft YaHei", 9, "bold"), bg=bg, fg=self.C_TEXT_WHITE)
+                lbl_nick = tk.Label(top_box, text=p.nick, font=get_ui_font(9, "bold"), bg=bg, fg=self.C_TEXT_WHITE)
                 lbl_nick.pack(side="left", padx=4)
 
                 if self.unread_counts.get(p.id, 0) > 0:
-                    lbl_badge = tk.Label(top_box, text=str(self.unread_counts[p.id]), font=("Microsoft YaHei", 7, "bold"), bg="#fa5151", fg="#ffffff", padx=4)
+                    lbl_badge = tk.Label(top_box, text=str(self.unread_counts[p.id]), font=get_ui_font(7, "bold"), bg=self.C_PURPLE, fg="#ffffff", padx=4)
                     lbl_badge.pack(side="right")
 
-                lbl_msg = tk.Label(f_p, text=p.last_msg or f"{p.ip}:{p.port}", font=("Microsoft YaHei", 8), bg=bg, fg=self.C_TEXT_MUTED)
+                lbl_msg = tk.Label(f_p, text=p.last_msg or f"{p.ip}:{p.port}", font=get_ui_font(8), bg=bg, fg=self.C_TEXT_MUTED)
                 lbl_msg.pack(anchor="w", padx=10)
 
                 pid = p.id
@@ -883,7 +953,7 @@ if HAS_TK:
             self.unread_counts[conv_key] = 0
 
             if conv_key == "BROADCAST":
-                self.lbl_chat_title.config(text="📢 局域网全员群聊")
+                self.lbl_chat_title.config(text="局域网全员群聊")
                 with self.service.lock:
                     count = len(self.service.peers)
                 self.lbl_chat_sub.config(text=f"局域网广播模式 (共 {count} 位好友在线)")
@@ -1001,7 +1071,7 @@ if HAS_TK:
         def _handle_file_prog(self, file_name, transferred, total, speed, is_sending):
             if is_sending:
                 pct = int((transferred * 100) / total) if total > 0 else 100
-                self.lbl_progress.config(text=f"📎 发送文件: {file_name} ({pct}%) - {speed:.1f} MB/s")
+                self.lbl_progress.config(text=f"发送文件: {file_name} ({pct}%) - {speed:.1f} MB/s")
                 self.progress_frame.pack(fill="x", before=self.txt_history.master)
             else:
                 self.progress_frame.pack_forget()
@@ -1014,7 +1084,7 @@ if HAS_TK:
             self._render_sessions()
 
         def _handle_peer_left(self, peer_id):
-            self._append_system_message(f"[-] 好友已离线")
+            self._append_system_message("[-] 好友已离线")
             self._render_sessions()
 
         def _on_send_file(self):
@@ -1035,8 +1105,8 @@ if HAS_TK:
 
         def _toggle_auto_accept(self):
             self.service.auto_accept = not self.service.auto_accept
-            txt = "⚡ 自动接收: 开" if self.service.auto_accept else "⏸ 自动接收: 关"
-            fg = self.C_GREEN if self.service.auto_accept else "#888888"
+            txt = "自动接收: 开" if self.service.auto_accept else "自动接收: 关"
+            fg = self.C_PURPLE if self.service.auto_accept else self.C_TEXT_MUTED
             self.btn_auto_accept.config(text=txt, fg=fg)
 
         def _open_save_folder(self):
@@ -1054,7 +1124,7 @@ if HAS_TK:
 
         def _on_refresh(self):
             self.service.broadcast_presence("HELLO")
-            self._append_system_message("正在重新向局域网广播自身并探测在线好友...")
+            self._append_system_message("正在向局域网广播并探测在线好友...")
 
         def _on_add_ip(self):
             ip = simpledialog.askstring("添加好友 IP", "请输入对方的局域网 IP 地址:", parent=self.root)
@@ -1064,16 +1134,16 @@ if HAS_TK:
                 self.service.try_tcp_handshake(ip)
 
         def _show_settings_menu(self):
-            menu = tk.Menu(self.root, tearoff=0, bg="#2c2c2e", fg="#f0f0f0", activebackground="#3c3c40", activeforeground="#ffffff")
-            menu.add_command(label="✏️ 修改我的昵称...", command=self._on_change_nick)
-            menu.add_command(label="⚡ 切换自动接收文件", command=self._toggle_auto_accept)
-            menu.add_command(label="📂 打开接收文件夹", command=self._open_save_folder)
-            menu.add_command(label="🧹 清空当前聊天", command=self._clear_current_chat)
+            menu = tk.Menu(self.root, tearoff=0, bg="#1E1E22", fg=self.C_TEXT_WHITE, activebackground=self.C_PURPLE, activeforeground="#ffffff")
+            menu.add_command(label="修改昵称...", command=self._on_change_nick)
+            menu.add_command(label="切换自动接收文件", command=self._toggle_auto_accept)
+            menu.add_command(label="打开接收文件夹", command=self._open_save_folder)
+            menu.add_command(label="清空当前聊天记录", command=self._clear_current_chat)
             menu.add_separator()
-            menu.add_command(label="🔄 检查新版本...", command=lambda: self._check_for_updates(False))
-            menu.add_command(label="ℹ️ 关于 LanChat", command=self._show_about)
+            menu.add_command(label="检查新版本...", command=lambda: self._check_for_updates(False))
+            menu.add_command(label="关于 LanChat", command=self._show_about)
             menu.add_separator()
-            menu.add_command(label="🚪 退出 LanChat", command=self._on_close)
+            menu.add_command(label="退出 LanChat", command=self._on_close)
 
             try:
                 x = self.btn_settings.winfo_rootx() + 45
@@ -1092,9 +1162,9 @@ if HAS_TK:
 
         def _show_about(self):
             msg = (
-                f"LanChat v{APP_VERSION} (Linux 微信暗黑版)\n\n"
+                f"LanChat v{APP_VERSION} (Linux GrokBot 暗黑版)\n\n"
                 "局域网秒级极速通讯与文件互传\n"
-                "UI: 纯标准库自绘 WeChat Desktop Dark Mode\n"
+                "UI: 纯标准库自绘 GrokBot Dark Mode\n"
                 "零外部运行库依赖\n"
                 f"项目主页: https://github.com/{GITHUB_REPO}"
             )
@@ -1139,10 +1209,10 @@ if HAS_TK:
                         cur_parts = [int(x) for x in APP_VERSION.split('.') if x.isdigit()]
                         tag_parts = [int(x) for x in tag.split('.') if x.isdigit()]
                         if tag_parts > cur_parts:
-                            self.root.after(0, lambda: self._show_update_dialog(tag, body, html_url))
+                            self.event_queue.put(("show_update", (tag, body, html_url)))
                         else:
                             if not silent:
-                                self.root.after(0, lambda: messagebox.showinfo("检查更新", f"当前已是最新版本 (v{APP_VERSION})，无需更新。"))
+                                self.event_queue.put(("info_box", ("检查更新", f"当前已是最新版本 (v{APP_VERSION})，无需更新。")))
                         return
                     except Exception:
                         pass
@@ -1154,41 +1224,47 @@ if HAS_TK:
                             tip = "访问被禁止 (403 Forbidden)。\n原因：仓库目前为私有 (Private) 仓库，或触发了 GitHub API 速率限制。\n解决：请将 GitHub 仓库设为 Public 并发布 Release。"
                         elif last_err.code == 404:
                             tip = "未找到发布版本 (404 Not Found)。\n原因：仓库尚未创建 Release 版本，或仓库为私有 (Private) 状态。\n解决：请在 GitHub 发布 Release，并将仓库设为 Public。"
-                    self.root.after(0, lambda: messagebox.showwarning("检查更新", f"检查更新失败。\n\n{tip}"))
+                    self.event_queue.put(("warning_box", ("检查更新", f"检查更新失败。\n\n{tip}")))
 
             threading.Thread(target=_worker, daemon=True).start()
 
         def _show_update_dialog(self, tag, body, html_url):
             dlg = tk.Toplevel(self.root)
             dlg.title("发现新版本")
-            dlg.geometry("500x380")
-            dlg.configure(bg="#202021")
+            dlg.geometry("520x400")
+            dlg.configure(bg="#18181A")
             dlg.transient(self.root)
 
-            lbl = tk.Label(dlg, text=f"🚀 发现 LanChat 新版本: v{tag}", font=("Microsoft YaHei", 12, "bold"), bg="#202021", fg=self.C_GREEN)
-            lbl.pack(pady=(16, 4))
+            lbl = tk.Label(dlg, text=f"发现 LanChat 新版本: v{tag}", font=get_ui_font(12, "bold"), bg="#18181A", fg=self.C_PURPLE)
+            lbl.pack(pady=(18, 4))
 
-            lbl_sub = tk.Label(dlg, text=f"当前版本: v{APP_VERSION}", font=("Microsoft YaHei", 8), bg="#202021", fg="#888888")
+            lbl_sub = tk.Label(dlg, text=f"当前版本: v{APP_VERSION}", font=get_ui_font(8), bg="#18181A", fg=self.C_TEXT_MUTED)
             lbl_sub.pack()
 
-            txt = tk.Text(dlg, bg="#2c2c2e", fg="#dddddd", font=("Microsoft YaHei", 9), height=10, relief="flat", padx=8, pady=8)
+            txt = tk.Text(dlg, bg="#222226", fg=self.C_TEXT_WHITE, font=get_ui_font(9), height=10, relief="flat", padx=10, pady=10)
             txt.insert("1.0", f"更新日志:\n{body}")
             txt.configure(state="disabled")
-            txt.pack(fill="both", expand=True, padx=20, pady=12)
+            txt.pack(fill="both", expand=True, padx=22, pady=14)
 
-            btn_box = tk.Frame(dlg, bg="#202021")
-            btn_box.pack(pady=(0, 16))
+            btn_box = tk.Frame(dlg, bg="#18181A")
+            btn_box.pack(pady=(0, 18))
 
-            btn_open = tk.Button(btn_box, text="🌐 前往 GitHub 下载", bg=self.C_GREEN, fg="#ffffff", font=("Microsoft YaHei", 9, "bold"), relief="flat", padx=14, pady=4, cursor="hand2", command=lambda: webbrowser.open(html_url))
+            btn_open = tk.Button(btn_box, text="前往 GitHub 下载", bg=self.C_PURPLE, fg="#ffffff", font=get_ui_font(9, "bold"), relief="flat", padx=16, pady=5, cursor="hand2", command=lambda: webbrowser.open(html_url))
             btn_open.pack(side="left", padx=8)
 
-            btn_close = tk.Button(btn_box, text="关闭", bg="#3c3c40", fg="#cccccc", relief="flat", padx=14, pady=4, cursor="hand2", command=dlg.destroy)
+            btn_close = tk.Button(btn_box, text="关闭", bg="#2A2A2E", fg=self.C_TEXT_WHITE, relief="flat", padx=16, pady=5, cursor="hand2", command=dlg.destroy)
             btn_close.pack(side="left", padx=8)
 
         def _on_close(self):
-            log_message("INFO", "=== LanChat GUI 退出 ===")
-            self.service.close()
-            self.root.destroy()
+            log_message("INFO", "=== LanChat GUI 安全退出 ===")
+            try:
+                self.service.close()
+            except Exception:
+                pass
+            try:
+                self.root.destroy()
+            except Exception:
+                pass
 
         def run(self):
             self.root.mainloop()

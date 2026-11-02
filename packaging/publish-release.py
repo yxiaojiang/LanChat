@@ -178,7 +178,7 @@ def publish():
             except Exception as del_ex:
                 print(f"    删除旧资产警告: {del_ex}")
 
-        # 读取文件二进制流并上传
+        # 读取文件二进制流并上传 (增加自动退避重试与全量异常捕获)
         with open(asset_path, "rb") as f:
             file_data = f.read()
 
@@ -190,13 +190,32 @@ def publish():
             "Content-Length": str(len(file_data))
         }
 
-        up_req = urllib.request.Request(upload_target, data=file_data, headers=up_headers, method="POST")
-        try:
-            with urllib.request.urlopen(up_req) as resp:
-                print(f"    [SUCCESS] 上传成功: {filename}")
-        except urllib.error.HTTPError as e:
-            print(f"    [!] 上传 {filename} 失败: {e.code} {e.reason}")
-            print(e.read().decode('utf-8', errors='ignore'))
+        max_retries = 3
+        upload_success = False
+        for attempt in range(1, max_retries + 1):
+            up_req = urllib.request.Request(upload_target, data=file_data, headers=up_headers, method="POST")
+            try:
+                with urllib.request.urlopen(up_req, timeout=45) as resp:
+                    print(f"    [SUCCESS] 上传成功: {filename}")
+                    upload_success = True
+                    break
+            except urllib.error.HTTPError as e:
+                err_detail = e.read().decode('utf-8', errors='ignore')
+                print(f"    [!] 上传 {filename} 失败 (HTTP {e.code} {e.reason}) [重试 {attempt}/{max_retries}]: {err_detail[:120]}")
+            except urllib.error.URLError as e:
+                reason_str = str(e.reason)
+                if "11001" in reason_str or "getaddrinfo failed" in reason_str:
+                    print(f"    [!] 上传 {filename} 网络解析超时/DNS 失败 (uploads.github.com) [重试 {attempt}/{max_retries}]")
+                else:
+                    print(f"    [!] 上传 {filename} 网络连接异常 ({e.reason}) [重试 {attempt}/{max_retries}]")
+            except Exception as ex:
+                print(f"    [!] 上传 {filename} 发生未知异常 ({ex}) [重试 {attempt}/{max_retries}]")
+
+            if attempt < max_retries:
+                time.sleep(2)
+
+        if not upload_success:
+            print(f"    [FAILED] 资产 {filename} 经多次重试仍上传失败，请检查网络连接或运行 ipconfig /flushdns。")
 
     print("=" * 65)
     print("Release 发布与资产上传全部完成！")

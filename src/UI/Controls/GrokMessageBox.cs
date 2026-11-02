@@ -14,6 +14,9 @@ namespace LanChat
         [DllImport("gdi32.dll", EntryPoint = "CreateRoundRectRgn")]
         private static extern IntPtr CreateRoundRectRgn(int nLeftRect, int nTopRect, int nRightRect, int nBottomRect, int nWidthEllipse, int nHeightEllipse);
 
+        [DllImport("gdi32.dll", EntryPoint = "DeleteObject")]
+        private static extern bool DeleteObject(IntPtr hObject);
+
         [DllImport("user32.dll")]
         private static extern bool ReleaseCapture();
 
@@ -51,18 +54,33 @@ namespace LanChat
             }
         }
 
-        protected override void OnHandleCreated(EventArgs e)
+        private void UpdateFormRegion()
         {
-            base.OnHandleCreated(e);
+            if (this.IsDisposed || !this.IsHandleCreated) return;
             try
             {
                 IntPtr rgn = CreateRoundRectRgn(0, 0, this.Width + 1, this.Height + 1, 16, 16);
                 if (rgn != IntPtr.Zero)
                 {
+                    Region oldRegion = this.Region;
                     this.Region = Region.FromHrgn(rgn);
+                    DeleteObject(rgn);
+                    if (oldRegion != null) oldRegion.Dispose();
                 }
             }
             catch { }
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            UpdateFormRegion();
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            UpdateFormRegion();
         }
 
         private void BuildLayout(MessageBoxButtons buttons)
@@ -71,11 +89,9 @@ namespace LanChat
             int baseW = 420;
             int maxTextW = baseW - 88;
             Size textSize;
-            using (Graphics g = this.CreateGraphics())
             using (Font f = new Font("Microsoft YaHei UI", 9.5f))
             {
-                SizeF sz = g.MeasureString(_message, f, maxTextW);
-                textSize = new Size((int)Math.Ceiling(sz.Width), (int)Math.Ceiling(sz.Height));
+                textSize = TextRenderer.MeasureText(_message, f, new Size(maxTextW, int.MaxValue), TextFormatFlags.WordBreak);
             }
 
             int contentH = Math.Max(textSize.Height + 10, 50);
