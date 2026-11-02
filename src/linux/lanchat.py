@@ -28,7 +28,7 @@ import subprocess
 
 try:
     import tkinter as tk
-    from tkinter import messagebox, filedialog, simpledialog
+    from tkinter import messagebox, filedialog, simpledialog, font as tkfont
     HAS_TK = True
 except ImportError:
     HAS_TK = False
@@ -587,6 +587,9 @@ if HAS_TK:
 
             # 跨线程安全通信事件队列 (彻底根治 Linux/X11 下 Tcl/Tk 跨线程死锁与按钮假死)
             self.event_queue = queue.Queue()
+            self._chat_font = tkfont.Font(font=get_ui_font(10))
+            self._active_settings_menu = None
+            self.root.bind_all("<Button-1>", self._dismiss_active_menu, add="+")
 
             # 图标绑定
             for icon_path in [
@@ -766,11 +769,15 @@ if HAS_TK:
             # 气泡标签配置 (对标 GrokBot 魅紫与深灰卡片)
             self.txt_history.tag_configure("sys_msg", justify="center", foreground=self.C_TEXT_MUTED, font=get_ui_font(8), spacing1=6, spacing3=6)
             self.txt_history.tag_configure("center_time", justify="center", foreground="#666668", font=get_ui_font(8), spacing1=6, spacing3=4)
-            self.txt_history.tag_configure("other_nick", justify="left", foreground=self.C_TEXT_MUTED, font=get_ui_font(8), spacing1=6, spacing3=2)
-            self.txt_history.tag_configure("other_bubble", justify="left", background=self.C_BUBBLE_OTHER, foreground=self.C_TEXT_WHITE, font=get_ui_font(10), lmargin1=12, lmargin2=12, rmargin=160, spacing1=4, spacing3=4)
-            self.txt_history.tag_configure("self_nick", justify="right", foreground=self.C_TEXT_MUTED, font=get_ui_font(8), spacing1=6, spacing3=2)
-            self.txt_history.tag_configure("self_bubble", justify="right", background=self.C_PURPLE, foreground="#ffffff", font=get_ui_font(10), lmargin1=160, rmargin=12, spacing1=4, spacing3=4)
-            self.txt_history.tag_configure("file_card", justify="left", background="#222226", foreground=self.C_PURPLE, font=get_ui_font(9, "bold"), spacing1=4, spacing3=4)
+            self.txt_history.tag_configure("other_nick", justify="left", foreground=self.C_TEXT_MUTED, font=get_ui_font(8), lmargin1=16, lmargin2=16, spacing1=6, spacing3=2)
+            self.txt_history.tag_configure("self_nick", justify="right", foreground=self.C_TEXT_MUTED, font=get_ui_font(8), rmargin=16, spacing1=6, spacing3=2)
+
+            self._last_hist_width = 0
+            def _on_hist_configure(event):
+                if abs(event.width - self._last_hist_width) > 25:
+                    self._last_hist_width = event.width
+                    self._redraw_chat_history()
+            self.txt_history.bind("<Configure>", _on_hist_configure)
 
             # 输入工具栏
             sep3 = tk.Frame(self.chat_panel, bg=self.C_BORDER, height=1)
@@ -897,22 +904,29 @@ if HAS_TK:
 
             keyword = self.entry_search.get().strip().lower()
 
-            # 1. 广播群聊项
+            # 1. 广播群聊项 (置顶深邃背景与徽章)
             if not keyword or "群聊" in keyword or "broadcast" in keyword:
-                bg = self.C_SESSION_SELECT if self.current_conv_key == "BROADCAST" else self.C_SESSIONS
+                is_cur = (self.current_conv_key == "BROADCAST")
+                bg = self.C_SESSION_SELECT if is_cur else "#1A1724"
                 f_bc = tk.Frame(self.sessions_container, bg=bg, height=56, cursor="hand2")
                 f_bc.pack(fill="x", padx=6, pady=2)
                 f_bc.pack_propagate(False)
 
-                lbl_t = tk.Label(f_bc, text="● 局域网全员群聊", font=get_ui_font(9, "bold"), bg=bg, fg=self.C_TEXT_WHITE)
-                lbl_t.pack(anchor="w", padx=10, pady=(8, 0))
+                top_bc = tk.Frame(f_bc, bg=bg)
+                top_bc.pack(fill="x", padx=10, pady=(8, 0))
+
+                lbl_t = tk.Label(top_bc, text="● 局域网全员群聊", font=get_ui_font(9, "bold"), bg=bg, fg=self.C_TEXT_WHITE)
+                lbl_t.pack(side="left")
+
+                lbl_pin = tk.Label(top_bc, text="置顶", font=get_ui_font(7), bg=bg, fg=self.C_PURPLE)
+                lbl_pin.pack(side="right")
 
                 with self.service.lock:
                     count = len(self.service.peers)
                 lbl_sub = tk.Label(f_bc, text=f"在线成员: {count} 人", font=get_ui_font(8), bg=bg, fg=self.C_TEXT_MUTED)
                 lbl_sub.pack(anchor="w", padx=10)
 
-                for w in (f_bc, lbl_t, lbl_sub):
+                for w in (f_bc, top_bc, lbl_t, lbl_pin, lbl_sub):
                     w.bind("<Button-1>", lambda e: self._select_session("BROADCAST"))
 
             # 2. 在线好友列表项
@@ -984,21 +998,60 @@ if HAS_TK:
             is_file = item.get("is_file", False)
 
             if item.get("is_sys", False):
-                self.txt_history.insert("end", f"{text}\n", "sys_msg")
+                self.txt_history.insert("end", f"{text}\n\n", "sys_msg")
                 return
 
+            # 计算可用宽度与自适应气泡尺寸
+            total_w = self.txt_history.winfo_width()
+            if total_w < 100:
+                total_w = 760
+            pad_horiz = 40
+            available_w = max(total_w - pad_horiz, 280)
+
+            lines = text.split("\n")
+            max_line_w = max(self._chat_font.measure(line) for line in lines) if lines else 20
+            if is_file:
+                max_line_w += 80
+
+            # 最大气泡宽度不超过可用宽度的 62%，最大 520px
+            max_bubble_w = min(max(available_w * 0.62, 180), 520)
+            bubble_w = min(max_line_w + 32, max_bubble_w)
+            bubble_w = max(bubble_w, 56)
+
+            tag_id = f"bubble_{abs(hash((text, t_str, is_self, is_file)))}"
+
             if is_self:
+                # 自己发送：右对齐气泡，左侧自然留白
+                lmargin = int(available_w - bubble_w - 16)
+                rmargin = 16
+                bg_color = "#28282C" if is_file else self.C_PURPLE
+                fg_color = self.C_PURPLE if is_file else "#ffffff"
+
+                self.txt_history.tag_configure(
+                    tag_id, justify="left", background=bg_color, foreground=fg_color,
+                    font=self._chat_font, lmargin1=lmargin, lmargin2=lmargin, rmargin=rmargin,
+                    spacing1=6, spacing3=6
+                )
                 self.txt_history.insert("end", f"{t_str}  我\n", "self_nick")
-                if is_file:
-                    self.txt_history.insert("end", f" [发送文件] {text} \n\n", "file_card")
-                else:
-                    self.txt_history.insert("end", f" {text} \n\n", "self_bubble")
+                prefix = "[发送文件] " if is_file else ""
+                self.txt_history.insert("end", f" {prefix}{text} ", tag_id)
+                self.txt_history.insert("end", "\n\n")
             else:
+                # 对方发送：左对齐气泡，右侧自然留白
+                lmargin = 16
+                rmargin = int(available_w - bubble_w - 16)
+                bg_color = "#222226"
+                fg_color = self.C_PURPLE if is_file else self.C_TEXT_WHITE
+
+                self.txt_history.tag_configure(
+                    tag_id, justify="left", background=bg_color, foreground=fg_color,
+                    font=self._chat_font, lmargin1=lmargin, lmargin2=lmargin, rmargin=rmargin,
+                    spacing1=6, spacing3=6
+                )
                 self.txt_history.insert("end", f"{sender}  {t_str}\n", "other_nick")
-                if is_file:
-                    self.txt_history.insert("end", f" [接收文件] {text} \n\n", "file_card")
-                else:
-                    self.txt_history.insert("end", f" {text} \n\n", "other_bubble")
+                prefix = "[接收文件] " if is_file else ""
+                self.txt_history.insert("end", f" {prefix}{text} ", tag_id)
+                self.txt_history.insert("end", "\n\n")
 
         def _append_message(self, conv_key, is_self, sender, text, is_file=False):
             t_str = time.strftime("%H:%M:%S")
@@ -1133,7 +1186,34 @@ if HAS_TK:
                 self._append_system_message(f"正在主动向 {ip} 发起 TCP 握手探测...")
                 self.service.try_tcp_handshake(ip)
 
+        def _dismiss_active_menu(self, event=None):
+            if hasattr(self, "_active_settings_menu") and self._active_settings_menu:
+                if event and hasattr(self, "btn_settings"):
+                    try:
+                        bx = self.btn_settings.winfo_rootx()
+                        by = self.btn_settings.winfo_rooty()
+                        bw = self.btn_settings.winfo_width()
+                        bh = self.btn_settings.winfo_height()
+                        if bx <= event.x_root <= bx + bw and by <= event.y_root <= by + bh:
+                            return
+                    except Exception:
+                        pass
+                try:
+                    self._active_settings_menu.unpost()
+                except Exception:
+                    pass
+                self._active_settings_menu = None
+
         def _show_settings_menu(self):
+            # 再次点击齿轮直接收起 (Toggle)
+            if hasattr(self, "_active_settings_menu") and self._active_settings_menu:
+                try:
+                    self._active_settings_menu.unpost()
+                except Exception:
+                    pass
+                self._active_settings_menu = None
+                return
+
             menu = tk.Menu(self.root, tearoff=0, bg="#1E1E22", fg=self.C_TEXT_WHITE, activebackground=self.C_PURPLE, activeforeground="#ffffff")
             menu.add_command(label="修改昵称...", command=self._on_change_nick)
             menu.add_command(label="切换自动接收文件", command=self._toggle_auto_accept)
@@ -1145,12 +1225,19 @@ if HAS_TK:
             menu.add_separator()
             menu.add_command(label="退出 LanChat", command=self._on_close)
 
+            self._active_settings_menu = menu
+
             try:
                 x = self.btn_settings.winfo_rootx() + 45
                 y = self.btn_settings.winfo_rooty() - 100
-                menu.post(x, y)
+                menu.tk_popup(x, y)
             except Exception:
                 pass
+            finally:
+                try:
+                    menu.grab_release()
+                except Exception:
+                    pass
 
         def _on_change_nick(self):
             new_nick = simpledialog.askstring("修改昵称", "请输入新的昵称:", initialvalue=self.service.nickname, parent=self.root)

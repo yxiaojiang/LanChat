@@ -220,10 +220,6 @@ namespace LanChat
                     {
                         GrokPopupMenu trayMenu = new GrokPopupMenu();
                         trayMenu.AddItem("显示主界面", WeChatIconType.Chat, () => RestoreFromTray())
-                                .AddItem("连接节点...", WeChatIconType.Bolt, () => {
-                                    RestoreFromTray();
-                                    BtnConnectNode_Click(this, EventArgs.Empty);
-                                })
                                 .AddItem("系统设置...", WeChatIconType.Settings, () => {
                                     RestoreFromTray();
                                     ShowSettingsDialog(0);

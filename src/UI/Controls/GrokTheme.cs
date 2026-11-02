@@ -174,6 +174,15 @@ namespace LanChat
             }
         }
 
+        public static void DrawUiTextRight(Graphics g, string text, Font font, Color color, int x, int y, int width, int height)
+        {
+            Rectangle bounds = new Rectangle(x, y, width, height);
+            using (StringFormat sf = CreateUiFormat(StringAlignment.Far, StringAlignment.Center))
+            {
+                DrawUiText(g, text, font, color, bounds, sf);
+            }
+        }
+
         public static Size MeasureUiText(Graphics g, string text, Font font)
         {
             string safe = SanitizeUiText(text);

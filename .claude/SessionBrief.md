@@ -2,26 +2,36 @@
 
 > 最近刷新：2026-11-02。仓库：`https://github.com/yxiaojiang/LanChat.git`。
 > 当前分支：`feature/wechat-ui`（稳定基线 Tag `v2.1.0`，当前开发版本 `v2.0.4`）。
-> 核心里程碑：**GrokBot 1:1**；P0 64px 胶囊已恢复；**本步已完成：1) Windows Installer 1638 升级拦截彻底根治（WiX 移除硬编码 ProductCode，改由构建时动态自增生成 GUID，结合 UpgradeCode 契约实现全自动 MajorUpgrade）；2) 卸载程序 `src/Uninstall.cs` 升级为 Win32 `MsiEnumRelatedProducts` 动态探测已安装 ProductCode；3) 发布全工程版本原子升级至 `v2.0.4` 并全量上传 GitHub Releases 闭环**；方案 B 冻结。
+> 核心里程碑：**GrokBot 1:1**；P0 64px 胶囊已恢复；**本步已完成：1) Windows 会话列表精简（移除“新建连接”会话项及右键菜单）与底部“连接节点”胶囊按钮移除；2) 局域网全员群聊常驻置顶专属微透暗魅紫深邃背景卡片（#181520 + #2A2438 细边框 + “置顶”角标标识）；3) Linux 客户端设置弹出菜单失焦自动收起（menu.tk_popup + 点击外部自动 unpost + 再次点击齿轮 Toggle）；4) Linux 聊天气泡全宽拉伸根治（Font.measure 宽度自适应 + max 62%/520px 限制 + 换行符与背景分离 + 左右自然留白 + 窗口缩放自适应重排）；5) 双端二进制重编与 Linux deb 重建**；方案 B 冻结。
 > 注：WinForms/GDI+ 无法与 Electron 像素级完全一致；本步用 grayscale AntiAlias + Bold/luma 逼近。
 
 ---
 
-## 一、 本轮工作态（MSI 1638 升级冲突根治 / 全自动 MajorUpgrade / 卸载动态感知）
+## 一、 本轮工作态（Windows/Linux 界面精简与视觉体验协同升级）
 
 ### 1. 用户反馈
-- 客户端检测到在线更新并下载完成后，启动 MSI 安装程序弹出 Windows Installer 阻断错误：“已经安装了该产品的另一个版本。无法继续安装此版本。可以使用‘控制面板’中‘添加/删除程序’来配置或删除该产品现有版本。”（错误码 1638）。
+- **Linux 端：**
+  - 左下角设置菜单点击弹出后无法关闭，点击任何区域都一直常驻悬浮。
+  - 右侧聊天内容的气泡占据了整行横跨整个屏幕，极不美观，需要恢复正常聊天气泡宽度。
+- **Windows 端：**
+  - 去除会话列表中的“新建连接”项及底部操作栏中间的“连接节点”胶囊按钮（及其对应功能）。
+  - 局域网全员群聊本身是始终置顶的，需要为其设置专属背景，明确表明它是置顶会话，与普通好友会话形成清晰区分。
 
-### 2. 根因剖析与根治方案
-- **根因分析：**
-  - 在 Windows Installer 升级规范中，大版本平滑升级（`MajorUpgrade`）的硬性契约是：`UpgradeCode` 必须在全产品生命周期内全局恒定（用于系统识别产品族），而每次打包发布新版本时 `ProductCode` **必须不同**。
-  - 原工程 `packaging/Package.wxs` 中静态写死了 `ProductCode="{7E993262-EAA5-4A37-975D-39F24FEA21D2}"`。无论版本如何自增，打出的 MSI 包 `ProductCode` 永远完全一致。
-  - 当用户机器上已装有旧版（如 2.0.0）时，运行相同 `ProductCode` 的新安装包会被 Windows Installer 判定为冲突安装，直接抛出 1638 错误终止。
-- **根治措施：**
-  - **WiX 5 打包配置纠正（`packaging/Package.wxs`）：** 剔除 `<Package>` 标签中硬编码的 `ProductCode` 属性。WiX 5 在未显式指定 `ProductCode` 时，会在每次构建时自动为安装包生成全新的唯一 GUID，同时严格保持 `UpgradeCode="{7E993262-EAA5-4A37-975D-39F24FEA21D1}"` 不变；
-  - **卸载向导动态感知升级（`src/Uninstall.cs`）：** 原卸载程序中亦静态写死了旧的 `PRODUCT_CODE`。本次引入原生 Win32 `msi.dll` 的 `MsiEnumRelatedProducts` API，卸载时根据静态 `UpgradeCode` 动态获取当前操作系统中实际安装生效的动态 `ProductCode`，并保留静态旧 Code 作为兜底，保证无论是旧版还是未来任意动态版本均可一键干净卸载。
-  - **全工程版本原子推进至 `v2.0.4`：** 调用 `packaging/bump-version.py 2.0.4` 同步 5 处核心文件，执行 `Tools/Publish.bat` 成功编译生成 `LanChat.msi`、`uninstall.exe` 及 Linux deb 包，并流式发布至 GitHub Releases `v2.0.4`。
-  - **实机属性验证：** 验证生成的 `release\LanChat.msi` 属性表：`ProductCode` 动态变更为 `{20BFE067-AFE5-4E7D-9441-62817193E585}`，`UpgradeCode` 为 `{7E993262-EAA5-4A37-975D-39F24FEA21D1}`，符合 Windows Installer `MajorUpgrade` 规范。用户通过旧版客户端更新时将自动静默卸载旧版本并平滑安装最新版。
+### 2. 根因剖析与根治措施
+- **Linux 设置菜单常驻无法关闭：**
+  - **根因：** 原实现使用 `menu.post(x, y)`，在 X11 下仅映射了窗口但未设置 Pointer Grab，亦未监听外部点击，导致无法感知失焦。
+  - **修复：** 改用标准 `menu.tk_popup(x, y)` 激活全局指针捕获，结合 `self.root.bind_all("<Button-1>")` 外部点击检测与再次点击设置按钮的 Toggle 收起机制，多重保证随时平滑关闭。
+- **Linux 聊天气泡全宽横幅横跨全屏：**
+  - **根因：** 原 `txt_history.tag_configure` 采用了写死的宽 margin，且将带有 `background` 的标签赋予了 `\n\n` 换行符，导致整行剩余空间被 Tcl/Tk 强行涂色填满至屏幕右边缘。
+  - **修复：** 引入 `tkinter.font.Font.measure` 精确测算文字像素长度；短消息仅包裹文字本身（留白自然显露）；长消息设置最大宽度限制 `min(available_w * 0.62, 520)`，超长自然折行；`\n\n` 换行符与背景色剥离；自己发送靠右对齐、他人发送靠左对齐；绑定 `<Configure>` 事件支持窗口拖拉动态重排。
+- **Windows 冗余按钮与会话移除：**
+  - 从 `_allSessionItems`、过滤流程、选择事件与绘制逻辑中彻底剔除 `NEW_CONNECTION_ITEM`（“新建连接”）；
+  - 从 `_leftBottomBar` 中彻底移除 `_btnBottomConnect`（“连接节点”胶囊按钮），保留左侧 54px 用户圆形设置按钮与右侧 54px 广播刷新按钮，保持底部视线开阔；
+  - 同步清理顶部加号菜单与会话右键菜单中的对应冗余项。
+- **Windows 局域网全员群聊专属置顶样式：**
+  - 在 `ListSessions_DrawItem` 中为 `BROADCAST_TARGET` 注入专属置顶深邃暗魅紫卡片背景（未选态呈现优雅的 `#181520` 底色与 `#2A2438` 细边框，悬浮态提升至 `#201C2A`，选中态融入 `#202024`）；
+  - 会话右上角同步呈现高雅精巧的 `置顶` 角标（9.5pt `#9064DC`），与普通好友会话的纯黑底色形成清晰而协调的层次区隔；
+  - Linux 端 `_render_sessions` 同步强化置顶卡片色与 `[置顶]` 徽章。
 
 ### 3. 已知剩余缺口（下一 pass）
 - Create 窗 Docs `680×620`、About Docs `440×560` 需重排绝对布局后才能改尺寸。
@@ -36,7 +46,6 @@
 1. C# 5.0 / .NET Framework 4.0，`csc` 直编。
 2. Rule 9 + `Docs/GrokBot_UI_Design_System.md`。
 3. UDP 38888 / TCP 38889+ / `LANC` 不变。
-4. WiX 安装包 `UpgradeCode` 绝不可变，`ProductCode` 必须动态自增。
 
 ---
 
@@ -44,8 +53,9 @@
 
 | 模块 / 文件 | 说明 |
 | :--- | :--- |
-| `packaging/Package.wxs` | 移除硬编码 `ProductCode`，构建期自动随机 GUID 启用全自动 MajorUpgrade |
-| `src/Uninstall.cs` | 引入 `MsiEnumRelatedProducts` 动态获取当前系统的 ProductCode 进行卸载 |
-| `packaging/bump-version.py` | 全工程版本号自动递增与原子同步工具 |
-| `Tools/Publish.bat` | Windows 全自动版本自增编译打包与发布脚本 |
-| `Tools/Compile.bat` | 极速原生 csc 纯编译校验 |
+| `src/MainForm.cs` | 移除 `_btnBottomConnect` 胶囊按钮及字段 |
+| `src/MainForm.Chat.cs` | 移除 `NEW_CONNECTION_ITEM`，新增群聊专属置顶背景与置顶文字角标 |
+| `src/MainForm.Tray.cs` | 精简托盘菜单 |
+| `src/UI/Controls/GrokTheme.cs` | 新增 `DrawUiTextRight` 文本绘制工具方法 |
+| `src/linux/lanchat.py` | Linux 设置菜单弹窗自动收起与聊天气泡宽度自适应重构 |
+| `packaging/build-deb.py` | Linux deb 安装包重建同步 |

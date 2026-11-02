@@ -39,8 +39,6 @@ namespace LanChat
                 _allSessionItems.Add(p);
             }
 
-            // 列表末尾固定附带“新建连接”（对应截图中底部的“新建 Bot”）
-            _allSessionItems.Add(NEW_CONNECTION_ITEM);
 
             ApplyFilterAndRenderList();
         }
@@ -55,14 +53,6 @@ namespace LanChat
 
             foreach (var item in _allSessionItems)
             {
-                if (item is string && (string)item == NEW_CONNECTION_ITEM)
-                {
-                    if (string.IsNullOrEmpty(filter) || "新建连接".Contains(filter) || "bot".Contains(filter))
-                    {
-                        _listSessions.Items.Add(item);
-                    }
-                    continue;
-                }
 
                 if (string.IsNullOrEmpty(filter))
                 {
@@ -90,7 +80,7 @@ namespace LanChat
             }
 
             // Restore selection or select 0
-            if (currentSelected != null && !(currentSelected is string && (string)currentSelected == NEW_CONNECTION_ITEM))
+            if (currentSelected != null)
             {
                 int index = -1;
                 for (int i = 0; i < _listSessions.Items.Count; i++)
@@ -132,28 +122,7 @@ namespace LanChat
 
         private void ListSessions_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (_suppressSessionSelect) return;
             if (_listSessions.SelectedItem == null) return;
-
-            // 点击「新建连接」：抑制嵌套 SelectedIndexChanged，恢复原选中后再开对话框
-            if (_listSessions.SelectedItem is string && (string)_listSessions.SelectedItem == NEW_CONNECTION_ITEM)
-            {
-                int restore = FindSessionIndexForKey(_activeChatKey);
-                _suppressSessionSelect = true;
-                try
-                {
-                    if (restore >= 0)
-                        _listSessions.SelectedIndex = restore;
-                    else if (_listSessions.Items.Count > 0)
-                        _listSessions.SelectedIndex = 0;
-                }
-                finally
-                {
-                    _suppressSessionSelect = false;
-                }
-                BtnCreateNode_Click(this, EventArgs.Empty);
-                return;
-            }
 
             string previousKey = _activeChatKey;
             string newKey = previousKey;
@@ -221,7 +190,7 @@ namespace LanChat
                 object item = _listSessions.Items[i];
                 if (item is string)
                 {
-                    if (key == "BROADCAST" && (string)item != NEW_CONNECTION_ITEM)
+                    if (key == "BROADCAST")
                         return i;
                 }
                 else if (item is PeerInfo)
@@ -283,9 +252,9 @@ namespace LanChat
 
             Rectangle r = e.Bounds;
             object item = _listSessions.Items[e.Index];
-            bool isNewConnItem = (item is string && (string)item == NEW_CONNECTION_ITEM);
-            bool isSelected = ((e.State & DrawItemState.Selected) == DrawItemState.Selected) && !isNewConnItem;
-            bool isHover = (!isSelected && !isNewConnItem && e.Index == _hoverSessionIndex);
+            bool isPinned = (item is string && (string)item == BROADCAST_TARGET);
+            bool isSelected = ((e.State & DrawItemState.Selected) == DrawItemState.Selected);
+            bool isHover = (!isSelected && e.Index == _hoverSessionIndex);
 
             // 1. 填充纯黑底色 (#0E0E0E)
             using (SolidBrush bgBrush = new SolidBrush(GrokTheme.Level0))
@@ -298,17 +267,38 @@ namespace LanChat
             int cardMarginY = 5;
             int cardRadius = 14;
 
-            if (isSelected || isHover)
+            Rectangle cardRect = new Rectangle(
+                r.Left + cardMarginX,
+                r.Top + cardMarginY,
+                r.Width - cardMarginX * 2,
+                r.Height - cardMarginY * 2);
+
+            if (isSelected)
             {
-                Rectangle cardRect = new Rectangle(
-                    r.Left + cardMarginX,
-                    r.Top + cardMarginY,
-                    r.Width - cardMarginX * 2,
-                    r.Height - cardMarginY * 2);
-                Color cardColor = isSelected ? GrokTheme.SessionSelected : GrokTheme.SessionHover;
+                Color cardColor = GrokTheme.SessionSelected;
                 using (SolidBrush cardBrush = new SolidBrush(cardColor))
                 {
                     DrawRoundedRectangle(g, cardBrush, cardRect, cardRadius);
+                }
+            }
+            else if (isHover)
+            {
+                Color cardColor = isPinned ? Color.FromArgb(32, 28, 42) : GrokTheme.SessionHover;
+                using (SolidBrush cardBrush = new SolidBrush(cardColor))
+                {
+                    DrawRoundedRectangle(g, cardBrush, cardRect, cardRadius);
+                }
+            }
+            else if (isPinned)
+            {
+                // 局域网全员群聊专属置顶卡片背景 (#181520 深邃底色 + #2A2438 柔和紫黑细边框)
+                Color pinnedBg = Color.FromArgb(24, 21, 32);
+                Color pinnedBorder = Color.FromArgb(42, 36, 56);
+                using (SolidBrush cardBrush = new SolidBrush(pinnedBg))
+                using (Pen cardPen = new Pen(pinnedBorder, 1f))
+                {
+                    DrawRoundedRectangle(g, cardBrush, cardRect, cardRadius);
+                    DrawRoundedRectangle(g, cardPen, cardRect, cardRadius);
                 }
             }
 
@@ -321,18 +311,6 @@ namespace LanChat
             int textW = Math.Max(40, r.Right - textX - 18);
             int titleY = r.Top + 14;
             int subY = r.Top + 38;
-
-            if (isNewConnItem)
-            {
-                WeChatIcon.DrawMascotAvatar(g, avatarRect, Color.FromArgb(246, 148, 18), true, false, GrokTheme.Level0);
-
-                using (Font titleFont = GrokTheme.Font(11.0f, FontStyle.Bold))
-                {
-                    GrokTheme.DrawUiTextLeft(g, "新建连接", titleFont, GrokTheme.TextTitle,
-                        textX, r.Top, textW, r.Height);
-                }
-                return;
-            }
 
             if (item is string)
             {
@@ -348,7 +326,17 @@ namespace LanChat
                         title = onlineCount > 0 ? string.Format("局域网全员群聊 ({0})", onlineCount) : "局域网全员群聊";
                     }
                     GrokTheme.DrawUiTextLeft(g, title, titleFont, GrokTheme.TextTitle,
-                        textX, titleY, textW, 22);
+                        textX, titleY, textW - (isPinned ? 38 : 0), 22);
+                }
+
+                // 置顶标识文字
+                if (isPinned)
+                {
+                    using (Font pinFont = GrokTheme.Font(8.0f, FontStyle.Regular))
+                    {
+                        GrokTheme.DrawUiTextRight(g, "置顶", pinFont, Color.FromArgb(144, 100, 220),
+                            r.Right - 55, titleY + 3, 35, 18);
+                    }
                 }
 
                 string snippet = _sessionManager != null ? _sessionManager.GetLastMessageSnippet(SessionManager.BROADCAST_KEY, 24) : null;
@@ -759,25 +747,14 @@ namespace LanChat
                     }
                     else if (item is string)
                     {
-                        string sItem = (string)item;
-                        if (sItem == NEW_CONNECTION_ITEM)
-                        {
-                            GrokPopupMenu menu = new GrokPopupMenu();
-                            menu.AddItem("新建节点 (自定义外观)...", WeChatIconType.Add, () => BtnCreateNode_Click(this, EventArgs.Empty))
-                                .AddItem("连接节点 (局域网与IP)...", WeChatIconType.Bolt, () => BtnConnectNode_Click(this, EventArgs.Empty));
-                            menu.Show(_listSessions, e.Location);
-                        }
-                        else
-                        {
-                            GrokPopupMenu menu = new GrokPopupMenu();
-                            menu.AddItem("全员群聊", WeChatIconType.Chat, () => {
-                                _listSessions.SelectedIndex = 0;
-                            })
-                            .AddItem("发送文件给所有人...", WeChatIconType.Folder, () => BtnSendFile_Click(this, EventArgs.Empty))
-                            .AddSeparator()
-                            .AddItem("清空群聊记录", WeChatIconType.Clear, () => ClearCurrentChat(), null, true);
-                            menu.Show(_listSessions, e.Location);
-                        }
+                        GrokPopupMenu menu = new GrokPopupMenu();
+                        menu.AddItem("全员群聊", WeChatIconType.Chat, () => {
+                            _listSessions.SelectedIndex = 0;
+                        })
+                        .AddItem("发送文件给所有人...", WeChatIconType.Folder, () => BtnSendFile_Click(this, EventArgs.Empty))
+                        .AddSeparator()
+                        .AddItem("清空群聊记录", WeChatIconType.Clear, () => ClearCurrentChat(), null, true);
+                        menu.Show(_listSessions, e.Location);
                     }
                 }
             }
