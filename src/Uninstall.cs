@@ -1,6 +1,8 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -8,7 +10,25 @@ namespace LanChat
 {
     static class UninstallProgram
     {
-        private const string PRODUCT_CODE = "{7E993262-EAA5-4A37-975D-39F24FEA21D2}";
+        private const string UPGRADE_CODE = "{7E993262-EAA5-4A37-975D-39F24FEA21D1}";
+        private const string FALLBACK_PRODUCT_CODE = "{7E993262-EAA5-4A37-975D-39F24FEA21D2}";
+
+        [DllImport("msi.dll", CharSet = CharSet.Unicode)]
+        private static extern uint MsiEnumRelatedProducts(string lpUpgradeCode, int dwReserved, int iProductIndex, StringBuilder lpProductBuf);
+
+        private static string GetInstalledProductCode()
+        {
+            try
+            {
+                StringBuilder sb = new StringBuilder(40);
+                if (MsiEnumRelatedProducts(UPGRADE_CODE, 0, 0, sb) == 0 && sb.Length > 0)
+                {
+                    return sb.ToString();
+                }
+            }
+            catch { }
+            return FALLBACK_PRODUCT_CODE;
+        }
 
         [STAThread]
         static void Main(string[] args)
@@ -70,10 +90,11 @@ namespace LanChat
             // Run Windows Installer uninstall
             try
             {
+                string productCode = GetInstalledProductCode();
                 Process msiProc = Process.Start(new ProcessStartInfo
                 {
                     FileName = "msiexec.exe",
-                    Arguments = string.Format("/x {0} /qb", PRODUCT_CODE),
+                    Arguments = string.Format("/x {0} /qb", productCode),
                     UseShellExecute = true
                 });
 
