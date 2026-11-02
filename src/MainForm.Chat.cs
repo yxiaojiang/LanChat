@@ -109,15 +109,6 @@ namespace LanChat
 
         private void BtnAddSession_Click(object sender, EventArgs e)
         {
-            GrokPopupMenu menu = new GrokPopupMenu();
-            menu.AddItem("新建节点 (自定义外观与Bot)", WeChatIconType.Add, () => BtnCreateNode_Click(this, EventArgs.Empty))
-                .AddItem("连接节点 (局域网与 IP 直连)", WeChatIconType.Bolt, () => BtnConnectNode_Click(this, EventArgs.Empty))
-                .AddItem("扫描并广播局域网节点", WeChatIconType.Refresh, () => RefreshPeersWithNotice())
-                .AddItem("打开接收文件夹", WeChatIconType.Folder, () => OpenReceivedFolder())
-                .AddSeparator()
-                .AddItem("系统设置与偏好", WeChatIconType.Settings, () => ShowSettingsDialog(0));
-
-            menu.Show(_btnAddSession, new Point(0, _btnAddSession.Height + 6));
         }
 
         private void ListSessions_SelectedIndexChanged(object sender, EventArgs e)

@@ -88,7 +88,7 @@ namespace LanChat
         {
             Control anchor = (sender as Control) ?? _btnBottomUser ?? _btnAvatar;
             Point screenPt = anchor.PointToScreen(Point.Empty);
-            int menuH = 368;
+            int menuH = 400;
             int x = screenPt.X;
             int y = screenPt.Y - menuH - 8;
 
@@ -100,6 +100,7 @@ namespace LanChat
 
             GrokSettingsMenuForm menu = new GrokSettingsMenuForm(
                 _netService,
+                () => ShowSettingsDialog(0),
                 () => CheckForUpdates(false),
                 () => ShowChangeNickDialog(),
                 () => OpenReceivedFolder(),

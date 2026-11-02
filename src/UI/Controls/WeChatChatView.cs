@@ -11,6 +11,7 @@ namespace LanChat
     /// <summary>
     /// Grok / Bot 极简暗黑风格聊天消息自绘流式视图控件
     /// 支持高饱和魅紫自发气泡 (#7946D7)、深灰无头像紧凑堆叠卡片 (#202020)、行内代码胶囊与文件卡片交互
+    /// 完整支持鼠标划选、文本高亮、Ctrl+C 复制与右键快捷菜单复制
     /// </summary>
     public class WeChatChatView : UserControl
     {
@@ -22,17 +23,30 @@ namespace LanChat
         private readonly List<MessageRenderItem> _renderItems = new List<MessageRenderItem>();
         private bool _showGroupSenderName = false;
 
+        // 鼠标选中文本与复制支持
+        private MessageRenderItem _selectedItem = null;
+        private int _selStart = 0;
+        private int _selEnd = 0;
+        private int _selAnchor = 0;
+        private bool _isSelecting = false;
+
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool ShowGroupSenderName
         {
             get { return _showGroupSenderName; }
             set
             {
-                // Same value: no-op. Value change: field only — SetMessages/Resize do the single Recalculate
-                // to avoid double layout flash when switching sessions.
                 if (_showGroupSenderName == value) return;
                 _showGroupSenderName = value;
             }
+        }
+
+        private class VisualLine
+        {
+            public string Text;
+            public int StartChar;
+            public int Length;
+            public RectangleF Bounds;
         }
 
         private class MessageRenderItem
@@ -44,6 +58,7 @@ namespace LanChat
             public Rectangle FileFolderBounds;
             public bool ShowTimeHeader;
             public bool ShowSenderHeader;
+            public List<VisualLine> Lines;
         }
 
         public WeChatChatView()
@@ -51,6 +66,7 @@ namespace LanChat
             this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
             this.BackColor = Color.FromArgb(18, 18, 18); // Grok Main Chat #121212
             this.AutoScroll = false;
+            this.TabStop = true;
 
             _vScrollBar = new VScrollBar
             {
@@ -63,12 +79,18 @@ namespace LanChat
 
             this.MouseWheel += WeChatChatView_MouseWheel;
             this.MouseDown += WeChatChatView_MouseDown;
+            this.MouseMove += WeChatChatView_MouseMove;
+            this.MouseUp += WeChatChatView_MouseUp;
+            this.MouseDoubleClick += WeChatChatView_MouseDoubleClick;
             this.Resize += (s, e) => { RecalculateLayout(true); Invalidate(); };
         }
 
         public void SetMessages(List<ChatMessage> list)
         {
             _messages = list ?? new List<ChatMessage>();
+            _selectedItem = null;
+            _selStart = 0;
+            _selEnd = 0;
             RecalculateLayout(true);
             Invalidate();
         }
@@ -102,23 +124,377 @@ namespace LanChat
 
         private void WeChatChatView_MouseDown(object sender, MouseEventArgs e)
         {
-            Point pt = new Point(e.X, e.Y + _vScrollBar.Value);
+            Point pt = new Point(e.X, e.Y + (_vScrollBar.Visible ? _vScrollBar.Value : 0));
+            this.Focus();
+
+            if (e.Button == MouseButtons.Left)
+            {
+                // 1. 检查是否点击文件操作按钮
+                foreach (var item in _renderItems)
+                {
+                    if (item.Message.IsFile)
+                    {
+                        if (item.FileOpenBounds.Contains(pt))
+                        {
+                            if (OnFileActionClick != null) OnFileActionClick(item.Message, "OPEN_FILE");
+                            return;
+                        }
+                        if (item.FileFolderBounds.Contains(pt))
+                        {
+                            if (OnFileActionClick != null) OnFileActionClick(item.Message, "OPEN_FOLDER");
+                            return;
+                        }
+                    }
+                }
+
+                // 2. 检查是否点击在消息气泡内开始划选
+                MessageRenderItem hitItem = null;
+                foreach (var item in _renderItems)
+                {
+                    if (!item.Message.IsFile && item.BubbleBounds.Contains(pt))
+                    {
+                        hitItem = item;
+                        break;
+                    }
+                }
+
+                if (hitItem != null)
+                {
+                    using (Graphics g = this.CreateGraphics())
+                    using (Font msgFont = new Font("Microsoft YaHei UI", 10.5f))
+                    {
+                        int charIdx = GetCharIndexAtPoint(hitItem, pt, g, msgFont);
+                        _selectedItem = hitItem;
+                        _selAnchor = charIdx;
+                        _selStart = charIdx;
+                        _selEnd = charIdx;
+                        _isSelecting = true;
+                    }
+                    Invalidate();
+                }
+                else
+                {
+                    if (_selectedItem != null || _selEnd > _selStart)
+                    {
+                        _selectedItem = null;
+                        _selStart = 0;
+                        _selEnd = 0;
+                        Invalidate();
+                    }
+                }
+            }
+            else if (e.Button == MouseButtons.Right)
+            {
+                // 右键弹出复制菜单
+                MessageRenderItem hitItem = null;
+                foreach (var item in _renderItems)
+                {
+                    if (!item.Message.IsFile && item.BubbleBounds.Contains(pt))
+                    {
+                        hitItem = item;
+                        break;
+                    }
+                }
+
+                if (hitItem != null)
+                {
+                    // 若当前未选中或右键的是另一条消息，自动全选该消息
+                    if (_selectedItem != hitItem || _selEnd <= _selStart)
+                    {
+                        _selectedItem = hitItem;
+                        _selStart = 0;
+                        _selEnd = hitItem.Message.Content != null ? hitItem.Message.Content.Length : 0;
+                        Invalidate();
+                    }
+
+                    ShowContextMenuForSelection(this.PointToScreen(e.Location));
+                }
+            }
+        }
+
+        private void WeChatChatView_MouseMove(object sender, MouseEventArgs e)
+        {
+            Point pt = new Point(e.X, e.Y + (_vScrollBar.Visible ? _vScrollBar.Value : 0));
+
+            if (_isSelecting && _selectedItem != null)
+            {
+                using (Graphics g = this.CreateGraphics())
+                using (Font msgFont = new Font("Microsoft YaHei UI", 10.5f))
+                {
+                    int curChar = GetCharIndexAtPoint(_selectedItem, pt, g, msgFont);
+                    _selStart = Math.Min(_selAnchor, curChar);
+                    _selEnd = Math.Max(_selAnchor, curChar);
+                }
+                this.Cursor = Cursors.IBeam;
+                Invalidate();
+                return;
+            }
+
+            // 更新鼠标光标：文本气泡上显示 IBeam，文件按钮显示 Hand
+            bool overBubble = false;
             foreach (var item in _renderItems)
             {
                 if (item.Message.IsFile)
                 {
-                    if (item.FileOpenBounds.Contains(pt))
+                    if (item.FileOpenBounds.Contains(pt) || item.FileFolderBounds.Contains(pt))
                     {
-                        if (OnFileActionClick != null) OnFileActionClick(item.Message, "OPEN_FILE");
-                        return;
-                    }
-                    if (item.FileFolderBounds.Contains(pt))
-                    {
-                        if (OnFileActionClick != null) OnFileActionClick(item.Message, "OPEN_FOLDER");
+                        this.Cursor = Cursors.Hand;
                         return;
                     }
                 }
+                else if (item.BubbleBounds.Contains(pt))
+                {
+                    overBubble = true;
+                    break;
+                }
             }
+            this.Cursor = overBubble ? Cursors.IBeam : Cursors.Default;
+        }
+
+        private void WeChatChatView_MouseUp(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                _isSelecting = false;
+            }
+        }
+
+        private void WeChatChatView_MouseDoubleClick(object sender, MouseEventArgs e)
+        {
+            Point pt = new Point(e.X, e.Y + (_vScrollBar.Visible ? _vScrollBar.Value : 0));
+            foreach (var item in _renderItems)
+            {
+                if (!item.Message.IsFile && item.BubbleBounds.Contains(pt))
+                {
+                    _selectedItem = item;
+                    _selStart = 0;
+                    _selEnd = item.Message.Content != null ? item.Message.Content.Length : 0;
+                    _selAnchor = 0;
+                    Invalidate();
+                    break;
+                }
+            }
+        }
+
+        protected override bool IsInputKey(Keys keyData)
+        {
+            if ((keyData & Keys.Control) == Keys.Control && (keyData & Keys.KeyCode) == Keys.C) return true;
+            if ((keyData & Keys.Control) == Keys.Control && (keyData & Keys.KeyCode) == Keys.A) return true;
+            return base.IsInputKey(keyData);
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            if (e.Control && e.KeyCode == Keys.C)
+            {
+                CopySelectedText();
+                e.Handled = true;
+            }
+            else if (e.Control && e.KeyCode == Keys.A)
+            {
+                SelectAllCurrentMessage();
+                e.Handled = true;
+            }
+        }
+
+        private void ShowContextMenuForSelection(Point screenPt)
+        {
+            if (_selectedItem == null || _selectedItem.Message == null) return;
+
+            GrokPopupMenu menu = new GrokPopupMenu();
+            menu.AddItem("复制", WeChatIconType.Copy, () => CopySelectedText(), "Ctrl+C")
+                .AddItem("复制全文", WeChatIconType.Copy, () => CopyFullMessage())
+                .AddSeparator()
+                .AddItem("全选", WeChatIconType.User, () => SelectAllCurrentMessage(), "Ctrl+A");
+
+            menu.ShowAt(screenPt);
+        }
+
+        public void CopySelectedText()
+        {
+            if (_selectedItem == null || _selectedItem.Message == null) return;
+            string content = _selectedItem.Message.Content ?? "";
+            if (_selEnd > _selStart && _selStart >= 0 && _selEnd <= content.Length)
+            {
+                string sel = content.Substring(_selStart, _selEnd - _selStart);
+                SafeSetClipboardText(sel);
+            }
+            else
+            {
+                SafeSetClipboardText(content);
+            }
+        }
+
+        public void CopyFullMessage()
+        {
+            if (_selectedItem == null || _selectedItem.Message == null) return;
+            SafeSetClipboardText(_selectedItem.Message.Content ?? "");
+        }
+
+        public void SelectAllCurrentMessage()
+        {
+            if (_selectedItem == null || _selectedItem.Message == null) return;
+            _selStart = 0;
+            _selEnd = (_selectedItem.Message.Content ?? "").Length;
+            Invalidate();
+        }
+
+        private static void SafeSetClipboardText(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            try
+            {
+                Clipboard.SetText(text);
+            }
+            catch
+            {
+                try
+                {
+                    System.Threading.Thread t = new System.Threading.Thread(() => {
+                        try { Clipboard.SetText(text); } catch { }
+                    });
+                    t.SetApartmentState(System.Threading.ApartmentState.STA);
+                    t.Start();
+                    t.Join(200);
+                }
+                catch { }
+            }
+        }
+
+        private int GetCharIndexAtPoint(MessageRenderItem item, Point pt, Graphics g, Font font)
+        {
+            if (item == null || item.Lines == null || item.Lines.Count == 0) return 0;
+            string content = item.Message.Content ?? "";
+            if (content.Length == 0) return 0;
+
+            VisualLine targetLine = null;
+            if (pt.Y < item.Lines[0].Bounds.Top)
+            {
+                targetLine = item.Lines[0];
+                return targetLine.StartChar;
+            }
+            if (pt.Y >= item.Lines[item.Lines.Count - 1].Bounds.Bottom)
+            {
+                targetLine = item.Lines[item.Lines.Count - 1];
+                return targetLine.StartChar + targetLine.Length;
+            }
+
+            foreach (var line in item.Lines)
+            {
+                if (pt.Y >= line.Bounds.Top && pt.Y < line.Bounds.Bottom)
+                {
+                    targetLine = line;
+                    break;
+                }
+            }
+            if (targetLine == null) targetLine = item.Lines[item.Lines.Count - 1];
+
+            float relX = pt.X - targetLine.Bounds.Left;
+            if (relX <= 0) return targetLine.StartChar;
+            if (relX >= targetLine.Bounds.Width) return targetLine.StartChar + targetLine.Length;
+
+            int bestChar = 0;
+            float minDiff = float.MaxValue;
+            for (int c = 0; c <= targetLine.Length; c++)
+            {
+                string sub = targetLine.Text.Substring(0, c);
+                float w = g.MeasureString(sub, font, 10000, StringFormat.GenericTypographic).Width;
+                float diff = Math.Abs(w - relX);
+                if (diff < minDiff)
+                {
+                    minDiff = diff;
+                    bestChar = c;
+                }
+            }
+            return targetLine.StartChar + bestChar;
+        }
+
+        private static List<VisualLine> BreakTextIntoVisualLines(Graphics g, string content, Font font, float maxWidth, float startX, float startY)
+        {
+            List<VisualLine> lines = new List<VisualLine>();
+            if (string.IsNullOrEmpty(content))
+            {
+                return lines;
+            }
+
+            float lineHeight = font.GetHeight(g) + 5f;
+            float curY = startY;
+            int globalIndex = 0;
+
+            string[] paragraphs = content.Replace("\r\n", "\n").Split('\n');
+            for (int p = 0; p < paragraphs.Length; p++)
+            {
+                string para = paragraphs[p];
+                if (para.Length == 0)
+                {
+                    lines.Add(new VisualLine
+                    {
+                        Text = "",
+                        StartChar = globalIndex,
+                        Length = 0,
+                        Bounds = new RectangleF(startX, curY, 0, lineHeight)
+                    });
+                    curY += lineHeight;
+                    globalIndex += 1;
+                    continue;
+                }
+
+                int pOffset = 0;
+                while (pOffset < para.Length)
+                {
+                    int count = 1;
+                    int bestBreak = -1;
+
+                    while (pOffset + count <= para.Length)
+                    {
+                        string sub = para.Substring(pOffset, count);
+                        SizeF sz = g.MeasureString(sub, font, 10000, StringFormat.GenericTypographic);
+                        if (sz.Width > maxWidth && count > 1)
+                        {
+                            if (bestBreak > 0)
+                            {
+                                count = bestBreak;
+                            }
+                            else
+                            {
+                                count = count - 1;
+                            }
+                            break;
+                        }
+
+                        if (pOffset + count < para.Length && char.IsWhiteSpace(para[pOffset + count]))
+                        {
+                            bestBreak = count + 1;
+                        }
+
+                        count++;
+                    }
+
+                    if (pOffset + count > para.Length)
+                    {
+                        count = para.Length - pOffset;
+                    }
+
+                    string lineStr = para.Substring(pOffset, count);
+                    SizeF lineSz = g.MeasureString(lineStr, font, 10000, StringFormat.GenericTypographic);
+
+                    lines.Add(new VisualLine
+                    {
+                        Text = lineStr,
+                        StartChar = globalIndex + pOffset,
+                        Length = count,
+                        Bounds = new RectangleF(startX, curY, (float)Math.Ceiling(lineSz.Width), lineHeight)
+                    });
+
+                    pOffset += count;
+                    curY += lineHeight;
+                }
+
+                globalIndex += para.Length + 1;
+            }
+
+            return lines;
         }
 
         private void RecalculateLayout(bool scrollToBottom)
@@ -137,9 +513,6 @@ namespace LanChat
             int viewWidth = this.Width - (_vScrollBar.Visible ? _vScrollBar.Width : 0);
             if (viewWidth < 200) viewWidth = 200;
 
-            // 对标 Grok Bot Alis.png 与 Alis2.png 真实布局：
-            // 边缘留出 28px 舒适边距（与底部输入胶囊左右边缘严格对齐）
-            // 左侧消息靠左对齐，右侧消息靠右对齐，单条消息最大宽度锁定在 840px
             int leftMargin = 28;
             int rightMargin = 28;
             int maxBubbleW = Math.Min(840, Math.Max(200, viewWidth - leftMargin - rightMargin));
@@ -165,7 +538,7 @@ namespace LanChat
 
                     if (msg.IsSystem)
                     {
-                        SizeF sz = g.MeasureString(msg.Content, timeFont, maxBubbleW - 40);
+                        SizeF sz = g.MeasureString(msg.Content ?? "", timeFont, maxBubbleW - 40);
                         int h = (int)Math.Ceiling(sz.Height) + 16;
                         int x = (viewWidth - (int)Math.Ceiling(sz.Width) - 40) / 2;
                         MessageRenderItem r = new MessageRenderItem
@@ -204,14 +577,24 @@ namespace LanChat
                     else
                     {
                         string raw = msg.Content ?? "";
-                        string cleanContent = raw.Replace("`", "  ");
                         int padH = msg.IsSelf ? 48 : 52;
                         int padV = msg.IsSelf ? 36 : 40;
-                        SizeF sz = g.MeasureString(cleanContent, msgFont, maxBubbleW - padH);
-                        int extraH = (raw.IndexOf('`') >= 0 || raw.IndexOf('\n') >= 0) ? 28 : 0;
-                        int bubbleW = Math.Max(64, (int)Math.Ceiling(sz.Width) + padH);
+                        float availTextW = maxBubbleW - padH;
+
+                        List<VisualLine> lines = BreakTextIntoVisualLines(g, raw, msgFont, availTextW, 0, 0);
+
+                        float maxLineWidth = 0;
+                        foreach (var l in lines)
+                        {
+                            if (l.Bounds.Width > maxLineWidth) maxLineWidth = l.Bounds.Width;
+                        }
+
+                        float lineHeight = msgFont.GetHeight(g) + 5f;
+                        float totalTextH = Math.Max(lineHeight, lines.Count * lineHeight);
+
+                        int bubbleW = Math.Max(64, (int)Math.Ceiling(maxLineWidth) + padH);
                         if (bubbleW > maxBubbleW) bubbleW = maxBubbleW;
-                        int bubbleH = Math.Max(48, (int)Math.Ceiling(sz.Height) + padV + extraH);
+                        int bubbleH = Math.Max(48, (int)Math.Ceiling(totalTextH) + padV);
 
                         int x = msg.IsSelf ? (viewWidth - rightMargin - bubbleW) : leftMargin;
                         string curKey = msg.IsSelf ? "SELF" : ("PEER:" + msg.SenderNick);
@@ -224,13 +607,22 @@ namespace LanChat
                         }
 
                         int topOffset = showSender ? 22 : 0;
+                        int textLeft = msg.IsSelf ? (x + 24) : (x + 26);
+                        int textTop = msg.IsSelf ? (currentY + topOffset + 18) : (currentY + topOffset + 20);
+
+                        for (int li = 0; li < lines.Count; li++)
+                        {
+                            lines[li].Bounds = new RectangleF(textLeft, textTop + li * lineHeight, lines[li].Bounds.Width, lineHeight);
+                        }
+
                         MessageRenderItem r = new MessageRenderItem
                         {
                             Message = msg,
                             Bounds = new Rectangle(0, currentY, viewWidth, bubbleH + topOffset + 6),
                             BubbleBounds = new Rectangle(x, currentY + topOffset, bubbleW, bubbleH),
                             ShowTimeHeader = showTime,
-                            ShowSenderHeader = showSender
+                            ShowSenderHeader = showSender,
+                            Lines = lines
                         };
                         _renderItems.Add(r);
                         currentY += bubbleH + topOffset + 10;
@@ -280,11 +672,6 @@ namespace LanChat
             int viewWidth = this.Width - (_vScrollBar.Visible ? _vScrollBar.Width : 0);
             if (viewWidth < 200) viewWidth = 200;
 
-            int maxContentW = 840;
-            int streamW = Math.Min(maxContentW, viewWidth - 48);
-            if (streamW < 240) streamW = Math.Max(120, viewWidth - 24);
-            int streamLeft = (viewWidth - streamW) / 2;
-
             using (Font timeFont = new Font("Microsoft YaHei UI", 9.0f))
             using (Font msgFont = new Font("Microsoft YaHei UI", 10.5f))
             using (Font codeFont = new Font("Consolas", 10f))
@@ -296,6 +683,7 @@ namespace LanChat
             using (SolidBrush otherBubbleBrush = new SolidBrush(Color.FromArgb(30, 30, 33)))   // Peer bubble #1E1E21
             using (Pen otherBubbleBorder = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
             using (SolidBrush selfBubbleBrush = new SolidBrush(Color.FromArgb(121, 70, 215)))  // Grok Purple Bubble #7946D7
+            using (SolidBrush selHighlightBrush = new SolidBrush(Color.FromArgb(170, 70, 115, 235))) // Text selection highlight
             {
                 foreach (var item in _renderItems)
                 {
@@ -317,9 +705,9 @@ namespace LanChat
 
                     if (msg.IsSystem)
                     {
-                        SizeF sz = g.MeasureString(msg.Content, timeFont, viewWidth - 60);
+                        SizeF sz = g.MeasureString(msg.Content ?? "", timeFont, viewWidth - 60);
                         float sx = (viewWidth - sz.Width) / 2f;
-                        g.DrawString(msg.Content, timeFont, grayText, new RectangleF(sx, itemTop + 2, sz.Width + 4, sz.Height + 4));
+                        g.DrawString(msg.Content ?? "", timeFont, grayText, new RectangleF(sx, itemTop + 2, sz.Width + 4, sz.Height + 4));
                     }
                     else if (msg.IsFile)
                     {
@@ -338,16 +726,12 @@ namespace LanChat
                         {
                             MainForm.DrawRoundedRectangle(g, badgeBg, badgeRect, 10);
                         }
-                        StringFormat bsf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                        using (Font ff = new Font("Microsoft YaHei UI", 8.0f, FontStyle.Bold))
-                        {
-                            g.DrawString("FILE", ff, selfTextBrush, badgeRect, bsf);
-                        }
+                        WeChatIcon.Draw(g, WeChatIconType.Box, new Rectangle(badgeRect.Left + 8, badgeRect.Top + 8, 20, 20), false, Color.White);
 
-                        string nameSnippet = msg.FileName ?? "未知文件";
-                        if (nameSnippet.Length > 17) nameSnippet = nameSnippet.Substring(0, 16) + "...";
-                        using (Font fnFont = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Bold))
+                        using (Font fnFont = new Font("Microsoft YaHei UI", 10.0f, FontStyle.Bold))
                         {
+                            string nameSnippet = msg.FileName ?? "未知文件";
+                            if (nameSnippet.Length > 28) nameSnippet = nameSnippet.Substring(0, 25) + "...";
                             g.DrawString(nameSnippet, fnFont, textLight, bb.Left + 62, bb.Top + 14);
                         }
                         g.DrawString(FormatFileSize(msg.FileSize), timeFont, grayText, bb.Left + 62, bb.Top + 38);
@@ -367,10 +751,8 @@ namespace LanChat
 
                         if (msg.IsSelf)
                         {
-                            // 右侧高饱和紫色圆角气泡 (#7946D7)，24px 大圆角，无头像与尖角，右对齐
+                            // 右侧高饱和紫色圆角气泡 (#7946D7)
                             MainForm.DrawRoundedRectangle(g, selfBubbleBrush, bb, 24);
-                            Rectangle textRect = new Rectangle(bb.Left + 24, bb.Top + 18, bb.Width - 48, bb.Height - 36);
-                            DrawStyledBubbleText(g, msg.Content ?? "", msgFont, codeFont, selfTextBrush, textRect, true);
                         }
                         else
                         {
@@ -379,131 +761,102 @@ namespace LanChat
                                 g.DrawString(msg.SenderNick ?? "好友", nickFont, nickBrush, bb.Left + 6, bb.Top - 20);
                             }
 
-                            // 左侧深灰圆角卡片 (#222222)，24px 大圆角，微光边框，左对齐
+                            // 左侧深灰圆角卡片 (#1E1E21)
                             MainForm.DrawRoundedRectangle(g, otherBubbleBrush, bb, 24);
                             MainForm.DrawRoundedRectangle(g, otherBubbleBorder, bb, 24);
+                        }
 
-                            Rectangle textRect = new Rectangle(bb.Left + 26, bb.Top + 20, bb.Width - 52, bb.Height - 40);
-                            DrawStyledBubbleText(g, msg.Content ?? "", msgFont, codeFont, textLight, textRect, false);
+                        // 绘制文本行与鼠标划选高亮
+                        if (item.Lines != null)
+                        {
+                            bool hasSelection = (_selectedItem == item && _selEnd > _selStart);
+
+                            foreach (var line in item.Lines)
+                            {
+                                float lx = line.Bounds.Left;
+                                float ly = line.Bounds.Top - scrollY;
+
+                                // 1. 若处于划选范围，先在背景绘制高亮选区矩形
+                                if (hasSelection)
+                                {
+                                    int lineStart = line.StartChar;
+                                    int lineEnd = line.StartChar + line.Length;
+                                    int overStart = Math.Max(lineStart, _selStart);
+                                    int overEnd = Math.Min(lineEnd, _selEnd);
+
+                                    if (overStart < overEnd)
+                                    {
+                                        string preText = line.Text.Substring(0, overStart - lineStart);
+                                        string selPart = line.Text.Substring(overStart - lineStart, overEnd - overStart);
+
+                                        float preW = preText.Length > 0 ? g.MeasureString(preText, msgFont, 10000, StringFormat.GenericTypographic).Width : 0f;
+                                        float selW = g.MeasureString(selPart, msgFont, 10000, StringFormat.GenericTypographic).Width;
+
+                                        RectangleF selRect = new RectangleF(lx + preW, ly, selW, line.Bounds.Height);
+                                        g.FillRectangle(selHighlightBrush, selRect);
+                                    }
+                                }
+
+                                // 2. 绘制行内文字（支持反引号代码胶囊）
+                                DrawLineContent(g, line.Text, lx, ly, msgFont, codeFont, msg.IsSelf ? selfTextBrush : textLight, msg.IsSelf);
+                            }
                         }
                     }
                 }
             }
         }
 
-        /// <summary>
-        /// 渲染气泡文本：支持截图同款行内反引号代码胶囊 (`...`)、路径下划线高亮与圆点列表 (•)
-        /// </summary>
-        private void DrawStyledBubbleText(Graphics g, string content, Font msgFont, Font codeFont, Brush mainBrush, Rectangle textRect, bool isSelf)
+        private void DrawLineContent(Graphics g, string lineText, float curX, float curY, Font msgFont, Font codeFont, Brush mainBrush, bool isSelf)
         {
-            // 若不包含反引号或特殊路径，直接走原生高质量自动换行绘制
-            if (content.IndexOf('`') < 0 && content.IndexOf('@') < 0)
+            if (string.IsNullOrEmpty(lineText)) return;
+
+            // 无反引号代码胶囊直接高性能绘制
+            if (lineText.IndexOf('`') < 0)
             {
-                g.DrawString(content, msgFont, mainBrush, textRect);
+                g.DrawString(lineText, msgFont, mainBrush, new PointF(curX, curY), StringFormat.GenericTypographic);
                 return;
             }
 
-            // 按行解析，支持反引号代码胶囊背景与 @路径 下划线（复刻截图效果）
-            string[] lines = content.Replace("\r\n", "\n").Split('\n');
-            float curY = textRect.Top;
-            float lineHeight = msgFont.GetHeight(g) + 5f;
-
+            // 包含代码胶囊段落
             using (SolidBrush codeBg = new SolidBrush(isSelf ? Color.FromArgb(98, 52, 185) : Color.FromArgb(42, 42, 46)))
             using (Pen codeBorder = new Pen(isSelf ? Color.FromArgb(145, 98, 230) : Color.FromArgb(58, 58, 64), 1f))
             using (SolidBrush codeFg = new SolidBrush(Color.FromArgb(228, 228, 235)))
-            using (Pen underlinePen = new Pen(Color.FromArgb(220, 205, 255), 1f))
             {
-                foreach (string rawLine in lines)
+                int idx = 0;
+                while (idx < lineText.Length)
                 {
-                    string line = rawLine;
-                    float curX = textRect.Left;
-
-                    // 处理列表圆点前缀 "- " 或 "• "
-                    if (!isSelf && (line.StartsWith("- ") || line.StartsWith("* ") || line.StartsWith("• ")))
+                    int tickStart = lineText.IndexOf('`', idx);
+                    if (tickStart >= 0)
                     {
-                        using (SolidBrush dotBrush = new SolidBrush(Color.FromArgb(130, 130, 138)))
+                        int tickEnd = lineText.IndexOf('`', tickStart + 1);
+                        if (tickEnd > tickStart)
                         {
-                            g.FillEllipse(dotBrush, curX + 2, curY + 7, 4, 4);
+                            if (tickStart > idx)
+                            {
+                                string pre = lineText.Substring(idx, tickStart - idx);
+                                SizeF preSz = g.MeasureString(pre, msgFont, 10000, StringFormat.GenericTypographic);
+                                g.DrawString(pre, msgFont, mainBrush, new PointF(curX, curY), StringFormat.GenericTypographic);
+                                curX += preSz.Width;
+                            }
+
+                            string codeText = lineText.Substring(tickStart + 1, tickEnd - tickStart - 1);
+                            SizeF codeSz = g.MeasureString(codeText, codeFont, 10000, StringFormat.GenericTypographic);
+                            int cw = (int)Math.Ceiling(codeSz.Width) + 8;
+                            int ch = (int)Math.Ceiling(codeSz.Height) + 2;
+                            Rectangle pillRect = new Rectangle((int)curX, (int)curY + 1, cw, ch);
+                            MainForm.DrawRoundedRectangle(g, codeBg, pillRect, 4);
+                            MainForm.DrawRoundedRectangle(g, codeBorder, pillRect, 4);
+                            g.DrawString(codeText, codeFont, codeFg, curX + 4, curY + 2);
+                            curX += cw + 4;
+
+                            idx = tickEnd + 1;
+                            continue;
                         }
-                        curX += 14;
-                        line = line.Substring(2);
                     }
 
-                    int idx = 0;
-                    while (idx < line.Length)
-                    {
-                        int tickStart = line.IndexOf('`', idx);
-                        if (tickStart >= 0)
-                        {
-                            int tickEnd = line.IndexOf('`', tickStart + 1);
-                            if (tickEnd > tickStart)
-                            {
-                                // 先画反引号前的普通文字
-                                if (tickStart > idx)
-                                {
-                                    string pre = line.Substring(idx, tickStart - idx);
-                                    SizeF preSz = g.MeasureString(pre, msgFont, 1000, StringFormat.GenericTypographic);
-                                    g.DrawString(pre, msgFont, mainBrush, curX, curY);
-                                    curX += preSz.Width + 2;
-                                }
-
-                                // 画反引号内的圆角代码胶囊（如 `SessionBrief.md`）
-                                string codeText = line.Substring(tickStart + 1, tickEnd - tickStart - 1);
-                                SizeF codeSz = g.MeasureString(codeText, codeFont, 1000, StringFormat.GenericTypographic);
-                                int cw = (int)Math.Ceiling(codeSz.Width) + 10;
-                                int ch = (int)Math.Ceiling(codeSz.Height) + 3;
-                                Rectangle pillRect = new Rectangle((int)curX, (int)curY + 1, cw, ch);
-                                MainForm.DrawRoundedRectangle(g, codeBg, pillRect, 4);
-                                MainForm.DrawRoundedRectangle(g, codeBorder, pillRect, 4);
-                                g.DrawString(codeText, codeFont, codeFg, curX + 4, curY + 2);
-                                curX += cw + 4;
-
-                                idx = tickEnd + 1;
-                                continue;
-                            }
-                        }
-
-                        // 剩余文本（检查是否含 @路径 以绘制截图紫色气泡内的下划线）
-                        string rest = line.Substring(idx);
-                        int atIdx = rest.IndexOf('@');
-                        if (isSelf && atIdx >= 0)
-                        {
-                            if (atIdx > 0)
-                            {
-                                string beforeAt = rest.Substring(0, atIdx);
-                                SizeF bSz = g.MeasureString(beforeAt, msgFont, 1000, StringFormat.GenericTypographic);
-                                g.DrawString(beforeAt, msgFont, mainBrush, curX, curY);
-                                curX += bSz.Width;
-                            }
-                            string afterAt = rest.Substring(atIdx);
-                            int spaceIdx = afterAt.IndexOf(' ');
-                            string pathPart = spaceIdx > 0 ? afterAt.Substring(0, spaceIdx) : afterAt;
-                            SizeF pSz = g.MeasureString(pathPart, msgFont, 1000, StringFormat.GenericTypographic);
-                            g.DrawString(pathPart, msgFont, mainBrush, curX, curY);
-                            g.DrawLine(underlinePen, curX + 2, curY + pSz.Height + 1, curX + pSz.Width, curY + pSz.Height + 1);
-                            curX += pSz.Width + 2;
-
-                            if (spaceIdx > 0)
-                            {
-                                string tail = afterAt.Substring(spaceIdx);
-                                g.DrawString(tail, msgFont, mainBrush, curX, curY);
-                            }
-                        }
-                        else
-                        {
-                            float availW = Math.Max(40, textRect.Right - curX + 6);
-                            SizeF rSz = g.MeasureString(rest, msgFont, (int)availW);
-                            g.DrawString(rest, msgFont, mainBrush, new RectangleF(curX, curY, availW, Math.Max(lineHeight, rSz.Height + 6)));
-                            if (rSz.Height > lineHeight)
-                            {
-                                curY += (rSz.Height - lineHeight);
-                            }
-                        }
-                        break;
-                    }
-
-                    curY += lineHeight;
-                    if (curY > textRect.Bottom + 10) break;
+                    string rest = lineText.Substring(idx);
+                    g.DrawString(rest, msgFont, mainBrush, new PointF(curX, curY), StringFormat.GenericTypographic);
+                    break;
                 }
             }
         }

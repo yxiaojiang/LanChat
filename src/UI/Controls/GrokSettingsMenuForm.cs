@@ -19,6 +19,7 @@ namespace LanChat
         private static extern bool ReleaseCapture();
 
         private readonly NetworkService _netService;
+        private readonly Action _onShowSettings;
         private readonly Action _onCheckUpdate;
         private readonly Action _onShowChangeNick;
         private readonly Action _onOpenFolder;
@@ -27,12 +28,13 @@ namespace LanChat
         private readonly Action _onExit;
 
         private int _hoverIndex = -1; // -2: banner button, 0..5: menu items
-        private const int ITEM_COUNT = 6;
+        private const int ITEM_COUNT = 7;
         private const int ROW_HEIGHT = 44; // Docs menu row 44px
         private const int BANNER_HEIGHT = 58;
 
         public GrokSettingsMenuForm(
             NetworkService netService,
+            Action onShowSettings,
             Action onCheckUpdate,
             Action onShowChangeNick,
             Action onOpenFolder,
@@ -41,6 +43,7 @@ namespace LanChat
             Action onExit)
         {
             _netService = netService;
+            _onShowSettings = onShowSettings;
             _onCheckUpdate = onCheckUpdate;
             _onShowChangeNick = onShowChangeNick;
             _onOpenFolder = onOpenFolder;
@@ -51,7 +54,7 @@ namespace LanChat
             this.FormBorderStyle = FormBorderStyle.None;
             this.ShowInTaskbar = false;
             this.StartPosition = FormStartPosition.Manual;
-            this.Size = new Size(342, 356);
+            this.Size = new Size(342, 400);
             this.BackColor = Color.FromArgb(28, 28, 31); // #1C1C1F Level1
             this.DoubleBuffered = true;
             this.Cursor = Cursors.Default;
@@ -105,16 +108,16 @@ namespace LanChat
                 int itemAreaY = e.Y - (BANNER_HEIGHT + 6);
                 if (itemAreaY >= 0)
                 {
-                    if (itemAreaY < 4 * ROW_HEIGHT)
+                    if (itemAreaY < 5 * ROW_HEIGHT)
                     {
                         newHover = itemAreaY / ROW_HEIGHT;
                     }
                     else
                     {
-                        int belowSep = itemAreaY - (4 * ROW_HEIGHT + 10);
+                        int belowSep = itemAreaY - (5 * ROW_HEIGHT + 10);
                         if (belowSep >= 0 && belowSep < 2 * ROW_HEIGHT)
                         {
-                            newHover = 4 + (belowSep / ROW_HEIGHT);
+                            newHover = 5 + (belowSep / ROW_HEIGHT);
                         }
                     }
                 }
@@ -149,32 +152,36 @@ namespace LanChat
                 return;
             }
 
-            switch (_hoverIndex)
+                        switch (_hoverIndex)
             {
-                case 0: // 修改昵称
+                case 0: // 偏好与配置
+                    this.Close();
+                    if (_onShowSettings != null) _onShowSettings();
+                    break;
+                case 1: // 修改我的昵称
                     this.Close();
                     if (_onShowChangeNick != null) _onShowChangeNick();
                     break;
-                case 1: // 自动接收文件
+                case 2: // 自动接收文件
                     if (_netService != null)
                     {
                         _netService.AutoAcceptFiles = !_netService.AutoAcceptFiles;
                         Invalidate();
                     }
                     break;
-                case 2: // 接收文件夹
+                case 3: // 接收文件目录
                     this.Close();
                     if (_onOpenFolder != null) _onOpenFolder();
                     break;
-                case 3: // 支持与关于
+                case 4: // 支持与关于
                     this.Close();
                     if (_onShowAbout != null) _onShowAbout();
                     break;
-                case 4: // 清空聊天
+                case 5: // 清空聊天记录
                     this.Close();
                     if (_onClearChat != null) _onClearChat();
                     break;
-                case 5: // 退出
+                case 6: // 退出登录
                     this.Close();
                     if (_onExit != null) _onExit();
                     break;
@@ -239,10 +246,11 @@ namespace LanChat
 
             MenuItemDef[] items = new MenuItemDef[]
             {
+                new MenuItemDef(WeChatIconType.Settings, "偏好与配置", "打开  ›"),
                 new MenuItemDef(WeChatIconType.User, "修改我的昵称", currentNick + "  ›"),
                 new MenuItemDef(WeChatIconType.Bolt, "自动接收文件", (autoAccept ? "已开启" : "已关闭") + "  ›"),
                 new MenuItemDef(WeChatIconType.Folder, "接收文件目录", "打开  ›"),
-                new MenuItemDef(WeChatIconType.Settings, "支持与关于", "›"),
+                new MenuItemDef(WeChatIconType.More, "支持与关于", "›"),
                 new MenuItemDef(WeChatIconType.Clear, "清空聊天记录", ""),
                 new MenuItemDef(WeChatIconType.Logout, "退出登录", "")
             };
@@ -256,12 +264,12 @@ namespace LanChat
             {
                 for (int i = 0; i < items.Length; i++)
                 {
-                    int itemY = startY + (i < 4 ? i * ROW_HEIGHT : (i * ROW_HEIGHT + 10));
+                    int itemY = startY + (i < 5 ? i * ROW_HEIGHT : (i * ROW_HEIGHT + 10));
 
                     // 分割线 (在第4项之后)
-                    if (i == 4)
+                    if (i == 5)
                     {
-                        int sepY = startY + 4 * ROW_HEIGHT + 4;
+                        int sepY = startY + 5 * ROW_HEIGHT + 4;
                         using (Pen sepPen = new Pen(Color.FromArgb(44, 44, 52), 1f)) // #2C2C34
                         {
                             g.DrawLine(sepPen, 18, sepY, this.Width - 18, sepY);

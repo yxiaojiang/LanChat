@@ -34,7 +34,8 @@ namespace LanChat
         User,
         Bolt,
         Settings,
-        Logout
+        Logout,
+        Copy
     }
 
     /// <summary>
@@ -120,6 +121,9 @@ namespace LanChat
                     break;
                 case WeChatIconType.Logout:
                     DrawLogoutIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.Copy:
+                    DrawCopyIcon(g, bounds, color);
                     break;
             }
         }
@@ -567,13 +571,14 @@ namespace LanChat
         // 11. Search Magnifying Glass
         public static void DrawSearchIcon(Graphics g, Rectangle r, Color color)
         {
-            using (Pen p = new Pen(color, 1.6f))
+            float penW = Math.Max(1.6f, Math.Min(r.Width, r.Height) * 0.08f);
+            using (Pen p = new Pen(color, penW))
             {
                 p.StartCap = LineCap.Round;
                 p.EndCap = LineCap.Round;
                 float cx = r.X + r.Width / 2f;
                 float cy = r.Y + r.Height / 2f;
-                float rad = Math.Min(r.Width, r.Height) * 0.20f;
+                float rad = Math.Min(r.Width, r.Height) * 0.25f;
                 if (rad < 3.5f) rad = 3.5f;
                 g.DrawEllipse(p, cx - rad - 1.2f, cy - rad - 1.2f, rad * 2f, rad * 2f);
                 g.DrawLine(p, cx + rad * 0.5f - 1f, cy + rad * 0.5f - 1f, cx + rad * 1.35f, cy + rad * 1.35f);
@@ -793,6 +798,19 @@ namespace LanChat
                 g.DrawLine(p, cx + 2f, cy, cx - 6f, cy);
                 g.DrawLine(p, cx - 3f, cy - 3f, cx - 6f, cy);
                 g.DrawLine(p, cx - 3f, cy + 3f, cx - 6f, cy);
+            }
+        }
+
+        // 24. Copy / Overlapping Document Icon
+        public static void DrawCopyIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.4f))
+            {
+                p.LineJoin = LineJoin.Round;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                g.DrawRectangle(p, cx - 6f, cy - 6f, 8f, 9f);
+                g.DrawRectangle(p, cx - 2f, cy - 3f, 8f, 9f);
             }
         }
     }
