@@ -8,7 +8,8 @@
 > 2) 全局 ToolTip 遵循 Windows 标准无焦点层级（WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST），引入多显示器工作区边界检测与自适应避让（Clamping & Auto-Flip），底栏按钮提示默认置于正上方居中，彻底根除超出屏幕被截断的问题；
 > 3) 搜索框内新增自适应抗锯齿圆头 GDI+ 矢量小叉按钮（Dismiss，1.6px 圆头笔触），输入查找内容时浮现，点击一键清空搜索词并恢复所有会话；
 > 4) 左侧会话卡片右键菜单移除冗余的“发起会话”与“复制节点 IP”，保持清爽高效的“发送文件...”与“清空聊天记录”；
-> 5) 运行 `Tools/Publish.bat` 成功全自动构建并发布 v2.0.9 全平台产物（MSI、EXE、DEB）并同步推送至 GitHub Releases。
+> 5) Windows 与 Linux 双端功能全面对齐：将发送按钮未输入置灰点亮联动、搜索框小叉一键清空、会话卡片右键上下文菜单（发送文件/清空记录）、全员群聊未读徽标与 ChaseFraser 版权标示 100% 同步至 Linux 端（src/linux/lanchat.py），并重新打包全架构通用与 amd64 自包含 deb 安装包；
+> 6) 运行 `packaging/publish-release.py` 成功推送 Git 提交并更新发布至 GitHub Releases。
 
 ---
 

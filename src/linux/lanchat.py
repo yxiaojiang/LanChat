@@ -685,15 +685,24 @@ if HAS_TK:
             search_box = tk.Frame(search_frame, bg="#222226", bd=0)
             search_box.pack(fill="x")
 
-            lbl_lens = tk.Label(search_box, text="[搜索]", bg="#222226", fg=self.C_TEXT_MUTED, font=get_ui_font(8))
+            lbl_lens = tk.Label(search_box, text="🔍", bg="#222226", fg=self.C_TEXT_MUTED, font=get_ui_font(8))
             lbl_lens.pack(side="left", padx=(8, 4))
 
             self.entry_search = tk.Entry(
                 search_box, bg="#222226", fg=self.C_TEXT_WHITE, insertbackground="#ffffff",
                 relief="flat", font=get_ui_font(9), bd=0
             )
-            self.entry_search.pack(side="left", fill="x", expand=True, ipady=5, padx=(0, 8))
-            self.entry_search.bind("<KeyRelease>", lambda e: self._render_sessions())
+            self.entry_search.pack(side="left", fill="x", expand=True, ipady=5, padx=(0, 4))
+            self.entry_search.bind("<KeyRelease>", lambda e: self._on_search_changed())
+            self.entry_search.bind("<Escape>", lambda e: self._on_search_clear())
+
+            # 搜索框清除小叉按钮 (×)：输入内容时浮现
+            self.btn_search_clear = tk.Button(
+                search_box, text="✕", font=get_ui_font(8, "bold"),
+                bg="#222226", fg=self.C_TEXT_MUTED, activebackground="#2E2E34",
+                activeforeground="#FFFFFF", relief="flat", bd=0, padx=6, pady=0,
+                cursor="hand2", command=self._on_search_clear
+            )
 
             sep1 = tk.Frame(self.sessions_panel, bg=self.C_BORDER, height=1)
             sep1.pack(fill="x", pady=(6, 0))
@@ -826,26 +835,63 @@ if HAS_TK:
             self.txt_input.pack(fill="x")
             self.txt_input.bind("<Return>", self._on_enter_pressed)
             self.txt_input.bind("<Control-Return>", lambda e: self.txt_input.insert("insert", "\n"))
+            self.txt_input.bind("<KeyRelease>", self._update_send_btn_state)
+            self.txt_input.bind("<BackSpace>", self._update_send_btn_state)
 
             # 底部发送面板
             bottom_frame = tk.Frame(self.chat_panel, bg=self.C_CHAT, height=38)
             bottom_frame.pack(fill="x", padx=18, pady=(0, 12))
 
-            lbl_tip = tk.Label(bottom_frame, text="按 Enter 发送，Ctrl+Enter 换行", font=get_ui_font(8), bg=self.C_CHAT, fg=self.C_TEXT_MUTED)
-            lbl_tip.pack(side="left")
+            self.lbl_tip = tk.Label(bottom_frame, text="给 局域网全员群聊 发消息 (Enter 发送，Ctrl+Enter 换行)", font=get_ui_font(8), bg=self.C_CHAT, fg=self.C_TEXT_MUTED)
+            self.lbl_tip.pack(side="left")
 
             self.btn_send = tk.Button(
                 bottom_frame, text="发送 (S)", font=get_ui_font(9, "bold"),
-                bg=self.C_PURPLE, fg="#ffffff", activebackground=self.C_PURPLE_HOVER,
-                activeforeground="#ffffff", relief="flat", bd=0, padx=22, pady=5,
-                cursor="hand2", command=self._send_message
+                bg="#2C2C32", fg="#73737A", activebackground="#2C2C32",
+                activeforeground="#73737A", relief="flat", bd=0, padx=22, pady=5,
+                cursor="arrow", state="disabled", command=self._send_message
             )
             self.btn_send.pack(side="right")
 
             # 初始化渲染
             self._render_sessions()
+            self._update_send_btn_state()
             self._append_system_message("欢迎使用 LanChat 局域网即时通讯客户端 (Linux GrokBot 暗黑版)！")
             self._append_system_message(f"本机 IP: {self.service.primary_ip}:{self.service.tcp_port} | 昵称: {self.service.nickname}")
+
+        def _on_search_changed(self):
+            kw = self.entry_search.get().strip()
+            if kw:
+                if not self.btn_search_clear.winfo_ismapped():
+                    self.btn_search_clear.pack(side="right", padx=(0, 6))
+            else:
+                if self.btn_search_clear.winfo_ismapped():
+                    self.btn_search_clear.pack_forget()
+            self._render_sessions()
+
+        def _on_search_clear(self):
+            self.entry_search.delete(0, "end")
+            self.btn_search_clear.pack_forget()
+            self._render_sessions()
+            self.entry_search.focus_set()
+
+        def _update_send_btn_state(self, event=None):
+            try:
+                text = self.txt_input.get("1.0", "end-1c").strip()
+                if text:
+                    self.btn_send.config(
+                        bg=self.C_PURPLE, fg="#ffffff",
+                        activebackground=self.C_PURPLE_HOVER, activeforeground="#ffffff",
+                        cursor="hand2", state="normal"
+                    )
+                else:
+                    self.btn_send.config(
+                        bg="#2C2C32", fg="#73737A",
+                        activebackground="#2C2C32", activeforeground="#73737A",
+                        cursor="arrow", state="disabled"
+                    )
+            except Exception:
+                pass
 
         def _draw_avatar(self):
             self.avatar_canvas.delete("all")
@@ -921,13 +967,33 @@ if HAS_TK:
                 lbl_pin = tk.Label(top_bc, text="置顶", font=get_ui_font(7), bg=bg, fg=self.C_PURPLE)
                 lbl_pin.pack(side="right")
 
+                if self.unread_counts.get("BROADCAST", 0) > 0:
+                    lbl_badge_bc = tk.Label(top_bc, text=str(self.unread_counts["BROADCAST"]), font=get_ui_font(7, "bold"), bg=self.C_PURPLE, fg="#ffffff", padx=4)
+                    lbl_badge_bc.pack(side="right", padx=(0, 4))
+
                 with self.service.lock:
                     count = len(self.service.peers)
                 lbl_sub = tk.Label(f_bc, text=f"在线成员: {count} 人", font=get_ui_font(8), bg=bg, fg=self.C_TEXT_MUTED)
                 lbl_sub.pack(anchor="w", padx=10)
 
+                def _show_bc_menu(e):
+                    self._select_session("BROADCAST")
+                    m = tk.Menu(self.root, tearoff=0, bg="#1E1E22", fg=self.C_TEXT_WHITE, activebackground=self.C_PURPLE, activeforeground="#ffffff")
+                    m.add_command(label="📁 发送文件给所有人...", command=self._on_send_file)
+                    m.add_separator()
+                    m.add_command(label="⚡ 清空群聊记录", command=self._clear_current_chat)
+                    try:
+                        m.tk_popup(e.x_root, e.y_root)
+                    finally:
+                        try:
+                            m.grab_release()
+                        except Exception:
+                            pass
+
                 for w in (f_bc, top_bc, lbl_t, lbl_pin, lbl_sub):
                     w.bind("<Button-1>", lambda e: self._select_session("BROADCAST"))
+                    w.bind("<Button-3>", _show_bc_menu)
+                    w.bind("<Button-2>", _show_bc_menu)
 
             # 2. 在线好友列表项
             with self.service.lock:
@@ -959,8 +1025,27 @@ if HAS_TK:
                 lbl_msg.pack(anchor="w", padx=10)
 
                 pid = p.id
+                def _make_peer_menu(peer_id):
+                    def _show_peer_menu(e):
+                        self._select_session(peer_id)
+                        m = tk.Menu(self.root, tearoff=0, bg="#1E1E22", fg=self.C_TEXT_WHITE, activebackground=self.C_PURPLE, activeforeground="#ffffff")
+                        m.add_command(label="📁 发送文件...", command=self._on_send_file)
+                        m.add_separator()
+                        m.add_command(label="⚡ 清空聊天记录", command=self._clear_current_chat)
+                        try:
+                            m.tk_popup(e.x_root, e.y_root)
+                        finally:
+                            try:
+                                m.grab_release()
+                            except Exception:
+                                pass
+                    return _show_peer_menu
+
+                p_menu = _make_peer_menu(pid)
                 for w in (f_p, top_box, lbl_dot, lbl_nick, lbl_msg):
                     w.bind("<Button-1>", lambda e, k=pid: self._select_session(k))
+                    w.bind("<Button-3>", p_menu)
+                    w.bind("<Button-2>", p_menu)
 
         def _select_session(self, conv_key):
             self.current_conv_key = conv_key
@@ -971,12 +1056,16 @@ if HAS_TK:
                 with self.service.lock:
                     count = len(self.service.peers)
                 self.lbl_chat_sub.config(text=f"局域网广播模式 (共 {count} 位好友在线)")
+                if hasattr(self, "lbl_tip"):
+                    self.lbl_tip.config(text="给 局域网全员群聊 发消息 (Enter 发送, Ctrl+Enter 换行)")
             else:
                 with self.service.lock:
                     peer = self.service.peers.get(conv_key)
                 if peer:
                     self.lbl_chat_title.config(text=peer.nick)
                     self.lbl_chat_sub.config(text=f"{peer.host} @ {peer.ip}:{peer.port}")
+                    if hasattr(self, "lbl_tip"):
+                        self.lbl_tip.config(text=f"给 {peer.nick} 发消息 (Enter 发送, Ctrl+Enter 换行)")
 
             self._render_sessions()
             self._redraw_chat_history()
@@ -1086,6 +1175,7 @@ if HAS_TK:
             text = self.txt_input.get("1.0", "end-1c").strip()
             if not text: return
             self.txt_input.delete("1.0", "end")
+            self._update_send_btn_state()
 
             if self.current_conv_key == "BROADCAST":
                 self._append_message("BROADCAST", True, self.service.nickname, text)
@@ -1253,6 +1343,7 @@ if HAS_TK:
                 "局域网秒级极速通讯与文件互传\n"
                 "UI: 纯标准库自绘 GrokBot Dark Mode\n"
                 "零外部运行库依赖\n"
+                "版权所有 © 2026 ChaseFraser LanChat Team. All rights reserved.\n"
                 f"项目主页: https://github.com/{GITHUB_REPO}"
             )
             messagebox.showinfo("关于 LanChat", msg)
