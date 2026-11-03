@@ -33,7 +33,7 @@ try:
 except ImportError:
     HAS_TK = False
 
-APP_VERSION = "2.0.6"
+APP_VERSION = "2.0.7"
 GITHUB_REPO = "yxiaojiang/LanChat"
 UDP_PORT = 38888
 TCP_BASE_PORT = 38889

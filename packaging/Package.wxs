@@ -3,7 +3,7 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package Name="LanChat" 
            Manufacturer="LanChat" 
-           Version="2.0.6" 
+           Version="2.0.7" 
            UpgradeCode="{7E993262-EAA5-4A37-975D-39F24FEA21D1}"
            Scope="perMachine"
            Language="2052">

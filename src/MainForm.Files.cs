@@ -215,6 +215,29 @@ namespace LanChat
                 }
             }
 
+            // 判断当前是否正处于该会话且窗口处于激活态
+            bool isForeground = (Form.ActiveForm == this) && (this.WindowState != FormWindowState.Minimized) && this.Visible;
+            bool isCurrentChat = (_selectedPeer != null && _selectedPeer.NickName == senderNick);
+            bool isActivelyViewing = isForeground && isCurrentChat;
+
+            if (!isActivelyViewing)
+            {
+                if (_netService != null)
+                {
+                    var peers = _netService.GetActivePeers();
+                    foreach (var p in peers)
+                    {
+                        if (p.NickName == senderNick)
+                        {
+                            p.UnreadCount++;
+                            break;
+                        }
+                    }
+                }
+                FlashTaskbar(true);
+                StartTrayFlash();
+            }
+
             AddMessageToHistory(convKey, fileMsg);
             _listSessions.Invalidate();
 

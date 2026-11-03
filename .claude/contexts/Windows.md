@@ -6,15 +6,16 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 
 ## 核心源码与构建物清单 (规范目录)
 - `src/Program.cs`：应用程序入口，具名 Mutex（`Global\LanChat_SingleInstance_Mutex_9F24FEA2`）单实例互斥，广播消息唤醒已运行实例；开启高 DPI 感知（`SetProcessDPIAware`），设置 `SetCurrentProcessExplicitAppUserModelID`，注册全局未捕获异常兜底处理。
-- `src/MainForm.cs`：主窗体核心界面控制与自适应布局协调。包含无边框窗体与 DWM 阴影绘制、自适应响应式布局引擎（`UpdateResponsiveLayout`）、底部微信高输入区组装与 Win32 单实例唤醒。
-- `src/MainForm.Chat.cs`：会话管理与聊天交互。包含好友状态监听、自适应会话卡片自绘（`ListSessions_DrawItem`，86px 卡片高度与有机吉祥物）、文本消息收发、输入区工具栏 6 联快捷操作、`GrokPopupMenu` 悬浮菜单弹出。
+- `src/MainForm.cs`：主窗体核心界面控制与自适应布局协调。包含无边框窗体与 DWM 阴影绘制、自适应响应式布局引擎（`UpdateResponsiveLayout`）、顶部 96px 大字号/大头像对端胶囊栏、静态个人头像、底部输入区组装与 Win32 单实例唤醒。
+- `src/MainForm.Chat.cs`：会话管理与聊天交互。包含好友状态监听、自适应会话卡片自绘（`ListSessions_DrawItem`，86px 卡片高度、有机吉祥物与微信红未读徽标 `DrawUnreadBadge`）、文本消息收发、输入区工具栏 6 联快捷操作、`GrokPopupMenu` 悬浮菜单弹出。
 - `src/MainForm.Files.cs`：文件收发与分块跟踪。包含文件选择、拖拽监听、流式进度更新、文件接收落盘与打开文件/目录调用。
-- `src/MainForm.Tray.cs`：系统托盘与生命周期。包含底层网络启动绑定、自适应 Hero 个人头像自绘（`BtnAvatar_Paint`）、昵称修改向导、托盘图标常驻、关闭拦截防误退、`GrokPopupMenu` 暗黑托盘菜单与在线更新代理。
+- `src/MainForm.Tray.cs`：系统托盘与生命周期。包含底层网络启动绑定、自适应 Hero 个人头像自绘（`BtnAvatar_Paint`）、昵称修改向导、托盘图标常驻、关闭拦截防误退、`GrokPopupMenu` 暗黑托盘菜单、Win32 `FlashWindowEx` 任务栏黄色高亮、450ms 托盘图标闪烁提醒与在线更新代理。
 - `src/NetworkService.cs`：网络通信门面，主类定义与生命周期管理。
 - `src/NetworkService.Interface.cs`：物理网卡检测与 TUN 虚拟网卡穿透过滤。
 - `src/NetworkService.Discovery.cs`：多物理网卡 UDP 广播与并发子网单播探测。
 - `src/NetworkService.Transfer.cs`：LANC 二进制协议解包与 64KB 流式传输引擎。
 - `src/UI/Controls/GrokPopupMenu.cs`：通用圆角浮动弹出菜单（16px圆角、44px舒适行高、8px悬停卡片、纯 GDI+ 矢量图标、全自动边界检测）。
+- `src/UI/Controls/GrokSettingsMenuForm.cs`：Grok 原生设置弹出菜单（332px 紧凑高度、16px圆角、44px舒适行高、纯 GDI+ 矢量图标）。
 - `src/UI/Controls/GrokSettingsDialog.cs`：Grok Bot 原生全局设置窗口（920x640，220px纯黑侧边栏无缝过渡，18pt大标题，54px卡片行，32px药丸下拉）。
 - `src/UI/Controls/GrokConnectNodeForm.cs`：连接节点窗口（顶部搜索胶囊、过滤芯片、局域网在线节点推荐卡片流与手动指定 IP 直连握手）。
 - `src/UI/Controls/GrokCreateNodeForm.cs`：创建新节点窗口（居中动态吉祥物预览、起名胶囊输入框、14 种有机形态网格、11 色调色盘）。

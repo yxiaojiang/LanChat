@@ -18,7 +18,7 @@ namespace LanChat
     /// </summary>
     public static class UpdateService
     {
-        public const string APP_VERSION = "2.0.6";
+        public const string APP_VERSION = "2.0.7";
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
 
         private static string ExtractJsonString(string json, string key)

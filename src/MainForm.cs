@@ -44,6 +44,7 @@ namespace LanChat
         }
 
         private PeerInfo _selectedPeer = null;
+        private int _broadcastUnreadCount = 0;
 
         // UI Layout Panels
         private Panel _sidebarPanel;
@@ -116,7 +117,7 @@ namespace LanChat
         private int _currentNavTab = 0;
 
         // Constants
-        public const string APP_VERSION = "2.0.6";
+        public const string APP_VERSION = "2.0.7";
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
 
         // System Tray & Single Instance
@@ -416,10 +417,10 @@ namespace LanChat
                 Dock = DockStyle.Top,
                 Height = 175,
                 BackColor = Color.FromArgb(14, 14, 14),
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Default
             };
             _heroProfilePanel.Paint += BtnAvatar_Paint;
-            _heroProfilePanel.Click += BtnAvatar_Click;
+            // 自己的头像设为不可点击
             _btnAvatar = _heroProfilePanel;
 
             // 1.3 Bottom 3-Part Action Bar ([用户圆钮] [连接节点胶囊] [↑蓝圆钮]) (Height: 84px)
@@ -509,7 +510,7 @@ namespace LanChat
             _chatHeader = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 64,
+                Height = 96,
                 BackColor = Color.FromArgb(18, 18, 18)
             };
             _chatHeader.MouseDown += DragWindow_MouseDown;
@@ -527,11 +528,11 @@ namespace LanChat
                 GrokTheme.PrepareSoftText(g);
 
                 string pillTitle = GrokTheme.SanitizeUiText(_lblChatTitle.Text ?? "局域网全员群聊");
-                using (Font pillFont = new Font("Microsoft YaHei UI", 10.0f, FontStyle.Bold))
+                using (Font pillFont = new Font("Microsoft YaHei UI", 20.0f, FontStyle.Bold))
                 {
                     Size tsz = GrokTheme.MeasureUiText(g, pillTitle, pillFont);
-                    int pillW = Math.Max(120, tsz.Width + 54);
-                    int pillH = 38;
+                    int pillH = 76;
+                    int pillW = Math.Max(240, tsz.Width + 106);
                     int pillX = (_chatHeader.Width - pillW) / 2;
                     int pillY = (_chatHeader.Height - pillH) / 2;
 
@@ -539,27 +540,30 @@ namespace LanChat
                     using (SolidBrush pillBg = new SolidBrush(Color.FromArgb(32, 32, 34)))
                     using (Pen pillBorder = new Pen(Color.FromArgb(46, 46, 50), 1f))
                     {
-                        DrawRoundedRectangle(g, pillBg, pillRect, 19);
-                        DrawRoundedRectangle(g, pillBorder, pillRect, 19);
+                        DrawRoundedRectangle(g, pillBg, pillRect, 38);
+                        DrawRoundedRectangle(g, pillBorder, pillRect, 38);
                     }
 
-                    // Draw mini mascot avatar inside floating pill
-                    Rectangle avRect = new Rectangle(pillX + 10, pillY + 7, 24, 24);
+                    // Draw mascot avatar inside floating pill (48x48, 整体放大两倍)
+                    int avSize = 48;
+                    int avX = pillX + 20;
+                    int avY = pillY + (pillH - avSize) / 2;
+                    Rectangle avRect = new Rectangle(avX, avY, avSize, avSize);
                     Color avColor = _selectedPeer == null ? Color.FromArgb(144, 90, 251) : Color.FromArgb(246, 148, 18);
                     WeChatIcon.DrawMascotAvatar(g, avRect, avColor, false, false, Color.Transparent);
 
                     GrokTheme.DrawUiTextLeft(g, pillTitle, pillFont, GrokTheme.TextPill,
-                        pillX + 40, pillY, pillW - 48, pillH);
+                        pillX + 80, pillY, pillW - 96, pillH);
                 }
             };
             _chatHeader.Resize += (s, e) => _chatHeader.Invalidate();
 
-            // Window control buttons at top-right (— □ ×) (Grok Bot 56x64 矩形无缝标题栏按钮，对标 Alis3.png)
+            // Window control buttons at top-right (— □ ×) (Grok Bot 56x96 矩形无缝标题栏按钮，对标 Alis3.png)
             Panel winCtrlPanel = new Panel
             {
                 Dock = DockStyle.Right,
                 Width = 168,
-                Height = 64,
+                Height = 96,
                 BackColor = Color.Transparent,
                 Margin = new Padding(0),
                 Padding = new Padding(0)
@@ -568,7 +572,7 @@ namespace LanChat
             _btnWinMin = new WeChatIconButton(WeChatIconType.WinMin, "最小化", 56)
             {
                 Location = new Point(0, 0),
-                Size = new Size(56, 64),
+                Size = new Size(56, 96),
                 IconColor = Color.FromArgb(205, 205, 210),
                 HoverFillColor = Color.FromArgb(55, 55, 58),
                 IsCircle = false
@@ -578,7 +582,7 @@ namespace LanChat
             _btnWinMax = new WeChatIconButton(WeChatIconType.WinMax, "最大化", 56)
             {
                 Location = new Point(56, 0),
-                Size = new Size(56, 64),
+                Size = new Size(56, 96),
                 IconColor = Color.FromArgb(205, 205, 210),
                 HoverFillColor = Color.FromArgb(55, 55, 58),
                 IsCircle = false
@@ -588,7 +592,7 @@ namespace LanChat
             _btnWinClose = new WeChatIconButton(WeChatIconType.WinClose, "关闭", 56)
             {
                 Location = new Point(112, 0),
-                Size = new Size(56, 64),
+                Size = new Size(56, 96),
                 IconColor = Color.FromArgb(205, 205, 210),
                 IsWindowClose = true,
                 IsCircle = false
@@ -798,6 +802,13 @@ namespace LanChat
 
             this.Resize += (s, e) => UpdateResponsiveLayout();
             _chatPanel.Resize += (s, e) => UpdateResponsiveLayout();
+            this.Activated += MainForm_Activated;
+            this.MouseDown += (s, e) => ClearActiveChatUnread();
+            _chatView.MouseDown += (s, e) => ClearActiveChatUnread();
+            _txtInput.MouseDown += (s, e) => ClearActiveChatUnread();
+            _txtInput.Enter += (s, e) => ClearActiveChatUnread();
+            _chatHeader.MouseDown += (s, e) => ClearActiveChatUnread();
+            _listSessions.MouseDown += (s, e) => ClearActiveChatUnread();
             UpdateResponsiveLayout();
 
             this.Shown += (s, e) => {

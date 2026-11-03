@@ -127,6 +127,7 @@ namespace LanChat
                 string sItem = (string)_listSessions.SelectedItem;
                 newPeer = null;
                 newKey = "BROADCAST";
+                _broadcastUnreadCount = 0;
                 titleText = GrokTheme.SanitizeUiText(sItem);
                 placeholder = GrokTheme.SanitizeUiText(string.Format("给 {0} 发消息", sItem));
                 showGroupSender = (sItem == BROADCAST_TARGET);
@@ -145,10 +146,14 @@ namespace LanChat
                 return;
             }
 
+            CheckAndClearGlobalNotifications();
+            _listSessions.Invalidate();
+
             // Same session: selection paint only — skip SetMessages / layout flash
             if (string.Equals(newKey, previousKey, StringComparison.Ordinal))
             {
                 _selectedPeer = newPeer;
+                ClearActiveChatUnread();
                 return;
             }
 
@@ -339,6 +344,8 @@ namespace LanChat
                     GrokTheme.DrawUiTextLeft(g, snippet, subFont, GrokTheme.TextSubtitle,
                         textX, subY, textW, 20);
                 }
+
+                DrawUnreadBadge(g, avatarRect, _broadcastUnreadCount);
             }
             else if (item is PeerInfo)
             {
@@ -368,6 +375,38 @@ namespace LanChat
                     GrokTheme.DrawUiTextLeft(g, snippet, subFont, GrokTheme.TextSubtitle,
                         textX, subY, textW, 20);
                 }
+
+                DrawUnreadBadge(g, avatarRect, peer.UnreadCount);
+            }
+        }
+
+        private void DrawUnreadBadge(Graphics g, Rectangle avatarRect, int unreadCount)
+        {
+            if (unreadCount <= 0) return;
+
+            string unreadText = unreadCount > 99 ? "99+" : unreadCount.ToString();
+            using (Font badgeFont = new Font("Microsoft YaHei UI", 8.0f, FontStyle.Bold))
+            using (SolidBrush badgeBg = new SolidBrush(Color.FromArgb(250, 81, 81))) // #FA5151
+            using (SolidBrush textBrush = new SolidBrush(Color.White))
+            using (Pen borderPen = new Pen(GrokTheme.Level0, 1.5f))
+            {
+                SizeF sz = g.MeasureString(unreadText, badgeFont);
+                int badgeH = 16;
+                int badgeW = Math.Max(badgeH, (int)Math.Ceiling(sz.Width) + 6);
+                int bx = avatarRect.Right - badgeW / 2 - 2;
+                int by = avatarRect.Top - 3;
+                Rectangle badgeRect = new Rectangle(bx, by, badgeW, badgeH);
+
+                DrawRoundedRectangle(g, badgeBg, badgeRect, badgeH / 2);
+                DrawRoundedRectangle(g, borderPen, badgeRect, badgeH / 2);
+
+                StringFormat sf = new StringFormat
+                {
+                    Alignment = StringAlignment.Center,
+                    LineAlignment = StringAlignment.Center
+                };
+                g.DrawString(unreadText, badgeFont, textBrush,
+                    new RectangleF(badgeRect.X, badgeRect.Y + 0.5f, badgeRect.Width, badgeRect.Height), sf);
             }
         }
 
@@ -498,6 +537,36 @@ namespace LanChat
             }
 
             AddMessageToHistory(convKey, msg);
+
+            // 判断用户当前是否正处于该会话并且窗口处于激活态
+            bool isForeground = (Form.ActiveForm == this) && (this.WindowState != FormWindowState.Minimized) && this.Visible;
+            bool isCurrentChat = (msg.IsBroadcast && _activeChatKey == "BROADCAST") || (!msg.IsBroadcast && _selectedPeer != null && _selectedPeer.Id == msg.SenderId);
+            bool isActivelyViewing = isForeground && isCurrentChat;
+
+            if (!isActivelyViewing)
+            {
+                if (msg.IsBroadcast)
+                {
+                    _broadcastUnreadCount++;
+                }
+                else if (_netService != null)
+                {
+                    var peers = _netService.GetActivePeers();
+                    foreach (var p in peers)
+                    {
+                        if (p.Id == msg.SenderId)
+                        {
+                            p.UnreadCount++;
+                            break;
+                        }
+                    }
+                }
+
+                // 传统聊天软件提醒：任务栏图标黄色高亮 + 托盘图标闪烁
+                FlashTaskbar(true);
+                StartTrayFlash();
+            }
+
             _listSessions.Invalidate();
 
             // 若窗体隐藏在系统托盘中，显示气泡提醒

@@ -8,7 +8,7 @@ namespace LanChat
 {
     /// <summary>
     /// Grok Bot 100% 像素级对标原生设置弹出菜单窗口 (对标 Alis3.png)
-    /// 包含深蓝顶栏 (发现新版本 / 安装)、48px 舒适行高、细线矢量图标与 16px 圆角阴影
+    /// 包含 44px 舒适行高、细线矢量图标与 16px 圆角阴影
     /// </summary>
     public class GrokSettingsMenuForm : Form
     {
@@ -27,10 +27,10 @@ namespace LanChat
         private readonly Action _onShowAbout;
         private readonly Action _onExit;
 
-        private int _hoverIndex = -1; // -2: banner button, 0..5: menu items
+        private int _hoverIndex = -1; // 0..6: menu items
         private const int ITEM_COUNT = 7;
         private const int ROW_HEIGHT = 44; // Docs menu row 44px
-        private const int BANNER_HEIGHT = 58;
+        private const int TOP_PADDING = 8;
 
         public GrokSettingsMenuForm(
             NetworkService netService,
@@ -54,7 +54,7 @@ namespace LanChat
             this.FormBorderStyle = FormBorderStyle.None;
             this.ShowInTaskbar = false;
             this.StartPosition = FormStartPosition.Manual;
-            this.Size = new Size(342, 400);
+            this.Size = new Size(342, 332);
             this.BackColor = Color.FromArgb(28, 28, 31); // #1C1C1F Level1
             this.DoubleBuffered = true;
             this.Cursor = Cursors.Default;
@@ -69,7 +69,7 @@ namespace LanChat
             base.OnHandleCreated(e);
             try
             {
-                IntPtr rgn = CreateRoundRectRgn(0, 0, this.Width + 1, this.Height + 1, 18, 18);
+                IntPtr rgn = CreateRoundRectRgn(0, 0, this.Width + 1, this.Height + 1, 16, 16);
                 if (rgn != IntPtr.Zero)
                 {
                     this.Region = Region.FromHrgn(rgn);
@@ -94,31 +94,19 @@ namespace LanChat
             base.OnMouseMove(e);
             int newHover = -1;
 
-            Rectangle bannerBtn = new Rectangle(this.Width - 76, 15, 56, 28);
-            if (bannerBtn.Contains(e.Location))
+            int itemAreaY = e.Y - TOP_PADDING;
+            if (itemAreaY >= 0)
             {
-                newHover = -2;
-            }
-            else if (e.Y < BANNER_HEIGHT)
-            {
-                newHover = -3; // banner hover
-            }
-            else
-            {
-                int itemAreaY = e.Y - (BANNER_HEIGHT + 6);
-                if (itemAreaY >= 0)
+                if (itemAreaY < 5 * ROW_HEIGHT)
                 {
-                    if (itemAreaY < 5 * ROW_HEIGHT)
+                    newHover = itemAreaY / ROW_HEIGHT;
+                }
+                else
+                {
+                    int belowSep = itemAreaY - (5 * ROW_HEIGHT + 8);
+                    if (belowSep >= 0 && belowSep < 2 * ROW_HEIGHT)
                     {
-                        newHover = itemAreaY / ROW_HEIGHT;
-                    }
-                    else
-                    {
-                        int belowSep = itemAreaY - (5 * ROW_HEIGHT + 10);
-                        if (belowSep >= 0 && belowSep < 2 * ROW_HEIGHT)
-                        {
-                            newHover = 5 + (belowSep / ROW_HEIGHT);
-                        }
+                        newHover = 5 + (belowSep / ROW_HEIGHT);
                     }
                 }
             }
@@ -126,7 +114,7 @@ namespace LanChat
             if (newHover != _hoverIndex)
             {
                 _hoverIndex = newHover;
-                this.Cursor = (_hoverIndex != -1) ? Cursors.Hand : Cursors.Default;
+                this.Cursor = (_hoverIndex >= 0 && _hoverIndex < ITEM_COUNT) ? Cursors.Hand : Cursors.Default;
                 Invalidate();
             }
         }
@@ -144,15 +132,7 @@ namespace LanChat
             base.OnMouseClick(e);
             if (e.Button != MouseButtons.Left) return;
 
-            Rectangle bannerBtn = new Rectangle(this.Width - 76, 15, 56, 28);
-            if (bannerBtn.Contains(e.Location) || (e.Y < BANNER_HEIGHT && e.X >= this.Width - 85))
-            {
-                this.Close();
-                if (_onCheckUpdate != null) _onCheckUpdate();
-                return;
-            }
-
-                        switch (_hoverIndex)
+            switch (_hoverIndex)
             {
                 case 0: // 偏好与配置
                     this.Close();
@@ -204,43 +184,7 @@ namespace LanChat
                 MainForm.DrawRoundedRectangle(g, borderPen, totalRect, 16);
             }
 
-            // 2. 顶部深蓝版本横幅 (#1E2E40，复刻 Alis3.png)
-            Rectangle bannerRect = new Rectangle(0, 0, this.Width, BANNER_HEIGHT);
-            using (GraphicsPath bp = new GraphicsPath())
-            {
-                int r = 16;
-                bp.AddArc(0, 0, r * 2, r * 2, 180, 90);
-                bp.AddArc(this.Width - r * 2, 0, r * 2, r * 2, 270, 90);
-                bp.AddLine(this.Width, BANNER_HEIGHT, 0, BANNER_HEIGHT);
-                bp.CloseFigure();
-                using (SolidBrush bannerBrush = new SolidBrush(Color.FromArgb(30, 46, 64)))
-                {
-                    g.FillPath(bannerBrush, bp);
-                }
-            }
-
-            // 横幅文字：发现新版本
-            using (Font bf = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Bold))
-            using (SolidBrush bb = new SolidBrush(Color.FromArgb(77, 155, 255))) // #4D9BFF
-            {
-                g.DrawString("发现新版本", bf, bb, new PointF(22, 19));
-            }
-
-            // 横幅右侧按钮：安装 (圆角 14px 蓝胶囊 #116DD2)
-            Rectangle btnRect = new Rectangle(this.Width - 76, 15, 56, 28);
-            Color btnColor = (_hoverIndex == -2) ? Color.FromArgb(22, 119, 255) : Color.FromArgb(17, 109, 210);
-            using (SolidBrush btnBrush = new SolidBrush(btnColor))
-            {
-                MainForm.DrawRoundedRectangle(g, btnBrush, btnRect, 14);
-            }
-            using (Font btnFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold))
-            using (SolidBrush btnTextBrush = new SolidBrush(Color.White))
-            {
-                StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                g.DrawString("安装", btnFont, btnTextBrush, btnRect, sf);
-            }
-
-            // 3. 菜单列表项数据定义 (与 Alis3.png 100% 对标)
+            // 2. 菜单列表项数据定义 (与 Alis3.png 100% 对标)
             string currentNick = _netService != null ? _netService.NickName : Environment.UserName;
             bool autoAccept = _netService != null && _netService.AutoAcceptFiles;
 
@@ -255,7 +199,7 @@ namespace LanChat
                 new MenuItemDef(WeChatIconType.Logout, "退出登录", "")
             };
 
-            int startY = BANNER_HEIGHT + 6;
+            int startY = TOP_PADDING;
             using (Font itemFont = new Font("Microsoft YaHei UI", 10.0f, FontStyle.Regular))
             using (Font subFont = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
             using (SolidBrush textBrush = new SolidBrush(Color.FromArgb(228, 228, 232))) // #E4E4E8
@@ -264,7 +208,7 @@ namespace LanChat
             {
                 for (int i = 0; i < items.Length; i++)
                 {
-                    int itemY = startY + (i < 5 ? i * ROW_HEIGHT : (i * ROW_HEIGHT + 10));
+                    int itemY = startY + (i < 5 ? i * ROW_HEIGHT : (i * ROW_HEIGHT + 8));
 
                     // 分割线 (在第4项之后)
                     if (i == 5)

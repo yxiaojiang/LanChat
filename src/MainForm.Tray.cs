@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace LanChat
@@ -88,7 +89,7 @@ namespace LanChat
         {
             Control anchor = (sender as Control) ?? _btnBottomUser ?? _btnAvatar;
             Point screenPt = anchor.PointToScreen(Point.Empty);
-            int menuH = 400;
+            int menuH = 332;
             int x = screenPt.X;
             int y = screenPt.Y - menuH - 8;
 
@@ -192,6 +193,26 @@ namespace LanChat
         {
             try
             {
+                _normalTrayIcon = this.Icon ?? SystemIcons.Application;
+                try
+                {
+                    using (Bitmap bmp = new Bitmap(16, 16))
+                    {
+                        IntPtr h = bmp.GetHicon();
+                        _blankTrayIcon = (Icon)Icon.FromHandle(h).Clone();
+                        DestroyIcon(h);
+                    }
+                }
+                catch { }
+
+                _trayFlashTimer = new System.Windows.Forms.Timer();
+                _trayFlashTimer.Interval = 450;
+                _trayFlashTimer.Tick += (s, e) => {
+                    if (!_isTrayFlashing || _trayIcon == null) return;
+                    _trayFlashState = !_trayFlashState;
+                    _trayIcon.Icon = _trayFlashState ? _normalTrayIcon : (_blankTrayIcon ?? _normalTrayIcon);
+                };
+
                 _trayIcon = new NotifyIcon();
                 _trayIcon.Icon = this.Icon ?? SystemIcons.Application;
                 _trayIcon.Text = "LanChat 局域网通讯";
@@ -251,6 +272,10 @@ namespace LanChat
             }
             this.Activate();
             this.BringToFront();
+
+            StopTrayFlash();
+            FlashTaskbar(false);
+            ClearActiveChatUnread();
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
@@ -271,6 +296,18 @@ namespace LanChat
                     catch { }
                 }
                 return;
+            }
+
+            if (_trayFlashTimer != null)
+            {
+                _trayFlashTimer.Stop();
+                _trayFlashTimer.Dispose();
+                _trayFlashTimer = null;
+            }
+            if (_blankTrayIcon != null)
+            {
+                try { _blankTrayIcon.Dispose(); } catch { }
+                _blankTrayIcon = null;
             }
 
             // 显式退出或系统关机：安全释放托盘与网络资源
@@ -302,6 +339,138 @@ namespace LanChat
                 _isExplicitExit = true;
                 this.Close();
             });
+        }
+
+        #endregion
+
+        #region Message Notifications (Taskbar Flash & Tray Flash)
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct FLASHWINFO
+        {
+            public uint cbSize;
+            public IntPtr hwnd;
+            public uint dwFlags;
+            public uint uCount;
+            public uint dwTimeout;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool FlashWindowEx(ref FLASHWINFO pwfi);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool DestroyIcon(IntPtr hIcon);
+
+        private const uint FLASHW_STOP = 0;
+        private const uint FLASHW_CAPTION = 1;
+        private const uint FLASHW_TRAY = 2;
+        private const uint FLASHW_ALL = 3;
+        private const uint FLASHW_TIMER = 4;
+        private const uint FLASHW_TIMERNOFG = 12;
+
+        private Icon _normalTrayIcon = null;
+        private Icon _blankTrayIcon = null;
+        private System.Windows.Forms.Timer _trayFlashTimer = null;
+        private bool _trayFlashState = false;
+        private bool _isTrayFlashing = false;
+
+        public void FlashTaskbar(bool flash)
+        {
+            try
+            {
+                if (this.IsDisposed || !this.IsHandleCreated) return;
+                FLASHWINFO fi = new FLASHWINFO();
+                fi.cbSize = (uint)Marshal.SizeOf(fi);
+                fi.hwnd = this.Handle;
+                if (flash)
+                {
+                    fi.dwFlags = FLASHW_ALL | FLASHW_TIMERNOFG;
+                    fi.uCount = uint.MaxValue;
+                    fi.dwTimeout = 0;
+                }
+                else
+                {
+                    fi.dwFlags = FLASHW_STOP;
+                }
+                FlashWindowEx(ref fi);
+            }
+            catch { }
+        }
+
+        public void StartTrayFlash()
+        {
+            if (_isTrayFlashing) return;
+            _isTrayFlashing = true;
+            _trayFlashState = false;
+            if (_trayFlashTimer != null) _trayFlashTimer.Start();
+        }
+
+        public void StopTrayFlash()
+        {
+            if (!_isTrayFlashing) return;
+            _isTrayFlashing = false;
+            if (_trayFlashTimer != null) _trayFlashTimer.Stop();
+            if (_trayIcon != null && _normalTrayIcon != null)
+            {
+                _trayIcon.Icon = _normalTrayIcon;
+            }
+        }
+
+        public void ClearActiveChatUnread()
+        {
+            bool changed = false;
+            if (_activeChatKey == "BROADCAST")
+            {
+                if (_broadcastUnreadCount > 0)
+                {
+                    _broadcastUnreadCount = 0;
+                    changed = true;
+                }
+            }
+            else if (_selectedPeer != null)
+            {
+                if (_selectedPeer.UnreadCount > 0)
+                {
+                    _selectedPeer.UnreadCount = 0;
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                if (_listSessions != null) _listSessions.Invalidate();
+            }
+            CheckAndClearGlobalNotifications();
+        }
+
+        public int GetTotalUnreadCount()
+        {
+            int total = _broadcastUnreadCount;
+            if (_netService != null)
+            {
+                var peers = _netService.GetActivePeers();
+                foreach (var p in peers)
+                {
+                    total += p.UnreadCount;
+                }
+            }
+            return total;
+        }
+
+        public void CheckAndClearGlobalNotifications()
+        {
+            if (GetTotalUnreadCount() == 0)
+            {
+                StopTrayFlash();
+                FlashTaskbar(false);
+            }
+        }
+
+        private void MainForm_Activated(object sender, EventArgs e)
+        {
+            FlashTaskbar(false);
+            StopTrayFlash();
+            ClearActiveChatUnread();
         }
 
         #endregion
