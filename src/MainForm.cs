@@ -118,11 +118,14 @@ namespace LanChat
         private int _currentNavTab = 0;
 
         // Constants
-        public const string APP_VERSION = "2.0.9";
+        public const string APP_VERSION = "2.0.10";
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
 
         // System Tray & Single Instance
         private NotifyIcon _trayIcon;
+        private GrokTrayPreviewPopup _trayPreviewPopup;
+        private string _lastBroadcastSnippet;
+        private string _lastBroadcastTimeText;
         private bool _isExplicitExit = false;
         private bool _hasShownTrayBalloon = false;
         [DllImport("user32.dll", EntryPoint = "SetClassLong")]
@@ -192,6 +195,9 @@ namespace LanChat
             {
                 this.Icon = WeChatIcon.CreateAppIcon(32);
             }
+
+            // 加载持久化设置 (保证升级覆盖后昵称与偏好不丢失)
+            AppSettings.Load();
 
             InitializeComponent();
             _resizeFilter = new FormResizeMessageFilter(this);

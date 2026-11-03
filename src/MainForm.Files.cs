@@ -236,6 +236,7 @@ namespace LanChat
                 }
                 FlashTaskbar(true);
                 StartTrayFlash();
+                UpdateTrayTooltipText();
             }
 
             AddMessageToHistory(convKey, fileMsg);

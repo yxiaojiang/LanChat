@@ -146,6 +146,8 @@ namespace LanChat
                     if (_netService != null)
                     {
                         _netService.AutoAcceptFiles = !_netService.AutoAcceptFiles;
+                        AppSettings.AutoAcceptFiles = _netService.AutoAcceptFiles;
+                        AppSettings.Save();
                         Invalidate();
                     }
                     break;

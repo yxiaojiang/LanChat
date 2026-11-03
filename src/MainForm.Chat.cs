@@ -497,6 +497,8 @@ namespace LanChat
                 };
 
                 AddMessageToHistory("BROADCAST", msg);
+                _lastBroadcastSnippet = string.Format("我: {0}", text);
+                _lastBroadcastTimeText = DateTime.Now.ToString("HH:mm");
 
                 new System.Threading.Thread(() => {
                     foreach (var peer in peers)
@@ -567,6 +569,8 @@ namespace LanChat
                 if (msg.IsBroadcast)
                 {
                     _broadcastUnreadCount++;
+                    _lastBroadcastSnippet = string.Format("{0}: {1}", msg.SenderNick, msg.Content);
+                    _lastBroadcastTimeText = msg.Timestamp.ToString("HH:mm");
                 }
                 else if (_netService != null)
                 {
@@ -584,6 +588,7 @@ namespace LanChat
                 // 传统聊天软件提醒：任务栏图标黄色高亮 + 托盘图标闪烁
                 FlashTaskbar(true);
                 StartTrayFlash();
+                UpdateTrayTooltipText();
             }
 
             _listSessions.Invalidate();

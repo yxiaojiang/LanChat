@@ -6,6 +6,7 @@ using System.Drawing.Drawing2D;
 using System.IO;
 using System.Net;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Forms;
 
 namespace LanChat
@@ -18,8 +19,9 @@ namespace LanChat
         {
             try
             {
-                string initialNick = Environment.UserName;
+                string initialNick = !string.IsNullOrEmpty(AppSettings.NickName) ? AppSettings.NickName : Environment.UserName;
                 _netService = new NetworkService(initialNick);
+                _netService.AutoAcceptFiles = AppSettings.AutoAcceptFiles;
                 _netService.OnPeerJoined += (p) => SafeInvoke(() => PeerJoined(p));
                 _netService.OnPeerUpdated += (p) => SafeInvoke(() => PeerUpdated(p));
                 _netService.OnPeerLeft += (pid) => SafeInvoke(() => PeerLeft(pid));
@@ -135,6 +137,8 @@ namespace LanChat
                     if (!string.IsNullOrEmpty(newNick) && _netService != null)
                     {
                         _netService.NickName = newNick;
+                        AppSettings.NickName = newNick;
+                        AppSettings.Save();
                         _netService.BroadcastPresence("HELLO");
                         _btnAvatar.Invalidate();
                         if (_btnBottomUser != null) _btnBottomUser.Invalidate();
@@ -217,6 +221,7 @@ namespace LanChat
                 _trayIcon.Icon = _normalTrayIcon ?? this.Icon;
                 _trayIcon.Text = "LanChat 局域网通讯";
                 _trayIcon.Visible = true;
+                _trayIcon.MouseMove += TrayIcon_MouseMove;
 
                 // 左键单击或双击还原主界面
                 _trayIcon.MouseClick += (s, e) =>
@@ -240,6 +245,7 @@ namespace LanChat
                 _trayIcon.MouseUp += (s, e) => {
                     if (e.Button == MouseButtons.Right)
                     {
+                        CloseTrayPreviewPopup();
                         GrokPopupMenu trayMenu = new GrokPopupMenu();
                         trayMenu.AddItem("显示主界面", WeChatIconType.Chat, () => RestoreFromTray())
                                 .AddItem("系统设置...", WeChatIconType.Settings, () => {
@@ -262,6 +268,7 @@ namespace LanChat
 
         private void RestoreFromTray()
         {
+            CloseTrayPreviewPopup();
             if (!this.Visible)
             {
                 this.Show();
@@ -296,6 +303,13 @@ namespace LanChat
                     catch { }
                 }
                 return;
+            }
+
+            CloseTrayPreviewPopup();
+            if (_trayPreviewPopup != null)
+            {
+                try { _trayPreviewPopup.Dispose(); } catch { }
+                _trayPreviewPopup = null;
             }
 
             if (_trayFlashTimer != null)
@@ -414,6 +428,8 @@ namespace LanChat
             {
                 _trayIcon.Icon = _normalTrayIcon;
             }
+            CloseTrayPreviewPopup();
+            UpdateTrayTooltipText();
         }
 
         public void ClearActiveChatUnread()
@@ -441,6 +457,7 @@ namespace LanChat
                 if (_listSessions != null) _listSessions.Invalidate();
             }
             CheckAndClearGlobalNotifications();
+            UpdateTrayTooltipText();
         }
 
         public int GetTotalUnreadCount()
@@ -471,6 +488,175 @@ namespace LanChat
             FlashTaskbar(false);
             StopTrayFlash();
             ClearActiveChatUnread();
+            CloseTrayPreviewPopup();
+            UpdateTrayTooltipText();
+        }
+
+        
+        private void TrayIcon_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (GetTotalUnreadCount() > 0)
+            {
+                ShowTrayPreviewPopup();
+            }
+        }
+
+        public void ShowTrayPreviewPopup()
+        {
+            try
+            {
+                if (_trayPreviewPopup != null && _trayPreviewPopup.Visible) return;
+
+                var items = GetTrayUnreadItems();
+                if (items == null || items.Count == 0) return;
+
+                if (_trayPreviewPopup == null || _trayPreviewPopup.IsDisposed)
+                {
+                    _trayPreviewPopup = new GrokTrayPreviewPopup();
+                }
+
+                Point cursorPt = Cursor.Position;
+                _trayPreviewPopup.ShowPreview(cursorPt, items, (item) =>
+                {
+                    RestoreFromTray();
+                    if (item != null && !string.IsNullOrEmpty(item.ConvKey))
+                    {
+                        SwitchToSession(item.ConvKey);
+                    }
+                });
+            }
+            catch { }
+        }
+
+        public void CloseTrayPreviewPopup()
+        {
+            try
+            {
+                if (_trayPreviewPopup != null && _trayPreviewPopup.Visible)
+                {
+                    _trayPreviewPopup.Hide();
+                }
+            }
+            catch { }
+        }
+
+        public List<TrayUnreadItem> GetTrayUnreadItems()
+        {
+            List<TrayUnreadItem> items = new List<TrayUnreadItem>();
+
+            // 1. 局域网全员群聊 (广播未读)
+            if (_broadcastUnreadCount > 0)
+            {
+                string snippet = _sessionManager != null ? _sessionManager.GetLastMessageSnippet(SessionManager.BROADCAST_KEY, 30) : null;
+                if (string.IsNullOrEmpty(snippet)) snippet = _lastBroadcastSnippet;
+                if (string.IsNullOrEmpty(snippet)) snippet = "[新广播消息]";
+
+                items.Add(new TrayUnreadItem
+                {
+                    ConvKey = "BROADCAST",
+                    Title = "局域网全员群聊",
+                    UnreadCount = _broadcastUnreadCount,
+                    LatestSnippet = snippet,
+                    TimeText = _lastBroadcastTimeText ?? DateTime.Now.ToString("HH:mm"),
+                    IsBroadcast = true
+                });
+            }
+
+            // 2. 好友私聊未读列表
+            if (_netService != null)
+            {
+                var peers = _netService.GetActivePeers();
+                for (int i = 0; i < peers.Count; i++)
+                {
+                    var p = peers[i];
+                    if (p.UnreadCount > 0)
+                    {
+                        string snippet = _sessionManager != null ? _sessionManager.GetLastMessageSnippet(p.Id, 30) : null;
+                        if (string.IsNullOrEmpty(snippet)) snippet = p.LastMessage;
+                        if (string.IsNullOrEmpty(snippet)) snippet = "[新消息]";
+
+                        string timeStr = (p.LastMessageTime != DateTime.MinValue) ? p.LastMessageTime.ToString("HH:mm") : DateTime.Now.ToString("HH:mm");
+                        Color peerColor = (i % 2 == 0) ? Color.FromArgb(246, 148, 18) : Color.FromArgb(252, 44, 62);
+
+                        items.Add(new TrayUnreadItem
+                        {
+                            ConvKey = p.Id,
+                            Title = !string.IsNullOrEmpty(p.NickName) ? p.NickName : "局域网好友",
+                            UnreadCount = p.UnreadCount,
+                            LatestSnippet = snippet,
+                            TimeText = timeStr,
+                            IsBroadcast = false,
+                            Peer = p,
+                            AvatarColor = peerColor,
+                            AvatarShape = 0
+                        });
+                    }
+                }
+            }
+
+            return items;
+        }
+
+        public void UpdateTrayTooltipText()
+        {
+            if (_trayIcon == null) return;
+            try
+            {
+                int totalUnread = GetTotalUnreadCount();
+                if (totalUnread <= 0)
+                {
+                    _trayIcon.Text = "LanChat 局域网通讯";
+                    return;
+                }
+
+                var items = GetTrayUnreadItems();
+                string tip;
+                if (items.Count == 1)
+                {
+                    tip = string.Format("LanChat: {0} ({1}条未读)", items[0].Title, items[0].UnreadCount);
+                }
+                else
+                {
+                    StringBuilder sb = new StringBuilder();
+                    sb.Append(string.Format("LanChat: {0}条未读 (", totalUnread));
+                    for (int i = 0; i < items.Count; i++)
+                    {
+                        if (i > 0) sb.Append("、");
+                        sb.Append(items[i].Title);
+                        if (sb.Length > 48) break;
+                    }
+                    sb.Append(")");
+                    tip = sb.ToString();
+                }
+
+                if (tip.Length > 63)
+                {
+                    tip = tip.Substring(0, 60) + "...";
+                }
+                _trayIcon.Text = tip;
+            }
+            catch { }
+        }
+
+        public void SwitchToSession(string convKey)
+        {
+            try
+            {
+                SwitchNavTab(0);
+                int idx = FindSessionIndexForKey(convKey);
+                if (idx >= 0 && _listSessions != null)
+                {
+                    if (_listSessions.SelectedIndex == idx)
+                    {
+                        ListSessions_SelectedIndexChanged(_listSessions, EventArgs.Empty);
+                    }
+                    else
+                    {
+                        _listSessions.SelectedIndex = idx;
+                    }
+                }
+            }
+            catch { }
         }
 
         #endregion

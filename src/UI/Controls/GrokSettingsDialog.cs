@@ -353,6 +353,8 @@ namespace LanChat
                 if (_netService != null)
                 {
                     _netService.AutoAcceptFiles = !_netService.AutoAcceptFiles;
+                    AppSettings.AutoAcceptFiles = _netService.AutoAcceptFiles;
+                    AppSettings.Save();
                     btnAutoAccept.Text = _netService.AutoAcceptFiles ? "已开启" : "已关闭";
                     btnAutoAccept.Invalidate();
                     cardFile.Invalidate();

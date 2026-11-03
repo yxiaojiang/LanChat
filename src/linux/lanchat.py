@@ -33,7 +33,7 @@ try:
 except ImportError:
     HAS_TK = False
 
-APP_VERSION = "2.0.9"
+APP_VERSION = "2.0.10"
 GITHUB_REPO = "yxiaojiang/LanChat"
 UDP_PORT = 38888
 TCP_BASE_PORT = 38889
@@ -169,11 +169,57 @@ def get_unique_filepath(folder: str, filename: str) -> str:
         count += 1
     return dest
 
+def get_settings_file_path() -> str:
+    """获取配置文件路径：优先便携模式 (当前脚本同级 settings.json)，默认 ~/.config/lanchat/settings.json 或 ~/.local/share/lanchat/settings.json"""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    portable = os.path.join(base_dir, "settings.json")
+    if os.path.exists(portable):
+        return portable
+    is_system_path = base_dir.startswith("/usr") or base_dir.startswith("/etc") or base_dir.startswith("/opt")
+    if not is_system_path:
+        try:
+            with open(portable, "a") as f:
+                pass
+            return portable
+        except Exception:
+            pass
+
+    home = os.path.expanduser("~")
+    config_dir = os.path.join(home, ".config", "lanchat")
+    try:
+        os.makedirs(config_dir, exist_ok=True)
+        return os.path.join(config_dir, "settings.json")
+    except Exception:
+        fallback = os.path.join(home, ".local", "share", "lanchat")
+        os.makedirs(fallback, exist_ok=True)
+        return os.path.join(fallback, "settings.json")
+
+def load_settings() -> dict:
+    path = get_settings_file_path()
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+def save_settings(settings: dict):
+    path = get_settings_file_path()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        log_message("WARN", f"保存配置文件失败: {e}")
+
 # ==================== 核心网络通信服务 ====================
 class LanChatService:
     def __init__(self, nickname: str = None):
         self.local_id = uuid.uuid4().hex
-        self.nickname = nickname or os.environ.get("USER", "LinuxUser")
+        settings = load_settings()
+        saved_nick = settings.get("NickName") or settings.get("nickname")
+        self.nickname = nickname or saved_nick or os.environ.get("USER", "LinuxUser")
         self.hostname = socket.gethostname()
         self.tcp_port = TCP_BASE_PORT
         self.save_dir = determine_save_dir()
@@ -194,7 +240,20 @@ class LanChatService:
         self.on_message_received = None
         self.on_file_received = None
         self.on_file_progress = None
-        self.auto_accept = True
+        self.auto_accept = settings.get("AutoAcceptFiles", settings.get("auto_accept", True))
+
+    def set_nickname(self, new_nick: str):
+        if not new_nick: return
+        self.nickname = new_nick.strip()
+        settings = load_settings()
+        settings["NickName"] = self.nickname
+        save_settings(settings)
+
+    def set_auto_accept(self, val: bool):
+        self.auto_accept = bool(val)
+        settings = load_settings()
+        settings["AutoAcceptFiles"] = self.auto_accept
+        save_settings(settings)
 
     def detect_primary_ip(self) -> str:
         try:
@@ -1247,7 +1306,7 @@ if HAS_TK:
                 self.service.send_file(peer, filepath)
 
         def _toggle_auto_accept(self):
-            self.service.auto_accept = not self.service.auto_accept
+            self.service.set_auto_accept(not self.service.auto_accept)
             txt = "自动接收: 开" if self.service.auto_accept else "自动接收: 关"
             fg = self.C_PURPLE if self.service.auto_accept else self.C_TEXT_MUTED
             self.btn_auto_accept.config(text=txt, fg=fg)
@@ -1332,7 +1391,7 @@ if HAS_TK:
         def _on_change_nick(self):
             new_nick = simpledialog.askstring("修改昵称", "请输入新的昵称:", initialvalue=self.service.nickname, parent=self.root)
             if new_nick and new_nick.strip():
-                self.service.nickname = new_nick.strip()
+                self.service.set_nickname(new_nick.strip())
                 self._draw_avatar()
                 self.service.broadcast_presence("HELLO")
                 self._append_system_message(f"您的昵称已更改为: {self.service.nickname}")
@@ -1553,7 +1612,8 @@ def run_cli(service: LanChatService):
                     if len(parts) < 2:
                         print("\033[33m用法: /nick <新昵称>\033[0m")
                         continue
-                    service.nickname = parts[1]
+                    service.set_nickname(parts[1])
+                    print(f"\033[32m[+] 昵称已保存为: {service.nickname}\033[0m")
                     service.broadcast_presence("HELLO")
                     print(f"\033[32m昵称已更改为: {parts[1]}\033[0m")
 

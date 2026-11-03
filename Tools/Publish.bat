@@ -49,6 +49,12 @@ echo.
 
 REM 3. Force fresh compilation of release\LanChat.exe and release\uninstall.exe
 echo [1/4] Compiling latest LanChat binaries from source...
+tasklist /fi "imagename eq LanChat.exe" 2>nul | findstr /i "LanChat.exe" >nul
+if not errorlevel 1 (
+    echo       Detected running LanChat.exe, terminating process to release file lock...
+    taskkill /f /im LanChat.exe >nul 2>nul
+    timeout /t 1 /nobreak >nul 2>nul
+)
 if not exist "%CSC_PATH%" (
     echo [ERROR] System C# compiler not found: %CSC_PATH%
     pause
