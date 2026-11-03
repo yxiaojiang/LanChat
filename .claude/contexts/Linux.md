@@ -5,14 +5,15 @@ Linux 客户端支持在各种 Linux 发行版（Ubuntu、Debian、CentOS、统�
 
 ## 源码与构建物清单 (规范目录)
 1. **Debian 标准安装包 (`.deb`)**：
-   - `release/LanChat.deb` / `release/lanchat_2.0.0_amd64.deb`：专为 x86_64 打造，内置自包含二进制与 Python WeChat GUI 双核，带 `.desktop` 快捷方式与最新 `assets/lanchat.svg` / `assets/app.png` 矢量图标。
-   - `release/lanchat_2.0.0_all.deb`：全架构通用包（纯 Python 标准库）。
+   - `release/LanChat.deb` / `release/lanchat_2.0.10_amd64.deb`：专为 x86_64 打造，内置自包含二进制与 Python WeChat GUI 双核，带 `.desktop` 快捷方式与最新 `assets/lanchat.svg` / `assets/app.png` 矢量图标。
+   - `release/lanchat_2.0.10_all.deb`：全架构通用包（纯 Python 标准库）。
    - `packaging/build-deb.py`：纯 Python 构建 deb 包工具（v2.0 规格）。
 2. **纯标准库 GrokBot 暗黑原生 GUI (`src/linux/lanchat.py`)**：
    - 基于 Python 3 标准库 `tkinter` 像素级自绘，全面对标 GrokBot 极简深邃暗黑系统（魅紫 `#8E64DC`、纯黑 `#121212` 纵深、深灰 `#1E1E21` 卡片），免除 PyQt/Electron 等数百 MB 臃肿依赖。
    - **线程安全与防死锁**：网络工作线程与 Tkinter GUI 之间采用 `queue.Queue` 线程安全队列彻底解耦，由主线程定时事件泵调度，彻底根治 Linux/X11 平台下 Tcl/Tk 跨线程调用引发的死锁与界面卡死无响应。
    - **杜绝字符缺失**：彻底剔除 Unicode 彩色 Emoji 依赖，使用专业字符与矢量绘制；内置自适应字体探测链（`WenQuanYi Micro Hei` / `Noto Sans CJK SC`），杜绝生硬粗糙点阵字。
    - 包含 GitHub Releases 在线新版本检测与安全退出保障。
+   - **配置持久化体系**：配置保存于 `~/.config/lanchat/settings.json`（回退 `~/.local/share/lanchat/settings.json`，或同级便携模式），持久化记录昵称与自动接收偏好，更新版本不丢失。
    - 自动检测运行环境：若处于图形桌面环境且 `tkinter` 可用，优先启动 GUI；若在 SSH/无头服务器或指定 `--cli`，平滑回退至命令行交互模式。
 3. **预编译自包含独立二进制（ELF）**：
    - `release/linux-x64/lanchat`：针对 Intel / AMD 64位架构，单文件自带 Runtime（`--self-contained true`）。

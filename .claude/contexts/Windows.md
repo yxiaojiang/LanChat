@@ -15,6 +15,7 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `src/NetworkService.Discovery.cs`：多物理网卡 UDP 广播与并发子网单播探测。
 - `src/NetworkService.Transfer.cs`：LANC 二进制协议解包与 64KB 流式传输引擎。
 - `src/UI/Controls/GrokPopupMenu.cs`：通用圆角浮动弹出菜单（16px圆角、44px舒适行高、8px悬停卡片、纯 GDI+ 矢量图标、全自动边界检测）。
+- `src/UI/Controls/GrokTrayPreviewPopup.cs`：GrokBot 风格托盘未读悬浮预览卡片（无焦点顶层窗体、多联系人列表、未读徽标、消息摘要、时间、工作区边界夹紧与跳转会话）。
 - `src/UI/Controls/GrokSettingsMenuForm.cs`：Grok 原生设置弹出菜单（332px 紧凑高度、16px圆角、44px舒适行高、纯 GDI+ 矢量图标）。
 - `src/UI/Controls/GrokSettingsDialog.cs`：Grok Bot 原生全局设置窗口（920x640，220px纯黑侧边栏无缝过渡，18pt大标题，54px卡片行，32px药丸下拉）。
 - `src/UI/Controls/GrokConnectNodeForm.cs`：连接节点窗口（顶部搜索胶囊、过滤芯片、局域网在线节点推荐卡片流与手动指定 IP 直连握手）。
@@ -29,6 +30,7 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `src/UI/Controls/WeChatButtons.cs`：无边框图标按钮（`WeChatIconButton`），扩展支持圆形按钮（`IsCircle`，34x34 悬停微光）、右上角 56x64 矩形标题栏控制按钮、自定义填充色与窗口关闭高亮模式。
 - `src/UI/Controls/WeChatChatView.cs`：Grok 风格自适应居中流式聊天视图控件（840px 约束舒适阅读流、右侧自发 `#7946D7` 魅紫气泡、左侧 `#1E1E21` 深灰卡片、反引号行内代码胶囊高亮、居中时间戳对齐与平滑滚动条）。
 - `src/Services/UpdateService.cs`：GitHub Releases 在线自动更新服务。
+- `src/Services/AppSettings.cs`：全局配置持久化服务（%AppData%\LanChat\settings.json 漫游与便携模式）。
 - `src/Services/SessionManager.cs`：会话与消息历史纯领域解耦服务。
 - `packaging/bump-version.py`：全工程版本号自动自增与原子同步脚本。
 - `Docs/GrokBot_UI_Design_System.md`：完整 GrokBot UI 设计规范与视觉对齐标准文档。
