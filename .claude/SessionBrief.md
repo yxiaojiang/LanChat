@@ -1,18 +1,26 @@
 # SessionBrief.md — 当前接手摘要
 
 > 最近刷新：2026-11-03。仓库：`https://github.com/yxiaojiang/LanChat.git`。
-> 当前分支：`feature/wechat-ui`（稳定基线 Tag `v2.1.0`，当前开发版本 `v2.0.7`）。
-> 核心里程碑：**GrokBot 1:1 与现代即时通讯体验**；**本步已完成：1) 全局版权信息由 Aritex 更改为 ChaseFraser；2) 右上角窗口控制三联按钮尺寸精准恢复为 56×64 标准长宽（紧贴右上角，消除因顶栏 96px 撑开导致的垂直拉伸变形）；3) 彻底根除外机部署 Windows 任务栏与托盘图标回退为红黄蓝原生图标问题（编译指令新增 /res 资源嵌入、内存直接读取资源流、GDI+ 动态吉祥物兜底自绘、MSI 安装包同步释放 app.ico）；4) 底部输入胶囊小十字附件图标放大 1.5 倍、彻底去除语音图标并将文本输入框自然延伸至发送按钮**。
+> 当前分支：`feature/wechat-ui`（已发布 Tag `v2.0.8`，当前版本 `v2.0.8`）。
+> 核心里程碑：**GrokBot 1:1 与现代即时通讯体验演进**；**本阶段已全部完成并正式发布至 GitHub Releases (v2.0.8)**：
+> 1) 全局版权信息由 Aritex 更改为 ChaseFraser；
+> 2) 右上角窗口控制三联按钮尺寸精准恢复为 56×64 标准长宽（紧贴右上角，消除因顶栏 96px 撑开导致的垂直拉伸变形）；
+> 3) 彻底根除外机部署 Windows 任务栏与托盘图标回退为红黄蓝原生图标问题（编译指令新增 `/res` 资源嵌入、内存直接读取资源流、GDI+ 动态吉祥物兜底自绘、MSI 安装包同步释放 app.ico）；
+> 4) 底部输入胶囊小十字附件图标放大 1.5 倍、彻底去除语音图标并将文本输入框自然延伸至发送按钮；
+> 5) 新消息全链路提示通知（左侧会话未读红点、Windows 任务栏黄色高亮闪烁、系统托盘呼吸闪烁，点击即消除）；
+> 6) 移除左下角“发现新版本”更新条，个人头像静态化不可点击；
+> 7) 运行 `Tools/Publish.bat` 成功全自动构建并发布 v2.0.8 全平台产物（MSI、EXE、DEB）并推送到 GitHub Releases。
 
 ---
 
-## 一、本轮工作态（视觉一致性、外机图标固化与控制栏修正）
+## 一、本轮工作态（视觉一致性、外机图标固化、控制栏修正与自动化发布）
 
 ### 1. 用户反馈与需求拆解
 1. **版权信息重命名**：关于窗口与设置页中，将“Aritex”更名为“ChaseFraser”。
 2. **右上角按钮尺寸还原**：由于顶栏适配 2 倍放大对方信息变高至 96px，导致右上角 3 联按钮被纵向拉长，需将这 3 个按钮的长宽恢复至之前的 `56×64`。
 3. **外机图标异常（红黄蓝原生图标）修复**：软件安装至其他电脑时，由于缺少 `assets` 目录且未嵌入托盘资源，导致任务栏与托盘回退至 WinForms 默认 `SystemIcons.Application`（红黄蓝小方块），需与主图标保持绝对一致。
 4. **输入栏控件微调**：输入胶囊中的小十字图标放大 1.5 倍，去除多余的语音麦克风图标，文本输入框宽度自适应拉长。
+5. **自动化构建与发布**：运行 `Tools/Publish.bat` 发布最新版本，将更新说明写入 GitHub Releases。
 
 ---
 
@@ -40,6 +48,12 @@
 - `_btnToolSendFile` 按钮尺寸优化为 `38×38` 居中圆钮。
 - 彻底移除 `_btnToolFolder`（语音图标）在输入胶囊界面的挂载与占位，`_txtInput` 终点直接延伸至 `_btnSendWave.Left - 16`，使输入区更宽敞开阔。
 
+#### (5) 自动化发布流升级 (`Publish.bat` & `publish-release.py`)
+- 版本自动跃迁至 `v2.0.8` 并全工程同步（C#、WiX、Python、deb）。
+- 动态获取当前活动 Git 分支（`feature/wechat-ui`），自动完成 `git add`、`git commit` 与 `git push origin feature/wechat-ui`。
+- 自动调用 GitHub API 创建 Release `v2.0.8` 并注入格式化富文本更新说明。
+- 智能流式上传并替换覆盖资产：`LanChat.msi`、`LanChat.exe`、`LanChat.deb`、`lanchat_2.0.8_all.deb`。
+
 ---
 
 ## 二、关键约束与设计原则
@@ -61,4 +75,5 @@
 | `src/MainForm.cs` | 嵌入资源流加载图标；控制按钮恢复 56×64 尺寸；移除语音按钮并自适应拉长输入框 |
 | `src/MainForm.Tray.cs` | 托盘图标绑定动态 Mascot 图标兜底 |
 | `packaging/Package.wxs` | 发布者更新为 ChaseFraser；安装目录释放 app.ico |
+| `packaging/publish-release.py` | 增加动态分支检测、自动 Git 同步与完整 v2.0.8 发布说明生成 |
 | `Tools/*.bat` | csc 编译指令挂载 `/res:assets\app.ico,LanChat.app.ico` 资源嵌入 |
