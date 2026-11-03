@@ -193,7 +193,7 @@ namespace LanChat
         {
             try
             {
-                _normalTrayIcon = this.Icon ?? SystemIcons.Application;
+                _normalTrayIcon = this.Icon ?? WeChatIcon.CreateAppIcon(16);
                 try
                 {
                     using (Bitmap bmp = new Bitmap(16, 16))
@@ -214,7 +214,7 @@ namespace LanChat
                 };
 
                 _trayIcon = new NotifyIcon();
-                _trayIcon.Icon = this.Icon ?? SystemIcons.Application;
+                _trayIcon.Icon = _normalTrayIcon ?? this.Icon;
                 _trayIcon.Text = "LanChat 局域网通讯";
                 _trayIcon.Visible = true;
 

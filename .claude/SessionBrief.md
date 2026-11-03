@@ -2,57 +2,49 @@
 
 > 最近刷新：2026-11-03。仓库：`https://github.com/yxiaojiang/LanChat.git`。
 > 当前分支：`feature/wechat-ui`（稳定基线 Tag `v2.1.0`，当前开发版本 `v2.0.7`）。
-> 核心里程碑：**GrokBot 1:1 与现代即时通讯体验**；**本步已完成：1) 移除设置弹出菜单顶部「发现新版本」与「安装」横幅，菜单高度由 400px 精简至 332px；2) 左侧 Hero 个人头像区域改为静态不可点击（光标重置为默认箭头，移除点击呼出菜单事件）；3) 聊天顶栏对方名字与吉祥物头像整体放大 2 倍（胶囊高度 76px、圆角 38px、字体 20.0pt Bold、头像 48×48，顶栏自适应增至 96px）；4) 传统即时通讯全链路消息提醒系统（左侧会话红底白字未读徽标、Windows 任务栏 FlashWindowEx 持续黄色高亮提醒、系统托盘图标交替闪烁，用户点击窗口/托盘/会话后提示即刻自动消除）**。
+> 核心里程碑：**GrokBot 1:1 与现代即时通讯体验**；**本步已完成：1) 全局版权信息由 Aritex 更改为 ChaseFraser；2) 右上角窗口控制三联按钮尺寸精准恢复为 56×64 标准长宽（紧贴右上角，消除因顶栏 96px 撑开导致的垂直拉伸变形）；3) 彻底根除外机部署 Windows 任务栏与托盘图标回退为红黄蓝原生图标问题（编译指令新增 /res 资源嵌入、内存直接读取资源流、GDI+ 动态吉祥物兜底自绘、MSI 安装包同步释放 app.ico）；4) 底部输入胶囊小十字附件图标放大 1.5 倍、彻底去除语音图标并将文本输入框自然延伸至发送按钮**。
 
 ---
 
-## 一、本轮工作态（主界面视觉精细化与即时通讯提醒体验闭环）
+## 一、本轮工作态（视觉一致性、外机图标固化与控制栏修正）
 
 ### 1. 用户反馈与需求拆解
-1. **移除设置菜单更新横幅**：左下角 mi 图标呼出的弹出菜单中，去除顶部的深蓝「发现新版本」及「安装」选项行，整体高度平滑收缩。
-2. **个人头像不可点击**：左上角主 Hero 头像区域改为不可点击，恢复系统默认箭头光标，避免与底部功能入口冗余。
-3. **聊天顶栏对方信息放大 2 倍**：聊天窗口顶部对方昵称胶囊与有机吉祥物头像整体视觉放大 2 倍，强化当前聊天对象辨识度。
-4. **全链路即时通讯消息提醒**：
-   - 会话列表左侧头像显示红点未读徽标；
-   - Windows 系统任务栏图标在有新消息时呈现醒目黄色高亮闪烁；
-   - 系统托盘中的图标交替闪烁；
-   - 用户点击窗口、托盘或会话卡片后，相关提醒即刻消除。
+1. **版权信息重命名**：关于窗口与设置页中，将“Aritex”更名为“ChaseFraser”。
+2. **右上角按钮尺寸还原**：由于顶栏适配 2 倍放大对方信息变高至 96px，导致右上角 3 联按钮被纵向拉长，需将这 3 个按钮的长宽恢复至之前的 `56×64`。
+3. **外机图标异常（红黄蓝原生图标）修复**：软件安装至其他电脑时，由于缺少 `assets` 目录且未嵌入托盘资源，导致任务栏与托盘回退至 WinForms 默认 `SystemIcons.Application`（红黄蓝小方块），需与主图标保持绝对一致。
+4. **输入栏控件微调**：输入胶囊中的小十字图标放大 1.5 倍，去除多余的语音麦克风图标，文本输入框宽度自适应拉长。
 
 ---
 
 ### 2. 核心架构设计与落地细节
 
-#### (1) 设置菜单精炼 (`GrokSettingsMenuForm`)
-- 移除顶栏 `BANNER_HEIGHT = 58` 相关常数与绘制逻辑，窗体尺寸从 `342×400` 精简至 `342×332`。
-- 移除了横幅高亮命中判断与点击安装检测，菜单项从顶部 `TOP_PADDING = 8` 开始直接渲染 7 个主要设置项与分割线。
-- 在 `MainForm.Tray.cs` 的 `BtnSettings_Click` 中同步更新弹出基准高度 `menuH = 332`，保证菜单在底部 mi 圆钮上方精准悬浮。
+#### (1) 版权与品牌统一 (`ChaseFraser`)
+- `src/UI/Controls/GrokAboutForm.cs`：版权信息统一修改为 `版权所有 © 2026 ChaseFraser LanChat`。
+- `src/UI/Controls/GrokSettingsDialog.cs`：更新为 `版权所有 © 2026 ChaseFraser LanChat Team. All rights reserved.`。
+- `src/Program.cs`：显式进程 AppUserModelID 更新为 `ChaseFraser.LanChat.Desktop.v2`。
+- `packaging/Package.wxs`：Manufacturer 更新为 `ChaseFraser`。
 
-#### (2) 个人头像静态化 (`MainForm.cs`)
-- 将 `_heroProfilePanel` 的 `Cursor` 从 `Cursors.Hand` 调整为 `Cursors.Default`。
-- 移除 `_heroProfilePanel.Click += BtnAvatar_Click;` 事件挂载，彻底去除误触弹窗干扰，操作统一归流到底部 mi 按钮。
+#### (2) 右上角控制按钮尺寸恢复 (`MainForm.cs`)
+- 顶栏 `_chatHeader` 保持 `96px`（以完美容纳 `76px` 的 2 倍放大对方对端胶囊）。
+- 将右侧控制按钮容器 `winCtrlPanel` 从 `DockStyle.Right` 改为 `Anchor = AnchorStyles.Top | AnchorStyles.Right`，尺寸锁定为 `168×64`，位置固定于 `(_chatHeader.Width - 168, 0)`。
+- 内部最小化、最大化、关闭按钮尺寸重置为 `56×64`，鼠标悬停时红色背景关闭高亮只覆盖标准的 64px 区域，完全消除过长拉伸感。
 
-#### (3) 聊天顶栏对端信息 2 倍放大 (`MainForm.cs`)
-- 顶栏控件 `_chatHeader` 高度从 `64px` 调整至 `96px`，右侧最小化/最大化/关闭按钮尺寸同步自适应至 `56×96`（内部矢量图标依然精准居中）。
-- 居中悬浮胶囊尺寸与元素全面放大 2 倍：
-  - 胶囊高度 `pillH` 从 `38px` 增大为 `76px`，圆角半径从 `19px` 增大为 `38px`，最小宽度设为 `240px`；
-  - 对方吉祥物头像从 `24×24` 增大为 `48×48`，左内边距与垂直内边距按 2 倍比例重排；
-  - 标题文字字号由 `10.0pt Bold` 放大为 `20.0pt Bold`，字体为微软雅黑粗体，文本区域在胶囊内居中对齐。
+#### (3) 任务栏与托盘图标多重固化体系
+- **编译期资源嵌入**：在 `Tools/Compile.bat`、`CompileAndLink.bat`、`Publish.bat` 的 `csc.exe` 编译参数中增加 `/res:assets\app.ico,LanChat.app.ico`，将高质量图标打包进二进制装配件。
+- **程序集直接加载**：`MainForm` 启动时直接通过 `Assembly.GetManifestResourceStream("LanChat.app.ico")` 读取，脱离任何磁盘文件依赖。
+- **GDI+ 动态自绘兜底**：在 `WeChatIcon.cs` 中实现 `CreateAppIcon(size)`，直接在内存通过抗锯齿矢量引擎绘制紫色吉祥物图标并转为 `HICON`，即便缺少任何资源也绝不暴露红黄蓝默认图标。
+- **MSI 安装包释放**：在 `Package.wxs` 的 `INSTALLFOLDER` 增加物理安装 `app.ico` 文件。
 
-#### (4) 全链路消息提醒与即时消除系统 (`MainForm.Chat.cs` & `MainForm.Tray.cs`)
-- **未读状态追踪**：`PeerInfo` 的 `UnreadCount` 字段结合新增的 `_broadcastUnreadCount`，在收到文本或文件消息时智能判断当前会话是否正处于活动且可见状态（`isForeground && isCurrentChat`）；若非正在查看，则未读计数累加并触发外围提醒。
-- **左侧会话红点徽标 (`DrawUnreadBadge`)**：在会话卡片 48px 头像右上角自绘 `#FA5151` 微信红圆角徽章，附带 `#0E0E0E` 底色隔离边框与微软雅黑 8.0pt 粗体白色数字（超过 99 条显示 `99+`）。
-- **Windows 任务栏黄色高亮 (`FlashTaskbar`)**：通过 P/Invoke 调用系统原生 `FlashWindowEx`，配置标志位 `FLASHW_ALL | FLASHW_TIMERNOFG`，让 Windows 任务栏按钮持续黄色闪烁直到用户聚焦交互。
-- **系统托盘闪烁 (`StartTrayFlash` / `StopTrayFlash`)**：构建 16×16 透明空白图标，启用 `450ms` 的 `_trayFlashTimer` 定时器，在原应用图标与透明图标间交替翻转，重现经典聊天软件托盘闪烁。
-- **点击消除闭环 (`ClearActiveChatUnread` & `MainForm_Activated`)**：
-  - 窗体被激活（点击任务栏、快捷键切入）时，调用 `MainForm_Activated` 立即重置任务栏黄色状态并停止托盘闪烁；
-  - 还原托盘窗口（`RestoreFromTray`）时立即停止托盘闪烁；
-  - 用户点击会话列表项、聊天记录、输入框或顶栏时，清空当前活动会话的未读计数；若全应用未读数归零，同步停止外围所有声光提示。
+#### (4) 输入栏十字图标放大与语音按钮移除
+- 在 `WeChatIcon.cs` 的 `DrawAddIcon` 中，将十字线段长度比例从 `0.22f` 提升 1.5 倍至 `0.33f`，线宽从 `1.8f` 加粗至 `2.2f`，圆头端点保持一致。
+- `_btnToolSendFile` 按钮尺寸优化为 `38×38` 居中圆钮。
+- 彻底移除 `_btnToolFolder`（语音图标）在输入胶囊界面的挂载与占位，`_txtInput` 终点直接延伸至 `_btnSendWave.Left - 16`，使输入区更宽敞开阔。
 
 ---
 
 ## 二、关键约束与设计原则
 
-1. **C# 5.0 / .NET Framework 4.0**：系统原生 `csc.exe` 极速直编，体积控制在几十 KB 级别，零第三方重型依赖。
+1. **C# 5.0 / .NET Framework 4.0**：系统原生 `csc.exe` 极速直编，零第三方重型依赖。
 2. **视觉规范**：100% 遵守 `Docs/GrokBot_UI_Design_System.md` 与 `.claude/Rules.md` 9 大硬约束。
 3. **网络契约**：UDP 38888 / TCP 38889+ / LANC 二进制协议向前向后兼容。
 
@@ -62,8 +54,11 @@
 
 | 模块 / 文件 | 说明 |
 | :--- | :--- |
-| `src/UI/Controls/GrokSettingsMenuForm.cs` | 移除更新横幅，精简为 332px 高度紧凑暗黑菜单 |
-| `src/MainForm.cs` | 个人头像改为 Default 光标且不可点击；顶栏放大 2 倍至 96px（76px 胶囊、20pt Bold 标题、48px 吉祥物头像） |
-| `src/MainForm.Chat.cs` | 会话自绘新增 `DrawUnreadBadge` 微信红徽标；接收消息触发任务栏与托盘提醒；点击消除未读 |
-| `src/MainForm.Files.cs` | 文件接收统一纳入未读状态与任务栏/托盘提醒流 |
-| `src/MainForm.Tray.cs` | 新增 Win32 `FlashWindowEx` 任务栏高亮、托盘图标 450ms 定时交替闪烁与全局清除调度 |
+| `src/UI/Controls/GrokAboutForm.cs` | 版权信息修改为 ChaseFraser |
+| `src/UI/Controls/GrokSettingsDialog.cs` | 设置页底部版权修改为 ChaseFraser |
+| `src/Program.cs` | AppUserModelID 修改为 ChaseFraser |
+| `src/UI/Renderers/WeChatIcon.cs` | 十字线段长宽加粗放大 1.5 倍；新增 `CreateAppIcon` 内存兜底自绘 |
+| `src/MainForm.cs` | 嵌入资源流加载图标；控制按钮恢复 56×64 尺寸；移除语音按钮并自适应拉长输入框 |
+| `src/MainForm.Tray.cs` | 托盘图标绑定动态 Mascot 图标兜底 |
+| `packaging/Package.wxs` | 发布者更新为 ChaseFraser；安装目录释放 app.ico |
+| `Tools/*.bat` | csc 编译指令挂载 `/res:assets\app.ico,LanChat.app.ico` 资源嵌入 |

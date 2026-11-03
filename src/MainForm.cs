@@ -117,7 +117,7 @@ namespace LanChat
         private int _currentNavTab = 0;
 
         // Constants
-        public const string APP_VERSION = "2.0.7";
+        public const string APP_VERSION = "2.0.8";
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
 
         // System Tray & Single Instance
@@ -144,31 +144,53 @@ namespace LanChat
         {
             try
             {
-                string[] possibleIconPaths = new string[]
+                // 1. 优先从程序集嵌入资源加载官方应用图标（保证安装到任何其他电脑上都100%存在且一致）
+                using (Stream resStream = typeof(MainForm).Assembly.GetManifestResourceStream("LanChat.app.ico"))
                 {
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico"),
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "assets", "app.ico"),
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "assets", "app.ico"),
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "assets", "app.ico")
-                };
-                foreach (string p in possibleIconPaths)
-                {
-                    if (File.Exists(p))
+                    if (resStream != null)
                     {
-                        try { this.Icon = new Icon(p); break; } catch { }
-                    }
-                }
-                if (this.Icon == null)
-                {
-                    string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
-                    if (File.Exists(exePath))
-                    {
-                        Icon exeIcon = Icon.ExtractAssociatedIcon(exePath);
-                        if (exeIcon != null) this.Icon = exeIcon;
+                        this.Icon = new Icon(resStream);
                     }
                 }
             }
             catch { }
+
+            if (this.Icon == null)
+            {
+                try
+                {
+                    string[] possibleIconPaths = new string[]
+                    {
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico"),
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "assets", "app.ico"),
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "assets", "app.ico"),
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "assets", "app.ico")
+                    };
+                    foreach (string p in possibleIconPaths)
+                    {
+                        if (File.Exists(p))
+                        {
+                            try { this.Icon = new Icon(p); break; } catch { }
+                        }
+                    }
+                    if (this.Icon == null)
+                    {
+                        string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+                        if (File.Exists(exePath))
+                        {
+                            Icon exeIcon = Icon.ExtractAssociatedIcon(exePath);
+                            if (exeIcon != null) this.Icon = exeIcon;
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            // 2. 最终兜底：内存动态自绘 Mascot 图标，坚决杜绝 Windows 原生红黄蓝图标
+            if (this.Icon == null)
+            {
+                this.Icon = WeChatIcon.CreateAppIcon(32);
+            }
 
             InitializeComponent();
             _resizeFilter = new FormResizeMessageFilter(this);
@@ -558,12 +580,12 @@ namespace LanChat
             };
             _chatHeader.Resize += (s, e) => _chatHeader.Invalidate();
 
-            // Window control buttons at top-right (— □ ×) (Grok Bot 56x96 矩形无缝标题栏按钮，对标 Alis3.png)
+            // Window control buttons at top-right (— □ ×) (恢复为标准 56x64 尺寸，紧贴右上角)
             Panel winCtrlPanel = new Panel
             {
-                Dock = DockStyle.Right,
-                Width = 168,
-                Height = 96,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Location = new Point(_chatHeader.Width - 168, 0),
+                Size = new Size(168, 64),
                 BackColor = Color.Transparent,
                 Margin = new Padding(0),
                 Padding = new Padding(0)
@@ -572,7 +594,7 @@ namespace LanChat
             _btnWinMin = new WeChatIconButton(WeChatIconType.WinMin, "最小化", 56)
             {
                 Location = new Point(0, 0),
-                Size = new Size(56, 96),
+                Size = new Size(56, 64),
                 IconColor = Color.FromArgb(205, 205, 210),
                 HoverFillColor = Color.FromArgb(55, 55, 58),
                 IsCircle = false
@@ -582,7 +604,7 @@ namespace LanChat
             _btnWinMax = new WeChatIconButton(WeChatIconType.WinMax, "最大化", 56)
             {
                 Location = new Point(56, 0),
-                Size = new Size(56, 96),
+                Size = new Size(56, 64),
                 IconColor = Color.FromArgb(205, 205, 210),
                 HoverFillColor = Color.FromArgb(55, 55, 58),
                 IsCircle = false
@@ -592,7 +614,7 @@ namespace LanChat
             _btnWinClose = new WeChatIconButton(WeChatIconType.WinClose, "关闭", 56)
             {
                 Location = new Point(112, 0),
-                Size = new Size(56, 96),
+                Size = new Size(56, 64),
                 IconColor = Color.FromArgb(205, 205, 210),
                 IsWindowClose = true,
                 IsCircle = false
@@ -734,24 +756,8 @@ namespace LanChat
             _txtInput.DragEnter += MainForm_DragEnter;
             _txtInput.DragDrop += MainForm_DragDrop;
 
-            // 右侧 Mic：32x32 点击区，图标 #8E8E93（距发送钮左侧 14px）
-            _btnToolFolder = new WeChatIconButton(WeChatIconType.Mic, "语音消息 (右键切换自动接收文件)", 32)
-            {
-                IsCircle = true,
-                FillColor = Color.Transparent,
-                HoverFillColor = Color.FromArgb(46, 46, 52),
-                IconColor = Color.FromArgb(142, 142, 147) // #8E8E93
-            };
-            _btnToolFolder.Click += (s, e) => {
-                GrokMessageBox.Show(this, "语音录制组件已就绪，长按可录制局域网语音短消息。", "语音功能", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            };
-            _btnToolFolder.MouseUp += (s, e) => {
-                if (e.Button == MouseButtons.Right && _netService != null)
-                {
-                    _netService.AutoAcceptFiles = !_netService.AutoAcceptFiles;
-                    AppendChatSystem(_netService.AutoAcceptFiles ? "⚡ 已开启自动接收文件" : "⏸ 已暂停自动接收文件");
-                }
-            };
+            // 语音按钮已去除，保留占位以兼容原有字段
+            _btnToolFolder = new WeChatIconButton(WeChatIconType.Mic, "", 32) { Visible = false };
             _btnToolMic = _btnToolFolder;
 
             // 最右侧魅紫 ↑ 发送圆钮：44x44，#8E64DC / hover #9D75EC，距右缘 10px
@@ -772,22 +778,19 @@ namespace LanChat
                 _btnSendWave.Size = new Size(sendSize, sendSize);
                 _btnSendWave.Location = new Point(w - sendSize - 10, (h - sendSize) / 2);
 
-                int micSize = 32;
-                _btnToolFolder.Size = new Size(micSize, micSize);
-                _btnToolFolder.Location = new Point(w - sendSize - 10 - micSize - 14, (h - micSize) / 2);
-
-                int plusSize = 36;
+                // 左侧 (+) 附件圆钮：38x38，垂直居中
+                int plusSize = 38;
                 _btnToolSendFile.Size = new Size(plusSize, plusSize);
-                _btnToolSendFile.Location = new Point(14, (h - plusSize) / 2);
+                _btnToolSendFile.Location = new Point(13, (h - plusSize) / 2);
 
-                _txtInput.Location = new Point(64, (h - _txtInput.Height) / 2);
-                _txtInput.Width = Math.Max(60, _btnToolFolder.Left - 76);
+                // 输入框起点在 (+) 之后，终点延伸至发送圆钮左侧（语音图标已去除）
+                _txtInput.Location = new Point(60, (h - _txtInput.Height) / 2);
+                _txtInput.Width = Math.Max(60, _btnSendWave.Left - _txtInput.Left - 16);
                 _inputPanel.Invalidate();
             };
 
             _inputPanel.Controls.Add(_btnToolSendFile);
             _inputPanel.Controls.Add(_txtInput);
-            _inputPanel.Controls.Add(_btnToolFolder);
             _inputPanel.Controls.Add(_btnSendWave);
             _bottomSendPanel.Controls.Add(_inputPanel);
 

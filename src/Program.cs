@@ -37,7 +37,7 @@ namespace LanChat
             try
             {
                 // 显式设置应用模型 ID，确保 Windows 任务栏彻底刷新为最新紫吉祥物图标并独立分组
-                SetCurrentProcessExplicitAppUserModelID("Aritex.LanChat.Desktop.v2");
+                SetCurrentProcessExplicitAppUserModelID("ChaseFraser.LanChat.Desktop.v2");
             }
             catch { }
 

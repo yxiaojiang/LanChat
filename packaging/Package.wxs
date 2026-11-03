@@ -2,8 +2,8 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package Name="LanChat" 
-           Manufacturer="LanChat" 
-           Version="2.0.7" 
+           Manufacturer="ChaseFraser" 
+           Version="2.0.8" 
            UpgradeCode="{7E993262-EAA5-4A37-975D-39F24FEA21D1}"
            Scope="perMachine"
            Language="2052">
@@ -18,9 +18,10 @@
     <!-- Default Installation Folder -->
     <StandardDirectory Id="ProgramFilesFolder">
       <Directory Id="INSTALLFOLDER" Name="LanChat">
-        <!-- Main Application Executable -->
+        <!-- Main Application Executable & Icon -->
         <Component Id="MainExecutable" Guid="D2A687A1-BD02-4A73-A332-951E9DB6E8BC">
           <File Id="LanChatExe" Source="release\LanChat.exe" KeyPath="yes" />
+          <File Id="AppIcoFile" Source="assets\app.ico" Name="app.ico" />
           <Shortcut Id="DesktopShortcut"
                     Directory="DesktopFolder"
                     Name="LanChat"

@@ -502,7 +502,7 @@ namespace LanChat
                     g.DrawString("LanChat", tf, tb, new RectangleF(0, by + bSize + 12, CARD_WIDTH, 26), csf);
                     g.DrawString("版本 " + MainForm.APP_VERSION + " · Grok Bot 100% 视觉对标标准", mf, mb, new RectangleF(0, by + bSize + 40, CARD_WIDTH, 22), csf);
                     g.DrawString("局域网秒级多点通讯 · 原生高性能零依赖架构", sf, sb, new RectangleF(0, by + bSize + 64, CARD_WIDTH, 20), csf);
-                    g.DrawString("版权所有 © 2026 Aritex LanChat Team. All rights reserved.", sf, sb, new RectangleF(0, by + bSize + 84, CARD_WIDTH, 20), csf);
+                    g.DrawString("版权所有 © 2026 ChaseFraser LanChat Team. All rights reserved.", sf, sb, new RectangleF(0, by + bSize + 84, CARD_WIDTH, 20), csf);
                 }
             };
 

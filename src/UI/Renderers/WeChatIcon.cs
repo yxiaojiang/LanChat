@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 
 namespace LanChat
 {
@@ -466,19 +467,47 @@ namespace LanChat
             }
         }
 
-        // 6. Plus / Add icon
+        // 6. Plus / Add icon (十字图标放大1.5倍: 0.22f -> 0.33f, 粗细 1.8f -> 2.2f)
         public static void DrawAddIcon(Graphics g, Rectangle r, Color color)
         {
-            using (Pen p = new Pen(color, 1.8f))
+            using (Pen p = new Pen(color, 2.2f))
             {
                 p.StartCap = LineCap.Round;
                 p.EndCap = LineCap.Round;
                 float cx = r.X + r.Width / 2f;
                 float cy = r.Y + r.Height / 2f;
-                float len = r.Width * 0.22f;
+                float len = r.Width * 0.33f;
 
                 g.DrawLine(p, cx - len, cy, cx + len, cy);
                 g.DrawLine(p, cx, cy - len, cx, cy + len);
+            }
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool DestroyIcon(IntPtr hIcon);
+
+        /// <summary>
+        /// 在内存中纯代码自绘生成官方 LanChat 吉祥物应用图标（彻底避免在其他电脑上因缺少文件暴露 WinForms 默认红黄蓝图标）
+        /// </summary>
+        public static Icon CreateAppIcon(int size = 32)
+        {
+            try
+            {
+                using (Bitmap bmp = new Bitmap(size, size))
+                using (Graphics g = Graphics.FromImage(bmp))
+                {
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    DrawMascotAvatar(g, new Rectangle(0, 0, size, size), Color.FromArgb(144, 90, 251), false, false, Color.Transparent);
+                    IntPtr h = bmp.GetHicon();
+                    Icon ico = (Icon)Icon.FromHandle(h).Clone();
+                    DestroyIcon(h);
+                    return ico;
+                }
+            }
+            catch
+            {
+                return null;
             }
         }
 

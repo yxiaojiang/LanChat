@@ -36,7 +36,7 @@ namespace LanChat
         {
             _version = version;
             _buildDate = "2026年10月25日";
-            _copyright = "版权所有 © 2026 Aritex LanChat";
+            _copyright = "版权所有 © 2026 ChaseFraser LanChat";
 
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.CenterParent;
