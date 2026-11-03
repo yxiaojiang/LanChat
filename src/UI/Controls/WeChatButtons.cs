@@ -142,6 +142,9 @@ namespace LanChat
         private Color _iconColor = Color.FromArgb(200, 200, 204);
         private Color _borderColor = Color.Transparent;
         private bool _isWindowClose = false;
+        private bool _isActive = true;
+        private Color _disabledFillColor = Color.FromArgb(44, 44, 50);
+        private Color _disabledIconColor = Color.FromArgb(115, 115, 122);
 
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public WeChatIconType IconType
@@ -193,6 +196,35 @@ namespace LanChat
         }
 
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool IsActive
+        {
+            get { return _isActive; }
+            set
+            {
+                if (_isActive != value)
+                {
+                    _isActive = value;
+                    this.Cursor = _isActive ? Cursors.Hand : Cursors.Default;
+                    Invalidate();
+                }
+            }
+        }
+
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public Color DisabledFillColor
+        {
+            get { return _disabledFillColor; }
+            set { _disabledFillColor = value; Invalidate(); }
+        }
+
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public Color DisabledIconColor
+        {
+            get { return _disabledIconColor; }
+            set { _disabledIconColor = value; Invalidate(); }
+        }
+
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public string TooltipText
         {
             get { return _tooltipText; }
@@ -213,7 +245,7 @@ namespace LanChat
         protected override void OnMouseEnter(EventArgs e)
         {
             base.OnMouseEnter(e);
-            _isHovered = true;
+            if (_isActive) _isHovered = true;
             Invalidate();
             if (!string.IsNullOrEmpty(_tooltipText))
             {
@@ -232,6 +264,7 @@ namespace LanChat
 
         protected override void OnMouseDown(MouseEventArgs e)
         {
+            if (!_isActive) return;
             base.OnMouseDown(e);
             if (e.Button == MouseButtons.Left)
             {
@@ -242,9 +275,16 @@ namespace LanChat
 
         protected override void OnMouseUp(MouseEventArgs e)
         {
+            if (!_isActive) return;
             base.OnMouseUp(e);
             _isPressed = false;
             Invalidate();
+        }
+
+        protected override void OnClick(EventArgs e)
+        {
+            if (!_isActive) return;
+            base.OnClick(e);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -255,7 +295,11 @@ namespace LanChat
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
             Color bg = _fillColor;
-            if (_isPressed || _isHovered)
+            if (!_isActive)
+            {
+                bg = (_fillColor == Color.Transparent) ? Color.Transparent : _disabledFillColor;
+            }
+            else if (_isPressed || _isHovered)
             {
                 bg = _isWindowClose ? Color.FromArgb(232, 17, 35) : _hoverFillColor;
             }
@@ -295,7 +339,7 @@ namespace LanChat
                 }
             }
 
-            Color ic = (_isHovered || _isPressed) ? Color.White : _iconColor;
+            Color ic = !_isActive ? _disabledIconColor : ((_isHovered || _isPressed) ? Color.White : _iconColor);
             // Circle pills: inset glyph ~22% so Search/Add match Alis visual weight
             int pad = _isCircle ? Math.Max(6, this.Width * 22 / 100) : 0;
             Rectangle iconRect = new Rectangle(pad, pad, this.Width - pad * 2, this.Height - pad * 2);

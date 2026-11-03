@@ -1,64 +1,51 @@
 # SessionBrief.md — 当前接手摘要
 
 > 最近刷新：2026-11-03。仓库：`https://github.com/yxiaojiang/LanChat.git`。
-> 当前分支：`feature/wechat-ui`（已发布 Tag `v2.0.8`，当前版本 `v2.0.8`）。
-> 核心里程碑：**GrokBot 1:1 与现代即时通讯体验演进**；**本阶段已全部完成并正式发布至 GitHub Releases (v2.0.8)**：
-> 1) 全局版权信息由 Aritex 更改为 ChaseFraser；
-> 2) 右上角窗口控制三联按钮尺寸精准恢复为 56×64 标准长宽（紧贴右上角，消除因顶栏 96px 撑开导致的垂直拉伸变形）；
-> 3) 彻底根除外机部署 Windows 任务栏与托盘图标回退为红黄蓝原生图标问题（编译指令新增 `/res` 资源嵌入、内存直接读取资源流、GDI+ 动态吉祥物兜底自绘、MSI 安装包同步释放 app.ico）；
-> 4) 底部输入胶囊小十字附件图标放大 1.5 倍、彻底去除语音图标并将文本输入框自然延伸至发送按钮；
-> 5) 新消息全链路提示通知（左侧会话未读红点、Windows 任务栏黄色高亮闪烁、系统托盘呼吸闪烁，点击即消除）；
-> 6) 移除左下角“发现新版本”更新条，个人头像静态化不可点击；
-> 7) 运行 `Tools/Publish.bat` 成功全自动构建并发布 v2.0.8 全平台产物（MSI、EXE、DEB）并推送到 GitHub Releases。
+> 当前分支：`feature/wechat-ui`（已发布 Tag `v2.0.9`，当前版本 `v2.0.9`）。
+> 核心里程碑：**输入与发送状态智能联动、屏幕边界避让 ToolTip、搜索一键清空与右键菜单精简**；**本阶段已全部完成并正式发布至 GitHub Releases (v2.0.9)**：
+> 1) 魅紫发送按钮默认深灰禁用（#2C2C32），仅当输入框包含非空文本时即时点亮为明亮魅紫（#8E64DC，Hover #9D75EC，光标变为小手），消息发出后自动回退；
+> 2) 全局 ToolTip 遵循 Windows 标准无焦点层级（WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST），引入多显示器工作区边界检测与自适应避让（Clamping & Auto-Flip），底栏按钮提示默认置于正上方居中，彻底根除超出屏幕被截断的问题；
+> 3) 搜索框内新增自适应抗锯齿圆头 GDI+ 矢量小叉按钮（Dismiss，1.6px 圆头笔触），输入查找内容时浮现，点击一键清空搜索词并恢复所有会话；
+> 4) 左侧会话卡片右键菜单移除冗余的“发起会话”与“复制节点 IP”，保持清爽高效的“发送文件...”与“清空聊天记录”；
+> 5) 运行 `Tools/Publish.bat` 成功全自动构建并发布 v2.0.9 全平台产物（MSI、EXE、DEB）并推送到 GitHub Releases。
 
 ---
 
-## 一、本轮工作态（视觉一致性、外机图标固化、控制栏修正与自动化发布）
+## 一、本轮工作态（交互细节打磨与屏幕避让体系）
 
 ### 1. 用户反馈与需求拆解
-1. **版权信息重命名**：关于窗口与设置页中，将“Aritex”更名为“ChaseFraser”。
-2. **右上角按钮尺寸还原**：由于顶栏适配 2 倍放大对方信息变高至 96px，导致右上角 3 联按钮被纵向拉长，需将这 3 个按钮的长宽恢复至之前的 `56×64`。
-3. **外机图标异常（红黄蓝原生图标）修复**：软件安装至其他电脑时，由于缺少 `assets` 目录且未嵌入托盘资源，导致任务栏与托盘回退至 WinForms 默认 `SystemIcons.Application`（红黄蓝小方块），需与主图标保持绝对一致。
-4. **输入栏控件微调**：输入胶囊中的小十字图标放大 1.5 倍，去除多余的语音麦克风图标，文本输入框宽度自适应拉长。
-5. **自动化构建与发布**：运行 `Tools/Publish.bat` 发布最新版本，将更新说明写入 GitHub Releases。
+1. **发送按钮状态与交互联动**：发送按钮默认应为灰色不可点击状态，只有当输入框有文字时才点亮为紫色可点击状态，发送后重置。
+2. **ToolTip 超出屏幕问题修复**：鼠标悬停在发送按钮上时文字提示超出屏幕右边界，需遵循 Windows 桌面规范对超出边界的提示进行屏幕夹紧避让。
+3. **搜索框清除小叉**：在搜索胶囊内增加一个小叉按钮，有输入内容时显示，点击一键清空内容，避免逐字退格删除。
+4. **会话栏右键菜单精简**：右键会话卡片弹出的上下文菜单中，删除“发起会话”与“复制节点 IP”。
+5. **自动化发布**：运行 `Tools/Publish.bat` 并附带详尽规范的更新日志发布至 GitHub Releases。
 
 ---
 
 ### 2. 核心架构设计与落地细节
 
-#### (1) 版权与品牌统一 (`ChaseFraser`)
-- `src/UI/Controls/GrokAboutForm.cs`：版权信息统一修改为 `版权所有 © 2026 ChaseFraser LanChat`。
-- `src/UI/Controls/GrokSettingsDialog.cs`：更新为 `版权所有 © 2026 ChaseFraser LanChat Team. All rights reserved.`。
-- `src/Program.cs`：显式进程 AppUserModelID 更新为 `ChaseFraser.LanChat.Desktop.v2`。
-- `packaging/Package.wxs`：Manufacturer 更新为 `ChaseFraser`。
+#### (1) 发送按钮状态机与自绘样式 (`WeChatButtons.cs` & `MainForm.cs`)
+- `WeChatIconButton` 扩展 `IsActive`、`DisabledFillColor`（`#2C2C32`）与 `DisabledIconColor`（`#73737A`）属性。
+- 默认 `_btnSendWave.IsActive = false`，鼠标光标为默认箭头，拦截点击与按压事件；输入框 `_txtInput.TextChanged` 实时联动点亮。
+- 鼠标悬停在禁用状态下的按钮依然能正常激活 ToolTip 提示。
 
-#### (2) 右上角控制按钮尺寸恢复 (`MainForm.cs`)
-- 顶栏 `_chatHeader` 保持 `96px`（以完美容纳 `76px` 的 2 倍放大对方对端胶囊）。
-- 将右侧控制按钮容器 `winCtrlPanel` 从 `DockStyle.Right` 改为 `Anchor = AnchorStyles.Top | AnchorStyles.Right`，尺寸锁定为 `168×64`，位置固定于 `(_chatHeader.Width - 168, 0)`。
-- 内部最小化、最大化、关闭按钮尺寸重置为 `56×64`，鼠标悬停时红色背景关闭高亮只覆盖标准的 64px 区域，完全消除过长拉伸感。
+#### (2) Windows 规范级屏幕边界避让 ToolTip (`WeChatDarkMenuRenderer.cs`)
+- ToolTip 窗口重构为专用无激活窗体（`WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST`，`ShowWithoutActivation = true`），彻底杜绝焦点抢占。
+- 动态获取控件所属显示器的真实工作区 `WorkingArea`，预先测算气泡像素几何。
+- 针对底栏控件默认在正上方居中展开，并执行严苛的屏幕左右边界 Clamping 与上下越界 Auto-Flip。
 
-#### (3) 任务栏与托盘图标多重固化体系
-- **编译期资源嵌入**：在 `Tools/Compile.bat`、`CompileAndLink.bat`、`Publish.bat` 的 `csc.exe` 编译参数中增加 `/res:assets\app.ico,LanChat.app.ico`，将高质量图标打包进二进制装配件。
-- **程序集直接加载**：`MainForm` 启动时直接通过 `Assembly.GetManifestResourceStream("LanChat.app.ico")` 读取，脱离任何磁盘文件依赖。
-- **GDI+ 动态自绘兜底**：在 `WeChatIcon.cs` 中实现 `CreateAppIcon(size)`，直接在内存通过抗锯齿矢量引擎绘制紫色吉祥物图标并转为 `HICON`，即便缺少任何资源也绝不暴露红黄蓝默认图标。
-- **MSI 安装包释放**：在 `Package.wxs` 的 `INSTALLFOLDER` 增加物理安装 `app.ico` 文件。
+#### (3) 搜索框一键清除小叉 (`WeChatIcon.cs` & `MainForm.cs`)
+- 新增 `WeChatIconType.Dismiss` 与 1.6px 圆头端点矢量绘制 `DrawDismissIcon`。
+- `_btnSearchClear` 圆钮内嵌于 `_searchBoxContainer` 右侧，动态响应 `TextChanged` 显隐，点击触发 `Clear()` 并重聚焦点。
 
-#### (4) 输入栏十字图标放大与语音按钮移除
-- 在 `WeChatIcon.cs` 的 `DrawAddIcon` 中，将十字线段长度比例从 `0.22f` 提升 1.5 倍至 `0.33f`，线宽从 `1.8f` 加粗至 `2.2f`，圆头端点保持一致。
-- `_btnToolSendFile` 按钮尺寸优化为 `38×38` 居中圆钮。
-- 彻底移除 `_btnToolFolder`（语音图标）在输入胶囊界面的挂载与占位，`_txtInput` 终点直接延伸至 `_btnSendWave.Left - 16`，使输入区更宽敞开阔。
-
-#### (5) 自动化发布流升级 (`Publish.bat` & `publish-release.py`)
-- 版本自动跃迁至 `v2.0.8` 并全工程同步（C#、WiX、Python、deb）。
-- 动态获取当前活动 Git 分支（`feature/wechat-ui`），自动完成 `git add`、`git commit` 与 `git push origin feature/wechat-ui`。
-- 自动调用 GitHub API 创建 Release `v2.0.8` 并注入格式化富文本更新说明。
-- 智能流式上传并替换覆盖资产：`LanChat.msi`、`LanChat.exe`、`LanChat.deb`、`lanchat_2.0.8_all.deb`。
+#### (4) 右键菜单精简 (`MainForm.Chat.cs`)
+- 剔除无意义的“发起会话”（右键已自动选中）与“复制节点 IP”，精简为“发送文件...”与“清空聊天记录”。
 
 ---
 
 ## 二、关键约束与设计原则
 
-1. **C# 5.0 / .NET Framework 4.0**：系统原生 `csc.exe` 极速直编，零第三方重型依赖。
+1. **C# 5.0 / .NET Framework 4.0**：系统原生 `csc.exe` 直编，零第三方依赖。
 2. **视觉规范**：100% 遵守 `Docs/GrokBot_UI_Design_System.md` 与 `.claude/Rules.md` 9 大硬约束。
 3. **网络契约**：UDP 38888 / TCP 38889+ / LANC 二进制协议向前向后兼容。
 
@@ -68,12 +55,9 @@
 
 | 模块 / 文件 | 说明 |
 | :--- | :--- |
-| `src/UI/Controls/GrokAboutForm.cs` | 版权信息修改为 ChaseFraser |
-| `src/UI/Controls/GrokSettingsDialog.cs` | 设置页底部版权修改为 ChaseFraser |
-| `src/Program.cs` | AppUserModelID 修改为 ChaseFraser |
-| `src/UI/Renderers/WeChatIcon.cs` | 十字线段长宽加粗放大 1.5 倍；新增 `CreateAppIcon` 内存兜底自绘 |
-| `src/MainForm.cs` | 嵌入资源流加载图标；控制按钮恢复 56×64 尺寸；移除语音按钮并自适应拉长输入框 |
-| `src/MainForm.Tray.cs` | 托盘图标绑定动态 Mascot 图标兜底 |
-| `packaging/Package.wxs` | 发布者更新为 ChaseFraser；安装目录释放 app.ico |
-| `packaging/publish-release.py` | 增加动态分支检测、自动 Git 同步与完整 v2.0.8 发布说明生成 |
-| `Tools/*.bat` | csc 编译指令挂载 `/res:assets\app.ico,LanChat.app.ico` 资源嵌入 |
+| `src/UI/Controls/WeChatButtons.cs` | 增加 IsActive 状态控制、禁用底色与禁用图标色自绘 |
+| `src/UI/Renderers/WeChatDarkMenuRenderer.cs` | ToolTip 升级为无激活 TopMost 窗体，增加屏幕工作区边界避让 |
+| `src/UI/Renderers/WeChatIcon.cs` | 新增 Dismiss 矢量圆头小叉图标 |
+| `src/MainForm.cs` | 挂载 _btnSearchClear 清除按钮并自适应布局，发送按钮初始禁用 |
+| `src/MainForm.Chat.cs` | 监听输入联动发送按钮亮起，搜索框联动小叉显隐，右键菜单精简 |
+| `packaging/publish-release.py` | 更新发布日志与说明文案 |

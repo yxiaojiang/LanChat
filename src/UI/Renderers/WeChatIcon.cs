@@ -22,6 +22,7 @@ namespace LanChat
         Emoji,
         Scissors,
         Clear,
+        Dismiss,
         Search,
         Call,
         More,
@@ -80,6 +81,9 @@ namespace LanChat
                     break;
                 case WeChatIconType.Clear:
                     DrawClearIcon(g, bounds, color);
+                    break;
+                case WeChatIconType.Dismiss:
+                    DrawDismissIcon(g, bounds, color);
                     break;
                 case WeChatIconType.Search:
                     DrawSearchIcon(g, bounds, color);
@@ -764,6 +768,22 @@ namespace LanChat
                 float cy = r.Y + r.Height / 2f;
                 g.DrawLine(p, cx - 6.5f, cy - 6.5f, cx + 6.5f, cy + 6.5f);
                 g.DrawLine(p, cx + 6.5f, cy - 6.5f, cx - 6.5f, cy + 6.5f);
+            }
+        }
+
+        // 19b. Dismiss / Clear Cross Icon (搜索框小叉，自适应圆头交叉线)
+        public static void DrawDismissIcon(Graphics g, Rectangle r, Color color)
+        {
+            using (Pen p = new Pen(color, 1.6f))
+            {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+                float cx = r.X + r.Width / 2f;
+                float cy = r.Y + r.Height / 2f;
+                float s = Math.Min(r.Width, r.Height) * 0.28f;
+                if (s < 3.5f) s = 3.5f;
+                g.DrawLine(p, cx - s, cy - s, cx + s, cy + s);
+                g.DrawLine(p, cx + s, cy - s, cx - s, cy + s);
             }
         }
 

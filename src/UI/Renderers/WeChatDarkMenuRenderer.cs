@@ -92,47 +92,135 @@ namespace LanChat
     /// </summary>
     public static class WeChatDarkTooltip
     {
-        private static Form _tipForm;
+        private class DarkTooltipForm : Form
+        {
+            public DarkTooltipForm()
+            {
+                this.FormBorderStyle = FormBorderStyle.None;
+                this.ShowInTaskbar = false;
+                this.StartPosition = FormStartPosition.Manual;
+                this.BackColor = Color.FromArgb(42, 42, 45); // #2A2A2D
+                this.DoubleBuffered = true;
+                this.Padding = new Padding(8, 4, 8, 4);
+            }
+
+            protected override bool ShowWithoutActivation
+            {
+                get { return true; }
+            }
+
+            protected override CreateParams CreateParams
+            {
+                get
+                {
+                    CreateParams cp = base.CreateParams;
+                    cp.ExStyle |= 0x00000080; // WS_EX_TOOLWINDOW
+                    cp.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE
+                    cp.ExStyle |= 0x00000008; // WS_EX_TOPMOST
+                    return cp;
+                }
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                using (Pen p = new Pen(Color.FromArgb(70, 70, 76), 1f)) // #46464C
+                {
+                    e.Graphics.DrawRectangle(p, 0, 0, this.Width - 1, this.Height - 1);
+                }
+            }
+        }
+
+        private static DarkTooltipForm _tipForm;
         private static Label _lblText;
 
         public static void ShowTooltip(Control parent, string text)
         {
-            if (string.IsNullOrEmpty(text)) return;
+            if (parent == null || string.IsNullOrEmpty(text) || parent.IsDisposed) return;
 
-            if (_tipForm == null)
+            if (_tipForm == null || _tipForm.IsDisposed)
             {
-                _tipForm = new Form
-                {
-                    FormBorderStyle = FormBorderStyle.None,
-                    ShowInTaskbar = false,
-                    StartPosition = FormStartPosition.Manual,
-                    BackColor = Color.FromArgb(59, 59, 61), // #3b3b3d per screenshot
-                    AutoSize = true,
-                    AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                    Padding = new Padding(8, 5, 8, 5)
-                };
+                _tipForm = new DarkTooltipForm();
 
                 _lblText = new Label
                 {
-                    ForeColor = Color.FromArgb(225, 225, 229), // #e1e1e5
-                    Font = new Font("Microsoft YaHei UI", 8.5f),
-                    AutoSize = true,
-                    BackColor = Color.Transparent
+                    ForeColor = Color.FromArgb(235, 235, 240), // #EBEBF0
+                    Font = new Font("Microsoft YaHei UI", 9.0f),
+                    AutoSize = false,
+                    BackColor = Color.Transparent,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Dock = DockStyle.Fill
                 };
                 _tipForm.Controls.Add(_lblText);
-
-                _tipForm.Paint += (s, e) => {
-                    using (Pen p = new Pen(Color.FromArgb(75, 75, 78)))
-                    {
-                        e.Graphics.DrawRectangle(p, 0, 0, _tipForm.Width - 1, _tipForm.Height - 1);
-                    }
-                };
             }
 
             _lblText.Text = text;
-            Point screenPt = parent.PointToScreen(new Point(parent.Width + 8, (parent.Height - 24) / 2));
-            _tipForm.Location = screenPt;
-            _tipForm.Show();
+            Size textSize = TextRenderer.MeasureText(text, _lblText.Font);
+            int tipW = textSize.Width + 18;
+            int tipH = Math.Max(26, textSize.Height + 10);
+            _tipForm.Size = new Size(tipW, tipH);
+
+            Rectangle parentRect = parent.RectangleToScreen(parent.ClientRectangle);
+            Screen screen = Screen.FromPoint(new Point(parentRect.Left + parentRect.Width / 2, parentRect.Top + parentRect.Height / 2));
+            if (screen == null) screen = Screen.FromControl(parent) ?? Screen.PrimaryScreen;
+            Rectangle work = screen.WorkingArea;
+
+            int targetX;
+            int targetY;
+
+            if (parent is WeChatNavButton)
+            {
+                // 左侧导航栏按钮：靠右侧垂直居中浮现
+                targetX = parentRect.Right + 8;
+                targetY = parentRect.Top + (parentRect.Height - tipH) / 2;
+            }
+            else if (parentRect.Top - tipH - 6 < work.Top)
+            {
+                // 窗口顶部控制按钮：在按钮下方显示
+                targetX = parentRect.Left + (parentRect.Width - tipW) / 2;
+                targetY = parentRect.Bottom + 6;
+            }
+            else
+            {
+                // 底部发送按钮 / 工具按钮：在按钮上方居中显示
+                targetX = parentRect.Left + (parentRect.Width - tipW) / 2;
+                targetY = parentRect.Top - tipH - 6;
+            }
+
+            // Windows 规范屏幕边界检测与避让 (Multi-monitor Aware)
+            const int margin = 8;
+            if (targetX + tipW > work.Right - margin)
+            {
+                targetX = work.Right - tipW - margin;
+            }
+            if (targetX < work.Left + margin)
+            {
+                targetX = work.Left + margin;
+            }
+            if (targetY + tipH > work.Bottom - margin)
+            {
+                if (parentRect.Top - tipH - 6 >= work.Top + margin)
+                    targetY = parentRect.Top - tipH - 6;
+                else
+                    targetY = work.Bottom - tipH - margin;
+            }
+            if (targetY < work.Top + margin)
+            {
+                if (parentRect.Bottom + tipH + 6 <= work.Bottom - margin)
+                    targetY = parentRect.Bottom + 6;
+                else
+                    targetY = work.Top + margin;
+            }
+
+            _tipForm.Location = new Point(targetX, targetY);
+            if (!_tipForm.Visible)
+            {
+                _tipForm.Show();
+            }
+            else
+            {
+                _tipForm.Invalidate();
+            }
         }
 
         public static void HideTooltip()

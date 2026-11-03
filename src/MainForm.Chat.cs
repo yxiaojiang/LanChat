@@ -104,6 +104,20 @@ namespace LanChat
 
         private void TxtSearch_TextChanged(object sender, EventArgs e)
         {
+            if (_btnSearchClear != null)
+            {
+                bool hasText = !string.IsNullOrEmpty(_txtSearch.Text);
+                if (_btnSearchClear.Visible != hasText)
+                {
+                    _btnSearchClear.Visible = hasText;
+                    if (_txtSearch != null && _searchBoxContainer != null)
+                    {
+                        int clearSize = 24;
+                        int rightPad = hasText ? (clearSize + 16) : 28;
+                        _txtSearch.Width = Math.Max(40, _searchBoxContainer.Width - 14 - rightPad);
+                    }
+                }
+            }
             ApplyFilterAndRenderList();
         }
 
@@ -430,6 +444,11 @@ namespace LanChat
 
         private void TxtInput_TextChanged(object sender, EventArgs e)
         {
+            bool hasText = !string.IsNullOrWhiteSpace(_txtInput.Text);
+            if (_btnSendWave != null && _btnSendWave.IsActive != hasText)
+            {
+                _btnSendWave.IsActive = hasText;
+            }
             // 单行胶囊：重绘占位符；多行换行逻辑已随 Multiline=false 移除
             if (_inputPanel != null) _inputPanel.Invalidate();
             if (_bottomSendPanel != null) _bottomSendPanel.Invalidate();
@@ -795,11 +814,7 @@ namespace LanChat
                     {
                         PeerInfo peer = (PeerInfo)item;
                         GrokPopupMenu menu = new GrokPopupMenu();
-                        menu.AddItem("发起会话", WeChatIconType.Chat, () => SelectPeerChat(peer))
-                            .AddItem("发送文件...", WeChatIconType.Folder, () => BtnSendFile_Click(this, EventArgs.Empty))
-                            .AddItem("复制节点 IP (" + peer.IP + ")", WeChatIconType.Contacts, () => {
-                                try { Clipboard.SetText(peer.IP != null ? peer.IP.ToString() : ""); } catch { }
-                            })
+                        menu.AddItem("发送文件...", WeChatIconType.Folder, () => BtnSendFile_Click(this, EventArgs.Empty))
                             .AddSeparator()
                             .AddItem("清空聊天记录", WeChatIconType.Clear, () => ClearCurrentChat(), null, true);
 
@@ -808,12 +823,9 @@ namespace LanChat
                     else if (item is string)
                     {
                         GrokPopupMenu menu = new GrokPopupMenu();
-                        menu.AddItem("全员群聊", WeChatIconType.Chat, () => {
-                            _listSessions.SelectedIndex = 0;
-                        })
-                        .AddItem("发送文件给所有人...", WeChatIconType.Folder, () => BtnSendFile_Click(this, EventArgs.Empty))
-                        .AddSeparator()
-                        .AddItem("清空群聊记录", WeChatIconType.Clear, () => ClearCurrentChat(), null, true);
+                        menu.AddItem("发送文件给所有人...", WeChatIconType.Folder, () => BtnSendFile_Click(this, EventArgs.Empty))
+                            .AddSeparator()
+                            .AddItem("清空群聊记录", WeChatIconType.Clear, () => ClearCurrentChat(), null, true);
                         menu.Show(_listSessions, e.Location);
                     }
                 }

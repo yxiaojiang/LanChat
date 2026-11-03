@@ -67,6 +67,7 @@ namespace LanChat
         private Panel _searchHeaderPanel;
         private Panel _searchBoxContainer;
         private TextBox _txtSearch;
+        private WeChatIconButton _btnSearchClear;
         private FormResizeMessageFilter _resizeFilter;
         private WeChatIconButton _btnSearchToggle;
         private SessionListBox _listSessions;
@@ -117,7 +118,7 @@ namespace LanChat
         private int _currentNavTab = 0;
 
         // Constants
-        public const string APP_VERSION = "2.0.8";
+        public const string APP_VERSION = "2.0.9";
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
 
         // System Tray & Single Instance
@@ -401,7 +402,7 @@ namespace LanChat
             _txtSearch = new TextBox
             {
                 Location = new Point(14, 10),
-                Width = 300,
+                Width = 270,
                 BackColor = Color.FromArgb(32, 32, 36),
                 ForeColor = Color.FromArgb(242, 242, 246), // #F2F2F6
                 BorderStyle = BorderStyle.None,
@@ -414,7 +415,37 @@ namespace LanChat
                     _txtSearch.Clear();
                 }
             };
+
+            // 搜索框小叉清除按钮 (×)：24x24，输入框有内容时浮现
+            _btnSearchClear = new WeChatIconButton(WeChatIconType.Dismiss, "清除搜索内容", 24)
+            {
+                IsCircle = true,
+                FillColor = Color.Transparent,
+                HoverFillColor = Color.FromArgb(48, 48, 54),
+                IconColor = Color.FromArgb(142, 142, 147),
+                Visible = false,
+                Cursor = Cursors.Hand
+            };
+            _btnSearchClear.Click += (s, e) => {
+                _txtSearch.Clear();
+                _txtSearch.Focus();
+            };
+
             _searchBoxContainer.Controls.Add(_txtSearch);
+            _searchBoxContainer.Controls.Add(_btnSearchClear);
+            _searchBoxContainer.Resize += (s, e) => {
+                int clearSize = 24;
+                if (_btnSearchClear != null)
+                {
+                    _btnSearchClear.Location = new Point(_searchBoxContainer.Width - clearSize - 10, (_searchBoxContainer.Height - clearSize) / 2);
+                }
+                if (_txtSearch != null)
+                {
+                    int rightMargin = (_btnSearchClear != null && _btnSearchClear.Visible) ? (clearSize + 16) : 28;
+                    _txtSearch.Width = Math.Max(40, _searchBoxContainer.Width - 14 - rightMargin);
+                    _txtSearch.Location = new Point(14, (_searchBoxContainer.Height - _txtSearch.Height) / 2);
+                }
+            };
 
             // Top circular Search button at right (46x46, 2x enlarged icon)
             _btnSearchToggle = new WeChatIconButton(WeChatIconType.Search, "搜索会话", 46)
@@ -766,7 +797,8 @@ namespace LanChat
                 IsCircle = true,
                 FillColor = Color.FromArgb(142, 100, 220), // #8E64DC
                 HoverFillColor = Color.FromArgb(157, 117, 236), // #9D75EC
-                IconColor = Color.White
+                IconColor = Color.White,
+                IsActive = false
             };
             _btnSendWave.Click += BtnSend_Click;
 
@@ -870,9 +902,16 @@ namespace LanChat
                     _searchBoxContainer.Location = new Point(leftMargin, boxY);
                     _searchBoxContainer.Size = new Size(boxW, boxH);
 
+                    int clearSize = 24;
+                    if (_btnSearchClear != null)
+                    {
+                        _btnSearchClear.Location = new Point(_searchBoxContainer.Width - clearSize - 10, (_searchBoxContainer.Height - clearSize) / 2);
+                    }
+
                     if (_txtSearch != null)
                     {
-                        _txtSearch.Width = Math.Max(40, _searchBoxContainer.Width - 28);
+                        int rightPad = (_btnSearchClear != null && _btnSearchClear.Visible) ? (clearSize + 16) : 28;
+                        _txtSearch.Width = Math.Max(40, _searchBoxContainer.Width - 14 - rightPad);
                         _txtSearch.Location = new Point(14, (_searchBoxContainer.Height - _txtSearch.Height) / 2);
                     }
                 }
