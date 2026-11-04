@@ -395,7 +395,7 @@ namespace LanChat
             }) { IsBackground = true }.Start();
         }
 
-        private void RemovePeer(string peerId)
+        public void RemovePeer(string peerId)
         {
             bool removed = false;
             lock (_peerLock)

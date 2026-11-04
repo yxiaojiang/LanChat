@@ -190,6 +190,20 @@ namespace LanChat
         }
 
         /// <summary>
+        /// 删除指定会话（从历史列表彻底移除，并清理本地持久化文件）
+        /// </summary>
+        public void DeleteSession(string sessionKey)
+        {
+            if (string.IsNullOrEmpty(sessionKey)) sessionKey = BROADCAST_KEY;
+            lock (_lock)
+            {
+                _histories.Remove(sessionKey);
+            }
+
+            ChatHistoryService.ClearSessionHistory(sessionKey);
+        }
+
+        /// <summary>
         /// 清空全部会话的历史记录（内存与本地持久化文件同步清理）
         /// </summary>
         public void ClearAllHistories()

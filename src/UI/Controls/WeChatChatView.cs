@@ -618,7 +618,7 @@ namespace LanChat
                     else if (msg.IsFile)
                     {
                         int cardW = Math.Min(maxBubbleW, 340);
-                        int cardH = 88;
+                        int cardH = 96;
                         int x = msg.IsSelf ? (viewWidth - rightMargin - cardW) : leftMargin;
                         bool showSender = !msg.IsSelf && (_showGroupSenderName || msg.IsBroadcast) && lastSenderKey != ("PEER:" + msg.SenderNick);
                         int topOffset = showSender ? 22 : 2;
@@ -628,8 +628,8 @@ namespace LanChat
                             Message = msg,
                             Bounds = new Rectangle(0, currentY, viewWidth, cardH + topOffset + 8),
                             BubbleBounds = new Rectangle(x, currentY + topOffset, cardW, cardH),
-                            FileOpenBounds = new Rectangle(x + 18, currentY + topOffset + 56, 80, 22),
-                            FileFolderBounds = new Rectangle(x + 108, currentY + topOffset + 56, 90, 22),
+                            FileOpenBounds = new Rectangle(x + 18, currentY + topOffset + 64, 80, 22),
+                            FileFolderBounds = new Rectangle(x + 108, currentY + topOffset + 64, 90, 22),
                             ShowTimeHeader = showTime,
                             ShowSenderHeader = showSender
                         };
@@ -640,8 +640,9 @@ namespace LanChat
                     else
                     {
                         string raw = msg.Content ?? "";
-                        int padH = msg.IsSelf ? 48 : 52;
-                        int padV = msg.IsSelf ? 36 : 40;
+                        // 紫色本人气泡文字上下左右 padding 减半（左右由 24 缩减为 12，上下由 18 缩减为 9）
+                        int padH = msg.IsSelf ? 24 : 32;
+                        int padV = msg.IsSelf ? 18 : 24;
                         float availTextW = maxBubbleW - padH;
 
                         List<VisualLine> lines = BreakTextIntoVisualLines(g, raw, msgFont, availTextW, 0, 0);
@@ -655,9 +656,11 @@ namespace LanChat
                         float lineHeight = msgFont.GetHeight(g) + 5f;
                         float totalTextH = Math.Max(lineHeight, lines.Count * lineHeight);
 
-                        int bubbleW = Math.Max(64, (int)Math.Ceiling(maxLineWidth) + padH);
+                        int minBubbleH = msg.IsSelf ? 34 : 42;
+                        int minBubbleW = msg.IsSelf ? 40 : 54;
+                        int bubbleW = Math.Max(minBubbleW, (int)Math.Ceiling(maxLineWidth) + padH);
                         if (bubbleW > maxBubbleW) bubbleW = maxBubbleW;
-                        int bubbleH = Math.Max(48, (int)Math.Ceiling(totalTextH) + padV);
+                        int bubbleH = Math.Max(minBubbleH, (int)Math.Ceiling(totalTextH) + padV);
 
                         int x = msg.IsSelf ? (viewWidth - rightMargin - bubbleW) : leftMargin;
                         string curKey = msg.IsSelf ? "SELF" : ("PEER:" + msg.SenderNick);
@@ -670,8 +673,8 @@ namespace LanChat
                         }
 
                         int topOffset = showSender ? 22 : 0;
-                        int textLeft = msg.IsSelf ? (x + 24) : (x + 26);
-                        int textTop = msg.IsSelf ? (currentY + topOffset + 18) : (currentY + topOffset + 20);
+                        int textLeft = msg.IsSelf ? (x + 12) : (x + 16);
+                        int textTop = msg.IsSelf ? (currentY + topOffset + 9) : (currentY + topOffset + 12);
 
                         for (int li = 0; li < lines.Count; li++)
                         {
@@ -707,12 +710,21 @@ namespace LanChat
             }
         }
 
+        protected override void OnPaintBackground(PaintEventArgs pevent)
+        {
+            // 压制系统默认底色擦除，在 OnPaint 中统一全画幅双缓冲填充，避免切会话闪烁
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
-            base.OnPaint(e);
             Graphics g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+            using (SolidBrush bgBrush = new SolidBrush(this.BackColor))
+            {
+                g.FillRectangle(bgBrush, e.ClipRectangle);
+            }
 
             int scrollY = _scrollY;
             int viewWidth = this.Width;
@@ -780,7 +792,7 @@ namespace LanChat
                             if (nameSnippet.Length > 28) nameSnippet = nameSnippet.Substring(0, 25) + "...";
                             g.DrawString(nameSnippet, fnFont, textLight, bb.Left + 62, bb.Top + 14);
                         }
-                        g.DrawString(FormatFileSize(msg.FileSize), timeFont, grayText, bb.Left + 62, bb.Top + 38);
+                        g.DrawString(FormatFileSize(msg.FileSize), timeFont, grayText, bb.Left + 62, bb.Top + 36);
 
                         Rectangle bOpen = new Rectangle(item.FileOpenBounds.X, item.FileOpenBounds.Y - scrollY, item.FileOpenBounds.Width, item.FileOpenBounds.Height);
                         Rectangle bFolder = new Rectangle(item.FileFolderBounds.X, item.FileFolderBounds.Y - scrollY, item.FileFolderBounds.Width, item.FileFolderBounds.Height);
@@ -798,7 +810,8 @@ namespace LanChat
                         if (msg.IsSelf)
                         {
                             // 右侧高饱和紫色圆角气泡 (#7946D7)
-                            MainForm.DrawRoundedRectangle(g, selfBubbleBrush, bb, 24);
+                            int selfRadius = Math.Min(18, bb.Height / 2);
+                            MainForm.DrawRoundedRectangle(g, selfBubbleBrush, bb, selfRadius);
                         }
                         else
                         {

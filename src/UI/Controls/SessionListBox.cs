@@ -38,16 +38,35 @@ namespace LanChat
             get
             {
                 CreateParams cp = base.CreateParams;
-                cp.Style &= ~0x00200000; // WS_VSCROLL 彻底移除 Win32 原生灰白滚动条
+                cp.Style &= ~0x00200000; // WS_VSCROLL
+                cp.Style |= 0x02000000;  // WS_CLIPCHILDREN
                 return cp;
             }
         }
 
         protected override void WndProc(ref Message m)
         {
+            // 彻底拦截系统背景擦除，避免白色/灰色重绘闪烁
+            if (m.Msg == 0x0014) // WM_ERASEBKGND
+            {
+                m.Result = (IntPtr)1;
+                return;
+            }
+
+            // 拦截 Win32 原生 OwnerDraw 反射消息 (WM_REFLECT + WM_DRAWITEM)
+            // 原生 ListBox 会在此消息中使用无缓冲的窗口 DC 直绘单个项，随后又被双缓冲 OnPaint 覆盖，造成文字和图形瞬间重绘闪烁
+            const int WM_REFLECT = 0x2000;
+            const int WM_DRAWITEM = 0x002B;
+            if (m.Msg == (WM_REFLECT | WM_DRAWITEM))
+            {
+                m.Result = (IntPtr)1;
+                return;
+            }
+
             base.WndProc(ref m);
+
             // 确保系统在任何重绘周期都不会插入原生非客户区滚动条
-            if (m.Msg == 0x0085 || m.Msg == 0x0014) // WM_NCPAINT, WM_ERASEBKGND
+            if (m.Msg == 0x0085) // WM_NCPAINT
             {
                 try { ShowScrollBar(this.Handle, 1, false); } catch { }
             }
@@ -65,7 +84,7 @@ namespace LanChat
 
             using (SolidBrush bg = new SolidBrush(this.BackColor))
             {
-                g.FillRectangle(bg, this.ClientRectangle);
+                g.FillRectangle(bg, e.ClipRectangle);
             }
 
             int count = this.Items.Count;
@@ -205,10 +224,24 @@ namespace LanChat
             base.OnMouseLeave(e);
         }
 
+        private int _previousSelectedIndex = -1;
+
         protected override void OnSelectedIndexChanged(EventArgs e)
         {
             base.OnSelectedIndexChanged(e);
-            this.Invalidate();
+            int prev = _previousSelectedIndex;
+            int curr = this.SelectedIndex;
+            _previousSelectedIndex = curr;
+
+            // 仅精准刷新旧选中行与新选中行的脏矩形，避免全量重绘导致的整栏文字闪烁
+            if (prev >= 0 && prev < this.Items.Count)
+            {
+                try { this.Invalidate(this.GetItemRectangle(prev)); } catch { }
+            }
+            if (curr >= 0 && curr < this.Items.Count)
+            {
+                try { this.Invalidate(this.GetItemRectangle(curr)); } catch { }
+            }
         }
     }
 }

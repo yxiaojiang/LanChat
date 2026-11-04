@@ -48,8 +48,8 @@ namespace LanChat
 
         // UI Layout Panels
         private Panel _sidebarPanel;
-        private Panel _sessionsPanel;
-        private Panel _chatPanel;
+        private DoubleBufferedPanel _sessionsPanel;
+        private DoubleBufferedPanel _chatPanel;
 
         // Left Column Hero & Bottom Controls
         private Control _btnAvatar;
@@ -75,7 +75,7 @@ namespace LanChat
         private int _hoverSessionIndex = -1;
 
         // Chat Header Controls (Floating Pill + Window Buttons)
-        private Panel _chatHeader;
+        private DoubleBufferedPanel _chatHeader;
         private Label _lblChatTitle;
         private Label _lblChatSubtitle;
         private WeChatIconButton _btnWinMin;
@@ -118,7 +118,7 @@ namespace LanChat
         private int _currentNavTab = 0;
 
         // Constants
-        public const string APP_VERSION = "2.0.11";
+        public const string APP_VERSION = "2.0.12";
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
 
         // System Tray & Single Instance
@@ -376,7 +376,7 @@ namespace LanChat
             // ==========================================
             // 1. Left Sidebar Column (420px Fixed, #0E0E0E, exact Grok Bot layout)
             // ==========================================
-            _sessionsPanel = new Panel
+            _sessionsPanel = new DoubleBufferedPanel
             {
                 Dock = DockStyle.Left,
                 Width = 420,
@@ -561,14 +561,14 @@ namespace LanChat
             // ==========================================
             // 2. Right Chat Panel (Grok Deep Dark #121212)
             // ==========================================
-            _chatPanel = new Panel
+            _chatPanel = new DoubleBufferedPanel
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(18, 18, 18) // #121212
             };
 
             // 2.1 Top Header with Centered Floating Pill + Frameless Window Buttons
-            _chatHeader = new Panel
+            _chatHeader = new DoubleBufferedPanel
             {
                 Dock = DockStyle.Top,
                 Height = 96,

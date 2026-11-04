@@ -188,7 +188,6 @@ namespace LanChat
             }
 
             CheckAndClearGlobalNotifications();
-            _listSessions.Invalidate();
 
             // Same session: selection paint only — skip SetMessages / layout flash
             if (string.Equals(newKey, previousKey, StringComparison.Ordinal))
@@ -202,18 +201,9 @@ namespace LanChat
             _activeChatKey = newKey;
             _lblChatTitle.Text = titleText;
             _inputPlaceholder = placeholder;
-            _chatView.ShowGroupSenderName = showGroupSender; // field-only when changed; SetMessages does layout
+            _chatView.ShowGroupSenderName = showGroupSender;
 
-            if (_chatPanel != null) _chatPanel.SuspendLayout();
-            try
-            {
-                SwitchActiveChatView();
-            if (_listSessions != null) _listSessions.Invalidate();
-            }
-            finally
-            {
-                if (_chatPanel != null) _chatPanel.ResumeLayout(true);
-            }
+            SwitchActiveChatView();
 
             // Invalidate header / input placeholder regions only — not the whole form
             if (_chatHeader != null) _chatHeader.Invalidate();
@@ -311,18 +301,22 @@ namespace LanChat
                 r.Width - cardMarginX * 2,
                 r.Height - cardMarginY * 2);
 
+            Color currentCardBg = GrokTheme.Level0;
+
             if (isSelected)
             {
-                Color cardColor = GrokTheme.SessionSelected;
-                using (SolidBrush cardBrush = new SolidBrush(cardColor))
+                currentCardBg = GrokTheme.SessionSelected; // #7946D7
+                using (SolidBrush cardBrush = new SolidBrush(currentCardBg))
+                using (Pen cardPen = new Pen(Color.FromArgb(145, 95, 240), 1f))
                 {
                     DrawRoundedRectangle(g, cardBrush, cardRect, cardRadius);
+                    DrawRoundedRectangle(g, cardPen, cardRect, cardRadius);
                 }
             }
             else if (isHover)
             {
-                Color cardColor = isPinned ? Color.FromArgb(32, 28, 42) : GrokTheme.SessionHover;
-                using (SolidBrush cardBrush = new SolidBrush(cardColor))
+                currentCardBg = isPinned ? Color.FromArgb(32, 28, 42) : GrokTheme.SessionHover;
+                using (SolidBrush cardBrush = new SolidBrush(currentCardBg))
                 {
                     DrawRoundedRectangle(g, cardBrush, cardRect, cardRadius);
                 }
@@ -330,9 +324,9 @@ namespace LanChat
             else if (isPinned)
             {
                 // 局域网全员群聊专属置顶卡片背景 (#181520 深邃底色 + #2A2438 柔和紫黑细边框)
-                Color pinnedBg = Color.FromArgb(24, 21, 32);
+                currentCardBg = Color.FromArgb(24, 21, 32);
                 Color pinnedBorder = Color.FromArgb(42, 36, 56);
-                using (SolidBrush cardBrush = new SolidBrush(pinnedBg))
+                using (SolidBrush cardBrush = new SolidBrush(currentCardBg))
                 using (Pen cardPen = new Pen(pinnedBorder, 1f))
                 {
                     DrawRoundedRectangle(g, cardBrush, cardRect, cardRadius);
@@ -350,10 +344,13 @@ namespace LanChat
             int titleY = r.Top + 14;
             int subY = r.Top + 38;
 
+            // 选中项文字颜色微调：副文字在紫色底色上采用高对比柔和浅紫白 (#E4DAFA)
+            Color subTextColor = isSelected ? Color.FromArgb(228, 218, 250) : GrokTheme.TextSubtitle;
+
             if (item is string)
             {
                 string sItem = (string)item;
-                WeChatIcon.DrawMascotAvatar(g, avatarRect, Color.FromArgb(144, 90, 251), false, false, GrokTheme.Level0);
+                WeChatIcon.DrawMascotAvatar(g, avatarRect, Color.FromArgb(144, 90, 251), false, false, currentCardBg);
 
                 using (Font titleFont = GrokTheme.Font(11.0f, FontStyle.Bold))
                 {
@@ -370,9 +367,10 @@ namespace LanChat
                 // 置顶标识文字
                 if (isPinned)
                 {
+                    Color pinColor = isSelected ? Color.White : Color.FromArgb(144, 100, 220);
                     using (Font pinFont = GrokTheme.Font(8.0f, FontStyle.Regular))
                     {
-                        GrokTheme.DrawUiTextRight(g, "置顶", pinFont, Color.FromArgb(144, 100, 220),
+                        GrokTheme.DrawUiTextRight(g, "置顶", pinFont, pinColor,
                             r.Right - 55, titleY + 3, 35, 18);
                     }
                 }
@@ -383,7 +381,7 @@ namespace LanChat
                 using (Font subFont = GrokTheme.Font(9.5f, FontStyle.Regular))
                 {
                     if (snippet.Length > 20) snippet = snippet.Substring(0, 19) + "...";
-                    GrokTheme.DrawUiTextLeft(g, snippet, subFont, GrokTheme.TextSubtitle,
+                    GrokTheme.DrawUiTextLeft(g, snippet, subFont, subTextColor,
                         textX, subY, textW, 20);
                 }
 
@@ -396,7 +394,7 @@ namespace LanChat
                 bool useCoralStyle = (e.Index % 3 == 0);
                 Color bodyColor = useCoralStyle ? Color.FromArgb(252, 44, 62) : Color.FromArgb(246, 148, 18);
                 string badge = useCoralStyle ? "节点" : null;
-                WeChatIcon.DrawMascotAvatar(g, avatarRect, bodyColor, !useCoralStyle, false, GrokTheme.Level0, badge);
+                WeChatIcon.DrawMascotAvatar(g, avatarRect, bodyColor, !useCoralStyle, false, currentCardBg, badge);
 
                 using (Font titleFont = GrokTheme.Font(11.0f, FontStyle.Bold))
                 {
@@ -414,7 +412,7 @@ namespace LanChat
                 using (Font subFont = GrokTheme.Font(9.5f, FontStyle.Regular))
                 {
                     if (snippet.Length > 16) snippet = snippet.Substring(0, 15) + "...";
-                    GrokTheme.DrawUiTextLeft(g, snippet, subFont, GrokTheme.TextSubtitle,
+                    GrokTheme.DrawUiTextLeft(g, snippet, subFont, subTextColor,
                         textX, subY, textW, 20);
                 }
 
@@ -851,7 +849,7 @@ namespace LanChat
                         GrokPopupMenu menu = new GrokPopupMenu();
                         menu.AddItem("发送文件...", WeChatIconType.Folder, () => BtnSendFile_Click(this, EventArgs.Empty))
                             .AddSeparator()
-                            .AddItem("清空聊天记录", WeChatIconType.Clear, () => ClearCurrentChat(), null, true);
+                            .AddItem("删除", WeChatIconType.Clear, () => ConfirmDeletePeerSession(peer), null, true);
 
                         menu.Show(_listSessions, e.Location);
                     }
@@ -860,10 +858,95 @@ namespace LanChat
                         GrokPopupMenu menu = new GrokPopupMenu();
                         menu.AddItem("发送文件给所有人...", WeChatIconType.Folder, () => BtnSendFile_Click(this, EventArgs.Empty))
                             .AddSeparator()
-                            .AddItem("清空群聊记录", WeChatIconType.Clear, () => ClearCurrentChat(), null, true);
+                            .AddItem("清空群聊记录", WeChatIconType.Clear, () => ConfirmDeleteBroadcastSession(), null, true);
                         menu.Show(_listSessions, e.Location);
                     }
                 }
+            }
+        }
+
+        private void ConfirmDeletePeerSession(PeerInfo peer)
+        {
+            if (peer == null) return;
+            string peerNick = !string.IsNullOrEmpty(peer.NickName) ? peer.NickName : "未知节点";
+
+            DialogResult dr = GrokMessageBox.Show(
+                this,
+                string.Format("确定要删除好友“{0}”及全部历史消息吗？\n删除后历史记录将无法恢复。", peerNick),
+                "删除确认",
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Question);
+
+            if (dr == DialogResult.OK)
+            {
+                DeletePeerSession(peer);
+            }
+        }
+
+        private void DeletePeerSession(PeerInfo peer)
+        {
+            if (peer == null) return;
+            string peerId = peer.Id;
+
+            // 1. 删除历史消息持久化与内存缓存
+            if (_sessionManager != null)
+            {
+                _sessionManager.DeleteSession(peerId);
+            }
+
+            // 2. 从网络在线节点列表移除
+            if (_netService != null)
+            {
+                _netService.RemovePeer(peerId);
+            }
+
+            // 3. 从主列表所有项中移除
+            for (int i = _allSessionItems.Count - 1; i >= 0; i--)
+            {
+                object it = _allSessionItems[i];
+                if (it is PeerInfo && ((PeerInfo)it).Id == peerId)
+                {
+                    _allSessionItems.RemoveAt(i);
+                }
+            }
+
+            // 4. 若当前正在查看该好友聊天，则切回全员群聊
+            if (string.Equals(_activeChatKey, peerId, StringComparison.OrdinalIgnoreCase))
+            {
+                _activeChatKey = "BROADCAST";
+                _selectedPeer = null;
+                _lblChatTitle.Text = "局域网全员群聊";
+                _inputPlaceholder = "给所有人发消息";
+                _chatView.ShowGroupSenderName = true;
+                SwitchActiveChatView();
+                if (_chatHeader != null) _chatHeader.Invalidate();
+                if (_inputPanel != null) _inputPanel.Invalidate();
+            }
+
+            // 5. 刷新会话列表显示
+            ApplyFilterAndRenderList();
+        }
+
+        private void ConfirmDeleteBroadcastSession()
+        {
+            DialogResult dr = GrokMessageBox.Show(
+                this,
+                "确定要清空局域网全员群聊的全部历史消息吗？\n删除后历史记录将无法恢复。",
+                "清空确认",
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Question);
+
+            if (dr == DialogResult.OK)
+            {
+                if (_sessionManager != null)
+                {
+                    _sessionManager.ClearHistory(SessionManager.BROADCAST_KEY);
+                }
+                if (_activeChatKey == "BROADCAST")
+                {
+                    SwitchActiveChatView();
+                }
+                ApplyFilterAndRenderList();
             }
         }
 

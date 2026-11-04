@@ -42,6 +42,16 @@ namespace LanChat
                 return cp;
             }
         }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == 0x0014) // WM_ERASEBKGND: 彻底压制背景擦除
+            {
+                m.Result = (System.IntPtr)1;
+                return;
+            }
+            base.WndProc(ref m);
+        }
     }
 
     public class GrokSettingsDialog : Form

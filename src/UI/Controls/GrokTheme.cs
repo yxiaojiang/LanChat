@@ -55,7 +55,7 @@ namespace LanChat
         public static readonly Color AccentGreen = Color.FromArgb(31, 214, 126);    // #1FD67E
 
         // Chat / selection surfaces
-        public static readonly Color SessionSelected = Color.FromArgb(40, 40, 44);  // #28282C
+        public static readonly Color SessionSelected = Color.FromArgb(121, 70, 215); // #7946D7 Grok Purple (与本人聊天气泡一致)
         public static readonly Color SessionHover = Color.FromArgb(34, 34, 38);     // #222226 soft hover card
         public static readonly Color PeerBubble = Color.FromArgb(30, 30, 33);       // #1E1E21
         public static readonly Color InputPlus = Color.FromArgb(42, 42, 46);        // #2A2A2E

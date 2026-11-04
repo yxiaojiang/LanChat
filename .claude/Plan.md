@@ -1,13 +1,13 @@
 # Plan.md — 当前活跃计划
 
 > 最近刷新：2026-11-04。仓库：`https://github.com/yxiaojiang/LanChat.git`。
-> 当前分支：`feature/wechat-ui`（已发布 Tag `v2.0.11`，当前版本 `v2.0.11`）。
-> 核心任务：**WorkBuddy 风格设置中心重构、0ms 瞬时切页、全应用消灭生硬白底滚动条 (Zero White Scrollbar)**；
-> **本阶段已全部完成并正式发布至 GitHub Releases (v2.0.11)**：
-> 1) WorkBuddy 风格设置中心 (`GrokSettingsDialog.cs`)：扩大 1.5 倍（1260×820）、右上角自绘关闭按钮、药丸下拉单行不折行、字体样式字号定制；
-> 2) 0ms 瞬间无感切页与消除瀑布流刷新：Tab 页面全量预构建内存缓存（`_tabPages`），窗口及容器注入 `WS_CLIPCHILDREN` 与 `WS_EX_COMPOSITED` 硬件离屏双缓冲；
-> 3) 全局消灭生硬白底滚动条契约：`Rules.md` 写入第 9 条硬约束；`SessionListBox`、`WeChatChatView`、`GrokSettingsDialog` 全量纯自绘暗灰极窄滑块；
-> 4) 规范更新日志 `CHANGELOG.md` 与自动化发布工具 `packaging/publish-release.py`。
+> 当前分支：`feature/wechat-ui`（已发布 Tag `v2.0.12`，当前版本 `v2.0.12`）。
+> 核心任务：**会话切换零重绘零闪烁、魅紫选中背景态、紫色气泡内边距减半、文件卡片呼吸感优化、右键删除会话与历史消息**；
+> **本阶段已全部完成并正式发布至 GitHub Releases (v2.0.12)**：
+> 1) 会话切换零重绘零闪烁：拦截 Win32 `WM_ERASEBKGND` 与 `WM_REFLECT | WM_DRAWITEM`，重写 `OnSelectedIndexChanged` 仅刷新新旧两项脏矩形，全链路容器升级 `DoubleBufferedPanel` 并挂载 `WS_CLIPCHILDREN`；
+> 2) 魅紫选中态与色彩规范：`SessionSelected` 升级为 `#7946D7`，1px `#915FF0` 精细微光边框，副文本智能切换浅紫白 `#E4DAFA`，头像外框镂空无缝融合；
+> 3) 气泡与文件卡片排版：紫色气泡 Padding 缩减 50%（水平 24px/垂直 18px），单行高度降至 34px，文件卡片操作行距离扩大至 13px 消除拥挤；
+> 4) 会话右键删除与历史清理：右键“删除”带危险红标，居中暗黑确认弹窗二次确认，`SessionManager.DeleteSession` 物理删除磁盘历史并同步内存/网络清理。
 
 ---
 
@@ -16,7 +16,7 @@
 1. **GrokBot / WorkBuddy 细节微调与弹窗排版演进 (feature/wechat-ui)**：
    - Create 窗口 Docs `680×620`、About Docs `440×560` 需重排绝对布局后再放大尺寸（当前暂留紧凑可用尺寸）。
    - `GrokTheme` 设计令牌全面替换工程中遗留的零散 `Color.FromArgb`。
-   - 聊天记录自动保存与跨平台备份管理服务后续接入。
+   - 聊天记录跨平台备份与自动同步服务后续接入。
 
 2. **方案 B（冻结）**：56px 微信式纯黑极窄导航栏暂不实施。
 
