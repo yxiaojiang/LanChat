@@ -1,49 +1,46 @@
 # SessionBrief.md — 当前接手摘要
 
-> 最近刷新：2026-11-03。仓库：`https://github.com/yxiaojiang/LanChat.git`。
-> 当前分支：`feature/wechat-ui`（已发布 Tag `v2.0.10`，当前版本 `v2.0.10`）。
-> 核心里程碑：**托盘未读悬浮预览卡片与多联系人列表、跨版本升级昵称持久化保存服务（Windows & Linux 双端对齐）**；**本阶段已全部完成并正式发布至 GitHub Releases (v2.0.10)**：
-> 1) 托盘未读消息悬浮预览卡片 (`GrokTrayPreviewPopup.cs`)：对标微信/QQ桌面端，托盘图标闪烁时鼠标悬停展示无激活置顶卡片（`WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST | CS_DROPSHADOW`），多联系人列表展示（头像、昵称、未读角标、消息摘要、接收时间），条目悬停高亮，点击立即还原主界面并跳转对应会话；支持多屏工作区智能翻转与边界防溢出，鼠标移开 300ms 平滑隐藏；
-> 2) 原生托盘提示保护：格式化 `_trayIcon.Text` 为 `LanChat: X条未读 (联系人1、联系人2)` 并严格做 60 字符截断，规避 WinForms 越界异常；
-> 3) 昵称与偏好持久化保存体系 (`AppSettings.cs`)：解决软件升级（MSI 安装包、热覆盖、二进制更新）后用户自定义昵称被重置为操作系统系统名的问题；Windows 端优先同级便携模式，默认存储于 `%AppData%\LanChat\settings.json`；
-> 4) Linux 端跨平台 100% 对齐 (`src/linux/lanchat.py`)：实现 `get_settings_file_path()`、`load_settings()`、`save_settings()`，配置漫游至 `~/.config/lanchat/settings.json`（回退 `~/.local/share/lanchat/settings.json`），GUI 与终端 `/nick` 改名均即时落盘与自动恢复；
-> 5) 根目录新增工程规范更新日志 `CHANGELOG.md`，记录全量演进历史；
-> 6) 执行 `Tools/Publish.bat` 成功原子同步全工程版本至 `v2.0.10`，全自动打包生成 WiX 5 `LanChat.msi`、全架构通用与 amd64 `deb` 安装包，并成功发布至 GitHub Releases (v2.0.10)。
+> 最近刷新：2026-11-04。仓库：`https://github.com/yxiaojiang/LanChat.git`。
+> 当前分支：`feature/wechat-ui`（已发布 Tag `v2.0.11`，当前版本 `v2.0.11`）。
+> 核心里程碑：**WorkBuddy 风格设置中心全面升级（扩大1.5倍、自绘关闭按钮、精致胶囊）、0ms 瞬时切页与离屏合成、全应用消灭生硬白底滚动条（Zero White Scrollbar）**；**本阶段已全部完成并正式发布至 GitHub Releases (v2.0.11)**：
+> 1) WorkBuddy 风格设置中心重构 (`GrokSettingsDialog.cs`)：界面尺寸扩大 1.5 倍（1260×820），右上角专属自绘 36×36 Win32 关闭按钮（×），下拉按钮全面采用 WorkBuddy 药丸胶囊风格（单行防折行、明亮纯白字、高质感边框）；新增主界面与聊天框字体样式/字号定制；
+> 2) 0ms 瞬间无感切页与消除瀑布流刷新：根除切 Tab 销毁重建控件导致的连续 `CreateWindowEx` 与扫描线回流；启用 6 大 Tab 页面全量预构建内存缓存（`_tabPages`），切页仅为 `Visible` 切换（耗时 0ms）；全链路窗体与容器注入 `WS_CLIPCHILDREN (0x02000000)` 与 `WS_EX_COMPOSITED (0x02000000)`，实现硬件级原子双缓冲；
+> 3) 全局消灭生硬白底滚动条 (`Rules.md` 第 9 条契约)：`SessionListBox` 剥离 `WS_VSCROLL` 并实现 4px/5px 暗灰悬停自绘滑块；`WeChatChatView` 废除系统 `VScrollBar`，采用全内置虚拟滚动与纯 GDI+ 浮动滑块；设置面板自绘滚动；
+> 4) 自动化发布系统升级：`CHANGELOG.md` 规范记录 `v2.0.11`，`packaging/publish-release.py` 实现更新日志自动提取并发布 GitHub Releases。
 
 ---
 
-## 一、本轮工作态（托盘消息预览、配置持久化与跨平台对齐）
+## 一、本轮工作态（WorkBuddy 设置重构、0ms 切页与全应用无白滚动条）
 
 ### 1. 用户反馈与需求拆解
-1. **托盘闪烁消息预览与多联系人列表**：当有人发消息托盘图标闪烁时，鼠标悬停需展示消息预览和发送者；若有多人发送需以列表展示（对标 QQ / 微信桌面端）。
-2. **用户改名持久化保存**：解决用户更改昵称后更新软件昵称被重置为默认名的问题，需在升级覆盖后永久保留，并保证 Windows 与 Linux 双端一致。
-3. **自动化发布与更新日志**：运行 `publish.bat` 构建发布，并写入规范更新日志。
+1. **设置面板尺寸与布局**：相比主窗口原 920×640 过小，扩大 1.5 倍至 1260×820；右上方增加关闭按钮；右侧药丸下拉选项杜绝折行，文字明亮且有舒适呼吸感内边距；“偏好与配置”菜单简化为“设置”。
+2. **Tab 切换瀑布流扫描刷新问题**：切换 Tab 或窗口打开时，控件由上至下耗时约 0.1 秒刷新渲染，体验生硬山寨；需根除重绘扫描感，实现瞬间瞬间显现。
+3. **消除所有原生白底滚动条**：主界面左侧会话栏及软件所有位置禁止出现 Win32 原生白色滚动条，统一替换为极简纯自绘暗灰滑块，并写入 `Rules.md`。
+4. **字体设置**：外观面板新增主界面字体样式/字号、聊天框字体样式/字号配置。
 
 ---
 
-### 2. 核心架构设计与落地细节
+## 二、核心架构设计与落地细节
 
-#### (1) GrokBot 风格托盘未读悬浮预览卡片 (`GrokTrayPreviewPopup.cs` & `MainForm.Tray.cs`)
-- 继承 `Form` 实现无焦点弹出（`ShowWithoutActivation = true`），避免打断当前用户操作。
-- 采用智能工作区几何测算与多显示器避让，自动根据系统任务栏位置（底部/顶部/边缘）自适应弹出方向与坐标夹紧。
-- 多人消息列表渲染：根据未读数据实体 `TrayUnreadItem`，实时渲染群聊徽标、好友 Mascot 头像、未读计数气泡、最新一条消息摘要与时间。
-- 交互事件闭环：条目点击回调自动唤醒主窗口并调用 `SwitchToSession(convKey)` 定位会话并清空未读计数；主窗口激活、会话选中、托盘还原或右键菜单弹出时自动关闭卡片。
+#### (1) Tab 页面全量缓存与 0ms 瞬时切页 (`GrokSettingsDialog.cs`)
+- **根因分析**：原实现每次点击 Tab 时调用 `_scrollContainer.Controls.Clear()` 并重新 `new` 出 15+ 个 HWND 控件，触发大量 Win32 `CreateWindowEx`，且无离屏合成，导致逐个子控件在屏幕上从上到下显现（扫描线感）。
+- **页面全量预缓存**：在窗口构造初始化时一次性构建 6 大分类的 `DoubleBufferedPanel` 页面（`_tabPages[i]`），切换 Tab 时仅做 `Visible = true/false` 切换，耗时实测 0ms。
+- **离屏合成双缓冲**：窗体及容器挂载 `WS_CLIPCHILDREN (0x02000000)` 与 `WS_EX_COMPOSITED (0x02000000)`，实现系统级离屏缓冲整帧推送，彻底消灭重绘闪烁与白色断层。
 
-#### (2) 全局配置持久化体系 (`AppSettings.cs` & `src/linux/lanchat.py`)
-- **存储路径机制**：
-  - Windows: 优先检查同级 `settings.json`（便携模式），默认漫游在 `%AppData%\LanChat\settings.json`（受 Windows 用户档案保护，MSI 安装/卸载/升级不触碰该目录）。
-  - Linux: 优先检查同级 `settings.json`，默认在 `~/.config/lanchat/settings.json`（回退 `~/.local/share/lanchat/settings.json`）。
-- **字段支持**：`NickName`（用户自定义昵称）、`AutoAcceptFiles`（文件自动接收偏好）。
-- **触发机制**：主窗口构造函数自动加载（`AppSettings.Load()` / `load_settings()`）；设置面板、右键菜单、修改昵称弹窗与终端 `/nick` 改名时即时调用 `Save()`。
+#### (2) 全局消灭生硬白底滚动条 (Zero White Scrollbar 契约)
+- **Rules.md 硬约束**：第九条明确契约，全工程严禁使用 Win32 原生 `WS_VSCROLL` 或原生 `VScrollBar`。
+- **会话列表 (`SessionListBox.cs`)**：
+  - 拦截 Win32 非客户区滚动条创建，调用 `ShowScrollBar(Handle, SB_VERT, false)`；
+  - 自行计算虚拟行高与 `_scrollOffset`，重写 `OnMouseWheel`；
+  - 在列表右边缘自绘 4px 宽（悬停 5px）优雅半透明暗灰圆角滑块，拖拽与滚轮丝滑响应。
+- **聊天视图 (`WeChatChatView.cs`)**：
+  - 彻底移除 `VScrollBar _vScrollBar` 控件；
+  - 采用纯 GDI+ 虚拟流式滚动模型，右侧绘制暗灰浮动滑块，支持滚轮与鼠标拖拽。
 
----
-
-## 二、关键约束与设计原则
-
-1. **C# 5.0 / .NET Framework 4.0**：系统原生 `csc.exe` 直编，零第三方依赖。属性必须在构造函数中初始化，禁用 C# 6 自动属性初始器。
-2. **视觉规范**：100% 遵守 `Docs/GrokBot_UI_Design_System.md` 与 `.claude/Rules.md` 9 大硬约束。
-3. **网络契约**：UDP 38888 / TCP 38889+ / LANC 二进制协议向前向后兼容。
-4. **NotifyIcon 63字符限制**：WinForms 原生 `_trayIcon.Text` 赋值严格限定 `< 64` 字符，杜绝 ArgumentException。
+#### (3) WorkBuddy 风格设置中心精致重构
+- **尺度比例**：1260×820 宽广视界（自适应多屏工作区），左侧导航栏与右侧内容卡片留白均匀。
+- **自绘关闭按钮**：右上角 36×36 Win32 自绘关闭按钮（×），悬停渐变微光，主视口右侧预留 56px 安全边距防遮挡。
+- **药丸下拉按钮**：单行不折行，基于 `TextRenderer.MeasureText` 动态计算安全宽度，16px/14px 充足内外边距，纯白明亮文字与 `#363642` 微光边框。
 
 ---
 
@@ -51,11 +48,10 @@
 
 | 模块 / 文件 | 说明 |
 | :--- | :--- |
-| `src/Services/AppSettings.cs` | 全局持久化配置服务（JSON 读写，%AppData% 漫游与便携模式） |
-| `src/UI/Controls/GrokTrayPreviewPopup.cs` | GrokBot 暗黑无焦点托盘未读预览浮窗卡片控件 |
-| `src/MainForm.cs` | 启动时加载 AppSettings，声明预览窗体与广播摘要缓存 |
-| `src/MainForm.Tray.cs` | 托盘悬停预览触发、关闭、条目列表构建、会话跳转与安全文字刷新 |
-| `src/MainForm.Chat.cs` & `src/MainForm.Files.cs` | 广播摘要记录、未读触发时托盘提示与预览同步 |
-| `src/linux/lanchat.py` | Linux 端同步持久化读写配置，改名与自动接收即时落盘 |
-| `CHANGELOG.md` | 根目录规范更新日志文档 |
-| `packaging/publish-release.py` | 同步更新发布日志与文案 |
+| `.claude/Rules.md` | 第 9 条契约：全局严禁系统原生白底滚动条 (Zero White Scrollbar) |
+| `src/UI/Controls/GrokSettingsDialog.cs` | WorkBuddy 风格设置中心（1260×820、0ms Tab 预构建缓存、自绘关闭按钮、药丸下拉） |
+| `src/UI/Controls/SessionListBox.cs` | 剥离 WS_VSCROLL、自绘暗灰极窄悬停滑块的高性能会话列表 |
+| `src/UI/Controls/WeChatChatView.cs` | 彻底移除原生 VScrollBar，改用全自绘浮动暗灰滑块与虚拟滚动 |
+| `src/MainForm.cs` | 注入 WS_CLIPCHILDREN 消除主界面撕裂 |
+| `CHANGELOG.md` | 新增 v2.0.11 完整版本演进日志 |
+| `packaging/publish-release.py` | 升级自动从 CHANGELOG.md 提取最新说明文案 |

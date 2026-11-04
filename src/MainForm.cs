@@ -217,7 +217,7 @@ namespace LanChat
             {
                 CreateParams cp = base.CreateParams;
                 // 支持无边框窗口点击任务栏最小化/还原及系统动画 (WS_MINIMIZEBOX | WS_SYSMENU)
-                cp.Style |= 0x00020000 | 0x00080000;
+                cp.Style |= 0x00020000 | 0x00080000 | 0x02000000;
                 return cp;
             }
         }

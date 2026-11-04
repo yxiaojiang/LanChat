@@ -102,30 +102,34 @@ def get_git_token():
         pass
     return None
 
+def extract_release_notes(version: str) -> str:
+    changelog_path = os.path.join(ROOT_DIR, "CHANGELOG.md")
+    if os.path.exists(changelog_path):
+        try:
+            with open(changelog_path, "r", encoding="utf-8") as f:
+                text = f.read()
+            pattern = rf'##\s*\[v?{re.escape(version)}\][^\n]*\n(.*?)(?=\n##\s*\[|\Z)'
+            m = re.search(pattern, text, re.DOTALL)
+            if m:
+                raw_notes = m.group(1).strip()
+                raw_notes = re.sub(r'\n---\s*$', '', raw_notes).strip()
+                return f"### 🚀 LanChat v{version} 发布与更新说明\n\n" + raw_notes
+        except Exception as e:
+            print(f"[!] 读取 CHANGELOG.md 说明出错: {e}")
+    return f"### 🚀 LanChat v{version} 正式版发布与安装包更新"
+
 def publish():
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(errors="replace")
+        except Exception:
+            pass
+
     version = detect_version()
     branch = get_current_branch()
     tag_name = f"v{version}"
     release_title = f"LanChat v{version} 正式版"
-    release_notes = f"""### 🚀 LanChat v{version} 发布与更新说明
-
-#### 💬 托盘闪烁未读预览与多联系人卡片 (对标微信/QQ桌面端)
-- **多联系人/群聊未读列表浮窗**：当有新消息且托盘图标闪烁时，鼠标悬停在托盘图标上即可自动浮现高质感暗黑预览卡片，不再只是单一静态文字；
-- **全要素未读条目展现**：每个未读会话条目包含专属头像（群聊徽标或好友 Mascot 吉祥物）、联系人昵称、未读消息条数气泡、最新一条消息摘要与精确时间戳；
-- **交互与快捷跳转**：条目支持鼠标悬停微光高亮；点击任意会话条目即可一键唤醒主界面并自动跳转至该会话窗口，同时清除对应未读计数；
-- **多显示器与任务栏智能适配**：采用无焦点置顶顶层卡片，智能根据托盘坐标在任务栏上方/下方翻转并进行屏幕工作区边界夹紧，鼠标移开 300ms 自动平滑隐藏；
-- **原生 ToolTip 63 字符安全截断**：同步格式化原生托盘提示为 `LanChat: X条未读 (联系人1、联系人2)` 并严格做 60 字符保护，彻底规避系统异常。
-
-#### 💾 用户昵称与配置持久化保存 (跨版本升级防丢失，Windows & Linux 双端对齐)
-- **操作系统用户专有目录漫游**：解决传统聊天软件升级覆盖安装后用户自定义昵称被重置为操作系统默认用户名的问题；
-- **Windows 端 AppSettings 架构**：默认将用户昵称与文件传输偏好持久化至 `%AppData%\LanChat\settings.json`（同时支持可执行文件同级便携模式），MSI 覆盖安装、二进制更新、重启后昵称永久保留；
-- **Linux 端跨平台同步对齐**：在 `~/.config/lanchat/settings.json`（回退 `~/.local/share/lanchat/settings.json`）中同步实现配置落盘与加载，GUI 与终端 `/nick` 改名均即时生效并永久保存。
-
-#### 🎨 界面交互与细节综合优化
-- **发送按钮状态联动**：输入框无文字时发送圆钮默认深灰未激活（不可点击），键入内容后即时点亮为明亮魅紫色；
-- **屏幕工作区防溢出**：底栏 ToolTip 文字提示自适应多显示器工作区检测与避让，彻底杜绝超出屏幕边缘被截断；
-- **搜索框一键清除**：搜索框右侧内嵌自绘小叉按钮（×），有内容时即时浮现，点击一键清除搜索词；
-- **会话右键菜单精简**：移除冗余的“发起会话”与“复制节点 IP”，操作更聚焦高效。"""
+    release_notes = extract_release_notes(version)
 
     print("=" * 65)
     print(f"      LanChat GitHub Releases 自动发布工具 (v{version})")

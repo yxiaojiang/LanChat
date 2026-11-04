@@ -18,8 +18,13 @@ namespace LanChat
         public Action<ChatMessage, string> OnFileActionClick;
 
         private List<ChatMessage> _messages = new List<ChatMessage>();
-        private readonly VScrollBar _vScrollBar;
         private int _totalHeight = 0;
+        private int _scrollY = 0;
+        private int _maxScroll = 0;
+        private bool _isThumbHover = false;
+        private bool _isThumbDragging = false;
+        private int _dragStartY = 0;
+        private int _dragStartScrollY = 0;
         private readonly List<MessageRenderItem> _renderItems = new List<MessageRenderItem>();
         private bool _showGroupSenderName = false;
 
@@ -68,14 +73,7 @@ namespace LanChat
             this.AutoScroll = false;
             this.TabStop = true;
 
-            _vScrollBar = new VScrollBar
-            {
-                Dock = DockStyle.Right,
-                Width = 8,
-                Visible = false
-            };
-            _vScrollBar.Scroll += (s, e) => { Invalidate(); };
-            this.Controls.Add(_vScrollBar);
+
 
             this.MouseWheel += WeChatChatView_MouseWheel;
             this.MouseDown += WeChatChatView_MouseDown;
@@ -127,24 +125,29 @@ namespace LanChat
 
         private void WeChatChatView_MouseWheel(object sender, MouseEventArgs e)
         {
-            if (!_vScrollBar.Visible || this.Height <= 0) return;
-            int change = (e.Delta / 120) * -40;
-            int newVal = _vScrollBar.Value + change;
-            int maxAllowed = Math.Max(0, _vScrollBar.Maximum - Math.Max(1, _vScrollBar.LargeChange) + 1);
-            if (newVal > maxAllowed) newVal = maxAllowed;
-            if (newVal < _vScrollBar.Minimum) newVal = _vScrollBar.Minimum;
-            if (newVal > _vScrollBar.Maximum) newVal = _vScrollBar.Maximum;
-            try
+            if (_maxScroll <= 0 || this.Height <= 0) return;
+            int change = (e.Delta > 0) ? -60 : 60;
+            int newVal = _scrollY + change;
+            if (newVal < 0) newVal = 0;
+            if (newVal > _maxScroll) newVal = _maxScroll;
+            if (newVal != _scrollY)
             {
-                _vScrollBar.Value = newVal;
+                _scrollY = newVal;
+                Invalidate();
             }
-            catch { }
-            Invalidate();
         }
 
         private void WeChatChatView_MouseDown(object sender, MouseEventArgs e)
         {
-            Point pt = new Point(e.X, e.Y + (_vScrollBar.Visible ? _vScrollBar.Value : 0));
+            if (_maxScroll > 0 && e.X >= this.Width - 12)
+            {
+                _isThumbDragging = true;
+                _dragStartY = e.Y;
+                _dragStartScrollY = _scrollY;
+                Invalidate();
+                return;
+            }
+            Point pt = new Point(e.X, e.Y + _scrollY);
             this.Focus();
 
             if (e.Button == MouseButtons.Left)
@@ -234,7 +237,32 @@ namespace LanChat
 
         private void WeChatChatView_MouseMove(object sender, MouseEventArgs e)
         {
-            Point pt = new Point(e.X, e.Y + (_vScrollBar.Visible ? _vScrollBar.Value : 0));
+            bool overThumb = (_maxScroll > 0 && e.X >= this.Width - 12);
+            if (overThumb != _isThumbHover)
+            {
+                _isThumbHover = overThumb;
+                Invalidate();
+            }
+
+            if (_isThumbDragging && _maxScroll > 0)
+            {
+                int viewH = this.Height;
+                int thumbH = Math.Max(32, (int)((float)viewH / _totalHeight * viewH));
+                int availTrack = Math.Max(1, viewH - thumbH);
+                int dy = e.Y - _dragStartY;
+                int deltaScroll = (int)((float)dy / availTrack * _maxScroll);
+                int target = _dragStartScrollY + deltaScroll;
+                if (target < 0) target = 0;
+                if (target > _maxScroll) target = _maxScroll;
+                if (target != _scrollY)
+                {
+                    _scrollY = target;
+                    Invalidate();
+                }
+                return;
+            }
+
+            Point pt = new Point(e.X, e.Y + _scrollY);
 
             if (_isSelecting && _selectedItem != null)
             {
@@ -273,15 +301,30 @@ namespace LanChat
 
         private void WeChatChatView_MouseUp(object sender, MouseEventArgs e)
         {
+            if (_isThumbDragging)
+            {
+                _isThumbDragging = false;
+                Invalidate();
+            }
             if (e.Button == MouseButtons.Left)
             {
                 _isSelecting = false;
             }
         }
 
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            if (_isThumbHover)
+            {
+                _isThumbHover = false;
+                Invalidate();
+            }
+        }
+
         private void WeChatChatView_MouseDoubleClick(object sender, MouseEventArgs e)
         {
-            Point pt = new Point(e.X, e.Y + (_vScrollBar.Visible ? _vScrollBar.Value : 0));
+            Point pt = new Point(e.X, e.Y + _scrollY);
             foreach (var item in _renderItems)
             {
                 if (!item.Message.IsFile && item.BubbleBounds.Contains(pt))
@@ -525,12 +568,12 @@ namespace LanChat
             if (_messages == null || _messages.Count == 0)
             {
                 _totalHeight = 0;
-                _vScrollBar.Visible = false;
-                try { _vScrollBar.Value = 0; } catch { }
+                _maxScroll = 0;
+                _scrollY = 0;
                 return;
             }
 
-            int viewWidth = this.Width - (_vScrollBar.Visible ? _vScrollBar.Width : 0);
+            int viewWidth = this.Width;
             if (viewWidth < 200) viewWidth = 200;
 
             int leftMargin = 28;
@@ -652,32 +695,15 @@ namespace LanChat
             }
 
             _totalHeight = currentY + 30;
+            _maxScroll = Math.Max(0, _totalHeight - this.Height);
 
-            if (_totalHeight > this.Height && this.Height > 0)
+            if (scrollToBottom)
             {
-                _vScrollBar.Visible = true;
-                _vScrollBar.Minimum = 0;
-                _vScrollBar.Maximum = _totalHeight;
-                _vScrollBar.LargeChange = Math.Max(1, this.Height);
-                if (scrollToBottom)
-                {
-                    int maxAllowed = Math.Max(0, _vScrollBar.Maximum - _vScrollBar.LargeChange + 1);
-                    int targetVal = Math.Min(_vScrollBar.Maximum, Math.Max(_vScrollBar.Minimum, maxAllowed));
-                    try
-                    {
-                        _vScrollBar.Value = targetVal;
-                    }
-                    catch { }
-                }
+                _scrollY = _maxScroll;
             }
-            else
+            else if (_scrollY > _maxScroll)
             {
-                _vScrollBar.Visible = false;
-                try
-                {
-                    _vScrollBar.Value = 0;
-                }
-                catch { }
+                _scrollY = _maxScroll;
             }
         }
 
@@ -688,8 +714,8 @@ namespace LanChat
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
-            int scrollY = _vScrollBar.Visible ? _vScrollBar.Value : 0;
-            int viewWidth = this.Width - (_vScrollBar.Visible ? _vScrollBar.Width : 0);
+            int scrollY = _scrollY;
+            int viewWidth = this.Width;
             if (viewWidth < 200) viewWidth = 200;
 
             using (Font timeFont = new Font("Microsoft YaHei UI", 9.0f))
