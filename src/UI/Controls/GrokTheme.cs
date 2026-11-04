@@ -10,7 +10,13 @@ namespace LanChat
     /// </summary>
     public static class GrokTheme
     {
-        public const string FontFamily = "Microsoft YaHei UI";
+        public static string FontFamily
+        {
+            get
+            {
+                return !string.IsNullOrEmpty(AppSettings.UiFontFamily) ? AppSettings.UiFontFamily : "Microsoft YaHei UI";
+            }
+        }
 
         // Background elevation
         public static readonly Color Level0 = Color.FromArgb(14, 14, 14);       // #0E0E0E

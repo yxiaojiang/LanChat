@@ -33,10 +33,37 @@ namespace LanChat
 
             _allSessionItems.Clear();
             _allSessionItems.Add(BROADCAST_TARGET);
+            HashSet<string> addedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var p in peers)
             {
                 _allSessionItems.Add(p);
+                if (!string.IsNullOrEmpty(p.Id)) addedIds.Add(p.Id);
+            }
+
+            // 恢复历史聊天记录中的好友会话 (对标微信/QQ，重启或离线仍保留会话条目与历史查阅)
+            if (_sessionManager != null)
+            {
+                var keys = _sessionManager.GetAllSessionKeys();
+                foreach (var k in keys)
+                {
+                    if (string.IsNullOrEmpty(k) || k.Equals(SessionManager.BROADCAST_KEY, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!addedIds.Contains(k))
+                    {
+                        var lastMsg = _sessionManager.GetLastMessage(k);
+                        string nick = (lastMsg != null && !string.IsNullOrEmpty(lastMsg.SenderNick) && !lastMsg.IsSelf) ? lastMsg.SenderNick : "历史好友 (" + k + ")";
+                        PeerInfo offlinePeer = new PeerInfo
+                        {
+                            Id = k,
+                            NickName = nick,
+                            HostName = "离线",
+                            LastMessage = _sessionManager.GetLastMessageSnippet(k, 24),
+                            LastMessageTime = lastMsg != null ? lastMsg.Timestamp : DateTime.MinValue
+                        };
+                        _allSessionItems.Add(offlinePeer);
+                        addedIds.Add(k);
+                    }
+                }
             }
 
 
@@ -181,6 +208,7 @@ namespace LanChat
             try
             {
                 SwitchActiveChatView();
+            if (_listSessions != null) _listSessions.Invalidate();
             }
             finally
             {
@@ -634,6 +662,7 @@ namespace LanChat
         {
             _sessionManager.ClearHistory(_activeChatKey);
             SwitchActiveChatView();
+            if (_listSessions != null) _listSessions.Invalidate();
         }
 
         #endregion
@@ -750,6 +779,7 @@ namespace LanChat
             try
             {
                 SwitchActiveChatView();
+            if (_listSessions != null) _listSessions.Invalidate();
             }
             finally
             {

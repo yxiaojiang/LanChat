@@ -37,7 +37,8 @@ namespace LanChat
         Bolt,
         Settings,
         Logout,
-        Copy
+        Copy,
+        None
     }
 
     /// <summary>
@@ -49,6 +50,8 @@ namespace LanChat
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+            if (type == WeChatIconType.None) return;
 
             switch (type)
             {

@@ -85,6 +85,26 @@ namespace LanChat
             this.Resize += (s, e) => { RecalculateLayout(true); Invalidate(); };
         }
 
+        public Font GetMsgFont()
+        {
+            string fam = !string.IsNullOrEmpty(AppSettings.ChatFontFamily) ? AppSettings.ChatFontFamily : "Microsoft YaHei UI";
+            float sz = AppSettings.ChatFontSize >= 8f ? AppSettings.ChatFontSize : 10.5f;
+            try
+            {
+                return new Font(fam, sz, FontStyle.Regular);
+            }
+            catch
+            {
+                return new Font("Microsoft YaHei UI", 10.5f, FontStyle.Regular);
+            }
+        }
+
+        public void ApplyFontSettings()
+        {
+            RecalculateLayout(true);
+            Invalidate();
+        }
+
         public void SetMessages(List<ChatMessage> list)
         {
             _messages = list ?? new List<ChatMessage>();
@@ -161,7 +181,7 @@ namespace LanChat
                 if (hitItem != null)
                 {
                     using (Graphics g = this.CreateGraphics())
-                    using (Font msgFont = new Font("Microsoft YaHei UI", 10.5f))
+                    using (Font msgFont = GetMsgFont())
                     {
                         int charIdx = GetCharIndexAtPoint(hitItem, pt, g, msgFont);
                         _selectedItem = hitItem;
@@ -219,7 +239,7 @@ namespace LanChat
             if (_isSelecting && _selectedItem != null)
             {
                 using (Graphics g = this.CreateGraphics())
-                using (Font msgFont = new Font("Microsoft YaHei UI", 10.5f))
+                using (Font msgFont = GetMsgFont())
                 {
                     int curChar = GetCharIndexAtPoint(_selectedItem, pt, g, msgFont);
                     _selStart = Math.Min(_selAnchor, curChar);
@@ -523,7 +543,7 @@ namespace LanChat
 
             using (Graphics g = this.CreateGraphics())
             using (Font timeFont = new Font("Microsoft YaHei UI", 9.0f))
-            using (Font msgFont = new Font("Microsoft YaHei UI", 10.5f))
+            using (Font msgFont = GetMsgFont())
             {
                 for (int i = 0; i < _messages.Count; i++)
                 {
@@ -673,7 +693,7 @@ namespace LanChat
             if (viewWidth < 200) viewWidth = 200;
 
             using (Font timeFont = new Font("Microsoft YaHei UI", 9.0f))
-            using (Font msgFont = new Font("Microsoft YaHei UI", 10.5f))
+            using (Font msgFont = GetMsgFont())
             using (Font codeFont = new Font("Consolas", 10f))
             using (Font nickFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold))
             using (SolidBrush textLight = new SolidBrush(Color.FromArgb(242, 242, 246))) // #F2F2F6

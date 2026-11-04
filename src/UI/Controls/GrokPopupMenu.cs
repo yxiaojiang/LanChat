@@ -219,7 +219,10 @@ namespace LanChat
                 {
                     iconColor = isHover ? Color.FromArgb(250, 250, 252) : Color.FromArgb(160, 160, 165);
                 }
-                WeChatIcon.Draw(g, item.IconType, iconRect, false, iconColor);
+                if (item.IconType != WeChatIconType.None)
+                {
+                    WeChatIcon.Draw(g, item.IconType, iconRect, false, iconColor);
+                }
 
                 // 菜单标题文字 (10.0pt, 绝对垂直居中)
                 Color textColor;
@@ -240,7 +243,8 @@ namespace LanChat
                     FormatFlags = StringFormatFlags.NoWrap
                 })
                 {
-                    Rectangle textRect = new Rectangle(itemRect.X + 40, itemRect.Y, itemRect.Width - 50, itemRect.Height);
+                    int textLeft = (item.IconType != WeChatIconType.None) ? (itemRect.X + 40) : (itemRect.X + 16);
+                    Rectangle textRect = new Rectangle(textLeft, itemRect.Y, itemRect.Right - textLeft - 36, itemRect.Height);
                     g.DrawString(item.Text, this.Font, textBrush, textRect, sf);
                 }
 

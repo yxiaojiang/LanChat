@@ -118,7 +118,7 @@ namespace LanChat
         private int _currentNavTab = 0;
 
         // Constants
-        public const string APP_VERSION = "2.0.10";
+        public const string APP_VERSION = "2.0.11";
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
 
         // System Tray & Single Instance
@@ -198,8 +198,10 @@ namespace LanChat
 
             // 加载持久化设置 (保证升级覆盖后昵称与偏好不丢失)
             AppSettings.Load();
+            _sessionManager.LoadPersistedHistories();
 
             InitializeComponent();
+            ApplyFontSettings();
             _resizeFilter = new FormResizeMessageFilter(this);
             Application.AddMessageFilter(_resizeFilter);
             this.FormClosed += (s, e) => {
@@ -985,6 +987,38 @@ namespace LanChat
         }
 
         #region SafeInvoke & Helpers
+
+        public void ApplyFontSettings()
+        {
+            try
+            {
+                string uiFam = !string.IsNullOrEmpty(AppSettings.UiFontFamily) ? AppSettings.UiFontFamily : "Microsoft YaHei UI";
+                float uiSz = AppSettings.UiFontSize >= 8f ? AppSettings.UiFontSize : 10.0f;
+                this.Font = new Font(uiFam, uiSz, FontStyle.Regular);
+
+                if (_txtInput != null)
+                {
+                    _txtInput.Font = new Font(uiFam, Math.Max(10f, uiSz + 1f), FontStyle.Regular);
+                }
+                if (_txtSearch != null)
+                {
+                    _txtSearch.Font = new Font(uiFam, uiSz, FontStyle.Regular);
+                }
+
+                if (_chatView != null)
+                {
+                    _chatView.ApplyFontSettings();
+                }
+
+                if (_listSessions != null)
+                {
+                    _listSessions.Invalidate();
+                }
+
+                this.Invalidate(true);
+            }
+            catch { }
+        }
 
         private void SafeInvoke(Action action)
         {

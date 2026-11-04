@@ -6,14 +6,14 @@ namespace LanChat
     /// <summary>
     /// 会话与聊天消息历史协调服务
     /// 统一管理各好友/广播群聊的历史消息、摘要与活跃会话上下文
-    /// 纯领域应用服务，无任何 UI 强绑定
+    /// 纯领域应用服务，与磁盘持久化 ChatHistoryService 无缝协同，无任何 UI 强绑定
     /// </summary>
     public class SessionManager
     {
         public const string BROADCAST_KEY = "BROADCAST";
 
         private readonly object _lock = new object();
-        private readonly Dictionary<string, List<ChatMessage>> _histories = new Dictionary<string, List<ChatMessage>>();
+        private readonly Dictionary<string, List<ChatMessage>> _histories = new Dictionary<string, List<ChatMessage>>(StringComparer.OrdinalIgnoreCase);
         private string _activeSessionKey = BROADCAST_KEY;
 
         /// <summary>
@@ -58,9 +58,28 @@ namespace LanChat
         public event Action<string, ChatMessage> MessageAdded;
 
         /// <summary>
-        /// 追加单条消息至指定会话历史
+        /// 启动时从持久化存储恢复全量历史记录
         /// </summary>
-        public void AddMessage(string sessionKey, ChatMessage msg)
+        public void LoadPersistedHistories()
+        {
+            lock (_lock)
+            {
+                try
+                {
+                    var loaded = ChatHistoryService.LoadAllHistories();
+                    foreach (var kvp in loaded)
+                    {
+                        _histories[kvp.Key] = kvp.Value;
+                    }
+                }
+                catch { }
+            }
+        }
+
+        /// <summary>
+        /// 追加单条消息至指定会话历史（默认同步追加落盘）
+        /// </summary>
+        public void AddMessage(string sessionKey, ChatMessage msg, bool persist = true)
         {
             if (string.IsNullOrEmpty(sessionKey)) sessionKey = BROADCAST_KEY;
             if (msg == null) return;
@@ -74,6 +93,11 @@ namespace LanChat
                     _histories[sessionKey] = list;
                 }
                 list.Add(msg);
+            }
+
+            if (persist)
+            {
+                ChatHistoryService.SaveMessage(sessionKey, msg);
             }
 
             var handler = MessageAdded;
@@ -148,7 +172,7 @@ namespace LanChat
         }
 
         /// <summary>
-        /// 清空指定会话的历史记录
+        /// 清空指定会话的历史记录（内存与本地持久化文件同步清理）
         /// </summary>
         public void ClearHistory(string sessionKey)
         {
@@ -160,6 +184,32 @@ namespace LanChat
                 {
                     list.Clear();
                 }
+            }
+
+            ChatHistoryService.ClearSessionHistory(sessionKey);
+        }
+
+        /// <summary>
+        /// 清空全部会话的历史记录（内存与本地持久化文件同步清理）
+        /// </summary>
+        public void ClearAllHistories()
+        {
+            lock (_lock)
+            {
+                _histories.Clear();
+            }
+
+            ChatHistoryService.ClearAllHistories();
+        }
+
+        /// <summary>
+        /// 获取当前所有存在历史记录的会话键列表
+        /// </summary>
+        public List<string> GetAllSessionKeys()
+        {
+            lock (_lock)
+            {
+                return new List<string>(_histories.Keys);
             }
         }
     }

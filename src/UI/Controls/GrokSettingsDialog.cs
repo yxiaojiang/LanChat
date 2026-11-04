@@ -37,20 +37,23 @@ namespace LanChat
         private Panel _contentPanel;
 
         private const int SIDEBAR_WIDTH = 220;
-        private const int CARD_WIDTH = 636;
+        private const int CARD_WIDTH = 616;
+        private readonly Action _onFontChanged;
 
         public GrokSettingsDialog(
             NetworkService netService,
             Action onCheckUpdate,
             Action onShowChangeNick,
             Action onOpenFolder,
-            int initialTab = 0)
+            int initialTab = 0,
+            Action onFontChanged = null)
         {
             _netService = netService;
             _onCheckUpdate = onCheckUpdate;
             _onShowChangeNick = onShowChangeNick;
             _onOpenFolder = onOpenFolder;
             _activeTab = initialTab;
+            _onFontChanged = onFontChanged;
 
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.CenterParent;
@@ -58,7 +61,7 @@ namespace LanChat
             this.Size = new Size(920, 640);
             this.BackColor = Color.FromArgb(18, 18, 18); // #121212 主视口纯正暗黑
             this.DoubleBuffered = true;
-            this.Font = new Font("Microsoft YaHei UI", 10.0f, FontStyle.Regular);
+            this.Font = new Font(GrokTheme.FontFamily, 10.0f, FontStyle.Regular);
 
             BuildLayout();
         }
@@ -174,15 +177,15 @@ namespace LanChat
             cardUser.Controls.Add(btnEditNick);
             _contentPanel.Controls.Add(cardUser);
 
-            curY += 100;
+            curY += 104;
 
-            // 2. 分组标签: "外观与偏好"
+            // 2. 分组标签: "外观与偏好" (增加主界面字体样式/大小与聊天框字体样式/大小设置)
             Label lblTheme = CreateSectionHeader("外观与偏好", curY);
             _contentPanel.Controls.Add(lblTheme);
             curY += 28;
 
-            // 外观大卡片 (3 行，每行 54px，总高 164px)
-            Panel cardTheme = CreateCardPanel(CARD_WIDTH, 164);
+            // 外观大卡片 (7 行，每行 54px，总高 378px)
+            Panel cardTheme = CreateCardPanel(CARD_WIDTH, 378);
             cardTheme.Location = new Point(0, curY);
             cardTheme.Paint += (s, e) =>
             {
@@ -190,20 +193,36 @@ namespace LanChat
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
-                using (Font f = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Regular))
+                using (Font f = new Font(GrokTheme.FontFamily, 10.5f, FontStyle.Regular))
                 using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 244)))
                 using (Pen sepPen = new Pen(Color.FromArgb(38, 38, 43), 1f))
                 {
-                    // Row 1 (y = 0..54)
+                    // Row 1: 主题模式 (y = 0..54)
                     g.DrawString("主题模式", f, tb, new PointF(22, (54 - f.GetHeight(g)) / 2f));
                     g.DrawLine(sepPen, 22, 54, CARD_WIDTH - 22, 54);
 
-                    // Row 2 (y = 54..108)
+                    // Row 2: 强调色 (y = 54..108)
                     g.DrawString("强调色", f, tb, new PointF(22, 54 + (54 - f.GetHeight(g)) / 2f));
                     g.DrawLine(sepPen, 22, 108, CARD_WIDTH - 22, 108);
 
-                    // Row 3 (y = 108..162)
+                    // Row 3: 界面语言 (y = 108..162)
                     g.DrawString("界面语言", f, tb, new PointF(22, 108 + (54 - f.GetHeight(g)) / 2f));
+                    g.DrawLine(sepPen, 22, 162, CARD_WIDTH - 22, 162);
+
+                    // Row 4: 主界面字体样式 (y = 162..216)
+                    g.DrawString("主界面字体样式", f, tb, new PointF(22, 162 + (54 - f.GetHeight(g)) / 2f));
+                    g.DrawLine(sepPen, 22, 216, CARD_WIDTH - 22, 216);
+
+                    // Row 5: 主界面字体大小 (y = 216..270)
+                    g.DrawString("主界面字体大小", f, tb, new PointF(22, 216 + (54 - f.GetHeight(g)) / 2f));
+                    g.DrawLine(sepPen, 22, 270, CARD_WIDTH - 22, 270);
+
+                    // Row 6: 聊天框字体样式 (y = 270..324)
+                    g.DrawString("聊天框字体样式", f, tb, new PointF(22, 270 + (54 - f.GetHeight(g)) / 2f));
+                    g.DrawLine(sepPen, 22, 324, CARD_WIDTH - 22, 324);
+
+                    // Row 7: 聊天框字体大小 (y = 324..378)
+                    g.DrawString("聊天框字体大小", f, tb, new PointF(22, 324 + (54 - f.GetHeight(g)) / 2f));
                 }
             };
 
@@ -222,35 +241,222 @@ namespace LanChat
             btnLangPill.Location = new Point(CARD_WIDTH - 212, 108 + (54 - 32) / 2);
             cardTheme.Controls.Add(btnLangPill);
 
+            // Row 4 右侧药丸胶囊: 主界面字体样式
+            Button btnUiFontPill = CreateDropdownPill(GetUiFontDisplayName() + "  ∨", 160, 32);
+            btnUiFontPill.Location = new Point(CARD_WIDTH - 182, 162 + (54 - 32) / 2);
+            btnUiFontPill.Click += (s, e) => ShowUiFontPicker(btnUiFontPill);
+            cardTheme.Controls.Add(btnUiFontPill);
+
+            // Row 5 右侧药丸胶囊: 主界面字体大小
+            Button btnUiSizePill = CreateDropdownPill(GetUiSizeDisplayName() + "  ∨", 150, 32);
+            btnUiSizePill.Location = new Point(CARD_WIDTH - 172, 216 + (54 - 32) / 2);
+            btnUiSizePill.Click += (s, e) => ShowUiSizePicker(btnUiSizePill);
+            cardTheme.Controls.Add(btnUiSizePill);
+
+            // Row 6 右侧药丸胶囊: 聊天框字体样式
+            Button btnChatFontPill = CreateDropdownPill(GetChatFontDisplayName() + "  ∨", 160, 32);
+            btnChatFontPill.Location = new Point(CARD_WIDTH - 182, 270 + (54 - 32) / 2);
+            btnChatFontPill.Click += (s, e) => ShowChatFontPicker(btnChatFontPill);
+            cardTheme.Controls.Add(btnChatFontPill);
+
+            // Row 7 右侧药丸胶囊: 聊天框字体大小
+            Button btnChatSizePill = CreateDropdownPill(GetChatSizeDisplayName() + "  ∨", 150, 32);
+            btnChatSizePill.Location = new Point(CARD_WIDTH - 172, 324 + (54 - 32) / 2);
+            btnChatSizePill.Click += (s, e) => ShowChatSizePicker(btnChatSizePill);
+            cardTheme.Controls.Add(btnChatSizePill);
+
             _contentPanel.Controls.Add(cardTheme);
 
-            curY += 182;
+            curY += 378 + 24;
 
-            // 3. 分组标签: "支持与反馈"
-            Label lblFk = CreateSectionHeader("支持与反馈", curY);
-            _contentPanel.Controls.Add(lblFk);
+            // 3. 分组标签: "文件与传输" (自动接收文件、接收文件目录迁移至此)
+            Label lblFile = CreateSectionHeader("文件与传输", curY);
+            _contentPanel.Controls.Add(lblFile);
             curY += 28;
 
-            // 反馈快捷卡片 (高 72px)
-            Panel cardFk = CreateCardPanel(CARD_WIDTH, 72);
-            cardFk.Location = new Point(0, curY);
-            cardFk.Paint += (s, e) =>
+            Panel cardFile = CreateCardPanel(CARD_WIDTH, 112);
+            cardFile.Location = new Point(0, curY);
+
+            cardFile.Paint += (s, e) =>
             {
                 Graphics g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
-                using (Font f = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Regular))
-                using (Font sf = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
+                using (Font f = new Font(GrokTheme.FontFamily, 10.5f, FontStyle.Regular))
+                using (Font sf = new Font(GrokTheme.FontFamily, 9.0f, FontStyle.Regular))
                 using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 244)))
                 using (SolidBrush sb = new SolidBrush(Color.FromArgb(142, 142, 147)))
+                using (Pen sep = new Pen(Color.FromArgb(38, 38, 43), 1f))
                 {
-                    g.DrawString("意见与问题反馈", f, tb, new PointF(22, 17));
-                    g.DrawString("帮助我们将 LanChat 打磨得更贴合你的直觉与习惯", sf, sb, new PointF(22, 41));
+                    // Row 1: 自动接收文件
+                    g.DrawString("自动接收文件", f, tb, new PointF(22, 10));
+                    g.DrawString("局域网内接收文件时无需手动逐一确认保存", sf, sb, new PointF(22, 32));
+                    g.DrawLine(sep, 22, 56, CARD_WIDTH - 22, 56);
+
+                    // Row 2: 接收文件目录
+                    g.DrawString("接收文件目录", f, tb, new PointF(22, 66));
+                    string curDir = !string.IsNullOrEmpty(AppSettings.SaveDirectory) ? AppSettings.SaveDirectory : (_netService != null ? _netService.SaveDirectory : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ReceivedFiles"));
+                    string shortDir = curDir.Length > 36 ? "..." + curDir.Substring(curDir.Length - 33) : curDir;
+                    g.DrawString(shortDir, sf, sb, new PointF(22, 88));
                 }
             };
+
+            bool autoAccept = _netService != null ? _netService.AutoAcceptFiles : AppSettings.AutoAcceptFiles;
+            Button btnAutoAccept = CreateCardActionButton(autoAccept ? "已开启" : "已关闭", 84, 32);
+            btnAutoAccept.Location = new Point(CARD_WIDTH - 106, (56 - 32) / 2);
+            btnAutoAccept.Click += (s, e) =>
+            {
+                if (_netService != null)
+                {
+                    _netService.AutoAcceptFiles = !_netService.AutoAcceptFiles;
+                    AppSettings.AutoAcceptFiles = _netService.AutoAcceptFiles;
+                    AppSettings.Save();
+                    btnAutoAccept.Text = _netService.AutoAcceptFiles ? "已开启" : "已关闭";
+                    btnAutoAccept.Invalidate();
+                }
+            };
+            cardFile.Controls.Add(btnAutoAccept);
+
+            Button btnChangeSaveDir = CreateCardActionButton("更改", 72, 32);
+            btnChangeSaveDir.Location = new Point(CARD_WIDTH - 200, 56 + (56 - 32) / 2);
+            btnChangeSaveDir.Click += (s, e) =>
+            {
+                using (FolderBrowserDialog fbd = new FolderBrowserDialog())
+                {
+                    fbd.Description = "请选择文件接收保存目录";
+                    string curDir = !string.IsNullOrEmpty(AppSettings.SaveDirectory) ? AppSettings.SaveDirectory : (_netService != null ? _netService.SaveDirectory : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ReceivedFiles"));
+                    fbd.SelectedPath = curDir;
+                    if (fbd.ShowDialog(this) == DialogResult.OK && !string.IsNullOrEmpty(fbd.SelectedPath))
+                    {
+                        AppSettings.SaveDirectory = fbd.SelectedPath;
+                        if (_netService != null) _netService.SaveDirectory = fbd.SelectedPath;
+                        AppSettings.Save();
+                        cardFile.Invalidate();
+                    }
+                }
+            };
+            cardFile.Controls.Add(btnChangeSaveDir);
+
+            Button btnOpenDir = CreateCardActionButton("打开文件夹", 96, 32);
+            btnOpenDir.Location = new Point(CARD_WIDTH - 118, 56 + (56 - 32) / 2);
+            btnOpenDir.Click += (s, e) =>
+            {
+                if (_onOpenFolder != null) _onOpenFolder();
+            };
+            cardFile.Controls.Add(btnOpenDir);
+
+            _contentPanel.Controls.Add(cardFile);
+
+            curY += 112 + 24;
+
+            // 4. 分组标签: "聊天记录" (存储目录设置、打开与管理)
+            Label lblHist = CreateSectionHeader("聊天记录", curY);
+            _contentPanel.Controls.Add(lblHist);
+            curY += 28;
+
+            Panel cardHist = CreateCardPanel(CARD_WIDTH, 112);
+            cardHist.Location = new Point(0, curY);
+
+            cardHist.Paint += (s, e) =>
+            {
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+                using (Font f = new Font(GrokTheme.FontFamily, 10.5f, FontStyle.Regular))
+                using (Font sf = new Font(GrokTheme.FontFamily, 9.0f, FontStyle.Regular))
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 244)))
+                using (SolidBrush sb = new SolidBrush(Color.FromArgb(142, 142, 147)))
+                using (Pen sep = new Pen(Color.FromArgb(38, 38, 43), 1f))
+                {
+                    // Row 1: 聊天记录存储目录
+                    g.DrawString("聊天记录存储目录", f, tb, new PointF(22, 10));
+                    string curHDir = ChatHistoryService.StorageDirectory;
+                    string shortHDir = curHDir.Length > 36 ? "..." + curHDir.Substring(curHDir.Length - 33) : curHDir;
+                    g.DrawString(shortHDir, sf, sb, new PointF(22, 32));
+                    g.DrawLine(sep, 22, 56, CARD_WIDTH - 22, 56);
+
+                    // Row 2: 清空本地记录
+                    g.DrawString("清空所有本地聊天记录", f, tb, new PointF(22, 66));
+                    g.DrawString("彻底清除本机保存的所有广播与好友聊天历史记录", sf, sb, new PointF(22, 88));
+                }
+            };
+
+            Button btnChangeHist = CreateCardActionButton("更改", 72, 32);
+            btnChangeHist.Location = new Point(CARD_WIDTH - 200, (56 - 32) / 2);
+            btnChangeHist.Click += (s, e) =>
+            {
+                using (FolderBrowserDialog fbd = new FolderBrowserDialog())
+                {
+                    fbd.Description = "请选择聊天记录存储路径 (系统将自动迁移已有历史记录)";
+                    fbd.SelectedPath = ChatHistoryService.StorageDirectory;
+                    if (fbd.ShowDialog(this) == DialogResult.OK && !string.IsNullOrEmpty(fbd.SelectedPath))
+                    {
+                        ChatHistoryService.ChangeStorageDirectory(fbd.SelectedPath, true);
+                        cardHist.Invalidate();
+                    }
+                }
+            };
+            cardHist.Controls.Add(btnChangeHist);
+
+            Button btnOpenHist = CreateCardActionButton("打开文件夹", 96, 32);
+            btnOpenHist.Location = new Point(CARD_WIDTH - 118, (56 - 32) / 2);
+            btnOpenHist.Click += (s, e) =>
+            {
+                try { Process.Start("explorer.exe", ChatHistoryService.StorageDirectory); } catch { }
+            };
+            cardHist.Controls.Add(btnOpenHist);
+
+            Button btnClrHist = CreateCardActionButton("立即清空", 96, 32);
+            btnClrHist.Location = new Point(CARD_WIDTH - 118, 56 + (56 - 32) / 2);
+            btnClrHist.Click += (s, e) =>
+            {
+                if (GrokMessageBox.Show(this, "确定要彻底清空本机所有本地聊天记录吗？此操作将删除所有往期历史且无法撤销。", "清空记录确认", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                {
+                    ChatHistoryService.ClearAllHistories();
+                    btnClrHist.Text = "已清空 ✓";
+                    btnClrHist.Invalidate();
+                }
+            };
+            cardHist.Controls.Add(btnClrHist);
+
+            _contentPanel.Controls.Add(cardHist);
+
+            curY += 112 + 24;
+
+            // 5. 分组标签: "支持与关于" (支持与关于迁移至此)
+            Label lblAboutSec = CreateSectionHeader("支持与关于", curY);
+            _contentPanel.Controls.Add(lblAboutSec);
+            curY += 28;
+
+            Panel cardAboutSec = CreateCardPanel(CARD_WIDTH, 112);
+            cardAboutSec.Location = new Point(0, curY);
+            cardAboutSec.Paint += (s, e) =>
+            {
+                Graphics g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+                using (Font f = new Font(GrokTheme.FontFamily, 10.5f, FontStyle.Regular))
+                using (Font sf = new Font(GrokTheme.FontFamily, 9.0f, FontStyle.Regular))
+                using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 244)))
+                using (SolidBrush sb = new SolidBrush(Color.FromArgb(142, 142, 147)))
+                using (Pen sep = new Pen(Color.FromArgb(38, 38, 43), 1f))
+                {
+                    // Row 1: 意见与问题反馈
+                    g.DrawString("意见与问题反馈", f, tb, new PointF(22, 10));
+                    g.DrawString("帮助我们将 LanChat 打磨得更贴合你的直觉与习惯", sf, sb, new PointF(22, 32));
+                    g.DrawLine(sep, 22, 56, CARD_WIDTH - 22, 56);
+
+                    // Row 2: 关于产品
+                    g.DrawString("关于 LanChat", f, tb, new PointF(22, 66));
+                    g.DrawString("版本 " + MainForm.APP_VERSION + " · 局域网秒级极速通讯与 GrokBot 暗黑美学", sf, sb, new PointF(22, 88));
+                }
+            };
+
             Button btnOpenFk = CreateCardActionButton("发送反馈", 96, 32);
-            btnOpenFk.Location = new Point(CARD_WIDTH - 118, (72 - 32) / 2);
+            btnOpenFk.Location = new Point(CARD_WIDTH - 118, (56 - 32) / 2);
             btnOpenFk.Click += (s, e) =>
             {
                 using (GrokFeedbackForm fk = new GrokFeedbackForm())
@@ -258,9 +464,155 @@ namespace LanChat
                     fk.ShowDialog(this);
                 }
             };
-            cardFk.Controls.Add(btnOpenFk);
-            _contentPanel.Controls.Add(cardFk);
+            cardAboutSec.Controls.Add(btnOpenFk);
+
+            Button btnViewAbout = CreateCardActionButton("查看详情", 96, 32);
+            btnViewAbout.Location = new Point(CARD_WIDTH - 118, 56 + (56 - 32) / 2);
+            btnViewAbout.Click += (s, e) =>
+            {
+                _activeTab = 3;
+                RenderCurrentTab();
+            };
+            cardAboutSec.Controls.Add(btnViewAbout);
+
+            _contentPanel.Controls.Add(cardAboutSec);
+
+            curY += 112 + 30;
+
+            // 底部缓冲垫
+            Panel spacer = new Panel { Location = new Point(0, curY), Size = new Size(CARD_WIDTH, 10), BackColor = Color.Transparent };
+            _contentPanel.Controls.Add(spacer);
         }
+
+        #region Font Picker Helper Methods
+
+        private string GetUiFontDisplayName()
+        {
+            string f = AppSettings.UiFontFamily;
+            if (string.IsNullOrEmpty(f) || f == "Microsoft YaHei UI") return "微软雅黑";
+            return f;
+        }
+
+        private string GetUiSizeDisplayName()
+        {
+            float sz = AppSettings.UiFontSize;
+            if (Math.Abs(sz - 9.0f) < 0.1f) return "小 (9pt)";
+            if (Math.Abs(sz - 11.0f) < 0.1f) return "中 (11pt)";
+            if (Math.Abs(sz - 12.0f) < 0.1f) return "大 (12pt)";
+            if (Math.Abs(sz - 14.0f) < 0.1f) return "特大 (14pt)";
+            return "标准 (10pt)";
+        }
+
+        private string GetChatFontDisplayName()
+        {
+            string f = AppSettings.ChatFontFamily;
+            if (string.IsNullOrEmpty(f) || f == "Microsoft YaHei UI") return "微软雅黑";
+            return f;
+        }
+
+        private string GetChatSizeDisplayName()
+        {
+            float sz = AppSettings.ChatFontSize;
+            if (Math.Abs(sz - 9.5f) < 0.1f) return "小 (9.5pt)";
+            if (Math.Abs(sz - 11.5f) < 0.1f) return "中 (11.5pt)";
+            if (Math.Abs(sz - 13.0f) < 0.1f) return "大 (13pt)";
+            if (Math.Abs(sz - 15.0f) < 0.1f) return "特大 (15pt)";
+            return "标准 (10.5pt)";
+        }
+
+        private void ShowUiFontPicker(Button anchor)
+        {
+            Point pt = anchor.PointToScreen(new Point(0, anchor.Height + 4));
+            GrokPopupMenu menu = new GrokPopupMenu();
+            string[] fontNames = new string[] { "Microsoft YaHei UI", "Segoe UI", "宋体", "黑体", "楷体", "Arial" };
+            string[] fontLabels = new string[] { "微软雅黑 (默认)", "Segoe UI", "宋体 (SimSun)", "黑体 (SimHei)", "楷体 (KaiTi)", "Arial" };
+            for (int i = 0; i < fontNames.Length; i++)
+            {
+                string fName = fontNames[i];
+                string fLabel = fontLabels[i];
+                bool isCur = string.Equals(AppSettings.UiFontFamily, fName, StringComparison.OrdinalIgnoreCase);
+                menu.AddItem(fLabel, WeChatIconType.None, () =>
+                {
+                    AppSettings.UiFontFamily = fName;
+                    AppSettings.Save();
+                    anchor.Text = (fName == "Microsoft YaHei UI" ? "微软雅黑" : fName) + "  ∨";
+                    anchor.Invalidate();
+                    if (_onFontChanged != null) _onFontChanged();
+                }, isCur ? "✓" : "");
+            }
+            menu.ShowAt(pt);
+        }
+
+        private void ShowUiSizePicker(Button anchor)
+        {
+            Point pt = anchor.PointToScreen(new Point(0, anchor.Height + 4));
+            GrokPopupMenu menu = new GrokPopupMenu();
+            float[] sizes = new float[] { 9.0f, 10.0f, 11.0f, 12.0f, 14.0f };
+            string[] labels = new string[] { "小 (9pt)", "标准 (10pt)", "中 (11pt)", "大 (12pt)", "特大 (14pt)" };
+            for (int i = 0; i < sizes.Length; i++)
+            {
+                float sz = sizes[i];
+                string lbl = labels[i];
+                bool isCur = Math.Abs(AppSettings.UiFontSize - sz) < 0.1f;
+                menu.AddItem(lbl, WeChatIconType.None, () =>
+                {
+                    AppSettings.UiFontSize = sz;
+                    AppSettings.Save();
+                    anchor.Text = lbl + "  ∨";
+                    anchor.Invalidate();
+                    if (_onFontChanged != null) _onFontChanged();
+                }, isCur ? "✓" : "");
+            }
+            menu.ShowAt(pt);
+        }
+
+        private void ShowChatFontPicker(Button anchor)
+        {
+            Point pt = anchor.PointToScreen(new Point(0, anchor.Height + 4));
+            GrokPopupMenu menu = new GrokPopupMenu();
+            string[] fontNames = new string[] { "Microsoft YaHei UI", "Segoe UI", "Consolas", "宋体", "黑体", "楷体", "Arial" };
+            string[] fontLabels = new string[] { "微软雅黑 (默认)", "Segoe UI", "Consolas (代码风)", "宋体 (SimSun)", "黑体 (SimHei)", "楷体 (KaiTi)", "Arial" };
+            for (int i = 0; i < fontNames.Length; i++)
+            {
+                string fName = fontNames[i];
+                string fLabel = fontLabels[i];
+                bool isCur = string.Equals(AppSettings.ChatFontFamily, fName, StringComparison.OrdinalIgnoreCase);
+                menu.AddItem(fLabel, WeChatIconType.None, () =>
+                {
+                    AppSettings.ChatFontFamily = fName;
+                    AppSettings.Save();
+                    anchor.Text = (fName == "Microsoft YaHei UI" ? "微软雅黑" : fName) + "  ∨";
+                    anchor.Invalidate();
+                    if (_onFontChanged != null) _onFontChanged();
+                }, isCur ? "✓" : "");
+            }
+            menu.ShowAt(pt);
+        }
+
+        private void ShowChatSizePicker(Button anchor)
+        {
+            Point pt = anchor.PointToScreen(new Point(0, anchor.Height + 4));
+            GrokPopupMenu menu = new GrokPopupMenu();
+            float[] sizes = new float[] { 9.5f, 10.5f, 11.5f, 13.0f, 15.0f };
+            string[] labels = new string[] { "小 (9.5pt)", "标准 (10.5pt)", "中 (11.5pt)", "大 (13pt)", "特大 (15pt)" };
+            for (int i = 0; i < sizes.Length; i++)
+            {
+                float sz = sizes[i];
+                string lbl = labels[i];
+                bool isCur = Math.Abs(AppSettings.ChatFontSize - sz) < 0.1f;
+                menu.AddItem(lbl, WeChatIconType.None, () =>
+                {
+                    AppSettings.ChatFontSize = sz;
+                    AppSettings.Save();
+                    anchor.Text = lbl + "  ∨";
+                    anchor.Invalidate();
+                    if (_onFontChanged != null) _onFontChanged();
+                }, isCur ? "✓" : "");
+            }
+            menu.ShowAt(pt);
+        }
+
+        #endregion
 
         #endregion
 

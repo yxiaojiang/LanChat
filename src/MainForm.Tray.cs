@@ -22,6 +22,10 @@ namespace LanChat
                 string initialNick = !string.IsNullOrEmpty(AppSettings.NickName) ? AppSettings.NickName : Environment.UserName;
                 _netService = new NetworkService(initialNick);
                 _netService.AutoAcceptFiles = AppSettings.AutoAcceptFiles;
+                if (!string.IsNullOrEmpty(AppSettings.SaveDirectory))
+                {
+                    _netService.SaveDirectory = AppSettings.SaveDirectory;
+                }
                 _netService.OnPeerJoined += (p) => SafeInvoke(() => PeerJoined(p));
                 _netService.OnPeerUpdated += (p) => SafeInvoke(() => PeerUpdated(p));
                 _netService.OnPeerLeft += (pid) => SafeInvoke(() => PeerLeft(pid));
@@ -91,7 +95,7 @@ namespace LanChat
         {
             Control anchor = (sender as Control) ?? _btnBottomUser ?? _btnAvatar;
             Point screenPt = anchor.PointToScreen(Point.Empty);
-            int menuH = 332;
+            int menuH = 200;
             int x = screenPt.X;
             int y = screenPt.Y - menuH - 8;
 
@@ -155,9 +159,12 @@ namespace LanChat
                 () => CheckForUpdates(false),
                 () => ShowChangeNickDialog(),
                 () => OpenReceivedFolder(),
-                tab))
+                tab,
+                () => ApplyFontSettings()))
             {
                 dlg.ShowDialog(this);
+                ApplyFontSettings();
+                RefreshPeerListUI();
             }
         }
 
