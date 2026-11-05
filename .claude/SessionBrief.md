@@ -1,7 +1,7 @@
 # SessionBrief.md — 当前接手摘要
 
 > 最近刷新：2026-11-05。仓库：`https://github.com/yxiaojiang/LanChat.git`。
-> 当前分支：`feature/wechat-ui`（已发布 Tag `v2.0.13`，当前版本 `v2.0.13`）。
+> 当前分支：`feature/wechat-ui`（最新版本 `v2.0.14`，发布 Tag `v2.0.14`）。
 > 核心任务：**DIR-005 全客户端代码结构解耦与上帝类重构工程方案（实施 Rules.md 第 10 条：治理超限大文件、拆解 GrokSettingsDialog 与 MainForm，实现 UI 与核心/数据层分离）已全部圆满完成**。
 > 本次重构严格遵循 Rules.md 第 10 条真解耦原则：第 1 步完成 `GrokSettingsDialog`（由 1914 行压降至 384 行，提取 8 个独立子面板）；第 2 步在 `src/Controllers/` 建立注入 `ISynchronizeInvoke` 的 `SessionPresenter`、`ChatPresenter`、`FileTransferController`，并规范抽离 `MainForm.Designer.cs` 与 `FormResizeMessageFilter.cs`，使得主窗体所有文件全面远离 1000 行警戒线，彻底消除上帝类紧耦合隐患。针对独立审核方 Argon 提出的 P0 阻塞与 P1 体验反馈（`FileSent` 即时渲染通知、会话切换防抖保护），均已完成专项修复与双环境纯编译闭环。
 

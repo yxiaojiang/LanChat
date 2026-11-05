@@ -4,6 +4,31 @@
 
 ---
 
+## [v2.0.14] - 2026-11-05
+
+### 🏗️ 全客户端代码结构解耦与上帝类治理 (DIR-005 完工)
+- **设置中心组件化拆解与治理超限首恶 (`GrokSettingsDialog.cs`)**：
+  - 原超限 1914 行的大文件重构压降至 384 行（净减 1530 行，压降 80%），收敛为纯侧边栏导航与视口管理容器。
+  - 提取公共双缓冲容器控件 `DoubleBufferedPanel.cs`，彻底压制子树绘制闪烁与背景擦除。
+  - 抽象 `SettingsPanelBase.cs` 基类与轻量依赖注入上下文 DTO `SettingsContext.cs`，彻底切断子面板与宿主窗体的循环强耦合。
+  - 依照真实业务将 8 个 Tab 彻底拆解为独立面板：`GeneralSettingsPanel`、`ProfileSettingsPanel`、`AppearanceSettingsPanel`、`ShortcutsSettingsPanel`、`FileTransferSettingsPanel`、`ChatHistorySettingsPanel`、`NetworkDeviceSettingsPanel`、`AboutSettingsPanel`，各面板行数在 65~378 行之间。
+  - 采用面板懒加载与内存缓存显隐机制，保留 0ms 瞬间无缝切页。
+- **主窗体业务控制器解耦与架构分离 (`MainForm*.cs`)**：
+  - 抽离 `SessionPresenter.cs`（310 行）：统一调度局域网全员群聊与好友会话，处理节点上线/离线历史合并、关键字实时检索过滤与切页防抖。
+  - 抽离 `ChatPresenter.cs`（262 行）：统一管理广播与私聊文本发送（后台线程并发）、接收路由、未读计数增量与系统消息注入。
+  - 抽离 `FileTransferController.cs`（214 行）：统一管理异步文件流发送、进度回传、接收归档与系统原生外开定位；增设 `FileSent` 事件，实现发送文件本地即时上屏呈现。
+  - 规范分离 `MainForm.Designer.cs`（685 行）：将主窗体全部控件树构造、分栏布局与 `UpdateResponsiveLayout` 响应式计算独立抽取。
+  - 抽离 `FormResizeMessageFilter.cs`（81 行）：独立封装 `IMessageFilter`，接管四周 8px 边缘原生 `WM_SYSCOMMAND (SC_SIZE)` 拖拽缩放。
+  - 主窗体文件全面瘦身：`MainForm.cs`（464 行，压降 60%）、`MainForm.Chat.cs`（606 行，压降 36%）、`MainForm.Files.cs`（202 行，压降 32%）、`MainForm.Tray.cs`（647 行），各文件均处于 200~685 行安全区间。
+- **全面落实 Rules.md 第 10 条 (Anti-God-Class 强制契约)**：
+  - 全工程各源码文件均回缩至 950 行以内，1000 行预警与 1500 行硬上限触碰率为 0%。
+  - 结构化真解耦，零滥用 `partial class` 伪切分，零垃圾桶工具类。
+- **双编译管线与依赖一致性保障**：
+  - `Tools/Compile.bat`、`CompileAndLink.bat`、`Publish.bat` 同步追加 `src\Controllers\*.cs` 与 `src\UI\Controls\SettingsPanels\*.cs`；
+  - 原生 C# 5.0 / .NET Framework 4.0 `csc.exe` 与现代 `dotnet build` 双构建全绿通过（0 警告、0 错误）。
+
+---
+
 ## [v2.0.13] - 2026-11-05
 
 ### 🎨 全客户端 UI 统一样式系统重构 (DIR-004 落地与设计令牌收口)

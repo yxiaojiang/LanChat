@@ -47,7 +47,7 @@ namespace LanChat
         }
 
         // Constants
-        public const string APP_VERSION = "2.0.13";
+        public const string APP_VERSION = "2.0.14";
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
         private const string BROADCAST_TARGET = "📢 局域网全员群聊";
 

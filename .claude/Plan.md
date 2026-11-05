@@ -1,7 +1,7 @@
 # Plan.md — 当前活跃计划
 
 > 最近刷新：2026-11-05。仓库：`https://github.com/yxiaojiang/LanChat.git`。
-> 当前分支：`feature/wechat-ui`（已发布 Tag `v2.0.13`，当前版本 `v2.0.13`）。
+> 当前分支：`feature/wechat-ui`（最新版本 `v2.0.14`，待发布 Tag `v2.0.14`）。
 > 核心任务：**DIR-005 全客户端代码结构解耦与上帝类重构工程方案（实施 Rules.md 第 10 条：治理超限大文件、拆解 GrokSettingsDialog 与 MainForm，实现 UI 与核心/数据层分离）已全部完成**。
 > **成果概述**：
 > 严格落实 Rules.md 第 10 条（单文件 1000/1500 行硬上限与防上帝类契约），原超限 1914 行的 `GrokSettingsDialog.cs` 拆解为 8 大独立子面板并瘦身为 384 行导航容器；原 3086 行紧耦合的 `MainForm*.cs` 上帝类通过在 `src/Controllers/` 抽离轻量 MVP 业务控制器层（`SessionPresenter`、`ChatPresenter`、`FileTransferController`）与分离 `MainForm.Designer.cs`，全部收敛至 200~685 行安全区间。经 `Tools/Compile.bat`（C# 5.0 / .NET Framework 4.0）与 `dotnet build` 原生编译双校验全绿通过（0 警告、0 错误）。
