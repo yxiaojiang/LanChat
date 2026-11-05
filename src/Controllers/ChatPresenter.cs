@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Threading;
+using System.Windows.Forms;
 
 namespace LanChat
 {
@@ -56,6 +57,8 @@ namespace LanChat
         private void SafeInvoke(Action action)
         {
             if (action == null) return;
+            Control c = _sync as Control;
+            if (c != null && (c.IsDisposed || !c.IsHandleCreated)) return;
             if (_sync != null && _sync.InvokeRequired)
             {
                 try { _sync.BeginInvoke(action, null); } catch { }

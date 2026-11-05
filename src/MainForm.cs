@@ -166,6 +166,13 @@ namespace LanChat
             _fileController.ProgressChanged += HandleFileProgress;
             _fileController.TransferCompleted += OnFileTransferCompleted;
             _fileController.FileReceived += OnFileReceived;
+            _fileController.FileSent += (fileMsg, convKey) => {
+                if (_activeChatKey == convKey && _chatView != null)
+                {
+                    _chatView.AppendMessage(fileMsg);
+                }
+                if (_listSessions != null) _listSessions.Invalidate();
+            };
         }
 
         protected override CreateParams CreateParams

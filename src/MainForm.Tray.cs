@@ -27,13 +27,6 @@ namespace LanChat
                     _netService.SaveDirectory = AppSettings.SaveDirectory;
                 }
                 InitializeControllers();
-
-
-
-
-
-
-
                 _netService.Start();
 
                 IPAddress primaryIp = _netService.GetPrimaryPhysicalIp();
@@ -441,28 +434,11 @@ namespace LanChat
 
         public void ClearActiveChatUnread()
         {
-            bool changed = false;
-            if (_activeChatKey == "BROADCAST")
+            if (_sessionPresenter != null)
             {
-                if (_broadcastUnreadCount > 0)
-                {
-                    _broadcastUnreadCount = 0;
-                    changed = true;
-                }
+                _sessionPresenter.ClearActiveChatUnread();
             }
-            else if (_selectedPeer != null)
-            {
-                if (_selectedPeer.UnreadCount > 0)
-                {
-                    _selectedPeer.UnreadCount = 0;
-                    changed = true;
-                }
-            }
-
-            if (changed)
-            {
-                if (_listSessions != null) _listSessions.Invalidate();
-            }
+            if (_listSessions != null) _listSessions.Invalidate();
             CheckAndClearGlobalNotifications();
             UpdateTrayTooltipText();
         }

@@ -18,6 +18,7 @@ namespace LanChat
         public event Action<FileTransferProgress> ProgressChanged;
         public event Action<string, bool, string> TransferCompleted; // fileName, success, reason
         public event Action<ChatMessage, string, bool /* wasActivelyViewing */> FileReceived;
+        public event Action<ChatMessage, string> FileSent; // fileMsg, targetPeerId
 
         public Func<string, string, bool> IsActivelyViewingPredicate { get; set; }
 
@@ -37,6 +38,8 @@ namespace LanChat
         private void SafeInvoke(Action action)
         {
             if (action == null) return;
+            Control c = _sync as Control;
+            if (c != null && (c.IsDisposed || !c.IsHandleCreated)) return;
             if (_sync != null && _sync.InvokeRequired)
             {
                 try { _sync.BeginInvoke(action, null); } catch { }
@@ -75,6 +78,11 @@ namespace LanChat
                 if (_sessionManager != null)
                 {
                     _sessionManager.AddMessage(peer.Id, fileMsg);
+                }
+
+                if (FileSent != null)
+                {
+                    FileSent(fileMsg, peer.Id);
                 }
 
                 if (_netService != null)
