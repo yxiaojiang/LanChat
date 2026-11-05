@@ -26,13 +26,13 @@ namespace LanChat
                 {
                     _netService.SaveDirectory = AppSettings.SaveDirectory;
                 }
-                _netService.OnPeerJoined += (p) => SafeInvoke(() => PeerJoined(p));
-                _netService.OnPeerUpdated += (p) => SafeInvoke(() => PeerUpdated(p));
-                _netService.OnPeerLeft += (pid) => SafeInvoke(() => PeerLeft(pid));
-                _netService.OnMessageReceived += (msg) => SafeInvoke(() => HandleReceivedMessage(msg));
-                _netService.OnFileProgress += (prog) => SafeInvoke(() => HandleFileProgress(prog));
-                _netService.OnFileReceived += (nick, fn, path, sz) => SafeInvoke(() => HandleFileReceived(nick, fn, path, sz));
-                _netService.OnLogMessage += (log) => { };
+                InitializeControllers();
+
+
+
+
+
+
 
                 _netService.Start();
 

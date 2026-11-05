@@ -113,6 +113,11 @@ namespace LanChat
             Invalidate();
         }
 
+        public void ClearMessages()
+        {
+            SetMessages(new List<ChatMessage>());
+        }
+
         public void AppendMessage(ChatMessage msg)
         {
             if (_messages != null && !_messages.Contains(msg))

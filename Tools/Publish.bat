@@ -61,7 +61,7 @@ if not exist "%CSC_PATH%" (
     exit /b 1
 )
 
-"%CSC_PATH%" /nologo /target:winexe /main:LanChat.Program /win32icon:assets\app.ico /res:assets\app.ico,LanChat.app.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:release\LanChat.exe src\Models.cs src\NetworkService*.cs src\MainForm*.cs src\Program.cs src\UI\Controls\*.cs src\UI\Controls\SettingsPanels\*.cs src\UI\Renderers\*.cs src\Services\*.cs
+"%CSC_PATH%" /nologo /target:winexe /main:LanChat.Program /win32icon:assets\app.ico /res:assets\app.ico,LanChat.app.ico /r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll /out:release\LanChat.exe src\Models.cs src\NetworkService*.cs src\MainForm*.cs src\Program.cs src\Controllers\*.cs src\UI\Controls\*.cs src\UI\Controls\SettingsPanels\*.cs src\UI\Renderers\*.cs src\Services\*.cs
 if errorlevel 1 (
     echo.
     echo ====================================================================

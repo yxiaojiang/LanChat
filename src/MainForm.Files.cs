@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Windows.Forms;
 
@@ -12,7 +11,8 @@ namespace LanChat
 
         private void BtnSendFile_Click(object sender, EventArgs e)
         {
-            if (_selectedPeer == null)
+            PeerInfo currentPeer = _sessionPresenter != null ? _sessionPresenter.SelectedPeer : null;
+            if (currentPeer == null)
             {
                 var peers = _netService != null ? _netService.GetActivePeers() : new List<PeerInfo>();
                 if (peers.Count == 0)
@@ -31,11 +31,11 @@ namespace LanChat
             }
             else
             {
-                using (OpenFileDialog ofd = new OpenFileDialog { Title = "选择要发送给 " + _selectedPeer.NickName + " 的文件", Multiselect = true })
+                using (OpenFileDialog ofd = new OpenFileDialog { Title = "选择要发送给 " + currentPeer.NickName + " 的文件", Multiselect = true })
                 {
                     if (ofd.ShowDialog(this) == DialogResult.OK)
                     {
-                        SendFilesToPeer(_selectedPeer, ofd.FileNames);
+                        SendFilesToPeer(currentPeer, ofd.FileNames);
                     }
                 }
             }
@@ -44,13 +44,9 @@ namespace LanChat
         private void MainForm_DragEnter(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
-            {
                 e.Effect = DragDropEffects.Copy;
-            }
             else
-            {
                 e.Effect = DragDropEffects.None;
-            }
         }
 
         private void MainForm_DragDrop(object sender, DragEventArgs e)
@@ -58,14 +54,11 @@ namespace LanChat
             string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
             if (files == null || files.Length == 0) return;
 
-            if (_selectedPeer != null)
-            {
-                SendFilesToPeer(_selectedPeer, files);
-            }
+            PeerInfo currentPeer = _sessionPresenter != null ? _sessionPresenter.SelectedPeer : null;
+            if (currentPeer != null)
+                SendFilesToPeer(currentPeer, files);
             else
-            {
                 PromptPeerAndSendFiles(files);
-            }
         }
 
         private void PromptPeerAndSendFiles(string[] filePaths)
@@ -89,8 +82,7 @@ namespace LanChat
                 picker.Size = new System.Drawing.Size(360, 260);
                 picker.StartPosition = FormStartPosition.CenterParent;
                 picker.FormBorderStyle = FormBorderStyle.FixedDialog;
-                picker.MaximizeBox = false;
-                picker.MinimizeBox = false;
+                picker.MaximizeBox = false; picker.MinimizeBox = false;
                 picker.BackColor = System.Drawing.Color.FromArgb(24, 24, 26);
                 picker.ForeColor = System.Drawing.Color.White;
 
@@ -104,7 +96,16 @@ namespace LanChat
                 foreach (var p in peers) lb.Items.Add(p);
                 lb.SelectedIndex = 0;
 
-                Button btnOk = new Button { Text = "确定发送", Dock = DockStyle.Bottom, Height = 36, DialogResult = DialogResult.OK, BackColor = System.Drawing.Color.FromArgb(121, 70, 215), ForeColor = System.Drawing.Color.White, FlatStyle = FlatStyle.Flat };
+                Button btnOk = new Button
+                {
+                    Text = "确定发送",
+                    Dock = DockStyle.Bottom,
+                    Height = 36,
+                    DialogResult = DialogResult.OK,
+                    BackColor = System.Drawing.Color.FromArgb(121, 70, 215),
+                    ForeColor = System.Drawing.Color.White,
+                    FlatStyle = FlatStyle.Flat
+                };
                 btnOk.FlatAppearance.BorderSize = 0;
                 picker.Controls.Add(lb);
                 picker.Controls.Add(btnOk);
@@ -118,49 +119,11 @@ namespace LanChat
 
         private void SendFilesToPeer(PeerInfo peer, string[] filePaths)
         {
-            foreach (string filePath in filePaths)
+            if (_fileController != null)
             {
-                if (!File.Exists(filePath)) continue;
-
-                string fileName = Path.GetFileName(filePath);
-                long fileSize = new FileInfo(filePath).Length;
-
-                ChatMessage fileMsg = new ChatMessage
-                {
-                    SenderNick = _netService != null ? _netService.NickName : Environment.UserName,
-                    Content = "[发送文件] " + fileName,
-                    Timestamp = DateTime.Now,
-                    IsSelf = true,
-                    IsFile = true,
-                    FileName = fileName,
-                    FilePath = filePath,
-                    FileSize = fileSize
-                };
-
-                peer.LastMessage = "[文件] " + fileName;
-                peer.LastMessageTime = DateTime.Now;
-                AddMessageToHistory(peer.Id, fileMsg);
-
-                _progressPanel.Visible = true;
-                _progressBar.Value = 0;
-                _lblProgressInfo.Text = string.Format("正在发送 {0} 至 {1}...", fileName, peer.NickName);
-
-                _netService.SendFileAsync(peer, filePath,
-                    prog => SafeInvoke(() => HandleFileProgress(prog)),
-                    (success, reason) => SafeInvoke(() => {
-                        _progressPanel.Visible = false;
-                        if (success)
-                        {
-                            AppendChatSystem(string.Format("文件 {0} 发送成功！", fileName));
-                        }
-                        else
-                        {
-                            AppendChatSystem(string.Format("文件 {0} 发送失败: {1}", fileName, reason));
-                        }
-                    })
-                );
+                _fileController.SendFiles(peer, filePaths);
             }
-            _listSessions.Invalidate();
+            if (_listSessions != null) _listSessions.Invalidate();
         }
 
         private void HandleFileProgress(FileTransferProgress prog)
@@ -171,8 +134,8 @@ namespace LanChat
             string action = prog.IsSending ? "发送给 " + prog.PeerNick : "来自 " + prog.PeerNick + " 接收";
             _lblProgressInfo.Text = string.Format("[{0}] {1} ({2}/{3}) - {4:F1} MB/s [{5}%]",
                 action, prog.FileName,
-                FormatFileSize(prog.TransferredBytes),
-                FormatFileSize(prog.TotalBytes),
+                FileTransferController.FormatFileSize(prog.TransferredBytes),
+                FileTransferController.FormatFileSize(prog.TotalBytes),
                 prog.SpeedMBps,
                 prog.ProgressPercentage);
 
@@ -182,72 +145,40 @@ namespace LanChat
             }
         }
 
-        private void HandleFileReceived(string senderNick, string fileName, string localPath, long size)
+        private void OnFileTransferCompleted(string fileName, bool success, string reason)
+        {
+            _progressPanel.Visible = false;
+            if (_chatPresenter != null)
+            {
+                if (success)
+                    _chatPresenter.AppendChatSystem(string.Format("文件 {0} 发送成功！", fileName));
+                else
+                    _chatPresenter.AppendChatSystem(string.Format("文件 {0} 发送失败: {1}", fileName, reason));
+            }
+        }
+
+        private void OnFileReceived(ChatMessage fileMsg, string convKey, bool wasActivelyViewing)
         {
             _progressPanel.Visible = false;
 
-            ChatMessage fileMsg = new ChatMessage
+            if (!wasActivelyViewing)
             {
-                SenderNick = senderNick,
-                Content = "[接收文件] " + fileName,
-                Timestamp = DateTime.Now,
-                IsSelf = false,
-                IsFile = true,
-                FileName = fileName,
-                FilePath = localPath,
-                FileSize = size
-            };
-
-            // Find peer
-            string convKey = _activeChatKey;
-            if (_netService != null)
-            {
-                var peers = _netService.GetActivePeers();
-                foreach (var p in peers)
-                {
-                    if (p.NickName == senderNick)
-                    {
-                        convKey = p.Id;
-                        p.LastMessage = "[文件] " + fileName;
-                        p.LastMessageTime = DateTime.Now;
-                        break;
-                    }
-                }
-            }
-
-            // 判断当前是否正处于该会话且窗口处于激活态
-            bool isForeground = (Form.ActiveForm == this) && (this.WindowState != FormWindowState.Minimized) && this.Visible;
-            bool isCurrentChat = (_selectedPeer != null && _selectedPeer.NickName == senderNick);
-            bool isActivelyViewing = isForeground && isCurrentChat;
-
-            if (!isActivelyViewing)
-            {
-                if (_netService != null)
-                {
-                    var peers = _netService.GetActivePeers();
-                    foreach (var p in peers)
-                    {
-                        if (p.NickName == senderNick)
-                        {
-                            p.UnreadCount++;
-                            break;
-                        }
-                    }
-                }
                 FlashTaskbar(true);
                 StartTrayFlash();
                 UpdateTrayTooltipText();
             }
 
-            AddMessageToHistory(convKey, fileMsg);
-            _listSessions.Invalidate();
+            if (_activeChatKey == convKey && _chatView != null)
+            {
+                _chatView.AppendMessage(fileMsg);
+            }
+            if (_listSessions != null) _listSessions.Invalidate();
 
-            // 若窗体隐藏在系统托盘中，显示文件接收气泡提醒
             if (!this.Visible && _trayIcon != null)
             {
                 try
                 {
-                    _trayIcon.ShowBalloonTip(2500, "收到新文件", string.Format("来自 {0}: {1}", senderNick, fileName), ToolTipIcon.Info);
+                    _trayIcon.ShowBalloonTip(2500, "收到新文件", string.Format("来自 {0}: {1}", fileMsg.SenderNick, fileMsg.FileName), ToolTipIcon.Info);
                 }
                 catch { }
             }
@@ -255,40 +186,15 @@ namespace LanChat
 
         private void HandleFileActionClick(ChatMessage msg, string action)
         {
-            try
+            if (_fileController == null) return;
+            if (action == "OPEN_FILE")
             {
-                if (action == "OPEN_FILE")
-                {
-                    if (File.Exists(msg.FilePath))
-                    {
-                        Process.Start(msg.FilePath);
-                    }
-                    else
-                    {
-                        GrokMessageBox.Show(this, "文件不存在或已被移动: " + msg.FilePath, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
-                }
-                else if (action == "OPEN_FOLDER")
-                {
-                    string dir = Path.GetDirectoryName(msg.FilePath);
-                    if (Directory.Exists(dir))
-                    {
-                        Process.Start("explorer.exe", "/select,\"" + msg.FilePath + "\"");
-                    }
-                }
+                _fileController.OpenFile(msg.FilePath, this);
             }
-            catch (Exception ex)
+            else if (action == "OPEN_FOLDER")
             {
-                GrokMessageBox.Show(this, "打开失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                _fileController.OpenContainingFolder(msg.FilePath, this);
             }
-        }
-
-        private static string FormatFileSize(long bytes)
-        {
-            if (bytes < 1024) return bytes + " B";
-            if (bytes < 1024 * 1024) return (bytes / 1024.0).ToString("F1") + " KB";
-            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024.0 * 1024.0)).ToString("F2") + " MB";
-            return (bytes / (1024.0 * 1024.0 * 1024.0)).ToString("F2") + " GB";
         }
 
         #endregion

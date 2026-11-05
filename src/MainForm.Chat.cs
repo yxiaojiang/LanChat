@@ -11,120 +11,23 @@ namespace LanChat
     {
         #region Peer & Sessions Management
 
-        private void PeerJoined(PeerInfo peer)
+        private void RenderSessionList()
         {
-            RefreshPeerListUI();
-            AppendChatSystem(string.Format("发现节点上线: {0} ({1} - {2})", peer.NickName, peer.HostName, peer.IP));
-        }
-
-        private void PeerUpdated(PeerInfo peer)
-        {
-            RefreshPeerListUI();
-        }
-
-        private void PeerLeft(string peerId)
-        {
-            RefreshPeerListUI();
-        }
-
-        private void RefreshPeerListUI()
-        {
-            var peers = _netService != null ? _netService.GetActivePeers() : new List<PeerInfo>();
-
-            _allSessionItems.Clear();
-            _allSessionItems.Add(BROADCAST_TARGET);
-            HashSet<string> addedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var p in peers)
-            {
-                _allSessionItems.Add(p);
-                if (!string.IsNullOrEmpty(p.Id)) addedIds.Add(p.Id);
-            }
-
-            // 恢复历史聊天记录中的好友会话 (对标微信/QQ，重启或离线仍保留会话条目与历史查阅)
-            if (_sessionManager != null)
-            {
-                var keys = _sessionManager.GetAllSessionKeys();
-                foreach (var k in keys)
-                {
-                    if (string.IsNullOrEmpty(k) || k.Equals(SessionManager.BROADCAST_KEY, StringComparison.OrdinalIgnoreCase)) continue;
-                    if (!addedIds.Contains(k))
-                    {
-                        var lastMsg = _sessionManager.GetLastMessage(k);
-                        string nick = (lastMsg != null && !string.IsNullOrEmpty(lastMsg.SenderNick) && !lastMsg.IsSelf) ? lastMsg.SenderNick : "历史好友 (" + k + ")";
-                        PeerInfo offlinePeer = new PeerInfo
-                        {
-                            Id = k,
-                            NickName = nick,
-                            HostName = "离线",
-                            LastMessage = _sessionManager.GetLastMessageSnippet(k, 24),
-                            LastMessageTime = lastMsg != null ? lastMsg.Timestamp : DateTime.MinValue
-                        };
-                        _allSessionItems.Add(offlinePeer);
-                        addedIds.Add(k);
-                    }
-                }
-            }
-
-
-            ApplyFilterAndRenderList();
-        }
-
-        private void ApplyFilterAndRenderList()
-        {
-            string filter = _txtSearch.Text.Trim().ToLowerInvariant();
+            if (_listSessions == null || _sessionPresenter == null) return;
 
             object currentSelected = _listSessions.SelectedItem;
             _listSessions.BeginUpdate();
             _listSessions.Items.Clear();
 
-            foreach (var item in _allSessionItems)
+            var items = _sessionPresenter.FilteredSessionItems;
+            for (int i = 0; i < items.Count; i++)
             {
-
-                if (string.IsNullOrEmpty(filter))
-                {
-                    _listSessions.Items.Add(item);
-                }
-                else
-                {
-                    if (item is string)
-                    {
-                        if (((string)item).ToLowerInvariant().Contains(filter))
-                            _listSessions.Items.Add(item);
-                    }
-                    else if (item is PeerInfo)
-                    {
-                        PeerInfo p = (PeerInfo)item;
-                        string nick = (p.NickName ?? "").ToLowerInvariant();
-                        string ip = (p.IP != null ? p.IP.ToString() : "").ToLowerInvariant();
-                        string host = (p.HostName ?? "").ToLowerInvariant();
-                        if (nick.Contains(filter) || ip.Contains(filter) || host.Contains(filter))
-                        {
-                            _listSessions.Items.Add(p);
-                        }
-                    }
-                }
+                _listSessions.Items.Add(items[i]);
             }
 
-            // Restore selection or select 0
-            if (currentSelected != null)
-            {
-                int index = -1;
-                for (int i = 0; i < _listSessions.Items.Count; i++)
-                {
-                    if (_listSessions.Items[i].ToString() == currentSelected.ToString())
-                    {
-                        index = i;
-                        break;
-                    }
-                }
-                if (index >= 0) _listSessions.SelectedIndex = index;
-                else if (_listSessions.Items.Count > 0) _listSessions.SelectedIndex = 0;
-            }
-            else if (_listSessions.Items.Count > 0)
-            {
-                _listSessions.SelectedIndex = 0;
-            }
+            int index = _sessionPresenter.FindSessionIndex(currentSelected);
+            if (index >= 0) _listSessions.SelectedIndex = index;
+            else if (_listSessions.Items.Count > 0) _listSessions.SelectedIndex = 0;
 
             _listSessions.EndUpdate();
         }
@@ -145,69 +48,79 @@ namespace LanChat
                     }
                 }
             }
-            ApplyFilterAndRenderList();
-        }
 
-        private void BtnAddSession_Click(object sender, EventArgs e)
-        {
+            if (_sessionPresenter != null)
+            {
+                _sessionPresenter.SearchFilter = _txtSearch.Text;
+            }
         }
 
         private void ListSessions_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (_listSessions.SelectedItem == null) return;
+            if (_listSessions.SelectedItem == null || _sessionPresenter == null) return;
+            _sessionPresenter.SelectSession(_listSessions.SelectedItem);
+        }
 
-            string previousKey = _activeChatKey;
-            string newKey = previousKey;
-            PeerInfo newPeer = null;
-            string titleText = null;
-            string placeholder = null;
-            bool showGroupSender = false;
-
-            if (_listSessions.SelectedItem is string)
-            {
-                string sItem = (string)_listSessions.SelectedItem;
-                newPeer = null;
-                newKey = "BROADCAST";
-                _broadcastUnreadCount = 0;
-                titleText = GrokTheme.SanitizeUiText(sItem);
-                placeholder = GrokTheme.SanitizeUiText(string.Format("给 {0} 发消息", sItem));
-                showGroupSender = (sItem == BROADCAST_TARGET);
-            }
-            else if (_listSessions.SelectedItem is PeerInfo)
-            {
-                newPeer = (PeerInfo)_listSessions.SelectedItem;
-                newKey = newPeer.Id;
-                newPeer.UnreadCount = 0;
-                titleText = GrokTheme.SanitizeUiText(newPeer.NickName ?? "在线节点");
-                placeholder = GrokTheme.SanitizeUiText(string.Format("给 {0} 发消息", newPeer.NickName ?? "好友"));
-                showGroupSender = false;
-            }
-            else
-            {
-                return;
-            }
-
+        private void OnActiveSessionChanged(string newKey, PeerInfo newPeer, string titleText, string placeholder, bool showGroupSender)
+        {
             CheckAndClearGlobalNotifications();
 
-            // Same session: selection paint only — skip SetMessages / layout flash
-            if (string.Equals(newKey, previousKey, StringComparison.Ordinal))
-            {
-                _selectedPeer = newPeer;
-                ClearActiveChatUnread();
-                return;
-            }
-
-            _selectedPeer = newPeer;
-            _activeChatKey = newKey;
             _lblChatTitle.Text = titleText;
             _inputPlaceholder = placeholder;
-            _chatView.ShowGroupSenderName = showGroupSender;
+            if (_chatView != null)
+            {
+                _chatView.ShowGroupSenderName = showGroupSender;
+            }
 
             SwitchActiveChatView();
 
-            // Invalidate header / input placeholder regions only — not the whole form
             if (_chatHeader != null) _chatHeader.Invalidate();
             if (_inputPanel != null) _inputPanel.Invalidate();
+            if (_listSessions != null) _listSessions.Invalidate();
+        }
+
+        private void SwitchActiveChatView()
+        {
+            if (_chatView != null && _chatPresenter != null)
+            {
+                _chatView.SetMessages(_chatPresenter.GetActiveMessages());
+            }
+        }
+
+        private void OnMessageAppended(ChatMessage msg, string convKey)
+        {
+            if (_activeChatKey == convKey && _chatView != null)
+            {
+                _chatView.AppendMessage(msg);
+            }
+            if (_listSessions != null) _listSessions.Invalidate();
+        }
+
+        private void OnMessageNotification(ChatMessage msg)
+        {
+            FlashTaskbar(true);
+            StartTrayFlash();
+            UpdateTrayTooltipText();
+            if (_listSessions != null) _listSessions.Invalidate();
+
+            if (!this.Visible && _trayIcon != null)
+            {
+                try
+                {
+                    string preview = msg.Content ?? "";
+                    if (preview.Length > 36) preview = preview.Substring(0, 36) + "...";
+                    string title = msg.IsBroadcast ? string.Format("[📢 广播] {0}", msg.SenderNick) : string.Format("来自 {0} 的新消息", msg.SenderNick);
+                    _trayIcon.ShowBalloonTip(2000, title, preview, ToolTipIcon.Info);
+                }
+                catch { }
+            }
+        }
+
+        private bool IsActivelyViewing(string convKey)
+        {
+            bool isForeground = (Form.ActiveForm == this) && (this.WindowState != FormWindowState.Minimized) && this.Visible;
+            bool isCurrent = string.Equals(_activeChatKey, convKey, StringComparison.OrdinalIgnoreCase);
+            return isForeground && isCurrent;
         }
 
         private int FindSessionIndexForKey(string key)
@@ -216,16 +129,8 @@ namespace LanChat
             for (int i = 0; i < _listSessions.Items.Count; i++)
             {
                 object item = _listSessions.Items[i];
-                if (item is string)
-                {
-                    if (key == "BROADCAST")
-                        return i;
-                }
-                else if (item is PeerInfo)
-                {
-                    if (((PeerInfo)item).Id == key)
-                        return i;
-                }
+                if (item is string && key == "BROADCAST") return i;
+                if (item is PeerInfo && ((PeerInfo)item).Id == key) return i;
             }
             return -1;
         }
@@ -242,13 +147,11 @@ namespace LanChat
             _hoverSessionIndex = index;
             if (old >= 0 && old < _listSessions.Items.Count)
             {
-                try { _listSessions.Invalidate(_listSessions.GetItemRectangle(old)); }
-                catch { }
+                try { _listSessions.Invalidate(_listSessions.GetItemRectangle(old)); } catch { }
             }
             if (_hoverSessionIndex >= 0)
             {
-                try { _listSessions.Invalidate(_listSessions.GetItemRectangle(_hoverSessionIndex)); }
-                catch { }
+                try { _listSessions.Invalidate(_listSessions.GetItemRectangle(_hoverSessionIndex)); } catch { }
             }
         }
 
@@ -259,14 +162,8 @@ namespace LanChat
             _hoverSessionIndex = -1;
             if (_listSessions != null && old < _listSessions.Items.Count)
             {
-                try { _listSessions.Invalidate(_listSessions.GetItemRectangle(old)); }
-                catch { }
+                try { _listSessions.Invalidate(_listSessions.GetItemRectangle(old)); } catch { }
             }
-        }
-
-        private void SwitchActiveChatView()
-        {
-            _chatView.SetMessages(_sessionManager.GetMessages(_activeChatKey));
         }
 
         private void ListSessions_DrawItem(object sender, DrawItemEventArgs e)
@@ -280,17 +177,16 @@ namespace LanChat
 
             Rectangle r = e.Bounds;
             object item = _listSessions.Items[e.Index];
-            bool isPinned = (item is string && (string)item == BROADCAST_TARGET);
+            bool isPinned = (item is string && (string)item == SessionPresenter.BROADCAST_TARGET);
             bool isSelected = ((e.State & DrawItemState.Selected) == DrawItemState.Selected);
             bool isHover = (!isSelected && e.Index == _hoverSessionIndex);
 
-            // 1. 填充纯黑底色 (#0E0E0E)
+            // 1. 填充底色
             using (SolidBrush bgBrush = new SolidBrush(GrokTheme.Level0))
             {
                 g.FillRectangle(bgBrush, r);
             }
 
-            // denser 72px rows: more breathing room on selection card
             int cardMarginX = GrokTheme.SessionCardMarginX;
             int cardMarginY = GrokTheme.SessionCardMarginY;
             int cardRadius = GrokTheme.SessionCardRadius;
@@ -305,7 +201,7 @@ namespace LanChat
 
             if (isSelected)
             {
-                currentCardBg = GrokTheme.SessionSelected; // #7946D7
+                currentCardBg = GrokTheme.SessionSelected;
                 using (SolidBrush cardBrush = new SolidBrush(currentCardBg))
                 using (Pen cardPen = new Pen(Color.FromArgb(145, 95, 240), 1f))
                 {
@@ -323,7 +219,6 @@ namespace LanChat
             }
             else if (isPinned)
             {
-                // 局域网全员群聊专属置顶卡片背景 (#181520 深邃底色 + #2A2438 柔和紫黑细边框)
                 currentCardBg = Color.FromArgb(24, 21, 32);
                 Color pinnedBorder = Color.FromArgb(42, 36, 56);
                 using (SolidBrush cardBrush = new SolidBrush(currentCardBg))
@@ -334,7 +229,6 @@ namespace LanChat
                 }
             }
 
-            // 48x48 avatar, vertically centered in 72px row; wider icon→text gap
             int avSize = GrokTheme.SessionAvatarSize;
             int avX = r.Left + GrokTheme.SessionAvatarPaddingLeft;
             int avY = r.Top + (r.Height - avSize) / 2;
@@ -344,7 +238,6 @@ namespace LanChat
             int titleY = r.Top + 14;
             int subY = r.Top + 38;
 
-            // 选中项文字颜色微调：副文字在紫色底色上采用高对比柔和浅紫白 (#E4DAFA)
             Color subTextColor = isSelected ? Color.FromArgb(228, 218, 250) : GrokTheme.TextSubtitle;
 
             if (item is string)
@@ -355,16 +248,15 @@ namespace LanChat
                 using (Font titleFont = GrokTheme.Font(11.0f, FontStyle.Bold))
                 {
                     string title = sItem;
-                    if (sItem == BROADCAST_TARGET)
+                    if (sItem == SessionPresenter.BROADCAST_TARGET)
                     {
-                        int onlineCount = _netService != null ? _netService.GetActivePeers().Count : 0;
+                        int onlineCount = _sessionPresenter != null ? _sessionPresenter.GetOnlineCount() : 0;
                         title = onlineCount > 0 ? string.Format("局域网全员群聊 ({0})", onlineCount) : "局域网全员群聊";
                     }
                     GrokTheme.DrawUiTextLeft(g, title, titleFont, GrokTheme.TextTitle,
                         textX, titleY, textW - (isPinned ? 38 : 0), 22);
                 }
 
-                // 置顶标识文字
                 if (isPinned)
                 {
                     Color pinColor = isSelected ? Color.White : Color.FromArgb(144, 100, 220);
@@ -426,7 +318,7 @@ namespace LanChat
 
             string unreadText = unreadCount > 99 ? "99+" : unreadCount.ToString();
             using (Font badgeFont = new Font("Microsoft YaHei UI", 8.0f, FontStyle.Bold))
-            using (SolidBrush badgeBg = new SolidBrush(Color.FromArgb(250, 81, 81))) // #FA5151
+            using (SolidBrush badgeBg = new SolidBrush(Color.FromArgb(250, 81, 81)))
             using (SolidBrush textBrush = new SolidBrush(Color.White))
             using (Pen borderPen = new Pen(GrokTheme.Level0, 1.5f))
             {
@@ -450,20 +342,6 @@ namespace LanChat
             }
         }
 
-        private Color GetAvatarColor(string name)
-        {
-            if (string.IsNullOrEmpty(name)) return Color.FromArgb(144, 90, 251);
-            int hash = Math.Abs(name.GetHashCode());
-            Color[] colors = new Color[]
-            {
-                Color.FromArgb(144, 90, 251),  // Grok Purple
-                Color.FromArgb(246, 148, 18),  // Grok Orange
-                Color.FromArgb(252, 44, 62),   // Grok Coral Red
-                Color.FromArgb(77, 155, 255)   // Grok Blue
-            };
-            return colors[hash % colors.Length];
-        }
-
         #endregion
 
         #region Messaging & Input
@@ -475,14 +353,12 @@ namespace LanChat
             {
                 _btnSendWave.IsActive = hasText;
             }
-            // 单行胶囊：重绘占位符；多行换行逻辑已随 Multiline=false 移除
             if (_inputPanel != null) _inputPanel.Invalidate();
             if (_bottomSendPanel != null) _bottomSendPanel.Invalidate();
         }
 
         private void TxtInput_KeyDown(object sender, KeyEventArgs e)
         {
-            // 单行胶囊：Enter 发送；Ctrl/Shift+Enter 不适用换行
             if (e.KeyCode == Keys.Enter)
             {
                 e.SuppressKeyPress = true;
@@ -502,164 +378,13 @@ namespace LanChat
         {
             string text = _txtInput.Text.Trim();
             if (string.IsNullOrEmpty(text)) return;
-
             _txtInput.Clear();
 
-            string myNick = _netService != null ? _netService.NickName : Environment.UserName;
-
-            if (_selectedPeer == null)
+            if (_chatPresenter != null)
             {
-                // Broadcast
-                var peers = _netService != null ? _netService.GetActivePeers() : new List<PeerInfo>();
-                ChatMessage msg = new ChatMessage
-                {
-                    SenderId = _netService != null ? _netService.LocalId : "",
-                    SenderNick = myNick,
-                    TargetId = null,
-                    Content = text,
-                    Timestamp = DateTime.Now,
-                    IsSelf = true,
-                    IsBroadcast = true
-                };
-
-                AddMessageToHistory("BROADCAST", msg);
-                _lastBroadcastSnippet = string.Format("我: {0}", text);
-                _lastBroadcastTimeText = DateTime.Now.ToString("HH:mm");
-
-                new System.Threading.Thread(() => {
-                    foreach (var peer in peers)
-                    {
-                        _netService.SendTextMessage(peer, text, true);
-                    }
-                }) { IsBackground = true }.Start();
-            }
-            else
-            {
-                // Send to selected peer
-                PeerInfo target = _selectedPeer;
-                ChatMessage msg = new ChatMessage
-                {
-                    SenderId = _netService != null ? _netService.LocalId : "",
-                    SenderNick = myNick,
-                    TargetId = target.Id,
-                    Content = text,
-                    Timestamp = DateTime.Now,
-                    IsSelf = true,
-                    IsBroadcast = false
-                };
-
-                target.LastMessage = text;
-                target.LastMessageTime = DateTime.Now;
-                AddMessageToHistory(target.Id, msg);
-
-                new System.Threading.Thread(() => {
-                    bool ok = _netService.SendTextMessage(target, text, false);
-                    if (!ok)
-                    {
-                        SafeInvoke(() => AppendChatSystem(string.Format("向 {0} 发送私聊消息失败，对方可能已离线", target.NickName)));
-                    }
-                }) { IsBackground = true }.Start();
+                _chatPresenter.SendTextMessage(text);
             }
 
-            _listSessions.Invalidate();
-        }
-
-        private void HandleReceivedMessage(ChatMessage msg)
-        {
-            string convKey = msg.IsBroadcast ? "BROADCAST" : msg.SenderId;
-
-            // Update peer last message info
-            if (!msg.IsBroadcast && _netService != null)
-            {
-                var peers = _netService.GetActivePeers();
-                foreach (var p in peers)
-                {
-                    if (p.Id == msg.SenderId)
-                    {
-                        p.LastMessage = msg.Content;
-                        p.LastMessageTime = msg.Timestamp;
-                        break;
-                    }
-                }
-            }
-
-            AddMessageToHistory(convKey, msg);
-
-            // 判断用户当前是否正处于该会话并且窗口处于激活态
-            bool isForeground = (Form.ActiveForm == this) && (this.WindowState != FormWindowState.Minimized) && this.Visible;
-            bool isCurrentChat = (msg.IsBroadcast && _activeChatKey == "BROADCAST") || (!msg.IsBroadcast && _selectedPeer != null && _selectedPeer.Id == msg.SenderId);
-            bool isActivelyViewing = isForeground && isCurrentChat;
-
-            if (!isActivelyViewing)
-            {
-                if (msg.IsBroadcast)
-                {
-                    _broadcastUnreadCount++;
-                    _lastBroadcastSnippet = string.Format("{0}: {1}", msg.SenderNick, msg.Content);
-                    _lastBroadcastTimeText = msg.Timestamp.ToString("HH:mm");
-                }
-                else if (_netService != null)
-                {
-                    var peers = _netService.GetActivePeers();
-                    foreach (var p in peers)
-                    {
-                        if (p.Id == msg.SenderId)
-                        {
-                            p.UnreadCount++;
-                            break;
-                        }
-                    }
-                }
-
-                // 传统聊天软件提醒：任务栏图标黄色高亮 + 托盘图标闪烁
-                FlashTaskbar(true);
-                StartTrayFlash();
-                UpdateTrayTooltipText();
-            }
-
-            _listSessions.Invalidate();
-
-            // 若窗体隐藏在系统托盘中，显示气泡提醒
-            if (!this.Visible && _trayIcon != null)
-            {
-                try
-                {
-                    string preview = msg.Content ?? "";
-                    if (preview.Length > 36) preview = preview.Substring(0, 36) + "...";
-                    string title = msg.IsBroadcast ? string.Format("[📢 广播] {0}", msg.SenderNick) : string.Format("来自 {0} 的新消息", msg.SenderNick);
-                    _trayIcon.ShowBalloonTip(2000, title, preview, ToolTipIcon.Info);
-                }
-                catch { }
-            }
-        }
-
-        private void AddMessageToHistory(string convKey, ChatMessage msg)
-        {
-            _sessionManager.AddMessage(convKey, msg);
-
-            if (_activeChatKey == convKey)
-            {
-                _chatView.AppendMessage(msg);
-            }
-        }
-
-        private void AppendChatSystem(string text)
-        {
-            ChatMessage msg = new ChatMessage
-            {
-                SenderNick = "系统",
-                Content = text,
-                Timestamp = DateTime.Now,
-                IsSystem = true
-            };
-
-            AddMessageToHistory(_activeChatKey, msg);
-        }
-
-        private void ClearCurrentChat()
-        {
-            _sessionManager.ClearHistory(_activeChatKey);
-            SwitchActiveChatView();
             if (_listSessions != null) _listSessions.Invalidate();
         }
 
@@ -754,37 +479,8 @@ namespace LanChat
 
         public void SelectPeerChat(PeerInfo peer)
         {
-            if (peer == null) return;
-            for (int i = 0; i < _listSessions.Items.Count; i++)
-            {
-                if (_listSessions.Items[i] is PeerInfo)
-                {
-                    PeerInfo p = (PeerInfo)_listSessions.Items[i];
-                    if (p.Id == peer.Id || p.IP == peer.IP)
-                    {
-                        _listSessions.SelectedIndex = i;
-                        return;
-                    }
-                }
-            }
-
-            _selectedPeer = peer;
-            _activeChatKey = peer.Id;
-            _lblChatTitle.Text = GrokTheme.SanitizeUiText(peer.NickName ?? "在线节点");
-            _inputPlaceholder = GrokTheme.SanitizeUiText(string.Format("给 {0} 发消息", peer.NickName ?? "好友"));
-            _chatView.ShowGroupSenderName = false;
-            if (_chatPanel != null) _chatPanel.SuspendLayout();
-            try
-            {
-                SwitchActiveChatView();
-            if (_listSessions != null) _listSessions.Invalidate();
-            }
-            finally
-            {
-                if (_chatPanel != null) _chatPanel.ResumeLayout(true);
-            }
-            if (_chatHeader != null) _chatHeader.Invalidate();
-            if (_inputPanel != null) _inputPanel.Invalidate();
+            if (peer == null || _sessionPresenter == null) return;
+            _sessionPresenter.SelectPeerChat(peer);
         }
 
         private void BtnConnectNode_Click(object sender, EventArgs e)
@@ -792,9 +488,12 @@ namespace LanChat
             using (GrokConnectNodeForm form = new GrokConnectNodeForm(
                 _netService,
                 (ip) => {
-                    AppendChatSystem("正在主动向 " + ip + " 发起 TCP 直连握手...");
+                    if (_chatPresenter != null)
+                        _chatPresenter.AppendChatSystem("正在主动向 " + ip + " 发起 TCP 直连握手...");
                     _netService.ProbeIp(ip, (success, msg) => {
-                        SafeInvoke(() => AppendChatSystem(msg));
+                        SafeInvoke(() => {
+                            if (_chatPresenter != null) _chatPresenter.AppendChatSystem(msg);
+                        });
                     });
                 },
                 (peer) => {
@@ -815,14 +514,18 @@ namespace LanChat
                     IPAddress parsedIp;
                     if (IPAddress.TryParse(nameOrIp, out parsedIp) && _netService != null)
                     {
-                        AppendChatSystem("正在主动向 " + nameOrIp + " 发起直连握手...");
+                        if (_chatPresenter != null)
+                            _chatPresenter.AppendChatSystem("正在主动向 " + nameOrIp + " 发起直连握手...");
                         _netService.ProbeIp(nameOrIp, (success, msg) => {
-                            SafeInvoke(() => AppendChatSystem(msg));
+                            SafeInvoke(() => {
+                                if (_chatPresenter != null) _chatPresenter.AppendChatSystem(msg);
+                            });
                         });
                     }
                     else
                     {
-                        AppendChatSystem("已创建新节点: " + nameOrIp);
+                        if (_chatPresenter != null)
+                            _chatPresenter.AppendChatSystem("已创建新节点: " + nameOrIp);
                     }
                 }
             }
@@ -877,54 +580,10 @@ namespace LanChat
                 MessageBoxButtons.OKCancel,
                 MessageBoxIcon.Question);
 
-            if (dr == DialogResult.OK)
+            if (dr == DialogResult.OK && _sessionPresenter != null)
             {
-                DeletePeerSession(peer);
+                _sessionPresenter.DeletePeerSession(peer);
             }
-        }
-
-        private void DeletePeerSession(PeerInfo peer)
-        {
-            if (peer == null) return;
-            string peerId = peer.Id;
-
-            // 1. 删除历史消息持久化与内存缓存
-            if (_sessionManager != null)
-            {
-                _sessionManager.DeleteSession(peerId);
-            }
-
-            // 2. 从网络在线节点列表移除
-            if (_netService != null)
-            {
-                _netService.RemovePeer(peerId);
-            }
-
-            // 3. 从主列表所有项中移除
-            for (int i = _allSessionItems.Count - 1; i >= 0; i--)
-            {
-                object it = _allSessionItems[i];
-                if (it is PeerInfo && ((PeerInfo)it).Id == peerId)
-                {
-                    _allSessionItems.RemoveAt(i);
-                }
-            }
-
-            // 4. 若当前正在查看该好友聊天，则切回全员群聊
-            if (string.Equals(_activeChatKey, peerId, StringComparison.OrdinalIgnoreCase))
-            {
-                _activeChatKey = "BROADCAST";
-                _selectedPeer = null;
-                _lblChatTitle.Text = "局域网全员群聊";
-                _inputPlaceholder = "给所有人发消息";
-                _chatView.ShowGroupSenderName = true;
-                SwitchActiveChatView();
-                if (_chatHeader != null) _chatHeader.Invalidate();
-                if (_inputPanel != null) _inputPanel.Invalidate();
-            }
-
-            // 5. 刷新会话列表显示
-            ApplyFilterAndRenderList();
         }
 
         private void ConfirmDeleteBroadcastSession()
@@ -936,17 +595,9 @@ namespace LanChat
                 MessageBoxButtons.OKCancel,
                 MessageBoxIcon.Question);
 
-            if (dr == DialogResult.OK)
+            if (dr == DialogResult.OK && _sessionPresenter != null)
             {
-                if (_sessionManager != null)
-                {
-                    _sessionManager.ClearHistory(SessionManager.BROADCAST_KEY);
-                }
-                if (_activeChatKey == "BROADCAST")
-                {
-                    SwitchActiveChatView();
-                }
-                ApplyFilterAndRenderList();
+                _sessionPresenter.ClearBroadcastSession();
             }
         }
 
