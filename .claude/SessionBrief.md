@@ -2,70 +2,55 @@
 
 > 最近刷新：2026-11-05。仓库：`https://github.com/yxiaojiang/LanChat.git`。
 > 当前分支：`feature/wechat-ui`（已发布 Tag `v2.0.13`，当前版本 `v2.0.13`）。
-> 核心任务：**DIR-004 全客户端 UI 统一样式系统重构（扩充 GrokTheme 设计令牌、标准化模态窗基类与自绘按钮体系）已收敛采纳**。
-> 本轮通过 PlanDocs 双模型独立评审（Argon 审核），确认了“以 `GrokTheme.cs` 为单点样式配置中心（类似 CSS Custom Properties）、抽象 `GrokModalFormBase` 模态窗基类、构建 `GrokButton` 统一样式自绘按钮”的重构路径，彻底消除散落的 114 处 `new Font`、383 处 `Color.FromArgb` 与各窗口尺寸、间距、按钮各立山头的问题。
+> 核心任务：**DIR-005 全客户端代码结构解耦与上帝类重构工程方案（实施 Rules.md 第 10 条：治理超限大文件、拆解 GrokSettingsDialog 与 MainForm，实现 UI 与核心/数据层分离）已收敛采纳**。
+> 本轮通过 PlanDocs 双模型独立评审（Argon 审核），确认了“提取公共 `DoubleBufferedPanel`、构建 `SettingsPanelBase` 与 `SettingsContext` DTO，按源码真实 8 个 Tab 将 1914 行的 `GrokSettingsDialog` 降维重构成 400 行以内的纯导航容器；随后在 `src/Controllers/` 构建注入 `ISynchronizeInvoke` 的轻量业务控制器，将 `MainForm` 核心业务与分部类瘦身至 300~600 行安全区间”的重构路径，彻底消除大文件超限与上帝类紧耦合隐患。
 
 ---
 
-## 一、本轮工作态（DIR-004 方案评审收敛与采纳）
+## 一、本轮工作态（DIR-005 方案评审收敛与采纳）
 
 ### 1. 核心需求与背景
-用户提出全客户端 UI 统一样式需求：多类型窗口及其内部元素（窗口大小、菜单大小与间距、字体大小、多行文字间距、Padding、按钮尺寸与文字大小、右上角关闭叉）必须使用统一配置方式管理（类似 CSS 样式表），单点修改配置文件即可全盘同步。
+项目在 `.claude/Rules.md` 第 10 条中确立了“单文件 1000 行预警、1500 行硬上限，杜绝上帝类，严禁滥用 `partial class` 搞机械切片”的强制契约。经代码全量排查，全工程存在严重的代码聚集与结构耦合问题，亟需系统化治理。
 
 ### 2. 现状排查结论
-1. 全工程存在 114 处 `new Font(...)` 与 383 处 `Color.FromArgb(...)`；
-2. 现有 7 个模态弹窗全部在各自构造函数中硬编码尺寸，且与 `Docs/GrokBot_UI_Design_System.md` 规范存在脱节（如 AboutForm 现 360×370 vs 规范 440×560）；
-3. 界面中缺乏统一样式的 Button 控件，各弹窗使用原生 Button 并挂载 20~30 行匿名 `Paint` 事件以 GDI+ 绘制圆角；
-4. 右上角关闭按钮尺寸（22px、24px、26px、36px）及命中坐标各异；
-5. 多行行间距（如 `+ 5f`）和内边距属于魔法数字。
+1. **超限首恶**：`src/UI/Controls/GrokSettingsDialog.cs` 高达 **1914 行**，超出 1500 行绝对硬上限 414 行。单文件内堆叠了 8 个业务面板的控件树构建（占 1200+ 行）、导航路由、设置项读写绑定与自绘逻辑；
+2. **主窗体假拆分**：`src/MainForm.cs`（1167 行）突破 1000 行警戒线，其分部类 `MainForm.Chat.cs`（952 行）、`MainForm.Tray.cs`（671 行）、`MainForm.Files.cs`（296 行）总计 3086 行，共享私有字段与状态，直接操控底层 Socket 封包、文件分块传输 I/O 与历史存储，属于典型的 WinForms Smart UI 紧耦合；
+3. **编译脚本路径缺陷**：`Tools/Compile.bat`、`CompileAndLink.bat`、`Publish.bat` 均只指定了 `src\UI\Controls\*.cs`，新增子目录必须同步更新 3 处批处理脚本。
 
-### 3. 讨论收敛与采纳决定 (DIR-004)
-- **不新建类**：全量设计令牌直接收口扩充至 `src/UI/Controls/GrokTheme.cs`；
-- **拒绝一刀切**：严格按设计规范第九节为各窗口定义基准尺寸（`SizeAbout` 440×560、`SizeMessageBox` 460×260 等），避免按钮裁切；
-- **原生接口保障**：自绘 `GrokButton` 继承自 `Button`，天然具备 `IButtonControl`（Enter 确定 / ESC 取消 / DialogResult）；
-- **基类抽象**：构建 `GrokModalFormBase` 接管无边框圆角、DWM 阴影、拖拽与右上角关闭叉；
-- **安全隔离**：`GrokSettingsDialog`（1952 行）仅对齐 Token 和自绘按钮，不重写其基类。
+### 3. 讨论收敛与采纳决定 (DIR-005)
+- **真解耦原则**：严格执行 Rules.md 第 10 条，按生命周期与单一职责（SRP）组件化拆解，严禁滥用 `partial class`，严禁建立垃圾桶静态类；
+- **基础构件抽取**：将 Dialog 内部类 `DoubleBufferedPanel` 提取为独立公共控件 `src/UI/Controls/DoubleBufferedPanel.cs`；建立 `SettingsPanelBase.cs` 基类与轻量级 `SettingsContext.cs` DTO 上下文契约，统一解耦宿主依赖；
+- **8 大真实面板组件化**：严密对齐源码真实 8 个 Tab，抽离 `GeneralSettingsPanel`、`ProfileSettingsPanel`、`AppearanceSettingsPanel`、`ShortcutsSettingsPanel`、`FileTransferSettingsPanel`、`ChatHistorySettingsPanel`、`NetworkDeviceSettingsPanel`、`AboutSettingsPanel`，各面板控制在 120~220 行；`GrokSettingsDialog.cs` 缩减至 400 行以内；
+- **主窗体业务控制器抽离**：在 `src/Controllers/` 构建注入 `ISynchronizeInvoke` 的 `FileTransferController`、`SessionPresenter`、`ChatPresenter`，所有底层异步网络回调安全调度回 UI 线程，各分部类降至 300~600 行；
+- **边界纯粹**：消息 GUID、状态枚举与失败重发队列属于业务 Feature，坚决不夹带进本次架构重构案。
 
 ---
 
-## 二、实施闭环与交付进展 (DIR-004 已收口完成)
+## 二、当前活跃实施目标（DIR-005 执行顺序）
 
-1. **第 1 步 (P0-Tokens，扩充 `GrokTheme.cs`)**：
-   - 在 `GrokTheme.cs` 补齐各窗体标准基准尺寸常量（`SizeMainWindow` 1040×720、`SizeSettings` 920×640/1260×820、`SizeConnectNode` 760×600、`SizeCreateNode` 680×620、`SizeAbout` 440×560、`SizeFeedback` 520×460、`SizeUpdate` 520×440、`SizeMessageBox` 460×260、`SizeChangeNick` 440×260）；
-   - 补齐按钮规格（标准 36px、药丸 32px、水平内距 18px、圆角 8px/胶囊）、关闭叉规格（28×28px、距边 16px）、动态字体属性与内边距/行高 Tokens；
-2. **第 2 步 (P0-BaseFramework，构建基础构件)**：
-   - 构建 `src/UI/Controls/GrokButton.cs`：继承 `Button`，原生实现 `IButtonControl`（Enter/ESC/DialogResult），提供 Primary、Secondary、Destructive、Pill 四种角色纯 GDI+ 抗锯齿自绘；
-   - 构建 `src/UI/Controls/GrokModalFormBase.cs`：继承 `Form`，标准化接管 16px 圆角 Region、DWM 阴影、鼠标拖拽、1px 微光边框与标准右上角自绘关闭叉；
-3. **第 3 步 (P0-SmallModals，小型操作弹窗迁移)**：
-   - `GrokMessageBox`（460×260）、`GrokChangeNickForm`（440×260）、`GrokAboutForm`（440×560）全量迁移继承 `GrokModalFormBase`，剥离 Win32 API 样板代码，按钮全量替换为 `GrokButton`；
-4. **第 4 步 (P0-MediumModals，中大型内容弹窗迁移)**：
-   - `GrokFeedbackForm`（520×460）、`GrokUpdateForm`（520×440）、`GrokCreateNodeForm`（680×620）、`GrokConnectNodeForm`（760×600）全量迁移继承 `GrokModalFormBase`，替换自绘按钮并重构自适应布局；
-5. **第 5 步 (P1-MainViews，主视图与设置窗口 Tokens 收拢)**：
-   - `SessionListBox` 会话项高度（72px）、卡片 Margin、头像间距对齐 `GrokTheme`；
-   - `WeChatChatView` 气泡内边距、行高加量（`+ 5f`）、时间戳字号及文件卡片尺寸对齐 `GrokTheme`；
-   - `GrokSettingsDialog` 颜色令牌与按钮引用全量收口对齐 `GrokTheme`。
-6. **验证结果**：
-   - 纯原生 C# 5.0 / .NET Framework 4.0 `csc.exe` 极速纯编译验证通过，零错误零警告。
+1. **第 1 步 (P0-SettingsDialogDecouple，治理超限首恶) [当前下一步]**：
+   - 更新 `Tools/Compile.bat`、`Tools/CompileAndLink.bat`、`Tools/Publish.bat` 追加 `src\UI\Controls\SettingsPanels\*.cs` 编译通配符；
+   - 提取公共 `DoubleBufferedPanel` 至 `src/UI/Controls/DoubleBufferedPanel.cs`；
+   - 建立 `src/UI/Controls/SettingsPanels/SettingsPanelBase.cs` 基类与 `SettingsContext.cs` 上下文 DTO；
+   - 依真实 8 个 Tab 逐一抽取独立面板，重构 `GrokSettingsDialog.cs` 为纯导航容器（代码收敛至 400 行以内）；
+   - 执行 `Tools/Compile.bat` 验证原生纯编译无报错。
+2. **第 2 步 (P0-MainFormBusinessDecouple，主窗体业务控制器解耦)**：
+   - 更新 `Tools/Compile*.bat` 脚本追加 `src\Controllers\*.cs` 编译通配符；
+   - 抽离 `FileTransferController`、`SessionPresenter`、`ChatPresenter`（注入 `ISynchronizeInvoke`）；
+   - 瘦身 `MainForm` 及其分部类至 300~600 行安全区间；
+   - 执行 `Tools/Compile.bat` 验证原生纯编译无报错。
 
 ---
 
-## 三、增量模块索引
+## 三、增量模块与架构索引
 
 | 模块 / 文件 | 说明 |
 | :--- | :--- |
-| `PlanDocs/DECISIONS.md` | 记录 DIR-004 已采纳计划决定 |
-| `PlanDocs/STATUS.md` | 状态标定为 IDLE |
-| `.claude/Plan.md` | 标记 DIR-004 实施 5 步全量完成 |
-| `src/UI/Controls/GrokTheme.cs` | 已扩充：全客户端集中设计令牌、窗口尺寸与自绘几何工具 |
-| `src/UI/Controls/GrokButton.cs` | 已新建：继承 Button，多角色自绘抗锯齿按钮控件 |
-| `src/UI/Controls/GrokModalFormBase.cs` | 已新建：通用无边框圆角模态窗基类 |
-| `src/UI/Controls/GrokMessageBox.cs` | 已重构：继承基类，标准尺寸 460×260，GrokButton |
-| `src/UI/Controls/GrokChangeNickForm.cs` | 已重构：继承基类，标准尺寸 440×260，GrokButton |
-| `src/UI/Controls/GrokAboutForm.cs` | 已重构：继承基类，标准尺寸 440×560，GrokButton |
-| `src/UI/Controls/GrokFeedbackForm.cs` | 已重构：继承基类，标准尺寸 520×460，GrokButton |
-| `src/UI/Controls/GrokUpdateForm.cs` | 已重构：继承基类，标准尺寸 520×440，GrokButton |
-| `src/UI/Controls/GrokCreateNodeForm.cs` | 已重构：继承基类，标准尺寸 680×620，GrokButton |
-| `src/UI/Controls/GrokConnectNodeForm.cs` | 已重构：继承基类，标准尺寸 760×600，GrokButton |
-| `src/UI/Controls/GrokSettingsDialog.cs` | 已对齐：颜色令牌、关闭叉及操作胶囊对齐 GrokTheme |
-| `src/UI/Controls/WeChatChatView.cs` | 已对齐：行高加量、气泡内边距与文件卡片对齐 GrokTheme |
-| `src/MainForm.Chat.cs` | 已对齐：SessionListBox 绘制间距与头像规格对齐 GrokTheme |
+| `PlanDocs/DECISIONS.md` | 记录 DIR-005 已采纳计划决定与执行顺序 |
+| `PlanDocs/STATUS.md` | 状态标定为 IDLE，等待第 1 步实施 |
+| `.claude/Plan.md` | 标记 DIR-005 为当前活跃任务，排定两步执行细项 |
+| `src/UI/Controls/DoubleBufferedPanel.cs` | 待提取：公共抗闪烁双缓冲面板容器控件 |
+| `src/UI/Controls/SettingsPanels/SettingsPanelBase.cs` | 待建立：设置子面板抽象基类 |
+| `src/UI/Controls/SettingsPanels/SettingsContext.cs` | 待建立：面板依赖注入轻量上下文 DTO |
+| `src/UI/Controls/SettingsPanels/*SettingsPanel.cs` | 待建立：8 个独立设置业务面板组件 |
+| `src/Controllers/` | 待建立：主窗体 MVP 业务控制器层 |

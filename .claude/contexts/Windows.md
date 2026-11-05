@@ -17,7 +17,9 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `src/UI/Controls/GrokPopupMenu.cs`：通用圆角浮动弹出菜单（16px圆角、44px舒适行高、8px悬停卡片、纯 GDI+ 矢量图标、全自动边界检测）。
 - `src/UI/Controls/GrokTrayPreviewPopup.cs`：GrokBot 风格托盘未读悬浮预览卡片（无焦点顶层窗体、多联系人列表、未读徽标、消息摘要、时间、工作区边界夹紧与跳转会话）。
 - `src/UI/Controls/GrokSettingsMenuForm.cs`：Grok 原生设置弹出菜单（332px 紧凑高度、16px圆角、44px舒适行高、纯 GDI+ 矢量图标）。
-- `src/UI/Controls/GrokSettingsDialog.cs`：WorkBuddy 风格高级设置中心（1260×820 宽广视界，右上角自绘 36×36 关闭按钮，Tab 页面全量预构建内存缓存 `_tabPages` 实现 0ms 瞬间无感切页，窗体挂载 `WS_CLIPCHILDREN` 与 `WS_EX_COMPOSITED` 硬件离屏合成，纯自绘暗灰极窄滑块，`DoubleBufferedPanel` 压制 `WM_ERASEBKGND`）。
+- `src/UI/Controls/GrokSettingsDialog.cs`：WorkBuddy 风格高级设置中心（1260×820 宽广视界，右上角自绘 28×28 标准关闭按钮，纯自绘暗灰极窄滑块；DIR-005 重构中将 8 个 Tab 面板组件化抽离至 `src/UI/Controls/SettingsPanels/`，主对话框收敛为纯轻量导航路由容器）。
+- `src/UI/Controls/DoubleBufferedPanel.cs`：公共双缓冲离屏绘制面板容器（支持 `AllPaintingInWmPaint` 与 `OptimizedDoubleBuffer`，彻底消除瀑布流刷新）。
+- `src/UI/Controls/SettingsPanels/`：设置子面板集合（`SettingsPanelBase`、`GeneralSettingsPanel`、`ProfileSettingsPanel`、`AppearanceSettingsPanel`、`ShortcutsSettingsPanel`、`FileTransferSettingsPanel`、`ChatHistorySettingsPanel`、`NetworkDeviceSettingsPanel`、`AboutSettingsPanel` 与 `SettingsContext`）。
 - `src/UI/Controls/GrokConnectNodeForm.cs`：连接节点窗口（顶部搜索胶囊、过滤芯片、局域网在线节点推荐卡片流与手动指定 IP 直连握手）。
 - `src/UI/Controls/GrokCreateNodeForm.cs`：创建新节点窗口（居中动态吉祥物预览、起名胶囊输入框、14 种有机形态网格、11 色调色盘）。
 - `src/UI/Controls/GrokAboutForm.cs`：关于窗口（居中 Squircle 吉祥物徽章、版本信息与“复制版本信息”圆角药丸按钮）。

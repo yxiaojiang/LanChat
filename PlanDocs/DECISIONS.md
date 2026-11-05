@@ -114,3 +114,36 @@ OCCT 8.0 在清空环境变量后无隐式资源文件依赖，第 2 步沙盒�
 `GrokCreateNodeForm` 与 `GrokConnectNodeForm` 扩大至规范推荐尺寸后，内部部分绝对定位卡片流需在第 4 步实测微调对齐；Windows 7 等无 DWM 环境下的微光边框与阴影需确认无黑边重叠。
 
 **计划位置**：`.claude/Plan.md`、`.claude/SessionBrief.md`。
+
+
+---
+
+## DIR-005（2026-11-05）全客户端代码结构解耦与上帝类重构工程方案（实施 Rules.md 第 10 条）
+
+**决定**：
+严格执行 `.claude/Rules.md` 第 10 条（单文件 1000/1500 行硬上限与杜绝上帝类契约），坚持“真解耦、单一职责（SRP）与自成体系生命周期”，严禁滥用 `partial class` 搞机械分片，严禁新建垃圾桶静态类；
+第一阶段聚焦首要超限文件 `GrokSettingsDialog.cs`（1914 行压至 400 行以内）：提取公共 `src/UI/Controls/DoubleBufferedPanel.cs`，建立 `src/UI/Controls/SettingsPanels/SettingsPanelBase.cs` 基类与轻量 `SettingsContext` DTO 上下文契约，将 8 个真实 Tab 彻底抽离为独立面板（`GeneralSettingsPanel`、`ProfileSettingsPanel`、`AppearanceSettingsPanel`、`ShortcutsSettingsPanel`、`FileTransferSettingsPanel`、`ChatHistorySettingsPanel`、`NetworkDeviceSettingsPanel`、`AboutSettingsPanel`）；
+第二阶段解耦主窗体：在 `src/Controllers/` 构建注入 `ISynchronizeInvoke` 的 `FileTransferController.cs`、`SessionPresenter.cs`、`ChatPresenter.cs`，主窗体各分部类降至 300~600 行安全区间；
+构建脚本 `Tools/Compile.bat`、`CompileAndLink.bat`、`Publish.bat` 同步追加 `src\UI\Controls\SettingsPanels\*.cs` 与 `src\Controllers\*.cs` 通配路径；
+剥离新业务功能：消息 GUID、状态枚举与失败重发队列不属于本案，坚决不夹带进重构任务。
+
+**顺序**：
+
+1. **第 1 步（P0-SettingsDialogDecouple，治理超限首恶）**：
+   - 更新 `Tools/Compile.bat`、`Tools/CompileAndLink.bat`、`Tools/Publish.bat` 追加 `src\UI\Controls\SettingsPanels\*.cs` 编译通配符；
+   - 提取公共 `DoubleBufferedPanel` 至 `src/UI/Controls/DoubleBufferedPanel.cs`；
+   - 建立 `SettingsPanelBase.cs` 面板抽象基类与 `SettingsContext.cs` 上下文 DTO；
+   - 依真实 8 个 Tab 逐一抽取独立面板（`GeneralSettingsPanel.cs`、`ProfileSettingsPanel.cs`、`AppearanceSettingsPanel.cs`、`ShortcutsSettingsPanel.cs`、`FileTransferSettingsPanel.cs`、`ChatHistorySettingsPanel.cs`、`NetworkDeviceSettingsPanel.cs`、`AboutSettingsPanel.cs`）；
+   - 重构 `GrokSettingsDialog.cs` 为纯导航容器（代码收敛至 400 行以内）；
+   - 执行 `Tools/Compile.bat` 验证原生纯编译无报错。
+2. **第 2 步（P0-MainFormBusinessDecouple，主窗体业务控制器解耦）**：
+   - 更新 `Tools/Compile*.bat` 脚本追加 `src\Controllers\*.cs` 编译通配符；
+   - 抽离 `FileTransferController.cs`（注入 `ISynchronizeInvoke`，接管文件传输业务流）；
+   - 抽离 `SessionPresenter.cs` 与 `ChatPresenter.cs`（注入 `ISynchronizeInvoke`，接管好友状态与消息编排）；
+   - 瘦身 `MainForm` 及其分部类，各文件行数全面降至 300~600 行安全区间；
+   - 执行 `Tools/Compile.bat` 验证原生纯编译无报错。
+
+**未决假设**：
+子面板在开启 `WS_EX_COMPOSITED` 与 `WS_CLIPCHILDREN` 下的高 DPI 首次绘制与焦点表现需在第 1 步实测确认；控制器解绑与主窗体退出时的生命周期析构顺序需在第 2 步实测确认无悬挂后台线程。
+
+**计划位置**：`.claude/Plan.md`、`.claude/SessionBrief.md`。
