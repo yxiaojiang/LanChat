@@ -11,6 +11,10 @@ namespace LanChat
     /// </summary>
     public class ChatHistorySettingsPanel : SettingsPanelBase
     {
+        /// <summary>
+        /// 初始化聊天记录管理面板
+        /// </summary>
+        /// <param name="context">全局设置上下文宿主</param>
         public ChatHistorySettingsPanel(SettingsContext context) : base(context)
         {
             BuildComponents();

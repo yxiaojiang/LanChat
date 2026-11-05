@@ -10,6 +10,10 @@ namespace LanChat
     /// </summary>
     public class AppearanceSettingsPanel : SettingsPanelBase
     {
+        /// <summary>
+        /// 初始化外观面板 (主题模式、强调色、界面与聊天字体排版)
+        /// </summary>
+        /// <param name="context">全局设置上下文宿主</param>
         public AppearanceSettingsPanel(SettingsContext context) : base(context)
         {
             BuildComponents();

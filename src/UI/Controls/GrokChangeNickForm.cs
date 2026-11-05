@@ -15,8 +15,13 @@ namespace LanChat
         private GrokButton _btnCancel;
         private GrokButton _btnSave;
 
+        /// <summary>获取保存成功后的新昵称</summary>
         public string NewNickName { get; private set; }
 
+        /// <summary>
+        /// 初始化修改昵称模态对话框
+        /// </summary>
+        /// <param name="currentNick">当前使用的原始昵称</param>
         public GrokChangeNickForm(string currentNick)
         {
             NewNickName = currentNick ?? string.Empty;

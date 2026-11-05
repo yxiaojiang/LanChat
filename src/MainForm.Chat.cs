@@ -477,6 +477,10 @@ namespace LanChat
 
         #region Actions & Navigation
 
+        /// <summary>
+        /// 切换选中指定好友节点的私聊会话
+        /// </summary>
+        /// <param name="peer">目标对端节点</param>
         public void SelectPeerChat(PeerInfo peer)
         {
             if (peer == null || _sessionPresenter == null) return;
@@ -536,6 +540,9 @@ namespace LanChat
             BtnConnectNode_Click(sender, e);
         }
 
+        /// <summary>
+        /// 会话列表鼠标右键弹窗菜单响应（置顶、删除会话、修改备注等）
+        /// </summary>
         public void ListSessions_MouseUp(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Right)

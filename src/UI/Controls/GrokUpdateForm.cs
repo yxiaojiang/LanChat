@@ -28,6 +28,15 @@ namespace LanChat
         private GrokButton _btnCancel;
         private int _downloadProgress = -1; // -1: 未开始, 0..100: 下载中, 101: 完成
 
+        /// <summary>
+        /// 初始化版本升级更新模态窗体
+        /// </summary>
+        /// <param name="version">最新线上版本号</param>
+        /// <param name="releaseTitle">发布标题</param>
+        /// <param name="releaseNotes">更新日志正文</param>
+        /// <param name="downloadUrl">安装包 MSI 直链下载地址</param>
+        /// <param name="webUrl">GitHub Release 发布页链接</param>
+        /// <param name="onInstallExit">开始安装并退出当前程序的回调动作</param>
         public GrokUpdateForm(string version, string releaseTitle, string releaseNotes, string downloadUrl, string webUrl, Action onInstallExit = null)
         {
             _newVersion = version;

@@ -35,9 +35,27 @@ namespace LanChat
         private bool _isThumbHover = false, _isThumbDragging = false;
         private int _dragStartY = 0, _dragStartOffset = 0;
 
+        // =========================================================================
+        // 导航项数据模型
+        // =========================================================================
+
+        /// <summary>
+        /// 设置窗口左侧侧边栏导航条目定义
+        /// </summary>
         public class NavItem
         {
-            public int Id; public string Title; public WeChatIconType Icon; public string Group;
+            /// <summary>Tab 页面索引标识 (0~7)</summary>
+            public int Id;
+            /// <summary>导航条目显示文本</summary>
+            public string Title;
+            /// <summary>矢量图标枚举</summary>
+            public WeChatIconType Icon;
+            /// <summary>所属逻辑分组名称 (设置/功能/网络与系统/关于)</summary>
+            public string Group;
+
+            /// <summary>
+            /// 构造导航项条目
+            /// </summary>
             public NavItem(int id, string title, WeChatIconType icon, string group) { Id = id; Title = title; Icon = icon; Group = group; }
         }
 
@@ -58,9 +76,30 @@ namespace LanChat
         private static readonly Color ColCardBorder = GrokTheme.Border, ColNavActive = GrokTheme.Level3;
         private static readonly Color ColNavHover = GrokTheme.Level2, ColGroupLabel = GrokTheme.TextPlaceholder;
 
+        // =========================================================================
+        // 构造函数与生命周期
+        // =========================================================================
+
+        /// <summary>
+        /// 初始化全局暗黑设置窗口 (简易重载)
+        /// </summary>
+        /// <param name="netService">网络通信服务</param>
+        /// <param name="onCheckUpdate">检查更新回调</param>
+        /// <param name="onShowChangeNick">修改昵称回调</param>
+        /// <param name="onOpenFolder">打开接收目录回调</param>
+        /// <param name="initialTab">初始激活的 Tab 索引</param>
         public GrokSettingsDialog(NetworkService netService, Action onCheckUpdate, Action onShowChangeNick, Action onOpenFolder, int initialTab = 0)
             : this(netService, onCheckUpdate, onShowChangeNick, onOpenFolder, initialTab, null) { }
 
+        /// <summary>
+        /// 初始化全局暗黑设置窗口 (完整重载，支持字体应用回调)
+        /// </summary>
+        /// <param name="netService">网络通信服务</param>
+        /// <param name="onCheckUpdate">检查更新回调</param>
+        /// <param name="onShowChangeNick">修改昵称回调</param>
+        /// <param name="onOpenFolder">打开接收目录回调</param>
+        /// <param name="initialTab">初始激活的 Tab 索引</param>
+        /// <param name="onFontChanged">全局字体设置变更后的刷新回调</param>
         public GrokSettingsDialog(NetworkService netService, Action onCheckUpdate, Action onShowChangeNick, Action onOpenFolder, int initialTab, Action onFontChanged)
         {
             _context = new SettingsContext(netService, onCheckUpdate, onShowChangeNick, onOpenFolder, onFontChanged, this);

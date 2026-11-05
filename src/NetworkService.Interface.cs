@@ -69,6 +69,11 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 判定指定网卡是否为虚拟网卡、VPN 或 TUN/TAP 适配器（防止广播穿透与路由风暴）
+        /// </summary>
+        /// <param name="ni">网络接口实体</param>
+        /// <returns>true 表示虚拟网卡，false 表示物理真实网卡</returns>
         public static bool IsVirtualOrTun(NetworkInterface ni)
         {
             if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) return true;
@@ -97,6 +102,10 @@ namespace LanChat
             return false;
         }
 
+        /// <summary>
+        /// 获取本机首选的主物理局域网 IPv4 地址
+        /// </summary>
+        /// <returns>物理 IPv4 地址</returns>
         public IPAddress GetPrimaryPhysicalIp()
         {
             foreach (var iface in _activeInterfaces)
@@ -115,6 +124,11 @@ namespace LanChat
             return IPAddress.Loopback;
         }
 
+        /// <summary>
+        /// 根据目标 IP 匹配最佳的本机源出接口端点，防止多网卡跨路由错位
+        /// </summary>
+        /// <param name="targetIp">目标 IP 地址</param>
+        /// <returns>最佳本地绑定 IPEndPoint</returns>
         public IPEndPoint GetLocalEndpointForTarget(IPAddress targetIp)
         {
             if (IPAddress.IsLoopback(targetIp))
@@ -144,6 +158,13 @@ namespace LanChat
             return new IPEndPoint(IPAddress.Any, 0);
         }
 
+        /// <summary>
+        /// 判断两个 IPv4 地址在给定子网掩码下是否属于同一子网
+        /// </summary>
+        /// <param name="ip1">地址 1</param>
+        /// <param name="ip2">地址 2</param>
+        /// <param name="mask">子网掩码</param>
+        /// <returns>true 表示同子网</returns>
         public static bool IsInSameSubnet(IPAddress ip1, IPAddress ip2, IPAddress mask)
         {
             if (ip1 == null || ip2 == null || mask == null) return false;

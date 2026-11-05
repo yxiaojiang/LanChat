@@ -10,6 +10,10 @@ namespace LanChat
     /// </summary>
     public class NetworkDeviceSettingsPanel : SettingsPanelBase
     {
+        /// <summary>
+        /// 初始化物理网络与设备面板
+        /// </summary>
+        /// <param name="context">全局设置上下文宿主</param>
         public NetworkDeviceSettingsPanel(SettingsContext context) : base(context)
         {
             BuildComponents();

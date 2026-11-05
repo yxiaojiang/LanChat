@@ -32,6 +32,18 @@ namespace LanChat
         private const int TOP_PADDING = 8;
         private const int MENU_HEIGHT = 200; // 8 + 44*2 + 8 + 44*2 + 8 = 200px
 
+        // =========================================================================
+        // 构造函数与重载
+        // =========================================================================
+
+        /// <summary>
+        /// 初始化底部齿轮设置弹出快捷菜单
+        /// </summary>
+        /// <param name="netService">网络服务实例</param>
+        /// <param name="onShowSettings">打开完整设置面板回调</param>
+        /// <param name="onShowChangeNick">打开修改昵称窗口回调</param>
+        /// <param name="onClearChat">清空当前会话聊天记录回调</param>
+        /// <param name="onExit">退出应用程序回调</param>
         public GrokSettingsMenuForm(
             NetworkService netService,
             Action onShowSettings,
@@ -58,7 +70,9 @@ namespace LanChat
             };
         }
 
-        // 兼容重载，防止旧调用点报错
+        /// <summary>
+        /// 兼容旧版参数的重载构造函数
+        /// </summary>
         public GrokSettingsMenuForm(
             NetworkService netService,
             Action onShowSettings,

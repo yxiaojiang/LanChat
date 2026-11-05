@@ -25,6 +25,16 @@ namespace LanChat
         private int _filterIndex = 0; // 0: 全部, 1: 在线, 2: 常用, 3: 手动
         private string _searchFilter = string.Empty;
 
+        // =========================================================================
+        // 构造函数与初始化
+        // =========================================================================
+
+        /// <summary>
+        /// 初始化连接节点弹窗
+        /// </summary>
+        /// <param name="netService">网络通信服务实例，用于获取对端节点和广播扫描</param>
+        /// <param name="onConnectIp">手动输入 IP 连接时的回调</param>
+        /// <param name="onSelectPeer">点击选择在线节点卡片时的回调</param>
         public GrokConnectNodeForm(NetworkService netService, Action<string> onConnectIp, Action<PeerInfo> onSelectPeer)
         {
             _netService = netService;
@@ -39,6 +49,13 @@ namespace LanChat
             PopulatePeers();
         }
 
+        // =========================================================================
+        // 界面控件构建
+        // =========================================================================
+
+        /// <summary>
+        /// 构建搜索框、扫描刷新按钮、滚动面板及底部手动直连输入控件
+        /// </summary>
         private void BuildControls()
         {
             // 1. 顶部搜索框
@@ -116,6 +133,13 @@ namespace LanChat
             this.Controls.Add(_btnManualConnect);
         }
 
+        // =========================================================================
+        // 节点列表渲染与卡片创建
+        // =========================================================================
+
+        /// <summary>
+        /// 重新根据过滤词与分类标签筛选局域网节点，并在面板中动态排布双列卡片
+        /// </summary>
         private void PopulatePeers()
         {
             _listPanel.Controls.Clear();
@@ -170,6 +194,13 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 创建单个节点卡片容器并绑定自绘与点击交互
+        /// </summary>
+        /// <param name="peer">对端节点实体</param>
+        /// <param name="w">卡片宽度</param>
+        /// <param name="h">卡片高度</param>
+        /// <returns>卡片面板控件</returns>
         private Panel CreatePeerCard(PeerInfo peer, int w, int h)
         {
             Panel card = new Panel

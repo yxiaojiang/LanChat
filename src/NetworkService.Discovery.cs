@@ -159,6 +159,10 @@ namespace LanChat
 
         #region Peer Management & Broadcast
 
+        /// <summary>
+        /// 获取当前所有存活在线的局域网对端节点副本列表
+        /// </summary>
+        /// <returns>活跃对端列表</returns>
         public List<PeerInfo> GetActivePeers()
         {
             lock (_peerLock)
@@ -167,6 +171,14 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 添加新在线对端或更新已存在对端的心跳、IP与端口
+        /// </summary>
+        /// <param name="peerId">对端节点唯一标识</param>
+        /// <param name="nick">对端最新昵称</param>
+        /// <param name="host">对端主机名</param>
+        /// <param name="ip">对端 IPv4 地址</param>
+        /// <param name="port">对端 TCP 监听端口</param>
         public void AddOrUpdatePeer(string peerId, string nick, string host, IPAddress ip, int port)
         {
             if (peerId == LocalId) return;
@@ -215,6 +227,10 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 向所有物理网卡广播本机的在线/离线存活状态（HELLO/BYE）并执行子网探测
+        /// </summary>
+        /// <param name="command">广播动作指令（HELLO/BYE）</param>
         public void BroadcastPresence(string command)
         {
             IPAddress primaryIp = GetPrimaryPhysicalIp();
@@ -313,6 +329,11 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 主动向指定目标 IP 发起 TCP 握手验证，确认对端是否为可互通的 LanChat 客户端
+        /// </summary>
+        /// <param name="targetIp">目标 IPv4 地址</param>
+        /// <returns>握手是否成功</returns>
         public bool TryTcpHandshake(IPAddress targetIp)
         {
             try
@@ -354,6 +375,11 @@ namespace LanChat
             return false;
         }
 
+        /// <summary>
+        /// 异步主动探测指定 IP 地址，结合 UDP 探测与 TCP 握手双通道连通
+        /// </summary>
+        /// <param name="ipAddressStr">输入的 IPv4 字符串</param>
+        /// <param name="callback">连通结果回调 (success, message)</param>
         public void ProbeIp(string ipAddressStr, Action<bool, string> callback)
         {
             new Thread(() =>
@@ -395,6 +421,10 @@ namespace LanChat
             }) { IsBackground = true }.Start();
         }
 
+        /// <summary>
+        /// 从内存活跃节点列表中移除指定对端
+        /// </summary>
+        /// <param name="peerId">对端标识</param>
         public void RemovePeer(string peerId)
         {
             bool removed = false;

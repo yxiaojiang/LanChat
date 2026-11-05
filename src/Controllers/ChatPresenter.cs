@@ -7,7 +7,9 @@ using System.Windows.Forms;
 namespace LanChat
 {
     /// <summary>
-    /// 聊天消息编排 Presenter：负责文本消息的异步网络收发、广播与私聊路由、系统消息注入及未读统计
+    /// 聊天消息编排 Presenter
+    /// <para>【职责】负责文本消息的异步网络收发、广播与私聊路由、系统消息注入及未读统计。</para>
+    /// <para>【线程安全】跨线程接收的消息通过注入的 ISynchronizeInvoke 安全调度回 UI 主线程。</para>
     /// </summary>
     public class ChatPresenter
     {
@@ -19,24 +21,37 @@ namespace LanChat
         private string _lastBroadcastSnippet = "";
         private string _lastBroadcastTimeText = "";
 
+        /// <summary>消息已追加并成功落盘历史通知事件 (参数：message, convKey)</summary>
         public event Action<ChatMessage, string> MessageAppended;
+        /// <summary>非当前视口收到消息时的托盘与系统通知触发事件 (参数：message, wasActivelyViewing)</summary>
         public event Action<ChatMessage, bool /* wasActivelyViewing */> MessageNotificationTriggered;
+        /// <summary>当前活跃会话消息清空通知事件</summary>
         public event Action ActiveChatCleared;
 
+        /// <summary>获取或设置判定当前消息是否正在被用户当前激活视口查阅的委托</summary>
         public Func<ChatMessage, bool> IsActivelyViewingPredicate { get; set; }
 
+        /// <summary>获取或设置群聊广播最后一条消息的文本摘要</summary>
         public string LastBroadcastSnippet
         {
             get { return _lastBroadcastSnippet; }
             set { _lastBroadcastSnippet = value; }
         }
 
+        /// <summary>获取或设置群聊广播最后一条消息的时间文本 (HH:mm)</summary>
         public string LastBroadcastTimeText
         {
             get { return _lastBroadcastTimeText; }
             set { _lastBroadcastTimeText = value; }
         }
 
+        /// <summary>
+        /// 初始化聊天消息编排 Presenter 并监听底层网络消息到达
+        /// </summary>
+        /// <param name="netService">网络通信服务</param>
+        /// <param name="sessionManager">会话持久化管理器</param>
+        /// <param name="sessionPresenter">会话状态 Presenter</param>
+        /// <param name="sync">UI 跨线程同步器</param>
         public ChatPresenter(
             NetworkService netService,
             SessionManager sessionManager,
@@ -54,6 +69,7 @@ namespace LanChat
             }
         }
 
+        /// <summary>跨线程安全调用：防 Disposed 异常与死锁</summary>
         private void SafeInvoke(Action action)
         {
             if (action == null) return;
@@ -69,6 +85,10 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 发送纯文本消息：根据当前选中节点自动路由为局域网 UDP/TCP 组播广播或单节点直接私聊
+        /// </summary>
+        /// <param name="text">待发送的正文内容</param>
         public void SendTextMessage(string text)
         {
             if (string.IsNullOrEmpty(text)) return;
@@ -78,7 +98,7 @@ namespace LanChat
 
             if (target == null)
             {
-                // 全员群聊广播
+                // 1. 全员群聊广播
                 var peers = _netService != null ? _netService.GetActivePeers() : new List<PeerInfo>();
                 ChatMessage msg = new ChatMessage
                 {
@@ -104,6 +124,7 @@ namespace LanChat
                     MessageAppended(msg, SessionManager.BROADCAST_KEY);
                 }
 
+                // 异步后台线程分发网络封包，不阻塞 UI 响应
                 new Thread(() => {
                     if (_netService != null)
                     {
@@ -116,7 +137,7 @@ namespace LanChat
             }
             else
             {
-                // 好友私聊
+                // 2. 好友私聊
                 ChatMessage msg = new ChatMessage
                 {
                     SenderId = _netService != null ? _netService.LocalId : "",
@@ -154,6 +175,10 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 处理来自底层网络协议栈接收到的文本消息：会话归类、持久化、未读累加与通知触发
+        /// </summary>
+        /// <param name="msg">收到的消息实体模型</param>
         public void HandleReceivedMessage(ChatMessage msg)
         {
             string convKey = msg.IsBroadcast ? SessionManager.BROADCAST_KEY : msg.SenderId;
@@ -183,6 +208,7 @@ namespace LanChat
                 wasActivelyViewing = IsActivelyViewingPredicate(msg);
             }
 
+            // 若用户当前没有在看该会话，则累加未读数并触发通知
             if (!wasActivelyViewing)
             {
                 if (msg.IsBroadcast)
@@ -216,6 +242,10 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 在当前激活会话中插入一条灰色系统居中通知消息（如加入网络、IP绑定状态等）
+        /// </summary>
+        /// <param name="text">系统通知文案</param>
         public void AppendChatSystem(string text)
         {
             ChatMessage msg = new ChatMessage
@@ -238,6 +268,7 @@ namespace LanChat
             }
         }
 
+        /// <summary>清空当前激活会话的历史聊天记录</summary>
         public void ClearCurrentChat()
         {
             string activeKey = _sessionPresenter.ActiveChatKey;
@@ -252,6 +283,8 @@ namespace LanChat
             }
         }
 
+        /// <summary>获取当前活跃会话的全量已缓存历史消息集合</summary>
+        /// <returns>消息列表</returns>
         public List<ChatMessage> GetActiveMessages()
         {
             return _sessionManager != null

@@ -31,6 +31,12 @@ namespace LanChat
             return "";
         }
 
+        /// <summary>
+        /// 异步检查 GitHub Releases 最新版本并根据策略提示用户更新
+        /// </summary>
+        /// <param name="owner">父窗体</param>
+        /// <param name="silentIfNotNew">若为最新版本或未检测到新版，是否静默不弹窗</param>
+        /// <param name="onInstallExit">触发更新安装时的退出回调委托</param>
         public static void CheckForUpdates(Form owner, bool silentIfNotNew, Action onInstallExit = null)
         {
             ThreadPool.QueueUserWorkItem(_ =>
@@ -165,6 +171,16 @@ namespace LanChat
             });
         }
 
+        /// <summary>
+        /// 弹出现代化暗黑风版本更新向导弹窗
+        /// </summary>
+        /// <param name="owner">父窗体</param>
+        /// <param name="version">新版本号</param>
+        /// <param name="releaseTitle">发布标题</param>
+        /// <param name="releaseNotes">更新日志正文说明</param>
+        /// <param name="downloadUrl">MSI 安装包直链下载地址</param>
+        /// <param name="webUrl">GitHub Release 网页浏览地址</param>
+        /// <param name="onInstallExit">开始安装时的退出清理回调</param>
         public static void ShowUpdateDialog(Form owner, string version, string releaseTitle, string releaseNotes, string downloadUrl, string webUrl, Action onInstallExit = null)
         {
             using (GrokUpdateForm dlg = new GrokUpdateForm(version, releaseTitle, releaseNotes, downloadUrl, webUrl, onInstallExit))

@@ -18,8 +18,11 @@ namespace LanChat
         private int _selectedShape = 1; // 默认云朵形态
         private int _selectedColorIndex = 3; // 默认暖橙色
 
+        /// <summary>获取新创建节点的名称</summary>
         public string NodeName { get; private set; }
+        /// <summary>获取选中的吉祥物外观形态索引</summary>
         public int ShapeIndex { get { return _selectedShape; } }
+        /// <summary>获取选中的吉祥物配色</summary>
         public Color ChosenColor { get { return _colors[_selectedColorIndex]; } }
 
         // 11 种标准调色盘颜色
@@ -38,6 +41,10 @@ namespace LanChat
             Color.FromArgb(126, 128, 134)  // 烟灰
         };
 
+        /// <summary>
+        /// 初始化新建节点模态对话框
+        /// </summary>
+        /// <param name="initialName">初始推荐节点名称</param>
         public GrokCreateNodeForm(string initialName = "")
         {
             this.Size = GrokTheme.SizeCreateNode; // 680 x 620

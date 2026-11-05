@@ -8,44 +8,80 @@ namespace LanChat
     #region Vector Icon Definitions & Renderer
 
     /// <summary>
-    /// 微信暗黑风格矢量图标类型定义
+    /// 微信暗黑风格与 Grok 统一纯矢量图标类型枚举
     /// </summary>
     public enum WeChatIconType
     {
+        /// <summary>聊天双气泡图标</summary>
         Chat,
+        /// <summary>通讯录联系人图标</summary>
         Contacts,
+        /// <summary>文件夹图标</summary>
         Folder,
+        /// <summary>工具箱方盒图标</summary>
         Box,
+        /// <summary>旋转箭头刷新图标</summary>
         Refresh,
+        /// <summary>细线居中加号 (+) 图标</summary>
         Add,
+        /// <summary>汉堡三横线菜单图标</summary>
         Menu,
+        /// <summary>笑脸表情 Emoji 图标</summary>
         Emoji,
+        /// <summary>截图剪刀图标</summary>
         Scissors,
+        /// <summary>清空扫帚图标</summary>
         Clear,
+        /// <summary>搜索框清理小叉 (×) 图标</summary>
         Dismiss,
+        /// <summary>放大镜搜索图标</summary>
         Search,
+        /// <summary>电话图标</summary>
         Call,
+        /// <summary>更多省略号图标</summary>
         More,
+        /// <summary>麦克风语音图标</summary>
         Mic,
+        /// <summary>动态声波图标</summary>
         SoundWave,
+        /// <summary>居中加粗向上箭头 (↑) 图标</summary>
         UpArrow,
+        /// <summary>窗口最小化短横线 (—) 图标</summary>
         WinMin,
+        /// <summary>窗口最大化方框 (□) 图标</summary>
         WinMax,
+        /// <summary>窗口向下还原双层方框图标</summary>
         WinRestore,
+        /// <summary>窗口关闭对角叉 (×) 图标</summary>
         WinClose,
+        /// <summary>用户头像轮廓图标</summary>
         User,
+        /// <summary>闪电图标</summary>
         Bolt,
+        /// <summary>齿轮设置图标</summary>
         Settings,
+        /// <summary>退出登录图标</summary>
         Logout,
+        /// <summary>复制文本图标</summary>
         Copy,
+        /// <summary>无图标空占位</summary>
         None
     }
 
     /// <summary>
-    /// 矢量图标与 Grok Bot 吉祥物绘制引擎 (纯 GDI+ 矢量路径与抗锯齿绘制)
+    /// 矢量图标与 Grok Bot 吉祥物绘制引擎
+    /// <para>【职责】纯 GDI+ 矢量数学路径自绘，替代 Emoji 字符串与位图图标，保证 1.6~2.0px 圆滑端点与高 DPI 抗锯齿一致性。</para>
     /// </summary>
     public static class WeChatIcon
     {
+        /// <summary>
+        /// 统一入口：在指定目标几何矩形内自绘指定类型的抗锯齿矢量图标
+        /// </summary>
+        /// <param name="g">GDI+ 画布上下文</param>
+        /// <param name="type">矢量图标枚举类型</param>
+        /// <param name="bounds">目标几何矩形</param>
+        /// <param name="active">是否处于激活状态</param>
+        /// <param name="color">图标线条与填充颜色</param>
         public static void Draw(Graphics g, WeChatIconType type, Rectangle bounds, bool active, Color color)
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;

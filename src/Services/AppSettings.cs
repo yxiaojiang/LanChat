@@ -17,18 +17,37 @@ namespace LanChat
         private static readonly object _lock = new object();
         private static string _configPath;
 
+        // =========================================================================
+        // 公共持久化配置属性
+        // =========================================================================
+
+        /// <summary>本机用户自定义个性昵称</summary>
         public static string NickName { get; set; }
+
+        /// <summary>是否自动接收来自好友的文件</summary>
         public static bool AutoAcceptFiles { get; set; }
+
+        /// <summary>文件接收保存的默认物理目录</summary>
         public static string SaveDirectory { get; set; }
 
-        // 界面与聊天框字体样式及大小设置
+        /// <summary>全局 UI 界面字体族名称</summary>
         public static string UiFontFamily { get; set; }
+
+        /// <summary>全局 UI 界面字体大小（pt）</summary>
         public static float UiFontSize { get; set; }
+
+        /// <summary>聊天气泡正文字体族名称</summary>
         public static string ChatFontFamily { get; set; }
+
+        /// <summary>聊天气泡正文字体大小（pt）</summary>
         public static float ChatFontSize { get; set; }
 
-        // 聊天记录自定义存储目录
+        /// <summary>聊天记录 SQLite/JSON 存储自定义物理目录</summary>
         public static string ChatHistoryDirectory { get; set; }
+
+        // =========================================================================
+        // 静态初始化与配置加载/保存
+        // =========================================================================
 
         static AppSettings()
         {
@@ -61,6 +80,9 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 从配置文件读取并反序列化用户持久化配置项
+        /// </summary>
         public static void Load()
         {
             lock (_lock)
@@ -139,6 +161,9 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 将当前内存中的用户偏好配置持久化序列化至本地 JSON 文件
+        /// </summary>
         public static void Save()
         {
             lock (_lock)

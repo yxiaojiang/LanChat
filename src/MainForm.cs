@@ -12,8 +12,23 @@ using System.Windows.Forms;
 
 namespace LanChat
 {
+    /// <summary>
+    /// LanChat 桌面客户端主窗体生命周期与核心路由类
+    /// <para>【职责】作为主窗体容器，负责窗口生命周期、无边框 DWM 阴影与缩放、Win32 消息路由及 Presenter/Controller 业务组装。</para>
+    /// <para>【分部类结构】
+    /// 1. MainForm.cs：窗体生命周期、控制器总装、原生 Win32 调用与公共属性路由；
+    /// 2. MainForm.Designer.cs：全量控件树构建、响应式布局排版与自绘参数度量；
+    /// 3. MainForm.Chat.cs：会话列表自绘调度、文本输入与快捷菜单交互；
+    /// 4. MainForm.Files.cs：文件传输拖拽与多文件流式发送调度；
+    /// 5. MainForm.Tray.cs：系统托盘悬停预览、未读闪烁与设置中心呼出。
+    /// </para>
+    /// </summary>
     public partial class MainForm : Form
     {
+        // ==========================================
+        // Windows 原生 DWM 与 Win32 消息互操作
+        // ==========================================
+
         [DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
@@ -46,19 +61,25 @@ namespace LanChat
                 return new IntPtr(SetClassLong32(hWnd, nIndex, (uint)dwNewLong.ToInt32()));
         }
 
-        // Constants
+        // ==========================================
+        // 全局核心常量
+        // ==========================================
+        /// <summary>当前应用程序版本号</summary>
         public const string APP_VERSION = "2.0.14";
+        /// <summary>GitHub 开源仓库标识</summary>
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
         private const string BROADCAST_TARGET = "📢 局域网全员群聊";
 
-        // Core Network & Presentation Controllers
+        // ==========================================
+        // 核心服务与业务控制器依赖
+        // ==========================================
         private NetworkService _netService;
         private readonly SessionManager _sessionManager = new SessionManager();
         private SessionPresenter _sessionPresenter;
         private ChatPresenter _chatPresenter;
         private FileTransferController _fileController;
 
-        // Backward compatibility properties delegating to presenters
+        // 向后兼容包装属性：透明路由至 Presenter 层，保证旧代码调用零破坏
         private string _activeChatKey
         {
             get { return _sessionPresenter != null ? _sessionPresenter.ActiveChatKey : _sessionManager.ActiveSessionKey; }
@@ -93,10 +114,10 @@ namespace LanChat
             set { if (_chatPresenter != null) _chatPresenter.LastBroadcastTimeText = value; }
         }
 
-        // Navigation state: 0 = Chat, 1 = Contacts
+        // 导航状态：0 = 聊天, 1 = 通讯录
         private int _currentNavTab = 0;
 
-        // System Tray & Lifecycle
+        // 系统托盘与生命周期管理
         private NotifyIcon _trayIcon;
         private GrokTrayPreviewPopup _trayPreviewPopup;
         private bool _isExplicitExit = false;
@@ -104,6 +125,9 @@ namespace LanChat
         private int _wakeupMessageId = 0;
         private FormResizeMessageFilter _resizeFilter;
 
+        /// <summary>
+        /// 初始化主窗体，加载本地设置、初始化无边框缩放过滤器与系统托盘
+        /// </summary>
         public MainForm()
         {
             try
@@ -133,13 +157,16 @@ namespace LanChat
             InitializeNetwork();
         }
 
+        /// <summary>
+        /// 初始化业务控制器 (MVP架构)，解耦网络层与主窗体 UI
+        /// </summary>
         private void InitializeControllers()
         {
             _sessionPresenter = new SessionPresenter(_netService, _sessionManager, this);
             _chatPresenter = new ChatPresenter(_netService, _sessionManager, _sessionPresenter, this);
             _fileController = new FileTransferController(_netService, _sessionManager, this);
 
-            // 1. SessionPresenter bindings
+            // 1. SessionPresenter 会话状态绑定
             _sessionPresenter.SessionsUpdated += () => RenderSessionList();
             _sessionPresenter.PeerJoinedNotice += (peer) => {
                 if (peer != null)
@@ -149,7 +176,7 @@ namespace LanChat
             };
             _sessionPresenter.ActiveSessionChanged += OnActiveSessionChanged;
 
-            // 2. ChatPresenter bindings
+            // 2. ChatPresenter 聊天收发绑定
             _chatPresenter.IsActivelyViewingPredicate = (msg) => {
                 string convKey = msg.IsBroadcast ? SessionManager.BROADCAST_KEY : msg.SenderId;
                 return IsActivelyViewing(convKey);
@@ -161,7 +188,7 @@ namespace LanChat
                 if (_listSessions != null) _listSessions.Invalidate();
             };
 
-            // 3. FileTransferController bindings
+            // 3. FileTransferController 文件传输绑定
             _fileController.IsActivelyViewingPredicate = (convKey, senderNick) => IsActivelyViewing(convKey);
             _fileController.ProgressChanged += HandleFileProgress;
             _fileController.TransferCompleted += OnFileTransferCompleted;
@@ -175,17 +202,18 @@ namespace LanChat
             };
         }
 
+        /// <summary>扩展窗体创建样式：支持无边框窗口点击任务栏最小化/还原及系统动画</summary>
         protected override CreateParams CreateParams
         {
             get
             {
                 CreateParams cp = base.CreateParams;
-                // 支持无边框窗口点击任务栏最小化/还原及系统动画 (WS_MINIMIZEBOX | WS_SYSMENU)
                 cp.Style |= 0x00020000 | 0x00080000 | 0x02000000;
                 return cp;
             }
         }
 
+        /// <summary>窗体句柄建立：注入 DWM 暗黑主题属性、单实例唤醒消息与任务栏图标</summary>
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
@@ -202,7 +230,7 @@ namespace LanChat
             }
             catch { }
 
-            // 彻底解决任务栏图标显示旧图标问题：显式向 HWND 句柄发送 WM_SETICON 并写入窗口类图标
+            // 显式向 HWND 句柄发送 WM_SETICON 并写入窗口类图标，防止任务栏显示系统旧缓存图标
             if (this.Icon != null)
             {
                 try
@@ -216,6 +244,7 @@ namespace LanChat
             }
         }
 
+        /// <summary>窗体初次呈现：重新加固任务栏图标</summary>
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
@@ -230,6 +259,7 @@ namespace LanChat
             }
         }
 
+        /// <summary>主窗体消息循环分发：处理多开唤醒与边缘命中检测</summary>
         protected override void WndProc(ref Message m)
         {
             if (_wakeupMessageId != 0 && m.Msg == _wakeupMessageId)
@@ -261,6 +291,7 @@ namespace LanChat
             base.WndProc(ref m);
         }
 
+        /// <summary>标题栏鼠标按下：双击切换最大化，单指拖拽移动窗口</summary>
         private void DragWindow_MouseDown(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
@@ -275,6 +306,7 @@ namespace LanChat
             }
         }
 
+        /// <summary>切换窗口最大化与正常窗口大小</summary>
         private void ToggleMaximize()
         {
             if (this.WindowState == FormWindowState.Maximized)
@@ -299,6 +331,7 @@ namespace LanChat
             Invalidate(true);
         }
 
+        /// <summary>触发 Presenter 重新加载好友列表数据源</summary>
         private void RefreshPeerListUI()
         {
             if (_sessionPresenter != null)
@@ -311,6 +344,7 @@ namespace LanChat
             }
         }
 
+        /// <summary>应用搜索框过滤词并刷新会话列表</summary>
         private void ApplyFilterAndRenderList()
         {
             if (_sessionPresenter != null)
@@ -320,6 +354,8 @@ namespace LanChat
             RenderSessionList();
         }
 
+        /// <summary>在当前视口追加一条系统提示消息</summary>
+        /// <param name="text">提示正文</param>
         public void AppendChatSystem(string text)
         {
             if (_chatPresenter != null)
@@ -328,6 +364,7 @@ namespace LanChat
             }
         }
 
+        /// <summary>清空当前活跃会话的聊天历史记录</summary>
         public void ClearCurrentChat()
         {
             if (_chatPresenter != null)
@@ -336,6 +373,7 @@ namespace LanChat
             }
         }
 
+        /// <summary>启动 Windows 系统截图工具</summary>
         private void TriggerScreenshot()
         {
             try
@@ -355,6 +393,7 @@ namespace LanChat
             }
         }
 
+        /// <summary>弹出输入框左侧 (+) 附件与快捷功能暗黑菜单</summary>
         private void ShowInputPlusContextMenu()
         {
             GrokPopupMenu menu = new GrokPopupMenu();
@@ -367,6 +406,7 @@ namespace LanChat
             menu.Show(_btnToolSendFile, new Point(0, -210));
         }
 
+        /// <summary>应用并动态刷新用户偏好的字体家族与字号</summary>
         public void ApplyFontSettings()
         {
             try
@@ -399,6 +439,7 @@ namespace LanChat
             catch { }
         }
 
+        /// <summary>主窗体跨线程安全调度辅助</summary>
         private void SafeInvoke(Action action)
         {
             if (this.IsDisposed || !this.IsHandleCreated) return;
@@ -418,6 +459,7 @@ namespace LanChat
 
         #region Helper Drawing Functions
 
+        /// <summary>GDI+ 自绘工具：绘制圆角矩形描边</summary>
         public static void DrawRoundedRectangle(Graphics g, Pen pen, Rectangle bounds, int radius)
         {
             using (GraphicsPath path = RoundedRect(bounds, radius))
@@ -426,6 +468,7 @@ namespace LanChat
             }
         }
 
+        /// <summary>GDI+ 自绘工具：填充圆角矩形内部实体</summary>
         public static void DrawRoundedRectangle(Graphics g, Brush brush, Rectangle bounds, int radius)
         {
             using (GraphicsPath path = RoundedRect(bounds, radius))
@@ -434,6 +477,7 @@ namespace LanChat
             }
         }
 
+        /// <summary>GDI+ 自绘工具：构建标准圆弧拼接的抗锯齿 GraphicsPath 路径</summary>
         public static GraphicsPath RoundedRect(Rectangle bounds, int radius)
         {
             int diameter = radius * 2;

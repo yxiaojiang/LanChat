@@ -15,6 +15,7 @@ namespace LanChat
     /// </summary>
     public class WeChatChatView : UserControl
     {
+        /// <summary>文件卡片操作按钮（打开文件/定位所在目录）点击事件通知</summary>
         public Action<ChatMessage, string> OnFileActionClick;
 
         private List<ChatMessage> _messages = new List<ChatMessage>();
@@ -35,6 +36,9 @@ namespace LanChat
         private int _selAnchor = 0;
         private bool _isSelecting = false;
 
+        /// <summary>
+        /// 获取或设置是否在群聊非本人发送气泡上方绘制发件人彩色昵称
+        /// </summary>
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool ShowGroupSenderName
         {
@@ -83,6 +87,10 @@ namespace LanChat
             this.Resize += (s, e) => { RecalculateLayout(true); Invalidate(); };
         }
 
+        /// <summary>
+        /// 获取当前生效的聊天消息排版字体（结合用户设置的字体家族与字号大小）
+        /// </summary>
+        /// <returns>构建的 Font 实例</returns>
         public Font GetMsgFont()
         {
             string fam = !string.IsNullOrEmpty(AppSettings.ChatFontFamily) ? AppSettings.ChatFontFamily : "Microsoft YaHei UI";
@@ -97,12 +105,19 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 响应全局字体设置变更：重新排版气泡折行并触发重绘
+        /// </summary>
         public void ApplyFontSettings()
         {
             RecalculateLayout(true);
             Invalidate();
         }
 
+        /// <summary>
+        /// 全量加载并切换当前视口展示的消息列表，自动滚动聚焦到底部最新消息
+        /// </summary>
+        /// <param name="list">消息列表集合</param>
         public void SetMessages(List<ChatMessage> list)
         {
             _messages = list ?? new List<ChatMessage>();
@@ -113,11 +128,16 @@ namespace LanChat
             Invalidate();
         }
 
+        /// <summary>清空当前视口中的所有消息气泡</summary>
         public void ClearMessages()
         {
             SetMessages(new List<ChatMessage>());
         }
 
+        /// <summary>
+        /// 在视口尾部追加单条新消息，并平滑滚屏至视口底部
+        /// </summary>
+        /// <param name="msg">新到达或刚发送的消息</param>
         public void AppendMessage(ChatMessage msg)
         {
             if (_messages != null && !_messages.Contains(msg))
@@ -478,6 +498,9 @@ namespace LanChat
             return targetLine.StartChar + bestChar;
         }
 
+        /// <summary>
+        /// 文本折行核心算法：考虑字符边界、英文空白词断行及中文字符自适应拆解，并累加 GrokTheme.ChatLineSpacingExtra 呼吸行距
+        /// </summary>
         private static List<VisualLine> BreakTextIntoVisualLines(Graphics g, string content, Font font, float maxWidth, float startX, float startY)
         {
             List<VisualLine> lines = new List<VisualLine>();

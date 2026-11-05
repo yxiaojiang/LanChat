@@ -10,6 +10,10 @@ namespace LanChat
     /// </summary>
     public class FileTransferSettingsPanel : SettingsPanelBase
     {
+        /// <summary>
+        /// 初始化文件传输面板
+        /// </summary>
+        /// <param name="context">全局设置上下文宿主</param>
         public FileTransferSettingsPanel(SettingsContext context) : base(context)
         {
             BuildComponents();

@@ -12,14 +12,23 @@ namespace LanChat
     /// </summary>
     public class TrayUnreadItem
     {
+        /// <summary>会话唯一键 (如广播键或节点标识)</summary>
         public string ConvKey { get; set; }
+        /// <summary>显示标题 (联系人昵称或群聊名)</summary>
         public string Title { get; set; }
+        /// <summary>未读消息条数</summary>
         public int UnreadCount { get; set; }
+        /// <summary>最新一条消息内容摘要文本</summary>
         public string LatestSnippet { get; set; }
+        /// <summary>格式化后的时间戳字符串</summary>
         public string TimeText { get; set; }
+        /// <summary>是否为广播群聊</summary>
         public bool IsBroadcast { get; set; }
+        /// <summary>对端节点实体信息</summary>
         public PeerInfo Peer { get; set; }
+        /// <summary>头像主题色</summary>
         public Color AvatarColor { get; set; }
+        /// <summary>头像吉祥物几何形状索引</summary>
         public int AvatarShape { get; set; }
     }
 
@@ -49,6 +58,13 @@ namespace LanChat
         private Point _anchorPos;
         private int _mouseAwayTicks = 0;
 
+        // =========================================================================
+        // 构造函数与初始化
+        // =========================================================================
+
+        /// <summary>
+        /// 初始化托盘悬浮未读卡片窗体
+        /// </summary>
         public GrokTrayPreviewPopup()
         {
             this.FormBorderStyle = FormBorderStyle.None;

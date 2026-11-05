@@ -10,6 +10,10 @@ namespace LanChat
     /// </summary>
     public class GeneralSettingsPanel : SettingsPanelBase
     {
+        /// <summary>
+        /// 初始化通用设置面板 (常规、权限偏好、支持与关于)
+        /// </summary>
+        /// <param name="context">全局设置上下文宿主</param>
         public GeneralSettingsPanel(SettingsContext context) : base(context)
         {
             BuildComponents();

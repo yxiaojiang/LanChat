@@ -388,6 +388,10 @@ namespace LanChat
         private bool _trayFlashState = false;
         private bool _isTrayFlashing = false;
 
+        /// <summary>
+        /// 闪烁或停止闪烁 Windows 任务栏窗口（FlashWindowEx）
+        /// </summary>
+        /// <param name="flash">true 开启闪烁，false 停止</param>
         public void FlashTaskbar(bool flash)
         {
             try
@@ -411,6 +415,9 @@ namespace LanChat
             catch { }
         }
 
+        /// <summary>
+        /// 开启系统托盘图标交替闪烁定时器
+        /// </summary>
         public void StartTrayFlash()
         {
             if (_isTrayFlashing) return;
@@ -419,6 +426,9 @@ namespace LanChat
             if (_trayFlashTimer != null) _trayFlashTimer.Start();
         }
 
+        /// <summary>
+        /// 停止系统托盘图标闪烁并恢复常态图标与提示
+        /// </summary>
         public void StopTrayFlash()
         {
             if (!_isTrayFlashing) return;
@@ -432,6 +442,9 @@ namespace LanChat
             UpdateTrayTooltipText();
         }
 
+        /// <summary>
+        /// 清除当前活跃会话的未读角标计数并刷新全局通知状态
+        /// </summary>
         public void ClearActiveChatUnread()
         {
             if (_sessionPresenter != null)
@@ -443,6 +456,10 @@ namespace LanChat
             UpdateTrayTooltipText();
         }
 
+        /// <summary>
+        /// 计算当前客户端所有会话（广播群聊 + 好友私聊）的未读消息总数
+        /// </summary>
+        /// <returns>未读消息总条数</returns>
         public int GetTotalUnreadCount()
         {
             int total = _broadcastUnreadCount;
@@ -457,6 +474,9 @@ namespace LanChat
             return total;
         }
 
+        /// <summary>
+        /// 若当前全局无任何未读消息，则自动停止任务栏闪烁与托盘闪动
+        /// </summary>
         public void CheckAndClearGlobalNotifications()
         {
             if (GetTotalUnreadCount() == 0)
@@ -484,6 +504,9 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 在鼠标悬浮于托盘图标时弹出未读消息悬浮预览卡片
+        /// </summary>
         public void ShowTrayPreviewPopup()
         {
             try
@@ -511,6 +534,9 @@ namespace LanChat
             catch { }
         }
 
+        /// <summary>
+        /// 关闭托盘未读悬浮预览卡片
+        /// </summary>
         public void CloseTrayPreviewPopup()
         {
             try
@@ -523,6 +549,10 @@ namespace LanChat
             catch { }
         }
 
+        /// <summary>
+        /// 获取当前所有存在未读消息的会话预览条目集合
+        /// </summary>
+        /// <returns>未读条目列表</returns>
         public List<TrayUnreadItem> GetTrayUnreadItems()
         {
             List<TrayUnreadItem> items = new List<TrayUnreadItem>();
@@ -580,6 +610,9 @@ namespace LanChat
             return items;
         }
 
+        /// <summary>
+        /// 更新 Windows 托盘图标鼠标悬停的 Tooltip 提示文字
+        /// </summary>
         public void UpdateTrayTooltipText()
         {
             if (_trayIcon == null) return;
@@ -621,6 +654,10 @@ namespace LanChat
             catch { }
         }
 
+        /// <summary>
+        /// 激活主窗口并切换至指定会话唯一标识对应的聊天界面
+        /// </summary>
+        /// <param name="convKey">会话标识 (如 "BROADCAST" 或对端节点 ID)</param>
         public void SwitchToSession(string convKey)
         {
             try

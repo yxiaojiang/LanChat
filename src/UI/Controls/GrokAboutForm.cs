@@ -17,6 +17,10 @@ namespace LanChat
         private GrokButton _btnCopy;
         private Timer _copyTimer;
 
+        /// <summary>
+        /// 初始化关于软件模态窗体
+        /// </summary>
+        /// <param name="version">当前版本号文本（默认 "2.0.0"）</param>
         public GrokAboutForm(string version = "2.0.0")
         {
             _version = version;

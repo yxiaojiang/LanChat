@@ -44,6 +44,9 @@ namespace LanChat
     /// </summary>
     public class WeChatDarkMenuRenderer : ToolStripProfessionalRenderer
     {
+        /// <summary>
+        /// 初始化微信暗黑风格菜单自绘渲染器
+        /// </summary>
         public WeChatDarkMenuRenderer() : base(new WeChatDarkMenuColorTable())
         {
         }
@@ -134,6 +137,11 @@ namespace LanChat
         private static DarkTooltipForm _tipForm;
         private static Label _lblText;
 
+        /// <summary>
+        /// 在指定控件附近智能计算屏幕边界并弹出暗黑自绘 Tooltip 气泡
+        /// </summary>
+        /// <param name="parent">宿主依附控件</param>
+        /// <param name="text">提示文字内容</param>
         public static void ShowTooltip(Control parent, string text)
         {
             if (parent == null || string.IsNullOrEmpty(text) || parent.IsDisposed) return;
@@ -223,6 +231,9 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 隐藏并关闭当前显示的暗黑 Tooltip 气泡
+        /// </summary>
         public static void HideTooltip()
         {
             if (_tipForm != null && _tipForm.Visible)

@@ -232,6 +232,13 @@ namespace LanChat
 
         #region TCP Communication & File Transfer
 
+        /// <summary>
+        /// 通过 TCP 直连向对端节点或全员广播发送单条文本消息
+        /// </summary>
+        /// <param name="peer">目标对端节点</param>
+        /// <param name="message">消息正文文本</param>
+        /// <param name="isBroadcast">是否为广播群聊消息</param>
+        /// <returns>对端是否成功确认收到 ACK</returns>
         public bool SendTextMessage(PeerInfo peer, string message, bool isBroadcast)
         {
             try
@@ -271,6 +278,13 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 异步启动 64KB 高性能流式分块文件传输
+        /// </summary>
+        /// <param name="peer">目标对端节点</param>
+        /// <param name="filePath">待发送的本地物理文件完整路径</param>
+        /// <param name="progressCallback">实时进度回调委托</param>
+        /// <param name="completionCallback">传输完毕回调委托 (success, reason)</param>
         public void SendFileAsync(PeerInfo peer, string filePath, Action<FileTransferProgress> progressCallback, Action<bool, string> completionCallback)
         {
             new Thread(() =>

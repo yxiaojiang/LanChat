@@ -6,10 +6,13 @@ using System.Windows.Forms;
 namespace LanChat
 {
     /// <summary>
-    /// 会话状态与列表编排 Presenter：负责维护全员群聊、在线节点与离线历史会话的状态与筛选
+    /// 会话状态与列表编排 Presenter
+    /// <para>【职责】负责维护全员群聊、在线节点与离线历史会话的状态机维护、模糊搜索过滤与切页防抖。</para>
+    /// <para>【线程安全】跨线程网络回调（上线/更新/下线）通过注入的 ISynchronizeInvoke 统一安全封送到 UI 主线程。</para>
     /// </summary>
     public class SessionPresenter
     {
+        /// <summary>全员广播会话显示标识常量</summary>
         public const string BROADCAST_TARGET = "📢 局域网全员群聊";
 
         private readonly NetworkService _netService;
@@ -24,38 +27,47 @@ namespace LanChat
         private PeerInfo _selectedPeer = null;
         private int _broadcastUnreadCount = 0;
 
+        /// <summary>会话列表数据源刷新通知事件（主界面据此执行 BeginUpdate/EndUpdate 重绑）</summary>
         public event Action SessionsUpdated;
+        /// <summary>当前活跃会话切换事件 (参数：sessionKey, peerInfo, 标题文本, 输入框占位符, 是否显示群聊昵称)</summary>
         public event Action<string, PeerInfo, string, string, bool> ActiveSessionChanged;
+        /// <summary>新节点加入局域网通知事件</summary>
         public event Action<PeerInfo> PeerJoinedNotice;
 
+        /// <summary>获取或设置当前活跃会话标识键（"BROADCAST" 或 节点 GUID）</summary>
         public string ActiveChatKey
         {
             get { return _activeChatKey; }
             set { _activeChatKey = value; }
         }
 
+        /// <summary>获取或设置当前选中的单聊好友节点（若处于群聊则为 null）</summary>
         public PeerInfo SelectedPeer
         {
             get { return _selectedPeer; }
             set { _selectedPeer = value; }
         }
 
+        /// <summary>获取或设置群聊广播的未读消息计数</summary>
         public int BroadcastUnreadCount
         {
             get { return _broadcastUnreadCount; }
             set { _broadcastUnreadCount = value; }
         }
 
+        /// <summary>获取包含全员群聊、在线好友与历史离线节点的全部会话项集合</summary>
         public List<object> AllSessionItems
         {
             get { return _allSessionItems; }
         }
 
+        /// <summary>获取经过搜索关键字过滤后的可见会话项列表</summary>
         public List<object> FilteredSessionItems
         {
             get { return _filteredSessionItems; }
         }
 
+        /// <summary>获取或设置当前搜索过滤词（赋值后自动执行匹配并对外派发 SessionsUpdated）</summary>
         public string SearchFilter
         {
             get { return _searchFilter; }
@@ -67,6 +79,12 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 初始化会话 Presenter 并挂接网络服务节点发现监听
+        /// </summary>
+        /// <param name="netService">网络通信服务</param>
+        /// <param name="sessionManager">会话持久化与未读管理器</param>
+        /// <param name="sync">跨线程 UI 同步器</param>
         public SessionPresenter(NetworkService netService, SessionManager sessionManager, ISynchronizeInvoke sync)
         {
             _netService = netService;
@@ -84,6 +102,7 @@ namespace LanChat
             }
         }
 
+        /// <summary>跨线程安全调用：防 Disposed 异常与死锁</summary>
         private void SafeInvoke(Action action)
         {
             if (action == null) return;
@@ -99,6 +118,9 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 完整重建会话列表项：置顶局域网全员群聊、按在线状态排列节点并追加历史离线好友
+        /// </summary>
         public void RefreshSessions()
         {
             var peers = _netService != null ? _netService.GetActivePeers() : new List<PeerInfo>();
@@ -142,6 +164,9 @@ namespace LanChat
             if (SessionsUpdated != null) SessionsUpdated();
         }
 
+        /// <summary>
+        /// 执行会话模糊搜索过滤（匹配昵称、IP 地址与主机名）
+        /// </summary>
         public void ApplyFilter()
         {
             string filter = _searchFilter.Trim().ToLowerInvariant();
@@ -175,6 +200,10 @@ namespace LanChat
             }
         }
 
+        /// <summary>
+        /// 切换当前选中的会话（带相同会话防抖保护与未读清空）
+        /// </summary>
+        /// <param name="item">被选中的会话对象（string 或 PeerInfo）</param>
         public void SelectSession(object item)
         {
             if (item == null) return;
@@ -210,6 +239,7 @@ namespace LanChat
                 return;
             }
 
+            // 相同会话防抖保护：避免重复点击引起视口闪烁与滚动位置重置
             if (string.Equals(newKey, previousKey, StringComparison.Ordinal))
             {
                 _selectedPeer = newPeer;
@@ -226,12 +256,16 @@ namespace LanChat
             }
         }
 
+        /// <summary>直接指定好友节点切换聊天会话</summary>
+        /// <param name="peer">目标节点</param>
         public void SelectPeerChat(PeerInfo peer)
         {
             if (peer == null) return;
             SelectSession(peer);
         }
 
+        /// <summary>从列表中删除指定好友的会话与历史缓存</summary>
+        /// <param name="peer">待移除的节点</param>
         public void DeletePeerSession(PeerInfo peer)
         {
             if (peer == null) return;
@@ -265,6 +299,7 @@ namespace LanChat
             if (SessionsUpdated != null) SessionsUpdated();
         }
 
+        /// <summary>清空局域网全员群聊的历史消息</summary>
         public void ClearBroadcastSession()
         {
             if (_sessionManager != null)
@@ -279,6 +314,7 @@ namespace LanChat
             if (SessionsUpdated != null) SessionsUpdated();
         }
 
+        /// <summary>清除当前处于焦点的会话的未读角标计数</summary>
         public void ClearActiveChatUnread()
         {
             if (_activeChatKey == "BROADCAST")
@@ -291,11 +327,15 @@ namespace LanChat
             }
         }
 
+        /// <summary>获取当前局域网处于活跃在线状态的节点总数</summary>
         public int GetOnlineCount()
         {
             return _netService != null ? _netService.GetActivePeers().Count : 0;
         }
 
+        /// <summary>在过滤列表中查找指定会话对象的索引位置</summary>
+        /// <param name="selected">待查找的对象</param>
+        /// <returns>匹配的行索引，未找到返回 -1</returns>
         public int FindSessionIndex(object selected)
         {
             if (selected == null) return -1;

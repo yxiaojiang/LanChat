@@ -15,6 +15,13 @@ namespace LanChat
         private readonly string _title;
         private readonly string _message;
 
+        /// <summary>
+        /// 初始化自定义暗黑模态提示框
+        /// </summary>
+        /// <param name="message">提示消息正文</param>
+        /// <param name="title">弹窗左上角小标题</param>
+        /// <param name="buttons">按钮组合枚举 (OK / OKCancel / YesNo / YesNoCancel)</param>
+        /// <param name="icon">状态指示图标 (Information / Warning / Error / Question)</param>
         public GrokMessageBox(string message, string title, MessageBoxButtons buttons, MessageBoxIcon icon)
         {
             _message = message ?? string.Empty;
@@ -167,21 +174,43 @@ namespace LanChat
 
         #region Static Helpers
 
+        /// <summary>快捷弹出仅包含“确定”按钮的信息提示框</summary>
+        /// <param name="text">提示文案</param>
+        /// <returns>用户交互结果</returns>
         public static DialogResult Show(string text)
         {
             return Show(null, text, "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
+        /// <summary>快捷弹出指定标题与正文的信息提示框</summary>
+        /// <param name="text">提示文案</param>
+        /// <param name="title">弹窗标题</param>
+        /// <returns>用户交互结果</returns>
         public static DialogResult Show(string text, string title)
         {
             return Show(null, text, title, MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
+        /// <summary>快捷弹出指定按钮与状态图标的提示框</summary>
+        /// <param name="text">提示文案</param>
+        /// <param name="title">弹窗标题</param>
+        /// <param name="buttons">按钮选项</param>
+        /// <param name="icon">状态图标</param>
+        /// <returns>用户交互结果</returns>
         public static DialogResult Show(string text, string title, MessageBoxButtons buttons, MessageBoxIcon icon)
         {
             return Show(null, text, title, buttons, icon);
         }
 
+        /// <summary>
+        /// 完整调用：在指定父窗口居中弹出统一样式自绘暗黑模态提示框
+        /// </summary>
+        /// <param name="owner">父级窗体</param>
+        /// <param name="text">提示文案</param>
+        /// <param name="title">弹窗标题</param>
+        /// <param name="buttons">按钮选项</param>
+        /// <param name="icon">状态图标</param>
+        /// <returns>用户点击的按钮返回结果</returns>
         public static DialogResult Show(IWin32Window owner, string text, string title = "提示", MessageBoxButtons buttons = MessageBoxButtons.OK, MessageBoxIcon icon = MessageBoxIcon.Information)
         {
             using (GrokMessageBox box = new GrokMessageBox(text, title, buttons, icon))

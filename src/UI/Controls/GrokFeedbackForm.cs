@@ -16,6 +16,9 @@ namespace LanChat
         private GrokButton _btnCancel;
         private GrokButton _btnSubmit;
 
+        /// <summary>
+        /// 初始化意见反馈模态对话框
+        /// </summary>
         public GrokFeedbackForm()
         {
             this.Size = GrokTheme.SizeFeedback; // 520 x 460
