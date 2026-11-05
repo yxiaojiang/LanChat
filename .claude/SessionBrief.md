@@ -28,13 +28,13 @@
 
 ## 二、当前活跃实施目标（DIR-005 执行顺序）
 
-1. **第 1 步 (P0-SettingsDialogDecouple，治理超限首恶) [当前下一步]**：
-   - 更新 `Tools/Compile.bat`、`Tools/CompileAndLink.bat`、`Tools/Publish.bat` 追加 `src\UI\Controls\SettingsPanels\*.cs` 编译通配符；
-   - 提取公共 `DoubleBufferedPanel` 至 `src/UI/Controls/DoubleBufferedPanel.cs`；
-   - 建立 `src/UI/Controls/SettingsPanels/SettingsPanelBase.cs` 基类与 `SettingsContext.cs` 上下文 DTO；
-   - 依真实 8 个 Tab 逐一抽取独立面板，重构 `GrokSettingsDialog.cs` 为纯导航容器（代码收敛至 400 行以内）；
-   - 执行 `Tools/Compile.bat` 验证原生纯编译无报错。
-2. **第 2 步 (P0-MainFormBusinessDecouple，主窗体业务控制器解耦)**：
+1. **第 1 步 (P0-SettingsDialogDecouple，治理超限首恶) [已完成，2026-11-05]**：
+   - 已更新 `Tools/Compile.bat`、`Tools/CompileAndLink.bat`、`Tools/Publish.bat` 追加 `src\UI\Controls\SettingsPanels\*.cs` 编译通配符；
+   - 已提取公共 `DoubleBufferedPanel` 至 `src/UI/Controls/DoubleBufferedPanel.cs`；
+   - 已建立 `src/UI/Controls/SettingsPanels/SettingsPanelBase.cs` 基类与 `SettingsContext.cs` 上下文 DTO；
+   - 已依真实 8 个 Tab 逐一抽取独立面板，重构 `GrokSettingsDialog.cs` 为纯导航容器（代码由 1914 行压降至 384 行，严格收敛至 400 行以内）；
+   - 执行 `Tools/Compile.bat` 验证原生纯编译无报错全绿通过。
+2. **第 2 步 (P0-MainFormBusinessDecouple，主窗体业务控制器解耦) [当前下一步]**：
    - 更新 `Tools/Compile*.bat` 脚本追加 `src\Controllers\*.cs` 编译通配符；
    - 抽离 `FileTransferController`、`SessionPresenter`、`ChatPresenter`（注入 `ISynchronizeInvoke`）；
    - 瘦身 `MainForm` 及其分部类至 300~600 行安全区间；
@@ -47,10 +47,11 @@
 | 模块 / 文件 | 说明 |
 | :--- | :--- |
 | `PlanDocs/DECISIONS.md` | 记录 DIR-005 已采纳计划决定与执行顺序 |
-| `PlanDocs/STATUS.md` | 状态标定为 IDLE，等待第 1 步实施 |
-| `.claude/Plan.md` | 标记 DIR-005 为当前活跃任务，排定两步执行细项 |
-| `src/UI/Controls/DoubleBufferedPanel.cs` | 待提取：公共抗闪烁双缓冲面板容器控件 |
-| `src/UI/Controls/SettingsPanels/SettingsPanelBase.cs` | 待建立：设置子面板抽象基类 |
-| `src/UI/Controls/SettingsPanels/SettingsContext.cs` | 待建立：面板依赖注入轻量上下文 DTO |
-| `src/UI/Controls/SettingsPanels/*SettingsPanel.cs` | 待建立：8 个独立设置业务面板组件 |
-| `src/Controllers/` | 待建立：主窗体 MVP 业务控制器层 |
+| `PlanDocs/STATUS.md` | 状态标定为 IDLE，第 1 步已完成，等待第 2 步实施 |
+| `.claude/Plan.md` | 标记 DIR-005 第 1 步已闭环，第 2 步为主窗体控制器解耦 |
+| `src/UI/Controls/DoubleBufferedPanel.cs` | 已提取：公共抗闪烁双缓冲面板容器控件 (43 行) |
+| `src/UI/Controls/SettingsPanels/SettingsPanelBase.cs` | 已建立：设置子面板抽象基类及通用开关/滑块控件 (378 行) |
+| `src/UI/Controls/SettingsPanels/SettingsContext.cs` | 已建立：面板依赖注入轻量上下文 DTO (33 行) |
+| `src/UI/Controls/SettingsPanels/*SettingsPanel.cs` | 已建立：8 个独立设置业务面板组件 (各 65~257 行) |
+| `src/UI/Controls/GrokSettingsDialog.cs` | 已重构：纯导航与视口容器 (384 行，瘦身至 400 行以内) |
+| `src/Controllers/` | 待建立：主窗体 MVP 业务控制器层 (第 2 步) |

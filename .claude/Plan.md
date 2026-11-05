@@ -12,14 +12,14 @@
 ## 仍未完成 / 活跃计划项
 
 1. **DIR-005 全客户端代码结构解耦与上帝类重构 (feature/wechat-ui)**：
-   - [ ] **第 1 步 (P0-SettingsDialogDecouple，设置中心组件化拆解)**：
+   - [x] **第 1 步 (P0-SettingsDialogDecouple，设置中心组件化拆解)**（已完成，2026-11-05）：
      - 更新 `Tools/Compile.bat`、`Tools/CompileAndLink.bat`、`Tools/Publish.bat` 追加 `src\UI\Controls\SettingsPanels\*.cs` 编译通配符；
      - 提取公共 `DoubleBufferedPanel` 至 `src/UI/Controls/DoubleBufferedPanel.cs`；
      - 建立 `src/UI/Controls/SettingsPanels/SettingsPanelBase.cs` 基类与 `SettingsContext.cs` 上下文 DTO；
      - 依源码真实 8 个 Tab 抽离独立面板：`GeneralSettingsPanel.cs`、`ProfileSettingsPanel.cs`、`AppearanceSettingsPanel.cs`、`ShortcutsSettingsPanel.cs`、`FileTransferSettingsPanel.cs`、`ChatHistorySettingsPanel.cs`、`NetworkDeviceSettingsPanel.cs`、`AboutSettingsPanel.cs`；
-     - 重构 `GrokSettingsDialog.cs` 为纯导航容器（代码收敛至 400 行以内）；
-     - 执行 `Tools/Compile.bat` 原生纯编译验证全绿。
-   - [ ] **第 2 步 (P0-MainFormBusinessDecouple，主窗体业务控制器解耦)**：
+     - 重构 `GrokSettingsDialog.cs` 为纯导航容器（代码由 1914 行压降至 384 行，严格收敛至 400 行以内）；
+     - 执行 `Tools/Compile.bat` 原生纯编译验证全绿通过。
+   - [ ] **第 2 步 (P0-MainFormBusinessDecouple，主窗体业务控制器解耦) [当前下一步]**：
      - 更新 `Tools/Compile*.bat` 脚本追加 `src\Controllers\*.cs` 编译通配符；
      - 抽离 `FileTransferController.cs`（注入 `ISynchronizeInvoke`，接管文件传输业务流）；
      - 抽离 `SessionPresenter.cs` 与 `ChatPresenter.cs`（注入 `ISynchronizeInvoke`，接管好友状态与消息编排）；

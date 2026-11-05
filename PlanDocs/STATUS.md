@@ -10,4 +10,4 @@
 
 ## 下一步
 
-没有进行中的讨论。`DIR-005` 已采纳收口。当前代码任务：按 `.claude/Plan.md` 与 `DIR-005` 顺序启动全客户端代码结构解耦与上帝类重构实施（第 1 步：P0-SettingsDialogDecouple，设置中心组件化拆解）。
+没有进行中的讨论。`DIR-005` 已采纳收口。当前代码任务：按 `.claude/Plan.md` 与 `DIR-005` 顺序执行第 2 步（P0-MainFormBusinessDecouple，主窗体业务控制器解耦）。第 1 步（P0-SettingsDialogDecouple，设置中心组件化拆解）已完成并通过纯编译校验。
