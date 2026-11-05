@@ -118,7 +118,7 @@ namespace LanChat
         private int _currentNavTab = 0;
 
         // Constants
-        public const string APP_VERSION = "2.0.12";
+        public const string APP_VERSION = "2.0.13";
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
 
         // System Tray & Single Instance
@@ -543,7 +543,7 @@ namespace LanChat
                 BackColor = Color.FromArgb(14, 14, 14),
                 ForeColor = Color.White,
                 Font = new Font("Microsoft YaHei UI", 11.0f),
-                ItemHeight = 72,
+                ItemHeight = GrokTheme.SessionItemHeight,
                 DrawMode = DrawMode.OwnerDrawFixed,
                 IntegralHeight = false
             };

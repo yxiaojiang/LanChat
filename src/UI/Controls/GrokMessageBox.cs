@@ -1,32 +1,19 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace LanChat
 {
     /// <summary>
-    /// Grok Bot 现代暗黑清爽风格统一弹窗提示框 (彻底取代系统生硬白底 MessageBox)
+    /// GrokBot 现代暗黑清爽风格统一弹窗提示框 (彻底取代系统生硬白底 MessageBox)
+    /// 继承自 GrokModalFormBase，标准尺寸 460×260 (基准度量)，采用自绘 GrokButton
     /// </summary>
-    public class GrokMessageBox : Form
+    public class GrokMessageBox : GrokModalFormBase
     {
-        [DllImport("gdi32.dll", EntryPoint = "CreateRoundRectRgn")]
-        private static extern IntPtr CreateRoundRectRgn(int nLeftRect, int nTopRect, int nRightRect, int nBottomRect, int nWidthEllipse, int nHeightEllipse);
-
-        [DllImport("gdi32.dll", EntryPoint = "DeleteObject")]
-        private static extern bool DeleteObject(IntPtr hObject);
-
-        [DllImport("user32.dll")]
-        private static extern bool ReleaseCapture();
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
-
         private readonly MessageBoxIcon _iconType;
         private readonly string _title;
         private readonly string _message;
-        private bool _isCloseHover = false;
 
         public GrokMessageBox(string message, string title, MessageBoxButtons buttons, MessageBoxIcon icon)
         {
@@ -34,122 +21,82 @@ namespace LanChat
             _title = string.IsNullOrEmpty(title) ? "提示" : title;
             _iconType = icon;
 
-            this.FormBorderStyle = FormBorderStyle.None;
-            this.StartPosition = FormStartPosition.CenterParent;
-            this.ShowInTaskbar = false;
-            this.BackColor = Color.FromArgb(28, 28, 31); // #1C1C1F Level1
-            this.DoubleBuffered = true;
-            this.Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular);
+            this.ShowCloseButton = true;
+            this.Font = GrokTheme.FontSecondary;
 
             BuildLayout(buttons);
-        }
-
-        protected override CreateParams CreateParams
-        {
-            get
-            {
-                CreateParams cp = base.CreateParams;
-                cp.ClassStyle |= 0x00020000; // CS_DROPSHADOW
-                return cp;
-            }
-        }
-
-        private void UpdateFormRegion()
-        {
-            if (this.IsDisposed || !this.IsHandleCreated) return;
-            try
-            {
-                IntPtr rgn = CreateRoundRectRgn(0, 0, this.Width + 1, this.Height + 1, 16, 16);
-                if (rgn != IntPtr.Zero)
-                {
-                    Region oldRegion = this.Region;
-                    this.Region = Region.FromHrgn(rgn);
-                    DeleteObject(rgn);
-                    if (oldRegion != null) oldRegion.Dispose();
-                }
-            }
-            catch { }
-        }
-
-        protected override void OnHandleCreated(EventArgs e)
-        {
-            base.OnHandleCreated(e);
-            UpdateFormRegion();
-        }
-
-        protected override void OnResize(EventArgs e)
-        {
-            base.OnResize(e);
-            UpdateFormRegion();
         }
 
         private void BuildLayout(MessageBoxButtons buttons)
         {
             // 计算文本合适尺寸
-            int baseW = 420;
-            int maxTextW = baseW - 88;
+            int baseW = GrokTheme.SizeMessageBox.Width; // 460
+            int maxTextW = baseW - 96; // 364
             Size textSize;
-            using (Font f = new Font("Microsoft YaHei UI", 9.5f))
+            using (Font f = GrokTheme.FontSecondary)
             {
                 textSize = TextRenderer.MeasureText(_message, f, new Size(maxTextW, int.MaxValue), TextFormatFlags.WordBreak);
             }
 
             int contentH = Math.Max(textSize.Height + 10, 50);
-            int formH = Math.Max(180, 50 + contentH + 60);
+            int formH = Math.Max(GrokTheme.SizeMessageBox.Height, 56 + contentH + 70);
             this.Size = new Size(baseW, formH);
 
             // 文本区域
             Label lbl = new Label
             {
                 Text = _message,
-                Location = new Point(68, 52),
+                Location = new Point(72, 60),
                 Size = new Size(maxTextW, contentH),
-                ForeColor = Color.FromArgb(242, 242, 246),
+                ForeColor = GrokTheme.TextPrimary,
                 BackColor = Color.Transparent,
-                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular)
+                Font = GrokTheme.FontSecondary
             };
             this.Controls.Add(lbl);
 
-            // 按钮容器
+            // 底部操作按钮容器
             FlowLayoutPanel flow = new FlowLayoutPanel
             {
                 Dock = DockStyle.Bottom,
-                Height = 52,
+                Height = 56,
                 FlowDirection = FlowDirection.RightToLeft,
-                Padding = new Padding(16, 8, 20, 8),
+                Padding = new Padding(20, 10, 24, 10),
                 BackColor = Color.Transparent
             };
 
             switch (buttons)
             {
                 case MessageBoxButtons.YesNo:
-                    Button btnNo = CreatePillButton("否", DialogResult.No, false);
-                    Button btnYes = CreatePillButton("是", DialogResult.Yes, true);
+                    GrokButton btnNo = new GrokButton("否", GrokButtonRole.Secondary, DialogResult.No) { IsPill = true, Width = 84, Margin = new Padding(8, 0, 0, 0) };
+                    GrokButton btnYes = new GrokButton("是", GrokButtonRole.Primary, DialogResult.Yes) { IsPill = true, Width = 84, Margin = new Padding(8, 0, 0, 0) };
                     flow.Controls.Add(btnNo);
                     flow.Controls.Add(btnYes);
                     this.AcceptButton = btnYes;
                     this.CancelButton = btnNo;
                     break;
+
                 case MessageBoxButtons.OKCancel:
-                    Button btnCancel = CreatePillButton("取消", DialogResult.Cancel, false);
-                    Button btnOk2 = CreatePillButton("确定", DialogResult.OK, true);
+                    GrokButton btnCancel = new GrokButton("取消", GrokButtonRole.Secondary, DialogResult.Cancel) { IsPill = true, Width = 84, Margin = new Padding(8, 0, 0, 0) };
+                    GrokButton btnOk2 = new GrokButton("确定", GrokButtonRole.Primary, DialogResult.OK) { IsPill = true, Width = 84, Margin = new Padding(8, 0, 0, 0) };
                     flow.Controls.Add(btnCancel);
                     flow.Controls.Add(btnOk2);
                     this.AcceptButton = btnOk2;
                     this.CancelButton = btnCancel;
                     break;
+
                 case MessageBoxButtons.YesNoCancel:
-                    Button btnCancel2 = CreatePillButton("取消", DialogResult.Cancel, false);
-                    Button btnNo2 = CreatePillButton("否", DialogResult.No, false);
-                    Button btnYes2 = CreatePillButton("是", DialogResult.Yes, true);
+                    GrokButton btnCancel2 = new GrokButton("取消", GrokButtonRole.Secondary, DialogResult.Cancel) { IsPill = true, Width = 84, Margin = new Padding(8, 0, 0, 0) };
+                    GrokButton btnNo2 = new GrokButton("否", GrokButtonRole.Secondary, DialogResult.No) { IsPill = true, Width = 84, Margin = new Padding(8, 0, 0, 0) };
+                    GrokButton btnYes2 = new GrokButton("是", GrokButtonRole.Primary, DialogResult.Yes) { IsPill = true, Width = 84, Margin = new Padding(8, 0, 0, 0) };
                     flow.Controls.Add(btnCancel2);
                     flow.Controls.Add(btnNo2);
                     flow.Controls.Add(btnYes2);
                     this.AcceptButton = btnYes2;
                     this.CancelButton = btnCancel2;
                     break;
+
                 default: // OK
-                    Button btnOk = CreatePillButton("确定", DialogResult.OK, true);
+                    GrokButton btnOk = new GrokButton("确定", GrokButtonRole.Primary, DialogResult.OK) { IsPill = true, Width = 88, Margin = new Padding(8, 0, 0, 0) };
                     flow.Controls.Add(btnOk);
                     this.AcceptButton = btnOk;
                     break;
@@ -158,120 +105,17 @@ namespace LanChat
             this.Controls.Add(flow);
         }
 
-        private Button CreatePillButton(string text, DialogResult dr, bool isPrimary)
+        protected override void OnPaintContent(Graphics g)
         {
-            Button btn = new Button
+            // 顶部小标题 (10.5pt Bold)
+            using (Font titleFont = GrokTheme.FontSectionTitle)
+            using (SolidBrush tb = new SolidBrush(GrokTheme.TextTitle))
             {
-                Text = text,
-                DialogResult = dr,
-                Size = new Size(82, 32),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold),
-                Margin = new Padding(6, 0, 0, 0)
-            };
-            btn.FlatAppearance.BorderSize = 0;
-            btn.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            btn.FlatAppearance.MouseDownBackColor = Color.Transparent;
-
-            Color normalBg = isPrimary ? Color.FromArgb(121, 70, 215) : Color.FromArgb(44, 44, 48);
-            Color hoverBg = isPrimary ? Color.FromArgb(142, 100, 220) : Color.FromArgb(58, 58, 64);
-            Color textColor = isPrimary ? Color.White : Color.FromArgb(220, 220, 225);
-            bool isHover = false;
-
-            btn.MouseEnter += (s, e) => { isHover = true; btn.Invalidate(); };
-            btn.MouseLeave += (s, e) => { isHover = false; btn.Invalidate(); };
-
-            btn.Paint += (s, e) =>
-            {
-                Graphics g = e.Graphics;
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                Rectangle r = new Rectangle(0, 0, btn.Width - 1, btn.Height - 1);
-                using (SolidBrush b = new SolidBrush(isHover ? hoverBg : normalBg))
-                using (Pen p = new Pen(isPrimary ? Color.FromArgb(142, 100, 220) : Color.FromArgb(60, 60, 66), 1f))
-                {
-                    MainForm.DrawRoundedRectangle(g, b, r, 16);
-                    MainForm.DrawRoundedRectangle(g, p, r, 16);
-                }
-                using (SolidBrush tb = new SolidBrush(textColor))
-                {
-                    StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    g.DrawString(btn.Text, btn.Font, tb, new RectangleF(0, 1, btn.Width, btn.Height), sf);
-                }
-            };
-
-            return btn;
-        }
-
-        protected override void OnMouseDown(MouseEventArgs e)
-        {
-            base.OnMouseDown(e);
-            if (e.Button == MouseButtons.Left && e.Y < 42)
-            {
-                Rectangle closeRect = new Rectangle(this.Width - 36, 12, 22, 22);
-                if (closeRect.Contains(e.Location))
-                {
-                    this.DialogResult = DialogResult.Cancel;
-                    this.Close();
-                    return;
-                }
-                ReleaseCapture();
-                SendMessage(this.Handle, 0x00A1, (IntPtr)0x0002, IntPtr.Zero);
-            }
-        }
-
-        protected override void OnMouseMove(MouseEventArgs e)
-        {
-            base.OnMouseMove(e);
-            Rectangle closeRect = new Rectangle(this.Width - 36, 12, 22, 22);
-            bool hover = closeRect.Contains(e.Location);
-            if (hover != _isCloseHover)
-            {
-                _isCloseHover = hover;
-                Invalidate(new Rectangle(this.Width - 42, 6, 36, 36));
-            }
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            base.OnPaint(e);
-            Graphics g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-
-            // 边框
-            using (Pen borderPen = new Pen(Color.FromArgb(44, 44, 50), 1f))
-            {
-                MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 16);
-            }
-
-            // 顶部标题
-            using (Font titleFont = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Bold))
-            using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 245)))
-            {
-                g.DrawString(_title, titleFont, tb, new PointF(22, 14));
-            }
-
-            // 右上角关闭叉叉
-            Rectangle closeRect = new Rectangle(this.Width - 36, 12, 22, 22);
-            if (_isCloseHover)
-            {
-                using (SolidBrush hb = new SolidBrush(Color.FromArgb(48, 48, 54)))
-                {
-                    g.FillEllipse(hb, closeRect);
-                }
-            }
-            using (Pen cp = new Pen(_isCloseHover ? Color.White : Color.FromArgb(160, 160, 166), 1.5f))
-            {
-                cp.StartCap = LineCap.Round;
-                cp.EndCap = LineCap.Round;
-                int pad = 6;
-                g.DrawLine(cp, closeRect.X + pad, closeRect.Y + pad, closeRect.Right - pad, closeRect.Bottom - pad);
-                g.DrawLine(cp, closeRect.Right - pad, closeRect.Y + pad, closeRect.X + pad, closeRect.Bottom - pad);
+                g.DrawString(_title, titleFont, tb, new PointF(24, 18));
             }
 
             // 左侧状态矢量图标
-            DrawStatusIcon(g, new Rectangle(22, 54, 34, 34));
+            DrawStatusIcon(g, new Rectangle(24, 58, 36, 36));
         }
 
         private void DrawStatusIcon(Graphics g, Rectangle r)
@@ -279,7 +123,7 @@ namespace LanChat
             switch (_iconType)
             {
                 case MessageBoxIcon.Error:
-                    using (SolidBrush eb = new SolidBrush(Color.FromArgb(252, 44, 62)))
+                    using (SolidBrush eb = new SolidBrush(GrokTheme.AccentCoral))
                     {
                         g.FillEllipse(eb, r);
                     }
@@ -292,6 +136,7 @@ namespace LanChat
                         g.DrawLine(ep, r.Right - pad, r.Y + pad, r.X + pad, r.Bottom - pad);
                     }
                     break;
+
                 case MessageBoxIcon.Warning:
                     using (SolidBrush wb = new SolidBrush(Color.FromArgb(255, 160, 26)))
                     {
@@ -303,15 +148,17 @@ namespace LanChat
                             g.FillPath(wb, wp);
                         }
                     }
-                    using (SolidBrush exb = new SolidBrush(Color.FromArgb(28, 28, 31)))
+                    using (SolidBrush exb = new SolidBrush(GrokTheme.Level1))
                     {
                         g.FillRectangle(exb, r.X + r.Width / 2f - 1.2f, r.Y + 12, 2.4f, 9f);
                         g.FillEllipse(exb, r.X + r.Width / 2f - 1.5f, r.Y + 23, 3f, 3f);
                     }
                     break;
+
                 case MessageBoxIcon.Question:
                     WeChatIcon.DrawMascotAvatarShape(g, r, 0, Color.FromArgb(144, 90, 251), false, Color.Transparent);
                     break;
+
                 default: // Information
                     WeChatIcon.DrawMascotAvatarShape(g, r, 0, Color.FromArgb(77, 155, 255), false, Color.Transparent);
                     break;

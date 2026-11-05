@@ -1,86 +1,31 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace LanChat
 {
     /// <summary>
-    /// Grok Bot 现代暗黑清爽风格昵称修改窗口
+    /// GrokBot 现代暗黑清爽风格昵称修改窗口
+    /// 继承自 GrokModalFormBase，标准尺寸 440×260 (基准度量)，采用自绘 GrokButton
     /// </summary>
-    public class GrokChangeNickForm : Form
+    public class GrokChangeNickForm : GrokModalFormBase
     {
-        [DllImport("gdi32.dll", EntryPoint = "CreateRoundRectRgn")]
-        private static extern IntPtr CreateRoundRectRgn(int nLeftRect, int nTopRect, int nRightRect, int nBottomRect, int nWidthEllipse, int nHeightEllipse);
-
-        [DllImport("gdi32.dll", EntryPoint = "DeleteObject")]
-        private static extern bool DeleteObject(IntPtr hObject);
-
-        [DllImport("user32.dll")]
-        private static extern bool ReleaseCapture();
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
-
         private TextBox _txtNick;
-        private bool _isCloseHover = false;
-        private Button _btnCancel;
-        private Button _btnSave;
+        private GrokButton _btnCancel;
+        private GrokButton _btnSave;
+
         public string NewNickName { get; private set; }
 
         public GrokChangeNickForm(string currentNick)
         {
             NewNickName = currentNick ?? string.Empty;
 
-            this.FormBorderStyle = FormBorderStyle.None;
-            this.StartPosition = FormStartPosition.CenterParent;
-            this.ShowInTaskbar = false;
-            this.Size = new Size(420, 250);
-            this.BackColor = Color.FromArgb(28, 28, 31); // #1C1C1F Level1
-            this.DoubleBuffered = true;
-            this.Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular);
+            this.Size = GrokTheme.SizeChangeNick; // 440 x 260
+            this.ShowCloseButton = true;
+            this.Font = GrokTheme.FontSecondary;
 
             BuildControls(currentNick);
-        }
-
-        protected override CreateParams CreateParams
-        {
-            get
-            {
-                CreateParams cp = base.CreateParams;
-                cp.ClassStyle |= 0x00020000; // CS_DROPSHADOW
-                return cp;
-            }
-        }
-
-        private void UpdateFormRegion()
-        {
-            if (this.IsDisposed || !this.IsHandleCreated) return;
-            try
-            {
-                IntPtr rgn = CreateRoundRectRgn(0, 0, this.Width + 1, this.Height + 1, 16, 16);
-                if (rgn != IntPtr.Zero)
-                {
-                    Region oldRegion = this.Region;
-                    this.Region = Region.FromHrgn(rgn);
-                    DeleteObject(rgn);
-                    if (oldRegion != null) oldRegion.Dispose();
-                }
-            }
-            catch { }
-        }
-
-        protected override void OnHandleCreated(EventArgs e)
-        {
-            base.OnHandleCreated(e);
-            UpdateFormRegion();
-        }
-
-        protected override void OnResize(EventArgs e)
-        {
-            base.OnResize(e);
-            UpdateFormRegion();
         }
 
         private void BuildControls(string currentNick)
@@ -88,85 +33,29 @@ namespace LanChat
             _txtNick = new TextBox
             {
                 Text = currentNick,
-                Location = new Point(36, 126),
-                Size = new Size(348, 26),
-                BackColor = Color.FromArgb(18, 18, 18),
-                ForeColor = Color.FromArgb(242, 242, 246),
-                Font = new Font("Microsoft YaHei UI", 10.5f),
+                Location = new Point(36, 134),
+                Size = new Size(368, 26),
+                BackColor = GrokTheme.Level05, // #121212
+                ForeColor = GrokTheme.TextPrimary,
+                Font = GrokTheme.FontCardItem,
                 BorderStyle = BorderStyle.None
             };
+            _txtNick.GotFocus += (s, e) => this.Invalidate();
+            _txtNick.LostFocus += (s, e) => this.Invalidate();
             this.Controls.Add(_txtNick);
 
-            // 底部取消按钮
-            _btnCancel = new Button
+            // 底部操作按钮
+            _btnCancel = new GrokButton("取消", GrokButtonRole.Secondary, DialogResult.Cancel)
             {
-                Text = "取消",
-                DialogResult = DialogResult.Cancel,
-                Location = new Point(216, 188),
-                Size = new Size(82, 34),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular)
+                Location = new Point(236, 196),
+                Size = new Size(84, GrokTheme.ButtonHeightStandard)
             };
-            _btnCancel.FlatAppearance.BorderSize = 0;
-            _btnCancel.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            _btnCancel.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool cancelHover = false;
-            _btnCancel.MouseEnter += (s, e) => { cancelHover = true; _btnCancel.Invalidate(); };
-            _btnCancel.MouseLeave += (s, e) => { cancelHover = false; _btnCancel.Invalidate(); };
-            _btnCancel.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Rectangle r = new Rectangle(0, 0, _btnCancel.Width - 1, _btnCancel.Height - 1);
-                using (SolidBrush b = new SolidBrush(cancelHover ? Color.FromArgb(46, 46, 52) : Color.FromArgb(40, 40, 44)))
-                using (Pen p = new Pen(Color.FromArgb(44, 44, 50), 1f))
-                {
-                    MainForm.DrawRoundedRectangle(e.Graphics, b, r, 17);
-                    MainForm.DrawRoundedRectangle(e.Graphics, p, r, 17);
-                }
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(240, 240, 245)))
-                {
-                    StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString("取消", _btnCancel.Font, tb, new RectangleF(0, 1, _btnCancel.Width, _btnCancel.Height), sf);
-                }
-            };
-            _btnCancel.Click += (s, e) => { this.DialogResult = DialogResult.Cancel; this.Close(); };
             this.Controls.Add(_btnCancel);
 
-            // 底部保存按钮
-            _btnSave = new Button
+            _btnSave = new GrokButton("保存", GrokButtonRole.Primary)
             {
-                Text = "保存",
-                DialogResult = DialogResult.OK,
-                Location = new Point(308, 188),
-                Size = new Size(84, 34),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)
-            };
-            _btnSave.FlatAppearance.BorderSize = 0;
-            _btnSave.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            _btnSave.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool saveHover = false;
-            _btnSave.MouseEnter += (s, e) => { saveHover = true; _btnSave.Invalidate(); };
-            _btnSave.MouseLeave += (s, e) => { saveHover = false; _btnSave.Invalidate(); };
-            _btnSave.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Rectangle r = new Rectangle(0, 0, _btnSave.Width - 1, _btnSave.Height - 1);
-                using (SolidBrush b = new SolidBrush(saveHover ? Color.FromArgb(142, 100, 220) : Color.FromArgb(121, 70, 215)))
-                using (Pen p = new Pen(Color.FromArgb(142, 100, 220), 1f))
-                {
-                    MainForm.DrawRoundedRectangle(e.Graphics, b, r, 17);
-                    MainForm.DrawRoundedRectangle(e.Graphics, p, r, 17);
-                }
-                using (SolidBrush tb = new SolidBrush(Color.White))
-                {
-                    StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString("保存", _btnSave.Font, tb, new RectangleF(0, 1, _btnSave.Width, _btnSave.Height), sf);
-                }
+                Location = new Point(328, 196),
+                Size = new Size(84, GrokTheme.ButtonHeightStandard)
             };
             _btnSave.Click += (s, e) =>
             {
@@ -186,93 +75,32 @@ namespace LanChat
             this.CancelButton = _btnCancel;
         }
 
-        protected override void OnMouseDown(MouseEventArgs e)
+        protected override void OnPaintContent(Graphics g)
         {
-            base.OnMouseDown(e);
-            if (e.Button == MouseButtons.Left)
+            // 1. 标题 "修改我的昵称" (18.0pt Bold #FFFFFF)
+            using (Font titleFont = GrokTheme.FontTitle)
+            using (SolidBrush tb = new SolidBrush(GrokTheme.TextTitle))
             {
-                Rectangle closeRect = new Rectangle(this.Width - 36, 14, 22, 22);
-                if (closeRect.Contains(e.Location))
-                {
-                    this.DialogResult = DialogResult.Cancel;
-                    this.Close();
-                    return;
-                }
-
-                if (e.Y < 46)
-                {
-                    ReleaseCapture();
-                    SendMessage(this.Handle, 0x00A1, (IntPtr)0x0002, IntPtr.Zero);
-                }
-            }
-        }
-
-        protected override void OnMouseMove(MouseEventArgs e)
-        {
-            base.OnMouseMove(e);
-            Rectangle closeRect = new Rectangle(this.Width - 36, 14, 22, 22);
-            bool hover = closeRect.Contains(e.Location);
-            if (hover != _isCloseHover)
-            {
-                _isCloseHover = hover;
-                Invalidate(closeRect);
-            }
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            base.OnPaint(e);
-            Graphics g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-
-            // 1. 背景边框
-            using (Pen borderPen = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
-            {
-                MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 16);
+                g.DrawString("修改我的昵称", titleFont, tb, new PointF(24, 20));
             }
 
-            // 2. 标题 "修改我的昵称" (16.0pt 加粗明亮纯白)
-            using (Font titleFont = new Font("Microsoft YaHei UI", 18f, FontStyle.Bold))
-            using (SolidBrush tb = new SolidBrush(Color.FromArgb(255, 255, 255)))
+            // 2. 吉祥物头像徽标 (38x38) 与提示文字
+            Rectangle avRect = new Rectangle(26, 68, 38, 38);
+            WeChatIcon.DrawMascotAvatarShape(g, avRect, 0, GrokTheme.AccentCoral, true, GrokTheme.Level1);
+
+            using (Font tipFont = GrokTheme.FontSecondary)
+            using (SolidBrush sb = new SolidBrush(GrokTheme.TextSecondary))
             {
-                g.DrawString("修改我的昵称", titleFont, tb, new PointF(24, 18));
+                g.DrawString("在局域网内向其他节点展示您的身份名称:", tipFont, sb, new PointF(74, 78));
             }
 
-            // 3. 右上角极简叉号 (×)
-            Rectangle closeRect = new Rectangle(this.Width - 36, 14, 22, 22);
-            if (_isCloseHover)
+            // 3. 输入框暗黑容器 (高 42px, 圆角 8px)
+            Rectangle boxRect = new Rectangle(24, 126, 392, 42);
+            using (SolidBrush bb = new SolidBrush(GrokTheme.Level05))
+            using (Pen bp = new Pen((_txtNick != null && _txtNick.Focused) ? GrokTheme.AccentPurple : GrokTheme.Border, 1f))
             {
-                using (SolidBrush hb = new SolidBrush(Color.FromArgb(48, 48, 54)))
-                {
-                    g.FillEllipse(hb, closeRect);
-                }
-            }
-            using (Pen cp = new Pen(_isCloseHover ? Color.White : Color.FromArgb(160, 160, 166), 1.5f))
-            {
-                cp.StartCap = LineCap.Round;
-                cp.EndCap = LineCap.Round;
-                int pad = 5;
-                g.DrawLine(cp, closeRect.X + pad, closeRect.Y + pad, closeRect.Right - pad, closeRect.Bottom - pad);
-                g.DrawLine(cp, closeRect.Right - pad, closeRect.Y + pad, closeRect.X + pad, closeRect.Bottom - pad);
-            }
-
-            // 4. 吉祥物头像微标 (38x38) 与提示
-            Rectangle avRect = new Rectangle(26, 58, 38, 38);
-            WeChatIcon.DrawMascotAvatarShape(g, avRect, 0, Color.FromArgb(252, 44, 62), true, Color.FromArgb(28, 28, 31));
-
-            using (Font tipFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular))
-            using (SolidBrush sb = new SolidBrush(Color.FromArgb(142, 142, 147))) // #8E8E93
-            {
-                g.DrawString("在局域网内向其他节点展示您的身份名称:", tipFont, sb, new PointF(74, 68));
-            }
-
-            // 5. 输入框暗黑容器 (高 40px, 圆角 8px)
-            Rectangle boxRect = new Rectangle(24, 118, 372, 42);
-            using (SolidBrush bb = new SolidBrush(Color.FromArgb(18, 18, 18))) // #121212
-            using (Pen bp = new Pen(_txtNick.Focused ? Color.FromArgb(142, 100, 220) : Color.FromArgb(46, 46, 52), 1f))
-            {
-                MainForm.DrawRoundedRectangle(g, bb, boxRect, 8);
-                MainForm.DrawRoundedRectangle(g, bp, boxRect, 8);
+                GrokTheme.DrawRoundedRectangle(g, bb, boxRect, 8);
+                GrokTheme.DrawRoundedRectangle(g, bp, boxRect, 8);
             }
         }
     }

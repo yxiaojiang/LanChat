@@ -481,7 +481,7 @@ namespace LanChat
                 return lines;
             }
 
-            float lineHeight = font.GetHeight(g) + 5f;
+            float lineHeight = font.GetHeight(g) + GrokTheme.ChatLineSpacingExtra;
             float curY = startY;
             int globalIndex = 0;
 
@@ -585,7 +585,7 @@ namespace LanChat
             string lastSenderKey = null;
 
             using (Graphics g = this.CreateGraphics())
-            using (Font timeFont = new Font("Microsoft YaHei UI", 9.0f))
+            using (Font timeFont = GrokTheme.Font(GrokTheme.ChatTimestampFontSize))
             using (Font msgFont = GetMsgFont())
             {
                 for (int i = 0; i < _messages.Count; i++)
@@ -617,8 +617,8 @@ namespace LanChat
                     }
                     else if (msg.IsFile)
                     {
-                        int cardW = Math.Min(maxBubbleW, 340);
-                        int cardH = 96;
+                        int cardW = Math.Min(maxBubbleW, GrokTheme.ChatFileCardWidth);
+                        int cardH = GrokTheme.ChatFileCardHeight;
                         int x = msg.IsSelf ? (viewWidth - rightMargin - cardW) : leftMargin;
                         bool showSender = !msg.IsSelf && (_showGroupSenderName || msg.IsBroadcast) && lastSenderKey != ("PEER:" + msg.SenderNick);
                         int topOffset = showSender ? 22 : 2;
@@ -640,9 +640,8 @@ namespace LanChat
                     else
                     {
                         string raw = msg.Content ?? "";
-                        // 紫色本人气泡文字上下左右 padding 减半（左右由 24 缩减为 12，上下由 18 缩减为 9）
-                        int padH = msg.IsSelf ? 24 : 32;
-                        int padV = msg.IsSelf ? 18 : 24;
+                        int padH = msg.IsSelf ? GrokTheme.ChatBubblePadSelfH : GrokTheme.ChatBubblePadPeerH;
+                        int padV = msg.IsSelf ? GrokTheme.ChatBubblePadSelfV : GrokTheme.ChatBubblePadPeerV;
                         float availTextW = maxBubbleW - padH;
 
                         List<VisualLine> lines = BreakTextIntoVisualLines(g, raw, msgFont, availTextW, 0, 0);
@@ -653,7 +652,7 @@ namespace LanChat
                             if (l.Bounds.Width > maxLineWidth) maxLineWidth = l.Bounds.Width;
                         }
 
-                        float lineHeight = msgFont.GetHeight(g) + 5f;
+                        float lineHeight = msgFont.GetHeight(g) + GrokTheme.ChatLineSpacingExtra;
                         float totalTextH = Math.Max(lineHeight, lines.Count * lineHeight);
 
                         int minBubbleH = msg.IsSelf ? 34 : 42;
@@ -730,17 +729,17 @@ namespace LanChat
             int viewWidth = this.Width;
             if (viewWidth < 200) viewWidth = 200;
 
-            using (Font timeFont = new Font("Microsoft YaHei UI", 9.0f))
+            using (Font timeFont = GrokTheme.Font(GrokTheme.ChatTimestampFontSize))
             using (Font msgFont = GetMsgFont())
             using (Font codeFont = new Font("Consolas", 10f))
-            using (Font nickFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold))
-            using (SolidBrush textLight = new SolidBrush(Color.FromArgb(242, 242, 246))) // #F2F2F6
+            using (Font nickFont = GrokTheme.FontSecondaryBold)
+            using (SolidBrush textLight = new SolidBrush(GrokTheme.TextPrimary))
             using (SolidBrush selfTextBrush = new SolidBrush(Color.FromArgb(250, 248, 255)))
-            using (SolidBrush grayText = new SolidBrush(Color.FromArgb(142, 142, 147))) // #8E8E93
+            using (SolidBrush grayText = new SolidBrush(GrokTheme.TextSecondary))
             using (SolidBrush nickBrush = new SolidBrush(Color.FromArgb(164, 132, 245)))
-            using (SolidBrush otherBubbleBrush = new SolidBrush(Color.FromArgb(30, 30, 33)))   // Peer bubble #1E1E21
-            using (Pen otherBubbleBorder = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
-            using (SolidBrush selfBubbleBrush = new SolidBrush(Color.FromArgb(121, 70, 215)))  // Grok Purple Bubble #7946D7
+            using (SolidBrush otherBubbleBrush = new SolidBrush(GrokTheme.PeerBubble))
+            using (Pen otherBubbleBorder = new Pen(GrokTheme.Border, 1f))
+            using (SolidBrush selfBubbleBrush = new SolidBrush(GrokTheme.SessionSelected))
             using (SolidBrush selHighlightBrush = new SolidBrush(Color.FromArgb(170, 70, 115, 235))) // Text selection highlight
             {
                 foreach (var item in _renderItems)

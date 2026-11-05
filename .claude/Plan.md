@@ -1,22 +1,22 @@
 # Plan.md — 当前活跃计划
 
-> 最近刷新：2026-11-04。仓库：`https://github.com/yxiaojiang/LanChat.git`。
-> 当前分支：`feature/wechat-ui`（已发布 Tag `v2.0.12`，当前版本 `v2.0.12`）。
-> 核心任务：**会话切换零重绘零闪烁、魅紫选中背景态、紫色气泡内边距减半、文件卡片呼吸感优化、右键删除会话与历史消息**；
-> **本阶段已全部完成并正式发布至 GitHub Releases (v2.0.12)**：
-> 1) 会话切换零重绘零闪烁：拦截 Win32 `WM_ERASEBKGND` 与 `WM_REFLECT | WM_DRAWITEM`，重写 `OnSelectedIndexChanged` 仅刷新新旧两项脏矩形，全链路容器升级 `DoubleBufferedPanel` 并挂载 `WS_CLIPCHILDREN`；
-> 2) 魅紫选中态与色彩规范：`SessionSelected` 升级为 `#7946D7`，1px `#915FF0` 精细微光边框，副文本智能切换浅紫白 `#E4DAFA`，头像外框镂空无缝融合；
-> 3) 气泡与文件卡片排版：紫色气泡 Padding 缩减 50%（水平 24px/垂直 18px），单行高度降至 34px，文件卡片操作行距离扩大至 13px 消除拥挤；
-> 4) 会话右键删除与历史清理：右键“删除”带危险红标，居中暗黑确认弹窗二次确认，`SessionManager.DeleteSession` 物理删除磁盘历史并同步内存/网络清理。
+> 最近刷新：2026-11-05。仓库：`https://github.com/yxiaojiang/LanChat.git`。
+> 当前分支：`feature/wechat-ui`（已发布 Tag `v2.0.13`，当前版本 `v2.0.13`）。
+> 核心任务：**DIR-004 全客户端 UI 统一样式系统重构（扩充 GrokTheme 设计令牌、标准化模态窗基类与自绘按钮体系）**；
+> **本阶段目标**：
+> 彻底解决全客户端窗口尺寸、按钮大小、按钮文字大小、菜单间距、多行文字间距、Padding、右上角关闭叉各自硬编码割裂的问题；
+> 通过在 `GrokTheme.cs` 集中定义设计令牌（类似 CSS 根样式表）、抽象 `GrokModalFormBase` 模态窗基类与 `GrokButton` 自绘控件，实现“单点修改配置文件，全工程所有同类窗口与控件瞬间同步”。
 
 ---
 
 ## 仍未完成 / 活跃计划项
 
-1. **GrokBot / WorkBuddy 细节微调与弹窗排版演进 (feature/wechat-ui)**：
-   - Create 窗口 Docs `680×620`、About Docs `440×560` 需重排绝对布局后再放大尺寸（当前暂留紧凑可用尺寸）。
-   - `GrokTheme` 设计令牌全面替换工程中遗留的零散 `Color.FromArgb`。
-   - 聊天记录跨平台备份与自动同步服务后续接入。
+1. **DIR-004 全客户端 UI 统一样式系统重构 (feature/wechat-ui) [已全量实施闭环]**：
+   - [x] **第 1 步 (P0-Tokens，扩充 `GrokTheme.cs`)**：已集中补齐窗口标准尺寸、按钮规格、右上角关闭叉规范、动态字体与内边距/行高 Tokens；
+   - [x] **第 2 步 (P0-BaseFramework，构建 `GrokButton.cs` 与 `GrokModalFormBase.cs`)**：已建立继承自 `Button` 的多角色 GDI+ 抗锯齿自绘按钮与标准无边框圆角模态窗基类；
+   - [x] **第 3 步 (P0-SmallModals，小型操作弹窗迁移)**：已完成 `GrokMessageBox`（460×260）、`GrokChangeNickForm`（440×260）、`GrokAboutForm`（440×560）继承基类，清理 Win32 样板代码，替换为 `GrokButton`；
+   - [x] **第 4 步 (P0-MediumModals，中大型内容弹窗迁移)**：已完成 `GrokFeedbackForm`（520×460）、`GrokUpdateForm`（520×440）、`GrokCreateNodeForm`（680×620）、`GrokConnectNodeForm`（760×600）继承基类，替换自绘按钮与自适应对齐；
+   - [x] **第 5 步 (P1-MainViews，收拢主视口、会话列表与设置窗口 Tokens)**：已完成 `SessionListBox` 行高/Margin/头像间距、`WeChatChatView` 气泡内边距/行高加量/时间戳字号及文件卡片尺寸对齐 `GrokTheme`，完成 `GrokSettingsDialog` 按钮与颜色引用对齐；通过 `Tools/Compile.bat` 原生编译全绿验证。
 
 2. **方案 B（冻结）**：56px 微信式纯黑极窄导航栏暂不实施。
 

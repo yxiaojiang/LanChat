@@ -2,41 +2,27 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace LanChat
 {
     /// <summary>
-    /// Grok Bot 100% 像素级对标原生连接节点窗口 (完全对标 ConnetctApp.png)
-    /// 包含顶部搜索栏、标签过滤芯片 (全部/在线/直连)、局域网推荐节点卡片流与手动 IP 握手直连
+    /// GrokBot 100% 像素级对标原生连接节点窗口 (完全对标 ConnetctApp.png 与 Docs §9)
+    /// 继承自 GrokModalFormBase，标准尺寸 760×600 (基准度量)，采用自绘 GrokButton
     /// </summary>
-    public class GrokConnectNodeForm : Form
+    public class GrokConnectNodeForm : GrokModalFormBase
     {
-        [DllImport("gdi32.dll", EntryPoint = "CreateRoundRectRgn")]
-        private static extern IntPtr CreateRoundRectRgn(int nLeftRect, int nTopRect, int nRightRect, int nBottomRect, int nWidthEllipse, int nHeightEllipse);
-
-        [DllImport("gdi32.dll", EntryPoint = "DeleteObject")]
-        private static extern bool DeleteObject(IntPtr hObject);
-
-        [DllImport("user32.dll")]
-        private static extern bool ReleaseCapture();
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
-
         private readonly NetworkService _netService;
         private readonly Action<string> _onConnectIp;
         private readonly Action<PeerInfo> _onSelectPeer;
 
         private TextBox _txtSearch;
         private TextBox _txtManualIp;
-        private Button _btnManualConnect;
-        private Button _btnRefresh;
+        private GrokButton _btnManualConnect;
+        private GrokButton _btnRefresh;
         private Panel _listPanel;
 
         private int _filterIndex = 0; // 0: 全部, 1: 在线, 2: 常用, 3: 手动
-        private bool _isCloseHover = false;
         private string _searchFilter = string.Empty;
 
         public GrokConnectNodeForm(NetworkService netService, Action<string> onConnectIp, Action<PeerInfo> onSelectPeer)
@@ -45,55 +31,12 @@ namespace LanChat
             _onConnectIp = onConnectIp;
             _onSelectPeer = onSelectPeer;
 
-            this.FormBorderStyle = FormBorderStyle.None;
-            this.StartPosition = FormStartPosition.CenterParent;
-            this.ShowInTaskbar = false;
-            this.Size = new Size(760, 600);
-            this.BackColor = Color.FromArgb(28, 28, 31); // #1C1C1F Level1
-            this.DoubleBuffered = true;
-            this.Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular);
+            this.Size = GrokTheme.SizeConnectNode; // 760 x 600
+            this.ShowCloseButton = true;
+            this.Font = GrokTheme.FontSecondary;
 
             BuildControls();
             PopulatePeers();
-        }
-
-        protected override CreateParams CreateParams
-        {
-            get
-            {
-                CreateParams cp = base.CreateParams;
-                cp.ClassStyle |= 0x00020000; // CS_DROPSHADOW
-                return cp;
-            }
-        }
-
-        private void UpdateFormRegion()
-        {
-            if (this.IsDisposed || !this.IsHandleCreated) return;
-            try
-            {
-                IntPtr rgn = CreateRoundRectRgn(0, 0, this.Width + 1, this.Height + 1, 16, 16);
-                if (rgn != IntPtr.Zero)
-                {
-                    Region oldRegion = this.Region;
-                    this.Region = Region.FromHrgn(rgn);
-                    DeleteObject(rgn);
-                    if (oldRegion != null) oldRegion.Dispose();
-                }
-            }
-            catch { }
-        }
-
-        protected override void OnHandleCreated(EventArgs e)
-        {
-            base.OnHandleCreated(e);
-            UpdateFormRegion();
-        }
-
-        protected override void OnResize(EventArgs e)
-        {
-            base.OnResize(e);
-            UpdateFormRegion();
         }
 
         private void BuildControls()
@@ -103,9 +46,9 @@ namespace LanChat
             {
                 Location = new Point(66, 73),
                 Size = new Size(490, 24),
-                BackColor = Color.FromArgb(16, 16, 18),
-                ForeColor = Color.FromArgb(240, 240, 245),
-                Font = new Font("Microsoft YaHei UI", 10.0f),
+                BackColor = GrokTheme.Level0,
+                ForeColor = GrokTheme.TextPrimary,
+                Font = GrokTheme.FontCardItem,
                 BorderStyle = BorderStyle.None
             };
             _txtSearch.TextChanged += (s, e) =>
@@ -115,38 +58,12 @@ namespace LanChat
             };
             this.Controls.Add(_txtSearch);
 
-            // 搜索框右侧 "扫描刷新 ⟳" 药丸按钮 (对标 ConnetctApp.png 右侧 Bot 模板)
-            _btnRefresh = new Button
+            // 搜索框右侧 "扫描刷新" 药丸按钮
+            _btnRefresh = new GrokButton("⟳ 扫描刷新", GrokButtonRole.Secondary)
             {
-                Text = "⟳ 扫描节点",
+                IsPill = true,
                 Location = new Point(610, 64),
-                Size = new Size(116, 38),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)
-            };
-            _btnRefresh.FlatAppearance.BorderSize = 0;
-            _btnRefresh.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            _btnRefresh.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool refHover = false;
-            _btnRefresh.MouseEnter += (s, e) => { refHover = true; _btnRefresh.Invalidate(); };
-            _btnRefresh.MouseLeave += (s, e) => { refHover = false; _btnRefresh.Invalidate(); };
-            _btnRefresh.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Rectangle r = new Rectangle(0, 0, _btnRefresh.Width - 1, _btnRefresh.Height - 1);
-                using (SolidBrush b = new SolidBrush(refHover ? Color.FromArgb(46, 46, 52) : Color.FromArgb(32, 32, 36)))
-                using (Pen p = new Pen(Color.FromArgb(52, 52, 58), 1f))
-                {
-                    MainForm.DrawRoundedRectangle(e.Graphics, b, r, 19);
-                    MainForm.DrawRoundedRectangle(e.Graphics, p, r, 19);
-                }
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(235, 235, 240)))
-                {
-                    StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString("⟳ 扫描刷新", _btnRefresh.Font, tb, new RectangleF(0, 1, _btnRefresh.Width, _btnRefresh.Height), sf);
-                }
+                Size = new Size(116, 38)
             };
             _btnRefresh.Click += (s, e) =>
             {
@@ -172,45 +89,18 @@ namespace LanChat
             _txtManualIp = new TextBox
             {
                 Location = new Point(132, 514),
-                Size = new Size(420, 24),
-                BackColor = Color.FromArgb(16, 16, 18),
-                ForeColor = Color.FromArgb(240, 240, 245),
-                Font = new Font("Microsoft YaHei UI", 10.0f),
+                Size = new Size(450, 24),
+                BackColor = GrokTheme.Level0,
+                ForeColor = GrokTheme.TextPrimary,
+                Font = GrokTheme.FontCardItem,
                 BorderStyle = BorderStyle.None
             };
             this.Controls.Add(_txtManualIp);
 
-            _btnManualConnect = new Button
+            _btnManualConnect = new GrokButton("连接握手", GrokButtonRole.Primary)
             {
-                Text = "连接握手",
                 Location = new Point(610, 503),
-                Size = new Size(100, 36),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)
-            };
-            _btnManualConnect.FlatAppearance.BorderSize = 0;
-            _btnManualConnect.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            _btnManualConnect.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool mcHover = false;
-            _btnManualConnect.MouseEnter += (s, e) => { mcHover = true; _btnManualConnect.Invalidate(); };
-            _btnManualConnect.MouseLeave += (s, e) => { mcHover = false; _btnManualConnect.Invalidate(); };
-            _btnManualConnect.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Rectangle r = new Rectangle(0, 0, _btnManualConnect.Width - 1, _btnManualConnect.Height - 1);
-                using (SolidBrush b = new SolidBrush(mcHover ? Color.FromArgb(142, 100, 220) : Color.FromArgb(121, 70, 215)))
-                using (Pen p = new Pen(Color.FromArgb(142, 100, 220), 1f))
-                {
-                    MainForm.DrawRoundedRectangle(e.Graphics, b, r, 18);
-                    MainForm.DrawRoundedRectangle(e.Graphics, p, r, 18);
-                }
-                using (SolidBrush tb = new SolidBrush(Color.White))
-                {
-                    StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString("连接握手", _btnManualConnect.Font, tb, new RectangleF(0, 1, _btnManualConnect.Width, _btnManualConnect.Height), sf);
-                }
+                Size = new Size(100, 36)
             };
             _btnManualConnect.Click += (s, e) =>
             {
@@ -256,8 +146,8 @@ namespace LanChat
                 Label emptyLbl = new Label
                 {
                     Text = string.IsNullOrEmpty(_searchFilter) ? "局域网内暂未发现其他节点，请尝试点击右上角【⟳ 扫描刷新】或在下方手动输入对方 IP 直连握手" : "未找到匹配此关键词的节点",
-                    ForeColor = Color.FromArgb(140, 140, 146),
-                    Font = new Font("Microsoft YaHei UI", 9.5f),
+                    ForeColor = GrokTheme.TextSecondary,
+                    Font = GrokTheme.FontSecondary,
                     Location = new Point(20, 40),
                     Size = new Size(650, 48),
                     TextAlign = ContentAlignment.MiddleCenter
@@ -293,41 +183,13 @@ namespace LanChat
             card.MouseEnter += (s, e) => { isHover = true; card.Invalidate(); };
             card.MouseLeave += (s, e) => { isHover = false; card.Invalidate(); };
 
-            // 右侧 "连接" 药丸按钮 (对标 ConnetctApp.png 的“添加”/“连接”)
-            Button btnAction = new Button
+            // 右侧 "连接" 药丸按钮
+            GrokButton btnAction = new GrokButton("连接", GrokButtonRole.Secondary)
             {
-                Text = "连接",
+                IsPill = true,
                 Location = new Point(w - 74, (h - 32) / 2),
-                Size = new Size(62, 32),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)
+                Size = new Size(62, 32)
             };
-            btnAction.FlatAppearance.BorderSize = 0;
-            btnAction.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            btnAction.FlatAppearance.MouseDownBackColor = Color.Transparent;
-
-            bool btnHover = false;
-            btnAction.MouseEnter += (s, e) => { btnHover = true; btnAction.Invalidate(); };
-            btnAction.MouseLeave += (s, e) => { btnHover = false; btnAction.Invalidate(); };
-            btnAction.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Rectangle r = new Rectangle(0, 0, btnAction.Width - 1, btnAction.Height - 1);
-                using (SolidBrush b = new SolidBrush(btnHover ? Color.FromArgb(56, 56, 62) : Color.FromArgb(40, 40, 44)))
-                using (Pen p = new Pen(Color.FromArgb(58, 58, 64), 1f))
-                {
-                    MainForm.DrawRoundedRectangle(e.Graphics, b, r, 16);
-                    MainForm.DrawRoundedRectangle(e.Graphics, p, r, 16);
-                }
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(235, 235, 240)))
-                {
-                    StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString("连接", btnAction.Font, tb, new RectangleF(0, 1, btnAction.Width, btnAction.Height), sf);
-                }
-            };
-
             btnAction.Click += (s, e) =>
             {
                 this.Close();
@@ -347,28 +209,28 @@ namespace LanChat
                 Rectangle totalR = new Rectangle(0, 0, w - 1, h - 1);
 
                 // 卡片暗黑背景与圆角
-                using (SolidBrush bg = new SolidBrush(isHover ? Color.FromArgb(32, 32, 36) : Color.FromArgb(25, 25, 28)))
-                using (Pen borderPen = new Pen(Color.FromArgb(44, 44, 48), 1f))
+                using (SolidBrush bg = new SolidBrush(isHover ? GrokTheme.Level2 : Color.FromArgb(25, 25, 28)))
+                using (Pen borderPen = new Pen(GrokTheme.BorderInner, 1f))
                 {
-                    MainForm.DrawRoundedRectangle(g, bg, totalR, 12);
-                    MainForm.DrawRoundedRectangle(g, borderPen, totalR, 12);
+                    GrokTheme.DrawRoundedRectangle(g, bg, totalR, 12);
+                    GrokTheme.DrawRoundedRectangle(g, borderPen, totalR, 12);
                 }
 
                 // 左侧有机吉祥物头像 (48x48)
                 int avSize = 48;
                 Rectangle avRect = new Rectangle(14, (h - avSize) / 2, avSize, avSize);
                 int shapeIdx = Math.Abs(peer.HostName.GetHashCode()) % 14;
-                Color avColor = Color.FromArgb(144, 90, 251);
+                Color avColor = GrokTheme.AccentPurple;
                 if (shapeIdx % 3 == 0) avColor = Color.FromArgb(255, 107, 34);
-                else if (shapeIdx % 3 == 1) avColor = Color.FromArgb(31, 214, 126);
+                else if (shapeIdx % 3 == 1) avColor = GrokTheme.AccentGreen;
 
                 WeChatIcon.DrawMascotAvatarShape(g, avRect, shapeIdx, avColor, true, Color.FromArgb(25, 25, 28));
 
                 // 节点名称与 IP 说明文字
-                using (Font nameFont = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Bold))
-                using (Font subFont = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
-                using (SolidBrush nb = new SolidBrush(Color.FromArgb(242, 242, 246)))
-                using (SolidBrush sb = new SolidBrush(Color.FromArgb(150, 150, 156)))
+                using (Font nameFont = GrokTheme.FontSectionTitle)
+                using (Font subFont = GrokTheme.FontFootnote)
+                using (SolidBrush nb = new SolidBrush(GrokTheme.TextPrimary))
+                using (SolidBrush sb = new SolidBrush(GrokTheme.TextSecondary))
                 {
                     string displayName = !string.IsNullOrEmpty(peer.NickName) ? peer.NickName : peer.HostName;
                     g.DrawString(displayName, nameFont, nb, new PointF(72, 16));
@@ -382,137 +244,75 @@ namespace LanChat
 
         protected override void OnMouseDown(MouseEventArgs e)
         {
-            base.OnMouseDown(e);
             if (e.Button == MouseButtons.Left)
             {
-                Rectangle closeRect = new Rectangle(this.Width - 38, 16, 22, 22);
-                if (closeRect.Contains(e.Location))
-                {
-                    this.Close();
-                    return;
-                }
-
-                // 过滤标签胶囊点击 (全部 / 在线 / 手动)
+                // 检查 4 个分类芯片点击 (y: 118, 左右 32 开始)
                 int chipY = 118;
-                string[] chips = new string[] { "全部", "局域网在线", "历史节点", "手动直连" };
                 int curX = 32;
-                for (int i = 0; i < chips.Length; i++)
+                for (int i = 0; i < 4; i++)
                 {
                     int chipW = 74;
                     Rectangle chipR = new Rectangle(curX, chipY, chipW, 32);
                     if (chipR.Contains(e.Location))
                     {
                         _filterIndex = i;
-                        Invalidate(new Rectangle(30, 115, 400, 40));
+                        this.Invalidate(new Rectangle(30, 115, 400, 40));
                         PopulatePeers();
                         return;
                     }
                     curX += chipW + 10;
                 }
-
-                if (e.Y < 54)
-                {
-                    ReleaseCapture();
-                    SendMessage(this.Handle, 0x00A1, (IntPtr)0x0002, IntPtr.Zero);
-                }
             }
+
+            base.OnMouseDown(e);
         }
 
-        protected override void OnMouseMove(MouseEventArgs e)
+        protected override void OnPaintContent(Graphics g)
         {
-            base.OnMouseMove(e);
-            Rectangle closeRect = new Rectangle(this.Width - 38, 16, 22, 22);
-            bool hover = closeRect.Contains(e.Location);
-            if (hover != _isCloseHover)
-            {
-                _isCloseHover = hover;
-                Invalidate(closeRect);
-            }
-        }
-
-        protected override void OnKeyDown(KeyEventArgs e)
-        {
-            base.OnKeyDown(e);
-            if (e.KeyCode == Keys.Escape)
-            {
-                this.Close();
-            }
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            base.OnPaint(e);
-            Graphics g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-
-            // 1. 背景与外边框
-            using (Pen borderPen = new Pen(Color.FromArgb(46, 46, 52), 1f))
-            {
-                MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 16);
-            }
-
-            // 2. 标题 "连接节点" (18.0pt 加粗明亮纯白，完全对标 ConnetctApp.png 与 GrokBot 规范)
-            using (Font titleFont = new Font("Microsoft YaHei UI", 18f, FontStyle.Bold))
-            using (SolidBrush tb = new SolidBrush(Color.FromArgb(250, 250, 255)))
+            // 1. 标题 "连接节点" (18.0pt Bold #FFFFFF)
+            using (Font titleFont = GrokTheme.FontTitle)
+            using (SolidBrush tb = new SolidBrush(GrokTheme.TextTitle))
             {
                 g.DrawString("连接节点", titleFont, tb, new PointF(30, 18));
             }
 
-            // 右上角指示器 "已连接 N 个 >"
+            // 右上角指示器 "已连接 N 个 ›"
             int peerCount = _netService != null ? _netService.GetActivePeers().Count : 0;
             string countText = string.Format("已连接 {0} 个  ›", peerCount);
-            using (Font countFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular))
-            using (SolidBrush cb = new SolidBrush(Color.FromArgb(142, 142, 147)))
+            using (Font countFont = GrokTheme.FontSecondary)
+            using (SolidBrush cb = new SolidBrush(GrokTheme.TextSecondary))
             {
                 SizeF csz = g.MeasureString(countText, countFont);
                 g.DrawString(countText, countFont, cb, new PointF(this.Width - 48 - csz.Width, 20));
             }
 
-            // 右上角关闭按钮 (×)
-            Rectangle closeRect = new Rectangle(this.Width - 38, 16, 22, 22);
-            if (_isCloseHover)
-            {
-                using (SolidBrush hb = new SolidBrush(Color.FromArgb(48, 48, 54)))
-                {
-                    g.FillEllipse(hb, closeRect);
-                }
-            }
-            using (Pen cp = new Pen(_isCloseHover ? Color.White : Color.FromArgb(160, 160, 166), 1.5f))
-            {
-                cp.StartCap = LineCap.Round;
-                cp.EndCap = LineCap.Round;
-                int pad = 5;
-                g.DrawLine(cp, closeRect.X + pad, closeRect.Y + pad, closeRect.Right - pad, closeRect.Bottom - pad);
-                g.DrawLine(cp, closeRect.Right - pad, closeRect.Y + pad, closeRect.X + pad, closeRect.Bottom - pad);
-            }
-
-            // 3. 搜索栏输入胶囊 (高 40px, 圆角 20px, 完全对标 ConnetctApp.png)
+            // 2. 搜索栏输入胶囊 (高 40px, 圆角 20px)
             Rectangle searchBox = new Rectangle(30, 64, 560, 40);
-            using (SolidBrush sb = new SolidBrush(Color.FromArgb(16, 16, 18)))
-            using (Pen sp = new Pen(Color.FromArgb(44, 44, 50), 1f))
+            using (SolidBrush sb = new SolidBrush(GrokTheme.Level0))
+            using (Pen sp = new Pen(GrokTheme.Border, 1f))
             {
-                MainForm.DrawRoundedRectangle(g, sb, searchBox, 20);
-                MainForm.DrawRoundedRectangle(g, sp, searchBox, 20);
+                GrokTheme.DrawRoundedRectangle(g, sb, searchBox, 20);
+                GrokTheme.DrawRoundedRectangle(g, sp, searchBox, 20);
             }
 
             // 放大镜图标
             Rectangle iconR = new Rectangle(44, 75, 16, 16);
-            WeChatIcon.Draw(g, WeChatIconType.Search, iconR, false, Color.FromArgb(150, 150, 156));
+            WeChatIcon.Draw(g, WeChatIconType.Search, iconR, false, GrokTheme.IconMuted);
 
-            if (string.IsNullOrEmpty(_txtSearch.Text))
+            if (_txtSearch != null && string.IsNullOrEmpty(_txtSearch.Text))
             {
-                using (Font pf = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular))
-                using (SolidBrush pb = new SolidBrush(Color.FromArgb(110, 110, 116)))
+                using (Font pf = GrokTheme.FontSecondary)
+                using (SolidBrush pb = new SolidBrush(GrokTheme.TextPlaceholder))
                 {
                     g.DrawString("在节点中搜索 (主机名 / IP / 昵称)...", pf, pb, new PointF(66, 74));
                 }
             }
 
-            // 4. 标签过滤芯片 (全部 / 局域网在线 / 历史节点 / 手动直连)
+            // 3. 标签过滤芯片 (全部 / 局域网在线 / 常用节点 / 手动直连)
             int chipY = 118;
-            string[] chips = new string[] { "全部", "局域网在线", "历史节点", "手动直连" };
+            string[] chips = new string[] { "全部", "局域网在线", "常用节点", "手动直连" };
             int curX = 32;
-            using (Font chipFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular))
+            using (Font chipFont = GrokTheme.FontSecondary)
             {
                 for (int i = 0; i < chips.Length; i++)
                 {
@@ -520,35 +320,37 @@ namespace LanChat
                     Rectangle chipR = new Rectangle(curX, chipY, chipW, 30);
                     bool active = (_filterIndex == i);
 
-                    Color chipBg = active ? Color.FromArgb(242, 242, 246) : Color.FromArgb(28, 28, 32);
-                    Color chipBorder = active ? Color.FromArgb(242, 242, 246) : Color.FromArgb(44, 44, 50);
-                    Color chipTc = active ? Color.FromArgb(14, 14, 16) : Color.FromArgb(200, 200, 206);
+                    Color chipBg = active ? GrokTheme.TextPrimary : GrokTheme.Level2;
+                    Color chipBorder = active ? GrokTheme.TextPrimary : GrokTheme.Border;
+                    Color chipTc = active ? GrokTheme.Level0 : GrokTheme.TextSecondary;
 
                     using (SolidBrush cb = new SolidBrush(chipBg))
                     using (Pen cp = new Pen(chipBorder, 1f))
                     {
-                        MainForm.DrawRoundedRectangle(g, cb, chipR, 15);
-                        MainForm.DrawRoundedRectangle(g, cp, chipR, 15);
+                        GrokTheme.DrawRoundedRectangle(g, cb, chipR, 15);
+                        GrokTheme.DrawRoundedRectangle(g, cp, chipR, 15);
                     }
                     using (SolidBrush ctb = new SolidBrush(chipTc))
                     {
-                        StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                        g.DrawString(chips[i], chipFont, ctb, chipR, sf);
+                        using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                        {
+                            g.DrawString(chips[i], chipFont, ctb, chipR, sf);
+                        }
                     }
                     curX += chipW + 10;
                 }
             }
 
-            // 5. 分组标题: "为你推荐 / 局域网节点"
-            using (Font groupFont = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Bold))
-            using (SolidBrush gb = new SolidBrush(Color.FromArgb(240, 240, 246)))
+            // 4. 分组标题: "为你推荐 / 局域网节点"
+            using (Font groupFont = GrokTheme.FontPrimaryBold)
+            using (SolidBrush gb = new SolidBrush(GrokTheme.TextPrimary))
             {
                 g.DrawString("局域网节点", groupFont, gb, new PointF(32, 158));
             }
 
-            // 6. 分组标题: "手动 IP 握手直连" (完全对标 ConnetctApp.png 密码管理器单卡片)
-            using (Font groupFont = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Bold))
-            using (SolidBrush gb = new SolidBrush(Color.FromArgb(240, 240, 246)))
+            // 5. 分组标题: "手动指定 IP 握手直连"
+            using (Font groupFont = GrokTheme.FontPrimaryBold)
+            using (SolidBrush gb = new SolidBrush(GrokTheme.TextPrimary))
             {
                 g.DrawString("手动指定 IP 握手直连", groupFont, gb, new PointF(32, 462));
             }
@@ -556,40 +358,39 @@ namespace LanChat
             // 底部直连卡片容器
             Rectangle manualCard = new Rectangle(32, 492, 696, 58);
             using (SolidBrush mb = new SolidBrush(Color.FromArgb(25, 25, 28)))
-            using (Pen mp = new Pen(Color.FromArgb(44, 44, 48), 1f))
+            using (Pen mp = new Pen(GrokTheme.BorderInner, 1f))
             {
-                MainForm.DrawRoundedRectangle(g, mb, manualCard, 14);
-                MainForm.DrawRoundedRectangle(g, mp, manualCard, 14);
+                GrokTheme.DrawRoundedRectangle(g, mb, manualCard, 14);
+                GrokTheme.DrawRoundedRectangle(g, mp, manualCard, 14);
             }
 
             // 卡片左侧小图标 (圆角方块带 Bolt 闪电)
             Rectangle boltBox = new Rectangle(46, 503, 36, 36);
-            using (SolidBrush bb = new SolidBrush(Color.FromArgb(40, 40, 46)))
+            using (SolidBrush bb = new SolidBrush(GrokTheme.Level3))
             {
-                MainForm.DrawRoundedRectangle(g, bb, boltBox, 10);
+                GrokTheme.DrawRoundedRectangle(g, bb, boltBox, 10);
             }
-            WeChatIcon.Draw(g, WeChatIconType.Bolt, new Rectangle(54, 511, 20, 20), false, Color.FromArgb(144, 90, 251));
+            WeChatIcon.Draw(g, WeChatIconType.Bolt, new Rectangle(54, 511, 20, 20), false, GrokTheme.AccentPurple);
 
-            // 输入提示与输入框占位符
-            using (Font ipLblFont = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
-            using (SolidBrush tb = new SolidBrush(Color.FromArgb(150, 150, 156)))
+            // 输入提示与输入框底框
+            using (Font ipLblFont = GrokTheme.FontFootnote)
+            using (SolidBrush tb = new SolidBrush(GrokTheme.TextSecondary))
             {
                 g.DrawString("输入对方 IPv4:", ipLblFont, tb, new PointF(90, 498));
             }
 
-            // 输入框底框
             Rectangle ipBoxRect = new Rectangle(88, 510, 508, 30);
-            using (SolidBrush bb = new SolidBrush(Color.FromArgb(16, 16, 18)))
-            using (Pen bp = new Pen(Color.FromArgb(50, 50, 56), 1f))
+            using (SolidBrush bb = new SolidBrush(GrokTheme.Level0))
+            using (Pen bp = new Pen(GrokTheme.Border, 1f))
             {
-                MainForm.DrawRoundedRectangle(g, bb, ipBoxRect, 6);
-                MainForm.DrawRoundedRectangle(g, bp, ipBoxRect, 6);
+                GrokTheme.DrawRoundedRectangle(g, bb, ipBoxRect, 6);
+                GrokTheme.DrawRoundedRectangle(g, bp, ipBoxRect, 6);
             }
 
-            if (string.IsNullOrEmpty(_txtManualIp.Text))
+            if (_txtManualIp != null && string.IsNullOrEmpty(_txtManualIp.Text))
             {
-                using (Font pf = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular))
-                using (SolidBrush pb = new SolidBrush(Color.FromArgb(110, 110, 116)))
+                using (Font pf = GrokTheme.FontFootnote)
+                using (SolidBrush pb = new SolidBrush(GrokTheme.TextPlaceholder))
                 {
                     g.DrawString("例如: 192.168.1.100 (无需加端口号)", pf, pb, new PointF(134, 516));
                 }

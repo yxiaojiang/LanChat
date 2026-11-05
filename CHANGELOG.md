@@ -4,6 +4,26 @@
 
 ---
 
+## [v2.0.13] - 2026-11-05
+
+### 🎨 全客户端 UI 统一样式系统重构 (DIR-004 落地与设计令牌收口)
+- **全局集中设计令牌中心 (`GrokTheme.cs`)**：
+  - 集中收口并标准化全客户端 9 大窗口基准尺寸（主窗口 1040×720、设置 920×640、连接节点 760×600、创建节点 680×620、关于 440×560、反馈 520×460、更新 520×440、消息弹窗 460×260、改名 440×260）。
+  - 统一定义标准按钮规格（标准高 36px、药丸高 32px、水平内距 18px、圆角 8px/胶囊）、右上角自绘关闭叉规范（28×28px、距边 16px）、动态排版字体与自绘抗锯齿圆角几何辅助函数。
+- **构建统一样式自绘按钮控件 (`GrokButton.cs`)**：
+  - 继承自 WinForms 原生 `Button`，天然具备 `IButtonControl` 契约（Enter 回车自动触发 `AcceptButton`、ESC 触发 `CancelButton`、`DialogResult` 自动关闭父窗体）。
+  - 纯 GDI+ 抗锯齿平滑渲染，提供 `Primary`（魅紫）、`Secondary`（深灰）、`Destructive`（警示红）、`Pill`（药丸胶囊）4 种设计角色，彻底告别直角与白底焦点框。
+- **抽象无边框圆角模态窗基类 (`GrokModalFormBase.cs`)**：
+  - 标准化接管 16px 圆角剪裁 Region 与安全句柄回收（彻底杜绝 GDI 对象泄漏）。
+  - 原生注入 Windows DWM 柔和阴影 (`CS_DROPSHADOW`)、鼠标空白区拖拽移动、1px 微光外边框 (`#2C2C32`) 与右上角标准 28×28px 自绘关闭叉。
+- **全量模态窗与视图标准化迁移**：
+  - 小型弹窗：`GrokMessageBox`、`GrokChangeNickForm`、`GrokAboutForm`（扩充至规范 440×560，彻底根除复制按钮裁切）全量继承基类并替换为 `GrokButton`。
+  - 中大型弹窗：`GrokFeedbackForm`、`GrokUpdateForm`、`GrokCreateNodeForm`、`GrokConnectNodeForm` 全量继承基类，重构内部自适应布局与自绘按钮。
+  - 核心视图对齐：`SessionListBox` 会话项高度（72px）、Margin 与头像间距联动 `GrokTheme`；`WeChatChatView` 换行行高加量（`+ 5f`）、气泡内边距与时间戳字号对齐设计令牌；`GrokSettingsDialog` 颜色令牌与操作胶囊引用全量收口。
+- **原生极轻量无依赖**：全量代码严格保持 C# 5.0 / .NET Framework 4.0 语法兼容，零外部 NuGet 依赖，原生 `csc.exe` 纯编译 0 警告 0 报错。
+
+---
+
 ## [v2.0.12] - 2026-11-04
 
 ### ⚡ 会话切换零重绘零闪烁升级 (消灭 ListBox 原生直绘与全量刷新)

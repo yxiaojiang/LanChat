@@ -119,22 +119,22 @@ namespace LanChat
         private int _activeTabId = 0;
         private int _hoverTabId = -1;
 
-        // 颜色设计令牌 (100% 对齐 WorkBuddy)
-        private static readonly Color ColWindowBg = Color.FromArgb(19, 19, 22);       // #131316 主视口
-        private static readonly Color ColSidebarBg = Color.FromArgb(22, 22, 25);      // #161619 侧边栏
-        private static readonly Color ColCardBg = Color.FromArgb(28, 28, 32);         // #1C1C20 卡片底色
-        private static readonly Color ColCardBorder = Color.FromArgb(39, 39, 44);     // #27272C 微细边框
-        private static readonly Color ColCardDivider = Color.FromArgb(34, 34, 39);    // #222227 行间细线
-        private static readonly Color ColTextPrimary = Color.FromArgb(237, 237, 244); // #EDEDF4 主要字
-        private static readonly Color ColTextSecondary = Color.FromArgb(120, 120, 134);// #787886 次要字
-        private static readonly Color ColSectionHeader = Color.FromArgb(154, 154, 166);// #9A9AA6 分类头
-        private static readonly Color ColGroupLabel = Color.FromArgb(104, 104, 116);  // #686874 侧栏分组
-        private static readonly Color ColNavActive = Color.FromArgb(42, 42, 47);      // #2A2A2F 激活项
-        private static readonly Color ColNavHover = Color.FromArgb(32, 32, 36);       // #202024 悬停项
-        private static readonly Color ColMintGreen = Color.FromArgb(16, 185, 129);    // #10B981 薄荷绿开
-        private static readonly Color ColSwitchOff = Color.FromArgb(48, 48, 54);      // #303036 关闭灰
-        private static readonly Color ColPillBg = Color.FromArgb(37, 37, 42);         // #25252A 胶囊底
-        private static readonly Color ColPillBorder = Color.FromArgb(52, 52, 60);     // #34343C 胶囊框
+        // 颜色设计令牌 (100% 对齐 GrokTheme 设计系统)
+        private static readonly Color ColWindowBg = GrokTheme.Level05;       // #121212 主视口
+        private static readonly Color ColSidebarBg = GrokTheme.Level0;       // #0E0E0E 侧边栏
+        private static readonly Color ColCardBg = GrokTheme.Level1;          // #1C1C1F 卡片底色
+        private static readonly Color ColCardBorder = GrokTheme.Border;      // #2C2C32 微细边框
+        private static readonly Color ColCardDivider = GrokTheme.BorderInner;// #26262B 行间细线
+        private static readonly Color ColTextPrimary = GrokTheme.TextPrimary;// #F2F2F6 主要字
+        private static readonly Color ColTextSecondary = GrokTheme.TextSecondary;// #8E8E93 次要字
+        private static readonly Color ColSectionHeader = GrokTheme.TextSubtitle;
+        private static readonly Color ColGroupLabel = GrokTheme.TextPlaceholder;
+        private static readonly Color ColNavActive = GrokTheme.Level3;       // #28282C 激活项
+        private static readonly Color ColNavHover = GrokTheme.Level2;        // #202024 悬停项
+        private static readonly Color ColMintGreen = GrokTheme.AccentGreen;  // #1FD67E 翠绿开
+        private static readonly Color ColSwitchOff = GrokTheme.TextDisabled; // #4A4A50 关闭灰
+        private static readonly Color ColPillBg = GrokTheme.Level2;          // #202024 胶囊底
+        private static readonly Color ColPillBorder = GrokTheme.Border;      // #2C2C32 胶囊框
 
         public GrokSettingsDialog(
             NetworkService netService,
@@ -232,11 +232,11 @@ namespace LanChat
 
         private void BuildWindowComponents()
         {
-            // 1. 右上角独立关闭按钮控件 (彻底解决无关闭按钮、被滚动视口遮挡的痛点)
+            // 1. 右上角独立关闭按钮控件 (对齐 GrokTheme 标准右上角自绘关闭叉)
             _btnClose = new Button
             {
-                Size = new Size(36, 36),
-                Location = new Point(this.Width - 48, 16),
+                Size = new Size(GrokTheme.CloseButtonSize, GrokTheme.CloseButtonSize),
+                Location = new Point(this.Width - GrokTheme.CloseButtonMargin - GrokTheme.CloseButtonSize, GrokTheme.CloseButtonMargin),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand
@@ -254,21 +254,16 @@ namespace LanChat
             {
                 Graphics g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
+                Rectangle r = new Rectangle(0, 0, _btnClose.Width, _btnClose.Height);
                 if (closeHover)
                 {
-                    using (SolidBrush hb = new SolidBrush(Color.FromArgb(48, 48, 54)))
+                    using (SolidBrush hb = new SolidBrush(GrokTheme.Level3Hot))
                     {
-                        g.FillEllipse(hb, 0, 0, 35, 35);
+                        GrokTheme.DrawRoundedRectangle(g, hb, r, 6);
                     }
                 }
-                using (Pen cp = new Pen(closeHover ? Color.White : Color.FromArgb(170, 170, 185), 1.8f))
-                {
-                    cp.StartCap = LineCap.Round;
-                    cp.EndCap = LineCap.Round;
-                    int pad = 11;
-                    g.DrawLine(cp, pad, pad, 35 - pad, 35 - pad);
-                    g.DrawLine(cp, 35 - pad, pad, pad, 35 - pad);
-                }
+                Color iconColor = closeHover ? GrokTheme.TextTitle : GrokTheme.TextSecondary;
+                WeChatIcon.DrawDismissIcon(g, r, iconColor);
             };
             this.Controls.Add(_btnClose);
             _btnClose.BringToFront();
@@ -1377,7 +1372,7 @@ namespace LanChat
                 FlatStyle = FlatStyle.Flat,
                 BackColor = ColCardBg,
                 Cursor = Cursors.Hand,
-                Font = new Font(GrokTheme.FontFamily, 9.5f, FontStyle.Regular)
+                Font = GrokTheme.FontSecondary
             };
             btn.FlatAppearance.BorderSize = 0;
             btn.FlatAppearance.MouseOverBackColor = ColCardBg;
@@ -1408,16 +1403,16 @@ namespace LanChat
                 }
 
                 Rectangle r = new Rectangle(0, 0, btn.Width - 1, btn.Height - 1);
-                using (SolidBrush b = new SolidBrush(hover ? Color.FromArgb(46, 46, 54) : ColPillBg))
+                using (SolidBrush b = new SolidBrush(hover ? GrokTheme.Level3Hot : ColPillBg))
                 using (Pen p = new Pen(hover ? Color.FromArgb(70, 70, 82) : ColPillBorder, 1f))
                 {
-                    MainForm.DrawRoundedRectangle(g, b, r, 7);
-                    MainForm.DrawRoundedRectangle(g, p, r, 7);
+                    GrokTheme.DrawRoundedRectangle(g, b, r, 7);
+                    GrokTheme.DrawRoundedRectangle(g, p, r, 7);
                 }
 
                 // 绘制明亮文字 (WorkBuddy 规范纯白高对比度 #FFFFFF，左留 16px 呼吸间距，杜绝折行)
                 string curLabel = btn.Text.Replace("  ∨", "").Trim();
-                using (SolidBrush tb = new SolidBrush(Color.White))
+                using (SolidBrush tb = new SolidBrush(GrokTheme.TextTitle))
                 {
                     float ty = (btn.Height - btn.Font.GetHeight(g)) / 2f;
                     g.DrawString(curLabel, btn.Font, tb, new PointF(16, ty));
@@ -1425,7 +1420,7 @@ namespace LanChat
 
                 // 绘制右侧下拉箭头 (∨)，右侧留出 14px 舒适间距
                 using (Font arrowFont = new Font("Segoe UI", 8.5f, FontStyle.Regular))
-                using (SolidBrush arrowBrush = new SolidBrush(hover ? Color.White : Color.FromArgb(190, 190, 205)))
+                using (SolidBrush arrowBrush = new SolidBrush(hover ? GrokTheme.TextTitle : GrokTheme.TextSecondary))
                 {
                     float ay = (btn.Height - arrowFont.GetHeight(g)) / 2f;
                     g.DrawString("∨", arrowFont, arrowBrush, new PointF(btn.Width - 22, ay));
@@ -1444,7 +1439,7 @@ namespace LanChat
                 FlatStyle = FlatStyle.Flat,
                 BackColor = ColCardBg,
                 Cursor = Cursors.Hand,
-                Font = new Font(GrokTheme.FontFamily, 9.5f, FontStyle.Regular)
+                Font = GrokTheme.FontSecondary
             };
             btn.FlatAppearance.BorderSize = 0;
             btn.FlatAppearance.MouseOverBackColor = ColCardBg;
@@ -1473,8 +1468,8 @@ namespace LanChat
                 }
 
                 Color tc = isDanger
-                    ? (hover ? Color.FromArgb(255, 90, 100) : Color.FromArgb(240, 70, 80))
-                    : (hover ? Color.White : Color.FromArgb(180, 180, 195));
+                    ? (hover ? GrokTheme.TextDestructiveHot : GrokTheme.TextDestructive)
+                    : (hover ? GrokTheme.TextTitle : GrokTheme.TextSubtitle);
 
                 using (SolidBrush tb = new SolidBrush(tc))
                 {

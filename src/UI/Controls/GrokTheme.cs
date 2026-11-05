@@ -1,4 +1,6 @@
+using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Text;
 
@@ -62,6 +64,76 @@ namespace LanChat
         public static readonly Color IconMuted = Color.FromArgb(160, 160, 165);     // #A0A0A5
         public static readonly Color MenuHoverDanger = Color.FromArgb(60, 24, 28);  // #3C181C
 
+        // Button roles & states
+        public static readonly Color ButtonPrimaryNormal = Color.FromArgb(121, 70, 215);  // #7946D7
+        public static readonly Color ButtonPrimaryHover = Color.FromArgb(142, 100, 220);   // #8E64DC
+        public static readonly Color ButtonPrimaryDown = Color.FromArgb(105, 55, 195);
+        public static readonly Color ButtonSecondaryNormal = Color.FromArgb(40, 40, 44);   // Level3 #28282C
+        public static readonly Color ButtonSecondaryHover = Color.FromArgb(52, 52, 58);
+        public static readonly Color ButtonSecondaryDown = Color.FromArgb(32, 32, 36);
+        public static readonly Color ButtonDestructiveNormal = Color.FromArgb(60, 24, 28); // #3C181C
+        public static readonly Color ButtonDestructiveHover = Color.FromArgb(80, 30, 36);
+        public static readonly Color ButtonDestructiveDown = Color.FromArgb(48, 18, 22);
+
+        // Window benchmark sizes (Docs/GrokBot_UI_Design_System.md §9)
+        public static readonly Size SizeMainWindow = new Size(1040, 720);
+        public static readonly Size SizeSettings = new Size(920, 640);
+        public static readonly Size SizeSettingsLarge = new Size(1260, 820);
+        public static readonly Size SizeConnectNode = new Size(760, 600);
+        public static readonly Size SizeCreateNode = new Size(680, 620);
+        public static readonly Size SizeAbout = new Size(440, 560);
+        public static readonly Size SizeFeedback = new Size(520, 460);
+        public static readonly Size SizeUpdate = new Size(520, 440);
+        public static readonly Size SizeMessageBox = new Size(460, 260);
+        public static readonly Size SizeChangeNick = new Size(440, 260);
+
+        // Button specs
+        public const int ButtonHeightStandard = 36;
+        public const int ButtonHeightPill = 32;
+        public const int ButtonPaddingHorizontal = 18;
+        public const int ButtonRadiusStandard = 8;
+        public const int ButtonRadiusPill = 16;
+
+        // Top-right close button specs
+        public const int CloseButtonSize = 28;
+        public const int CloseButtonMargin = 16;
+
+        // Spacing & padding tokens (Docs §4)
+        public const int CardPadding = 20;
+        public const int CardMargin = 12;
+        public const int ModalPadding = 24;
+        public const float LineSpacingExtra = 5f;
+
+        // Session List Metrics (SessionListBox)
+        public const int SessionItemHeight = 72;
+        public const int SessionCardMarginX = 17;
+        public const int SessionCardMarginY = 5;
+        public const int SessionCardRadius = 14;
+        public const int SessionAvatarSize = 48;
+        public const int SessionAvatarPaddingLeft = 30;
+
+        // Chat View Metrics (WeChatChatView)
+        public const float ChatLineSpacingExtra = 5f;
+        public const int ChatBubblePadSelfH = 24;
+        public const int ChatBubblePadSelfV = 18;
+        public const int ChatBubblePadPeerH = 32;
+        public const int ChatBubblePadPeerV = 24;
+        public const int ChatFileCardWidth = 340;
+        public const int ChatFileCardHeight = 96;
+        public const float ChatTimestampFontSize = 9.0f;
+
+        // Dynamic typography tokens (Docs §3) - dynamically evaluated with GrokTheme.FontFamily
+        public static Font FontTitle { get { return Font(18.0f, FontStyle.Bold); } }
+        public static Font FontSectionTitle { get { return Font(10.5f, FontStyle.Bold); } }
+        public static Font FontPrimary { get { return Font(11.0f, FontStyle.Regular); } }
+        public static Font FontPrimaryBold { get { return Font(11.0f, FontStyle.Bold); } }
+        public static Font FontCardItem { get { return Font(10.5f, FontStyle.Regular); } }
+        public static Font FontSecondary { get { return Font(9.5f, FontStyle.Regular); } }
+        public static Font FontSecondaryBold { get { return Font(9.5f, FontStyle.Bold); } }
+        public static Font FontFootnote { get { return Font(9.0f, FontStyle.Regular); } }
+        public static Font FontButton { get { return Font(10.0f, FontStyle.Bold); } }
+        public static Font FontButtonPill { get { return Font(9.5f, FontStyle.Bold); } }
+
         // Layout metrics
         public const int MenuItemHeight = 44;
         public const int SettingsRowHeight = 54;
@@ -87,6 +159,56 @@ namespace LanChat
         {
             if (g == null) return;
             g.TextRenderingHint = TextRenderingHint.AntiAlias;
+        }
+
+        public static void DrawRoundedRectangle(Graphics g, Pen pen, Rectangle bounds, int radius)
+        {
+            if (g == null || pen == null) return;
+            using (GraphicsPath path = RoundedRect(bounds, radius))
+            {
+                g.DrawPath(pen, path);
+            }
+        }
+
+        public static void DrawRoundedRectangle(Graphics g, Brush brush, Rectangle bounds, int radius)
+        {
+            if (g == null || brush == null) return;
+            using (GraphicsPath path = RoundedRect(bounds, radius))
+            {
+                g.FillPath(brush, path);
+            }
+        }
+
+        public static GraphicsPath RoundedRect(Rectangle bounds, int radius)
+        {
+            GraphicsPath path = new GraphicsPath();
+            if (radius <= 0)
+            {
+                path.AddRectangle(bounds);
+                return path;
+            }
+
+            int diameter = radius * 2;
+            Size size = new Size(diameter, diameter);
+            Rectangle arc = new Rectangle(bounds.Location, size);
+
+            // top left
+            path.AddArc(arc, 180, 90);
+
+            // top right
+            arc.X = bounds.Right - diameter;
+            path.AddArc(arc, 270, 90);
+
+            // bottom right
+            arc.Y = bounds.Bottom - diameter;
+            path.AddArc(arc, 0, 90);
+
+            // bottom left
+            arc.X = bounds.Left;
+            path.AddArc(arc, 90, 90);
+
+            path.CloseFigure();
+            return path;
         }
 
         /// <summary>

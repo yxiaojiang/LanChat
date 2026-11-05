@@ -291,9 +291,9 @@ namespace LanChat
             }
 
             // denser 72px rows: more breathing room on selection card
-            int cardMarginX = 17;
-            int cardMarginY = 5;
-            int cardRadius = 14;
+            int cardMarginX = GrokTheme.SessionCardMarginX;
+            int cardMarginY = GrokTheme.SessionCardMarginY;
+            int cardRadius = GrokTheme.SessionCardRadius;
 
             Rectangle cardRect = new Rectangle(
                 r.Left + cardMarginX,
@@ -335,8 +335,8 @@ namespace LanChat
             }
 
             // 48x48 avatar, vertically centered in 72px row; wider icon→text gap
-            int avSize = 48;
-            int avX = r.Left + 30;
+            int avSize = GrokTheme.SessionAvatarSize;
+            int avX = r.Left + GrokTheme.SessionAvatarPaddingLeft;
             int avY = r.Top + (r.Height - avSize) / 2;
             Rectangle avatarRect = new Rectangle(avX, avY, avSize, avSize);
             int textX = r.Left + 100;

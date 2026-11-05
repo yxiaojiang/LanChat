@@ -4,30 +4,17 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Net;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 
 namespace LanChat
 {
     /// <summary>
-    /// Grok Bot 100% 像素级对标原生软件更新窗口 (完全对标 Alis7.png)
-    /// 包含圆角暗黑窗体、版本对比信息卡片、极简平滑进度条与操作按钮
+    /// GrokBot 100% 像素级对标原生软件更新窗口 (完全对标 Alis7.png 与 Docs §9)
+    /// 继承自 GrokModalFormBase，标准尺寸 520×440 (基准度量)，采用自绘 GrokButton
     /// </summary>
-    public class GrokUpdateForm : Form
+    public class GrokUpdateForm : GrokModalFormBase
     {
-        [DllImport("gdi32.dll", EntryPoint = "CreateRoundRectRgn")]
-        private static extern IntPtr CreateRoundRectRgn(int nLeftRect, int nTopRect, int nRightRect, int nBottomRect, int nWidthEllipse, int nHeightEllipse);
-
-        [DllImport("gdi32.dll", EntryPoint = "DeleteObject")]
-        private static extern bool DeleteObject(IntPtr hObject);
-
-        [DllImport("user32.dll")]
-        private static extern bool ReleaseCapture();
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
-
         private readonly string _newVersion;
         private readonly string _releaseTitle;
         private readonly string _releaseNotes;
@@ -36,10 +23,9 @@ namespace LanChat
         private readonly Action _onInstallExit;
 
         private TextBox _txtNotes;
-        private Button _btnDownload;
-        private Button _btnWeb;
-        private Button _btnCancel;
-        private bool _isCloseHover = false;
+        private GrokButton _btnDownload;
+        private GrokButton _btnWeb;
+        private GrokButton _btnCancel;
         private int _downloadProgress = -1; // -1: 未开始, 0..100: 下载中, 101: 完成
 
         public GrokUpdateForm(string version, string releaseTitle, string releaseNotes, string downloadUrl, string webUrl, Action onInstallExit = null)
@@ -51,54 +37,11 @@ namespace LanChat
             _webUrl = webUrl;
             _onInstallExit = onInstallExit;
 
-            this.FormBorderStyle = FormBorderStyle.None;
-            this.StartPosition = FormStartPosition.CenterParent;
-            this.ShowInTaskbar = false;
-            this.Size = new Size(580, 480);
-            this.BackColor = Color.FromArgb(22, 22, 24); // #161618
-            this.DoubleBuffered = true;
-            this.Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular);
+            this.Size = GrokTheme.SizeUpdate; // 520 x 440
+            this.ShowCloseButton = true;
+            this.Font = GrokTheme.FontSecondary;
 
             BuildControls();
-        }
-
-        protected override CreateParams CreateParams
-        {
-            get
-            {
-                CreateParams cp = base.CreateParams;
-                cp.ClassStyle |= 0x00020000; // CS_DROPSHADOW
-                return cp;
-            }
-        }
-
-        private void UpdateFormRegion()
-        {
-            if (this.IsDisposed || !this.IsHandleCreated) return;
-            try
-            {
-                IntPtr rgn = CreateRoundRectRgn(0, 0, this.Width + 1, this.Height + 1, 16, 16);
-                if (rgn != IntPtr.Zero)
-                {
-                    Region oldRegion = this.Region;
-                    this.Region = Region.FromHrgn(rgn);
-                    DeleteObject(rgn);
-                    if (oldRegion != null) oldRegion.Dispose();
-                }
-            }
-            catch { }
-        }
-
-        protected override void OnHandleCreated(EventArgs e)
-        {
-            base.OnHandleCreated(e);
-            UpdateFormRegion();
-        }
-
-        protected override void OnResize(EventArgs e)
-        {
-            base.OnResize(e);
-            UpdateFormRegion();
         }
 
         private void BuildControls()
@@ -109,85 +52,29 @@ namespace LanChat
                 Multiline = true,
                 ReadOnly = true,
                 ScrollBars = ScrollBars.Vertical,
-                Location = new Point(34, 158),
-                Size = new Size(512, 220),
-                BackColor = Color.FromArgb(16, 16, 18),
-                ForeColor = Color.FromArgb(225, 225, 230),
-                Font = new Font("Microsoft YaHei UI", 9.5f),
+                Location = new Point(32, 156),
+                Size = new Size(456, 206),
+                BackColor = GrokTheme.Level0,
+                ForeColor = GrokTheme.TextPrimary,
+                Font = GrokTheme.FontSecondary,
                 BorderStyle = BorderStyle.None,
                 Text = _releaseNotes
             };
             this.Controls.Add(_txtNotes);
 
-            // 底部立即下载安装按钮
-            _btnDownload = new Button
+            // 底部操作按钮
+            _btnDownload = new GrokButton("⚡ 立即更新 (MSI)", GrokButtonRole.Primary)
             {
-                Text = "⚡ 立即更新 (MSI)",
-                Location = new Point(30, 416),
-                Size = new Size(160, 36),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)
-            };
-            _btnDownload.FlatAppearance.BorderSize = 0;
-            _btnDownload.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            _btnDownload.FlatAppearance.MouseDownBackColor = Color.Transparent;
-
-            bool dlHover = false;
-            _btnDownload.MouseEnter += (s, e) => { dlHover = true; _btnDownload.Invalidate(); };
-            _btnDownload.MouseLeave += (s, e) => { dlHover = false; _btnDownload.Invalidate(); };
-            _btnDownload.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Rectangle r = new Rectangle(0, 0, _btnDownload.Width - 1, _btnDownload.Height - 1);
-                using (SolidBrush b = new SolidBrush(dlHover ? Color.FromArgb(142, 100, 220) : Color.FromArgb(121, 70, 215)))
-                using (Pen p = new Pen(Color.FromArgb(142, 100, 220), 1f))
-                {
-                    MainForm.DrawRoundedRectangle(e.Graphics, b, r, 18);
-                    MainForm.DrawRoundedRectangle(e.Graphics, p, r, 18);
-                }
-                using (SolidBrush tb = new SolidBrush(Color.White))
-                {
-                    StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString(_btnDownload.Text, _btnDownload.Font, tb, new RectangleF(0, 1, _btnDownload.Width, _btnDownload.Height), sf);
-                }
+                Location = new Point(24, 388),
+                Size = new Size(160, GrokTheme.ButtonHeightStandard)
             };
             _btnDownload.Click += (s, e) => StartDownload();
             this.Controls.Add(_btnDownload);
 
-            // GitHub 网页页面按钮
-            _btnWeb = new Button
+            _btnWeb = new GrokButton("🌐 GitHub 发布页", GrokButtonRole.Secondary)
             {
-                Text = "🌐 GitHub 发布页",
-                Location = new Point(204, 416),
-                Size = new Size(140, 36),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular)
-            };
-            _btnWeb.FlatAppearance.BorderSize = 0;
-            _btnWeb.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            _btnWeb.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool webHover = false;
-            _btnWeb.MouseEnter += (s, e) => { webHover = true; _btnWeb.Invalidate(); };
-            _btnWeb.MouseLeave += (s, e) => { webHover = false; _btnWeb.Invalidate(); };
-            _btnWeb.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Rectangle r = new Rectangle(0, 0, _btnWeb.Width - 1, _btnWeb.Height - 1);
-                using (SolidBrush b = new SolidBrush(webHover ? Color.FromArgb(48, 48, 54) : Color.FromArgb(34, 34, 38)))
-                using (Pen p = new Pen(Color.FromArgb(52, 52, 58), 1f))
-                {
-                    MainForm.DrawRoundedRectangle(e.Graphics, b, r, 18);
-                    MainForm.DrawRoundedRectangle(e.Graphics, p, r, 18);
-                }
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(220, 220, 225)))
-                {
-                    StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString("🌐 GitHub 发布页", _btnWeb.Font, tb, new RectangleF(0, 1, _btnWeb.Width, _btnWeb.Height), sf);
-                }
+                Location = new Point(194, 388),
+                Size = new Size(140, GrokTheme.ButtonHeightStandard)
             };
             _btnWeb.Click += (s, e) =>
             {
@@ -199,252 +86,206 @@ namespace LanChat
             };
             this.Controls.Add(_btnWeb);
 
-            // 稍后再说按钮
-            _btnCancel = new Button
+            _btnCancel = new GrokButton("稍后再说", GrokButtonRole.Secondary, DialogResult.Cancel)
             {
-                Text = "稍后再说",
-                Location = new Point(460, 416),
-                Size = new Size(90, 36),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand,
-                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Regular)
+                Location = new Point(408, 388),
+                Size = new Size(88, GrokTheme.ButtonHeightStandard)
             };
-            _btnCancel.FlatAppearance.BorderSize = 0;
-            _btnCancel.FlatAppearance.MouseOverBackColor = Color.Transparent;
-            _btnCancel.FlatAppearance.MouseDownBackColor = Color.Transparent;
-            bool cHover = false;
-            _btnCancel.MouseEnter += (s, e) => { cHover = true; _btnCancel.Invalidate(); };
-            _btnCancel.MouseLeave += (s, e) => { cHover = false; _btnCancel.Invalidate(); };
-            _btnCancel.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Rectangle r = new Rectangle(0, 0, _btnCancel.Width - 1, _btnCancel.Height - 1);
-                using (SolidBrush b = new SolidBrush(cHover ? Color.FromArgb(48, 48, 54) : Color.FromArgb(32, 32, 36)))
-                using (Pen p = new Pen(Color.FromArgb(52, 52, 58), 1f))
-                {
-                    MainForm.DrawRoundedRectangle(e.Graphics, b, r, 18);
-                    MainForm.DrawRoundedRectangle(e.Graphics, p, r, 18);
-                }
-                using (SolidBrush tb = new SolidBrush(Color.FromArgb(142, 142, 147)))
-                {
-                    StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    e.Graphics.DrawString("稍后再说", _btnCancel.Font, tb, new RectangleF(0, 1, _btnCancel.Width, _btnCancel.Height), sf);
-                }
-            };
-            _btnCancel.Click += (s, e) => this.Close();
             this.Controls.Add(_btnCancel);
+
+            this.CancelButton = _btnCancel;
         }
 
         private void StartDownload()
         {
-            _btnDownload.Enabled = false;
-            _btnDownload.Text = "正在下载...";
-            _downloadProgress = 0;
-            Invalidate(new Rectangle(28, 388, 524, 16));
-
-            ThreadPool.QueueUserWorkItem(_ =>
+            if (string.IsNullOrEmpty(_downloadUrl))
             {
                 try
                 {
-                    string saveFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-                    if (!Directory.Exists(saveFolder)) Directory.CreateDirectory(saveFolder);
-                    string savePath = Path.Combine(saveFolder, "LanChat_Setup_v" + _newVersion + ".msi");
+                    Process.Start(string.IsNullOrEmpty(_webUrl) ? "https://github.com/yxiaojiang/LanChat/releases" : _webUrl);
+                }
+                catch { }
+                return;
+            }
 
-                    using (WebClient client = new WebClient())
+            _btnDownload.Enabled = false;
+            _btnDownload.Text = "⏳ 正在连接...";
+            _downloadProgress = 0;
+            this.Invalidate();
+
+            string tempDir = Path.Combine(Path.GetTempPath(), "LanChatUpdate");
+            try
+            {
+                if (!Directory.Exists(tempDir)) Directory.CreateDirectory(tempDir);
+            }
+            catch { }
+
+            string fileName = Path.GetFileName(_downloadUrl);
+            if (string.IsNullOrEmpty(fileName) || !fileName.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+            {
+                fileName = string.Format("LanChat_Setup_v{0}.msi", _newVersion);
+            }
+            string savePath = Path.Combine(tempDir, fileName);
+
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                try
+                {
+                    using (WebClient wc = new WebClient())
                     {
-                        client.Headers.Add("User-Agent", "LanChat-Client/" + MainForm.APP_VERSION);
-                        client.DownloadProgressChanged += (sender, ev) =>
+                        wc.Headers.Add("User-Agent", "LanChat-Updater/" + MainForm.APP_VERSION);
+                        wc.DownloadProgressChanged += (s, ev) =>
                         {
-                            SafeBeginInvoke(() =>
+                            if (this.IsDisposed || !this.IsHandleCreated) return;
+                            try
                             {
-                                _downloadProgress = ev.ProgressPercentage;
-                                Invalidate(new Rectangle(28, 388, 524, 16));
-                            });
+                                this.BeginInvoke(new Action(delegate
+                                {
+                                    _downloadProgress = ev.ProgressPercentage;
+                                    _btnDownload.Text = string.Format("⏳ 下载中 {0}%", ev.ProgressPercentage);
+                                    this.Invalidate();
+                                }));
+                            }
+                            catch { }
                         };
 
-                        client.DownloadFileCompleted += (sender, ev) =>
+                        wc.DownloadFileCompleted += (s, ev) =>
                         {
-                            SafeBeginInvoke(() =>
+                            if (this.IsDisposed || !this.IsHandleCreated) return;
+                            try
                             {
-                                if (ev.Error != null)
+                                this.BeginInvoke(new Action(delegate
                                 {
-                                    _downloadProgress = -1;
-                                    _btnDownload.Enabled = true;
-                                    _btnDownload.Text = "⚡ 重试下载";
-                                    GrokMessageBox.Show(this, "下载更新包失败: " + ev.Error.Message, "更新失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                                }
-                                else
-                                {
-                                    _downloadProgress = 100;
-                                    _btnDownload.Text = "下载完成";
-                                    DialogResult dr = GrokMessageBox.Show(this, "新版本安装包已下载完成:\n" + savePath + "\n\n是否立即启动安装程序进行升级？", "下载完成", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                                    if (ev.Error != null)
+                                    {
+                                        _downloadProgress = -1;
+                                        _btnDownload.Enabled = true;
+                                        _btnDownload.Text = "⚡ 重试下载";
+                                        this.Invalidate();
+                                        GrokMessageBox.Show(this, "下载更新包失败: " + ev.Error.Message, "更新失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                        return;
+                                    }
+
+                                    _downloadProgress = 101;
+                                    _btnDownload.Text = "✓ 下载完成";
+                                    this.Invalidate();
+
+                                    DialogResult dr = GrokMessageBox.Show(
+                                        this,
+                                        "新版本安装包已下载完成:\n" + savePath + "\n\n是否立即启动安装程序进行升级？",
+                                        "下载完成",
+                                        MessageBoxButtons.YesNo,
+                                        MessageBoxIcon.Question);
+
                                     if (dr == DialogResult.Yes)
                                     {
                                         try
                                         {
-                                            Process.Start(savePath);
-                                            this.Close();
-                                            if (_onInstallExit != null) _onInstallExit();
+                                            Process.Start("msiexec.exe", string.Format("/i \"{0}\"", savePath));
+                                            if (_onInstallExit != null)
+                                            {
+                                                _onInstallExit();
+                                            }
+                                            else
+                                            {
+                                                Application.Exit();
+                                            }
                                         }
                                         catch (Exception startEx)
                                         {
                                             GrokMessageBox.Show(this, "无法自动启动安装程序: " + startEx.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                                         }
                                     }
-                                    else
-                                    {
-                                        this.Close();
-                                    }
-                                }
-                            });
+                                }));
+                            }
+                            catch { }
                         };
 
-                        client.DownloadFileAsync(new Uri(_downloadUrl), savePath);
+                        wc.DownloadFileAsync(new Uri(_downloadUrl), savePath);
                     }
                 }
                 catch (Exception ex)
                 {
-                    SafeBeginInvoke(() =>
+                    if (this.IsDisposed || !this.IsHandleCreated) return;
+                    try
                     {
-                        _downloadProgress = -1;
-                        _btnDownload.Enabled = true;
-                        _btnDownload.Text = "⚡ 立即更新 (MSI)";
-                        GrokMessageBox.Show(this, "发起下载失败: " + ex.Message, "更新失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    });
+                        this.BeginInvoke(new Action(delegate
+                        {
+                            _downloadProgress = -1;
+                            _btnDownload.Enabled = true;
+                            _btnDownload.Text = "⚡ 重试下载";
+                            this.Invalidate();
+                            GrokMessageBox.Show(this, "发起下载失败: " + ex.Message, "更新失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }));
+                    }
+                    catch { }
                 }
             });
         }
 
-        private void SafeBeginInvoke(Action act)
+        protected override void OnPaintContent(Graphics g)
         {
-            if (this.IsDisposed || !this.IsHandleCreated) return;
-            try { this.BeginInvoke(act); } catch { }
-        }
-
-        protected override void OnMouseDown(MouseEventArgs e)
-        {
-            base.OnMouseDown(e);
-            if (e.Button == MouseButtons.Left)
+            // 1. 标题 "软件更新" (18.0pt Bold #FFFFFF)
+            using (Font titleFont = GrokTheme.FontTitle)
+            using (SolidBrush tb = new SolidBrush(GrokTheme.TextTitle))
             {
-                Rectangle closeRect = new Rectangle(this.Width - 36, 14, 22, 22);
-                if (closeRect.Contains(e.Location))
-                {
-                    this.Close();
-                    return;
-                }
-
-                if (e.Y < 48)
-                {
-                    ReleaseCapture();
-                    SendMessage(this.Handle, 0x00A1, (IntPtr)0x0002, IntPtr.Zero);
-                }
-            }
-        }
-
-        protected override void OnMouseMove(MouseEventArgs e)
-        {
-            base.OnMouseMove(e);
-            Rectangle closeRect = new Rectangle(this.Width - 36, 14, 22, 22);
-            bool hover = closeRect.Contains(e.Location);
-            if (hover != _isCloseHover)
-            {
-                _isCloseHover = hover;
-                Invalidate(closeRect);
-            }
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            base.OnPaint(e);
-            Graphics g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-
-            // 1. 背景与微光外边框
-            using (Pen borderPen = new Pen(Color.FromArgb(46, 46, 52), 1f))
-            {
-                MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 16);
+                g.DrawString("软件更新", titleFont, tb, new PointF(26, 18));
             }
 
-            // 2. 标题 "软件更新" (18.0pt 加粗明亮纯白，完全对标 Alis7.png)
-            using (Font titleFont = new Font("Microsoft YaHei UI", 18f, FontStyle.Bold))
-            using (SolidBrush tb = new SolidBrush(Color.FromArgb(250, 250, 255)))
+            // 2. 版本横幅卡片 (高 64px, 圆角 12px)
+            Rectangle cardRect = new Rectangle(24, 54, 472, 64);
+            using (SolidBrush cb = new SolidBrush(GrokTheme.Level2))
+            using (Pen cp = new Pen(GrokTheme.Border, 1f))
             {
-                g.DrawString("软件更新", titleFont, tb, new PointF(28, 18));
+                GrokTheme.DrawRoundedRectangle(g, cb, cardRect, 12);
+                GrokTheme.DrawRoundedRectangle(g, cp, cardRect, 12);
             }
 
-            // 3. 右上角极简叉号 (×)
-            Rectangle closeRect = new Rectangle(this.Width - 36, 14, 22, 22);
-            if (_isCloseHover)
-            {
-                using (SolidBrush hb = new SolidBrush(Color.FromArgb(48, 48, 54)))
-                {
-                    g.FillEllipse(hb, closeRect);
-                }
-            }
-            using (Pen cp = new Pen(_isCloseHover ? Color.White : Color.FromArgb(160, 160, 166), 1.5f))
-            {
-                cp.StartCap = LineCap.Round;
-                cp.EndCap = LineCap.Round;
-                int pad = 5;
-                g.DrawLine(cp, closeRect.X + pad, closeRect.Y + pad, closeRect.Right - pad, closeRect.Bottom - pad);
-                g.DrawLine(cp, closeRect.Right - pad, closeRect.Y + pad, closeRect.X + pad, closeRect.Bottom - pad);
-            }
-
-            // 4. 版本横幅卡片 (高 68px, 圆角 12px)
-            Rectangle cardRect = new Rectangle(28, 58, 524, 68);
-            using (SolidBrush cb = new SolidBrush(Color.FromArgb(28, 28, 32)))
-            using (Pen cp = new Pen(Color.FromArgb(44, 44, 50), 1f))
-            {
-                MainForm.DrawRoundedRectangle(g, cb, cardRect, 12);
-                MainForm.DrawRoundedRectangle(g, cp, cardRect, 12);
-            }
-
-            // 绿色/魅紫火箭图标微标
-            Rectangle rocketBox = new Rectangle(42, 70, 44, 44);
+            // 魅紫闪电图标徽标
+            Rectangle rocketBox = new Rectangle(38, 64, 44, 44);
             using (SolidBrush rb = new SolidBrush(Color.FromArgb(40, 36, 56)))
             {
-                MainForm.DrawRoundedRectangle(g, rb, rocketBox, 10);
+                GrokTheme.DrawRoundedRectangle(g, rb, rocketBox, 10);
             }
-            WeChatIcon.Draw(g, WeChatIconType.Bolt, new Rectangle(52, 80, 24, 24), false, Color.FromArgb(144, 90, 251));
+            WeChatIcon.Draw(g, WeChatIconType.Bolt, new Rectangle(48, 74, 24, 24), false, GrokTheme.AccentPurpleHot);
 
-            using (Font vf = new Font("Microsoft YaHei UI", 11f, FontStyle.Bold))
-            using (Font sf = new Font("Microsoft YaHei UI", 9f, FontStyle.Regular))
-            using (SolidBrush vb = new SolidBrush(Color.FromArgb(245, 245, 250)))
-            using (SolidBrush sb = new SolidBrush(Color.FromArgb(160, 160, 166)))
+            using (Font vf = GrokTheme.FontPrimaryBold)
+            using (Font sf = GrokTheme.FontFootnote)
+            using (SolidBrush vb = new SolidBrush(GrokTheme.TextTitle))
+            using (SolidBrush sb = new SolidBrush(GrokTheme.TextSecondary))
             {
-                g.DrawString("发现新版本: v" + _newVersion, vf, vb, new PointF(96, 68));
-                g.DrawString("当前版本: v" + MainForm.APP_VERSION + "  ·  更新标题: " + _releaseTitle, sf, sb, new PointF(96, 94));
+                g.DrawString("发现新版本: v" + _newVersion, vf, vb, new PointF(92, 64));
+                g.DrawString("当前版本: v" + MainForm.APP_VERSION + "  ·  更新标题: " + _releaseTitle, sf, sb, new PointF(92, 88));
             }
 
-            // 5. 更新日志说明边框
-            using (Font ntf = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold))
-            using (SolidBrush ntb = new SolidBrush(Color.FromArgb(210, 210, 216)))
+            // 3. 更新日志说明容器
+            using (Font ntf = GrokTheme.FontSecondaryBold)
+            using (SolidBrush ntb = new SolidBrush(GrokTheme.TextCard))
             {
-                g.DrawString("更新日志 / 发布说明:", ntf, ntb, new PointF(30, 134));
+                g.DrawString("更新日志 / 发布说明:", ntf, ntb, new PointF(26, 128));
             }
 
-            Rectangle notesBox = new Rectangle(28, 154, 524, 228);
-            using (SolidBrush nb = new SolidBrush(Color.FromArgb(16, 16, 18)))
-            using (Pen np = new Pen(Color.FromArgb(40, 40, 46), 1f))
+            Rectangle notesBox = new Rectangle(24, 150, 472, 218);
+            using (SolidBrush nb = new SolidBrush(GrokTheme.Level0))
+            using (Pen np = new Pen(GrokTheme.Border, 1f))
             {
-                MainForm.DrawRoundedRectangle(g, nb, notesBox, 10);
-                MainForm.DrawRoundedRectangle(g, np, notesBox, 10);
+                GrokTheme.DrawRoundedRectangle(g, nb, notesBox, 10);
+                GrokTheme.DrawRoundedRectangle(g, np, notesBox, 10);
             }
 
-            // 6. 极简平滑进度条 (下载时显示)
+            // 4. 极简平滑进度条 (下载时显示)
             if (_downloadProgress >= 0)
             {
-                Rectangle progBg = new Rectangle(28, 394, 524, 8);
-                using (SolidBrush pbg = new SolidBrush(Color.FromArgb(36, 36, 42)))
+                Rectangle progBg = new Rectangle(24, 374, 472, 6);
+                using (SolidBrush pbg = new SolidBrush(GrokTheme.Level3))
                 {
-                    MainForm.DrawRoundedRectangle(g, pbg, progBg, 4);
+                    GrokTheme.DrawRoundedRectangle(g, pbg, progBg, 3);
                 }
-                int fillW = Math.Max(8, (int)(progBg.Width * (_downloadProgress / 100f)));
-                Rectangle progFill = new Rectangle(28, 394, fillW, 8);
-                using (SolidBrush pfill = new SolidBrush(Color.FromArgb(144, 90, 251)))
+                int fillW = Math.Max(6, (int)(progBg.Width * (Math.Min(100, _downloadProgress) / 100f)));
+                Rectangle progFill = new Rectangle(24, 374, fillW, 6);
+                using (SolidBrush pfill = new SolidBrush(GrokTheme.AccentPurple))
                 {
-                    MainForm.DrawRoundedRectangle(g, pfill, progFill, 4);
+                    GrokTheme.DrawRoundedRectangle(g, pfill, progFill, 3);
                 }
             }
         }
