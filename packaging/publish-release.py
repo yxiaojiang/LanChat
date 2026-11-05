@@ -273,7 +273,7 @@ def publish():
         for attempt in range(1, max_retries + 1):
             up_req = urllib.request.Request(upload_target, data=file_data, headers=up_headers, method="POST")
             try:
-                with urllib.request.urlopen(up_req, timeout=45) as resp:
+                with urllib.request.urlopen(up_req, timeout=180) as resp:
                     print(f"    [SUCCESS] 上传成功: {filename}")
                     upload_success = True
                     break
