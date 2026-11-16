@@ -1,17 +1,15 @@
 # 当前计划讨论状态
 
-- **Topic ID**：`DIR-006`
-- **Topic**：Vultr 自建 Linux 中继与 LanChat 远程通信
-- **Round**：2
-- **Status**：**CONVERGED**
-- **Last decision**：`DIR-005`（2026-11-05），见 `DECISIONS.md`
-- **Current owner**：用户（待确认收口；提案方 Codex，审核方 Grok）
+- **Topic ID**：无
+- **Topic**：无
+- **Round**：0
+- **Status**：**IDLE**
+- **Last decision**：`DIR-006`（2026-11-16），见 `DECISIONS.md`
+- **Current owner**：无（实施待 Luna 按 `.claude/Plan.md` 启动）
 - **Last updated at**：2026-11-16
 
 ## 下一步
 
-Grok 已完成第 2 轮复核，结论 `CONVERGED`，意见在 `REVIEW.md`。方向、顺序和验收口径可以收口。
+DIR-006 经 Grok 第 2 轮 CONVERGED 和用户明确确认后已采纳，决定与计划均已刷新，Rules 第 6 条已实际修订。本目录当前无活跃讨论；PROPOSAL/REVIEW 已恢复归档占位，完整收敛快照在提交 `6d7e6a8`。
 
-请用户明确说讨论可以收口，并点名由谁写入决定。被点名的一方再把短决定追加到 `DECISIONS.md`，刷新 `.claude/Plan.md` 与 `.claude/SessionBrief.md`，并在同一步实际修订 `.claude/Rules.md` 第 6 条：可信局域网假设只覆盖现有 LANC 路径，公网中继保持独立认证、授权、TLS 和限额。然后把本文件设回 `IDLE`，`PROPOSAL.md` 与 `REVIEW.md` 改成「上一题已归档」。
-
-在此之前不写决定、不改规则、不部署、不改业务代码。
+由 Luna 在 `codex/non-lan-network` 按 `.claude/Plan.md` 从阶段 1 开始，在 CRDocs 开实施与代码审核任务。尚未部署或修改远程业务代码；环境/三端实测未通过不得跳入阶段 2。后续若需要改变已采纳方向，再按本目录流程另开讨论。

@@ -178,3 +178,12 @@
 - 主窗体支持系统拖动贴靠，修复跨屏最大化、标题栏叠加和窗口遮挡任务栏；隔离实机已核对两屏客户区、窗口区域与还原。
 - 补齐气泡四方向内边距改动和发布说明；代码与记忆提交 `64729f6`，版本和构建提交 `ad1ebe1`，均已推送 `feature/wechat-ui`。
 - GitHub Release `v2.0.15` 已发布，Windows EXE/MSI 及 Linux 两个 deb 资产已上传并核对摘要；latest 指向该版本。自动隐藏任务栏和真实鼠标拖动仍列为待回归事项。
+
+---
+
+## 归档事项：main 合并与 DIR-006 方案收口（2026-11-16）
+
+- feature/wechat-ui 已快进合入 main；main/稳定标签 Lanchat-v1.5 对应 69b5310，开发分支 codex/non-lan-network 已创建并推送；内部版本保持 2.0.15，未重新发布。
+- 网络方案由 Cloudflare 免费平台改为用户自有 Vultr Linux 中继；Grok 第 2 轮结论 CONVERGED，用户明确采纳。完整提案与审核先提交为 6d7e6a8，再归档 DIR-006 短决定；PlanDocs 恢复 IDLE。
+- 已实际修订 Rules 第 6 条的 LAN/公网边界，并刷新 Plan、SessionBrief、Protocol 和全局架构边界。旧“跨网段与互联网方案讨论”事项关闭，转为 Luna 待执行的阶段 1 验证。
+- 此处仅表示方案闭环；服务器未部署，网络代码未实现，TLS/真实跨网络与三端运行仍未验收。原有窗口实机回归保留在活跃计划。

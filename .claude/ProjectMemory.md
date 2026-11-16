@@ -6,9 +6,9 @@
 
 ## 一、项目架构与定位
 
-- **项目定位**：内网环境下的极轻量、无服务器（P2P）局域网通讯工具，支持即时文字消息与任意二进制大文件的高速流式收发。
+- **项目定位**：以极轻量、无服务器（P2P）局域网通讯为基础，支持即时文字与大文件流式收发。DIR-006 已采纳可选自建公网中继方向，尚未实现；关闭远程功能时局域网独立运行。
 - **跨平台对齐**：
-  - **Windows 端**：C# WinForms，利用系统内置 .NET Framework 4.8 编译器（`csc.exe`）构建为单文件纯绿色可执行程序（~55 KB），免装任何环境，支持高 DPI 自适应与文件拖拽。
+  - **Windows 端**：C# WinForms，利用系统内置 `csc.exe` 构建单文件绿色可执行程序，支持高 DPI 自适应与文件拖拽。编译器路径、Framework 目标、实际运行时与操作系统版本分开核对，不能由 `v4.0.30319` 推断 TLS 能力。
   - **Linux 端**：
     1. C# 终端交互应用（`LanChat.Linux`），提供预编译好的 ELF 二进制（`release/linux-x64/lanchat` 和 `release/linux-arm64/lanchat`）。
     2. Python 3 单文件版（`lanchat.py`），纯标准库编写，全架构通用（x86/ARM/MIPS/RISC-V/树莓派）。
@@ -49,7 +49,16 @@
 
 1. **虚拟网卡自动识别过滤**：通过网卡描述符、名称关键字（`tun`、`tap`、`vpn`、`virtual`、`wsl`、`vmware`）以及物理 MAC 地址是否为空，准确区分物理网卡（如无线 WLAN、有线以太网）与虚拟网卡。
 2. **多套接字绑定**：UDP 监听除绑定 `0.0.0.0` 外，必须同时为每个物理网卡单独绑定套接字，防止 TUN 驱动在底层吞噬物理网络广播。
-3. **出站定向绑定（Bypass TUN）**：发起 TCP 连接和文件发送时，`TcpClient` 必须先调用 `GetLocalEndpointForTarget` 显式绑定到与目标同一子网的物理网卡 IP，强制绕过 TUN 抢占的 Metric 0 默认路由。
+3. **局域网出站定向绑定（Bypass TUN）**：现有 LAN TCP 连接和文件发送使用 `GetLocalEndpointForTarget` 显式选择物理网卡，绕过 TUN 路由干扰。此契约不适用于 DIR-006 公网中继；远程连接遵循系统路由，不调用该绑定路径。
 4. **即时无延迟响应**：
    - 所有 TCP Socket 必须启用 `NoDelay = true`（关闭 Nagle 算法）。
    - 接收连接必须使用独立专用线程即时读取，严禁投入系统通用 ThreadPool 排队。
+
+---
+
+## 四、DIR-006 已采纳边界（实现待验证）
+
+- 保留以上 LANC 端口、魔数与帧结构；远程采用独立版本化协议，经用户自有 Linux 中继传输，优先 TLS TCP 长连接，Python 标准库服务端。候选帧与编解码方案须通过三条真实产物验证后才冻结，当前不是已实现的底层协议。
+- 安全范围以 Rules 第 6 条为准：可信内网假设仅覆盖旧 LANC；公网必须认证、授权、TLS 和资源限额。LAN/远程路由与广播隔离，默认不开启公网连接。
+- C# 核心/Models 跨 Windows 与 Linux 共用，Python 对齐同一远程契约；稳定远程身份与现有每次启动随机的 LAN LocalId 分开。首版仅在线私聊/受限在线文件，不承诺离线投递、端到端加密或恰好一次。
+- 决定入口为 `PlanDocs/DECISIONS.md` 的 DIR-006；当前执行与验收只维护 `.claude/Plan.md`，模块接入点见 `contexts/Protocol.md`。
