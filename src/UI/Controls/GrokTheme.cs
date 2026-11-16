@@ -233,14 +233,36 @@ namespace LanChat
 
         /// <summary>聊天气泡文字行距额外加量 (5f)</summary>
         public const float ChatLineSpacingExtra = 5f;
-        /// <summary>本人发送气泡水平内边距 (24px)</summary>
-        public const int ChatBubblePadSelfH = 24;
-        /// <summary>本人发送气泡垂直内边距 (18px)</summary>
-        public const int ChatBubblePadSelfV = 18;
-        /// <summary>对方发送气泡水平内边距 (32px)</summary>
-        public const int ChatBubblePadPeerH = 32;
-        /// <summary>对方发送气泡垂直内边距 (24px)</summary>
-        public const int ChatBubblePadPeerV = 24;
+
+        // ==========================================
+        // 聊天气泡内边距令牌 (支持 4 方向独立精细排版)
+        // ==========================================
+        /// <summary>本人发送气泡左内边距 (16px)</summary>
+        public const int ChatBubblePadSelfLeft = 16;
+        /// <summary>本人发送气泡右内边距 (16px)</summary>
+        public const int ChatBubblePadSelfRight = 16;
+        /// <summary>本人发送气泡上内边距 (12px)</summary>
+        public const int ChatBubblePadSelfTop = 14;
+        /// <summary>本人发送气泡下内边距 (12px)</summary>
+        public const int ChatBubblePadSelfBottom = 12;
+
+        /// <summary>对方发送气泡左内边距 (16px)</summary>
+        public const int ChatBubblePadPeerLeft = 16;
+        /// <summary>对方发送气泡右内边距 (16px)</summary>
+        public const int ChatBubblePadPeerRight = 16;
+        /// <summary>对方发送气泡上内边距 (12px)</summary>
+        public const int ChatBubblePadPeerTop = 14;
+        /// <summary>对方发送气泡下内边距 (12px)</summary>
+        public const int ChatBubblePadPeerBottom = 12;
+
+        /// <summary>本人发送气泡水平总内边距 (Left + Right)</summary>
+        public const int ChatBubblePadSelfH = ChatBubblePadSelfLeft + ChatBubblePadSelfRight;
+        /// <summary>本人发送气泡垂直总内边距 (Top + Bottom)</summary>
+        public const int ChatBubblePadSelfV = ChatBubblePadSelfTop + ChatBubblePadSelfBottom;
+        /// <summary>对方发送气泡水平总内边距 (Left + Right)</summary>
+        public const int ChatBubblePadPeerH = ChatBubblePadPeerLeft + ChatBubblePadPeerRight;
+        /// <summary>对方发送气泡垂直总内边距 (Top + Bottom)</summary>
+        public const int ChatBubblePadPeerV = ChatBubblePadPeerTop + ChatBubblePadPeerBottom;
         /// <summary>聊天流文件卡片宽度 (340px)</summary>
         public const int ChatFileCardWidth = 340;
         /// <summary>聊天流文件卡片高度 (96px)</summary>

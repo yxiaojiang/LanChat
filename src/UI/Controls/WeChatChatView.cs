@@ -668,8 +668,13 @@ namespace LanChat
                     else
                     {
                         string raw = msg.Content ?? "";
-                        int padH = msg.IsSelf ? GrokTheme.ChatBubblePadSelfH : GrokTheme.ChatBubblePadPeerH;
-                        int padV = msg.IsSelf ? GrokTheme.ChatBubblePadSelfV : GrokTheme.ChatBubblePadPeerV;
+                        int padLeft = msg.IsSelf ? GrokTheme.ChatBubblePadSelfLeft : GrokTheme.ChatBubblePadPeerLeft;
+                        int padRight = msg.IsSelf ? GrokTheme.ChatBubblePadSelfRight : GrokTheme.ChatBubblePadPeerRight;
+                        int padTop = msg.IsSelf ? GrokTheme.ChatBubblePadSelfTop : GrokTheme.ChatBubblePadPeerTop;
+                        int padBottom = msg.IsSelf ? GrokTheme.ChatBubblePadSelfBottom : GrokTheme.ChatBubblePadPeerBottom;
+
+                        int padH = padLeft + padRight;
+                        int padV = padTop + padBottom;
                         float availTextW = maxBubbleW - padH;
 
                         List<VisualLine> lines = BreakTextIntoVisualLines(g, raw, msgFont, availTextW, 0, 0);
@@ -700,8 +705,8 @@ namespace LanChat
                         }
 
                         int topOffset = showSender ? 22 : 0;
-                        int textLeft = msg.IsSelf ? (x + 12) : (x + 16);
-                        int textTop = msg.IsSelf ? (currentY + topOffset + 9) : (currentY + topOffset + 12);
+                        int textLeft = x + padLeft;
+                        int textTop = currentY + topOffset + padTop;
 
                         for (int li = 0; li < lines.Count; li++)
                         {

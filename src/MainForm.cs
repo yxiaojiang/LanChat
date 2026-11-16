@@ -47,6 +47,37 @@ namespace LanChat
         [DllImport("user32.dll", EntryPoint = "SendMessage")]
         private static extern IntPtr SendMessagePtr(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
 
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromRect(ref NativeRect rect, uint flags);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsZoomed(IntPtr hwnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetWindowRect(IntPtr hwnd, out NativeRect rect);
+
+        [DllImport("user32.dll")]
+        private static extern int SetWindowRgn(IntPtr hwnd, IntPtr region, bool redraw);
+
+        [DllImport("gdi32.dll")]
+        private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+
+        [DllImport("gdi32.dll")]
+        private static extern bool DeleteObject(IntPtr obj);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+
+        // 窗口与显示器工作区使用同一线程的 DPI 坐标。
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeRect { public int Left, Top, Right, Bottom; }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MonitorInfo
+        {
+            public int Size;
+            public NativeRect Monitor, Work;
+            public uint Flags;
+        }
         [DllImport("user32.dll", EntryPoint = "SetClassLong")]
         private static extern uint SetClassLong32(IntPtr hWnd, int nIndex, uint dwNewLong);
 
@@ -124,6 +155,10 @@ namespace LanChat
         private bool _hasShownTrayBalloon = false;
         private int _wakeupMessageId = 0;
         private FormResizeMessageFilter _resizeFilter;
+        // 窗口区域变化可能再次触发位置消息，需要防止递归并避免重复设置。
+        private bool _updatingMaximizedRegion;
+        private bool _hasMaximizedRegion;
+        private Rectangle _maximizedRegion;
 
         /// <summary>
         /// 初始化主窗体，加载本地设置、初始化无边框缩放过滤器与系统托盘
@@ -208,7 +243,8 @@ namespace LanChat
             get
             {
                 CreateParams cp = base.CreateParams;
-                cp.Style |= 0x00020000 | 0x00080000 | 0x02000000;
+                // 保留系统缩放边框与最大化能力，非客户区由 WM_NCCALCSIZE 隐藏。
+                cp.Style |= 0x00020000 | 0x00080000 | 0x02000000 | 0x00040000 | 0x00010000;
                 return cp;
             }
         }
@@ -217,6 +253,8 @@ namespace LanChat
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
+            // 句柄重建后系统区域随旧句柄消失，不能沿用旧区域缓存。
+            _hasMaximizedRegion = false;
             try
             {
                 int darkMode = 1;
@@ -268,6 +306,42 @@ namespace LanChat
                 return;
             }
 
+            // 保留系统默认最大化尺寸，让 Windows 自行处理多屏和 DPI 换算。
+            // 最大化时仅裁切客户区到所在屏幕的工作区，去除原生缩放边框。
+            if (m.Msg == 0x0083)
+            {
+                if (IsZoomed(m.HWnd) && m.LParam != IntPtr.Zero)
+                {
+                    NativeRect rect = (NativeRect)Marshal.PtrToStructure(m.LParam, typeof(NativeRect));
+                    IntPtr monitor = MonitorFromRect(ref rect, 2);
+                    MonitorInfo info = new MonitorInfo();
+                    info.Size = Marshal.SizeOf(typeof(MonitorInfo));
+                    if (monitor != IntPtr.Zero && GetMonitorInfo(monitor, ref info))
+                    {
+                        rect.Left = Math.Max(rect.Left, info.Work.Left);
+                        rect.Top = Math.Max(rect.Top, info.Work.Top);
+                        rect.Right = Math.Min(rect.Right, info.Work.Right);
+                        rect.Bottom = Math.Min(rect.Bottom, info.Work.Bottom);
+                        if (rect.Right > rect.Left && rect.Bottom > rect.Top)
+                            Marshal.StructureToPtr(rect, m.LParam, false);
+                    }
+                }
+                m.Result = IntPtr.Zero;
+                return;
+            }
+
+            // 此窗口没有需要系统绘制的非客户区，避免原生标题栏覆盖自绘按钮。
+            if (m.Msg == 0x0085)
+            {
+                m.Result = IntPtr.Zero;
+                return;
+            }
+            if (m.Msg == 0x0086 && this.WindowState != FormWindowState.Minimized)
+            {
+                // 保留 WinForms 的激活处理，但禁止默认过程重绘非客户区。
+                m.LParam = new IntPtr(-1);
+            }
+
             // WM_NCHITTEST: 支持无边框窗口四周与四角拖拽缩放大小
             if (m.Msg == 0x0084 && this.WindowState == FormWindowState.Normal)
             {
@@ -289,6 +363,50 @@ namespace LanChat
             }
 
             base.WndProc(ref m);
+            if (m.Msg == 0x0047 || m.Msg == 0x001A || m.Msg == 0x007E)
+                UpdateMaximizedWindowRegion(m.HWnd);
+        }
+
+        /// <summary>将最大化窗口的可见区域限制在当前屏幕工作区，避免遮挡任务栏。</summary>
+        private void UpdateMaximizedWindowRegion(IntPtr hwnd)
+        {
+            if (_updatingMaximizedRegion || hwnd == IntPtr.Zero) return;
+            _updatingMaximizedRegion = true;
+            try
+            {
+                if (!IsZoomed(hwnd))
+                {
+                    if (_hasMaximizedRegion && SetWindowRgn(hwnd, IntPtr.Zero, true) != 0)
+                        _hasMaximizedRegion = false;
+                    return;
+                }
+
+                NativeRect window;
+                if (!GetWindowRect(hwnd, out window)) return;
+                IntPtr monitor = MonitorFromRect(ref window, 2);
+                MonitorInfo info = new MonitorInfo();
+                info.Size = Marshal.SizeOf(typeof(MonitorInfo));
+                if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info)) return;
+
+                // 区域坐标相对窗口左上角；工作区自动反映任务栏方向与自动隐藏状态。
+                int left = Math.Max(window.Left, info.Work.Left) - window.Left;
+                int top = Math.Max(window.Top, info.Work.Top) - window.Top;
+                int right = Math.Min(window.Right, info.Work.Right) - window.Left;
+                int bottom = Math.Min(window.Bottom, info.Work.Bottom) - window.Top;
+                if (right <= left || bottom <= top) return;
+                Rectangle region = Rectangle.FromLTRB(left, top, right, bottom);
+                if (_hasMaximizedRegion && _maximizedRegion == region) return;
+                IntPtr nativeRegion = CreateRectRgn(left, top, right, bottom);
+                if (nativeRegion == IntPtr.Zero) return;
+                if (SetWindowRgn(hwnd, nativeRegion, true) != 0)
+                {
+                    // 成功后区域句柄由 Windows 管理，不可再释放。
+                    _hasMaximizedRegion = true;
+                    _maximizedRegion = region;
+                }
+                else DeleteObject(nativeRegion);
+            }
+            finally { _updatingMaximizedRegion = false; }
         }
 
         /// <summary>标题栏鼠标按下：双击切换最大化，单指拖拽移动窗口</summary>
@@ -302,7 +420,10 @@ namespace LanChat
                     return;
                 }
                 ReleaseCapture();
-                SendMessage(this.Handle, 0x00A1, 0x0002, 0);
+                // 非客户区鼠标消息必须携带实际屏幕坐标，供系统恢复和贴靠窗口。
+                Point cursor = Cursor.Position;
+                int position = (cursor.X & 0xffff) | ((cursor.Y & 0xffff) << 16);
+                SendMessage(this.Handle, 0x00A1, 0x0002, position);
             }
         }
 
@@ -312,21 +433,10 @@ namespace LanChat
             if (this.WindowState == FormWindowState.Maximized)
             {
                 this.WindowState = FormWindowState.Normal;
-                if (_btnWinMax != null)
-                {
-                    _btnWinMax.IconType = WeChatIconType.WinRestore;
-                    _btnWinMax.TooltipText = "最大化";
-                }
             }
             else
             {
-                this.MaximizedBounds = Screen.FromHandle(this.Handle).WorkingArea;
                 this.WindowState = FormWindowState.Maximized;
-                if (_btnWinMax != null)
-                {
-                    _btnWinMax.IconType = WeChatIconType.WinMax;
-                    _btnWinMax.TooltipText = "向下还原";
-                }
             }
             Invalidate(true);
         }

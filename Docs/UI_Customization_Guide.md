@@ -271,10 +271,21 @@ public const int SessionAvatarPaddingLeft = 30;   // 头像左边距
 
 // 聊天流度量 (WeChatChatView)
 public const float ChatLineSpacingExtra = 5f;     // 气泡文本行高加量
-public const int ChatBubblePadSelfH = 24;         // 本人消息气泡水平内边距
-public const int ChatBubblePadSelfV = 18;         // 本人消息气泡垂直内边距
-public const int ChatBubblePadPeerH = 32;         // 对方消息气泡水平内边距
-public const int ChatBubblePadPeerV = 24;         // 对方消息气泡垂直内边距
+// 本人气泡 4 方向内边距 (支持独立精细排版)
+public const int ChatBubblePadSelfLeft = 16;      // 本人气泡左内边距
+public const int ChatBubblePadSelfRight = 16;     // 本人气泡右内边距
+public const int ChatBubblePadSelfTop = 12;       // 本人气泡上内边距
+public const int ChatBubblePadSelfBottom = 12;    // 本人气泡下内边距
+// 对方气泡 4 方向内边距
+public const int ChatBubblePadPeerLeft = 16;      // 对方气泡左内边距
+public const int ChatBubblePadPeerRight = 16;     // 对方气泡右内边距
+public const int ChatBubblePadPeerTop = 12;       // 对方气泡上内边距
+public const int ChatBubblePadPeerBottom = 12;    // 对方气泡下内边距
+// 兼容总边距 (Left + Right / Top + Bottom)
+public const int ChatBubblePadSelfH = ChatBubblePadSelfLeft + ChatBubblePadSelfRight; // 32
+public const int ChatBubblePadSelfV = ChatBubblePadSelfTop + ChatBubblePadSelfBottom; // 24
+public const int ChatBubblePadPeerH = ChatBubblePadPeerLeft + ChatBubblePadPeerRight; // 32
+public const int ChatBubblePadPeerV = ChatBubblePadPeerTop + ChatBubblePadPeerBottom; // 24
 public const int ChatFileCardWidth = 340;         // 聊天文件卡片宽度
 public const int ChatFileCardHeight = 96;         // 聊天文件卡片高度
 public const float ChatTimestampFontSize = 9.0f;  // 时间戳字号 (9.0pt)
@@ -862,15 +873,24 @@ public static Font FontPrimary { get { return Font(12.0f, FontStyle.Regular); } 
 
 ---
 
-### 场景 3：调整聊天气泡内边距与最大宽度
-* **需求**：觉得聊天气泡太宽或者内边距偏大，想要更加紧凑。
+### 场景 3：调整聊天气泡内边距（上下左右 4 方向独立精细排版）
+* **需求**：觉得聊天气泡太空旷想要更紧凑，或字体变大后需要扩大上下/左右呼吸感。
 * **修改位置**：`src/UI/Controls/GrokTheme.cs`
 ```csharp
-public const int ChatBubblePadSelfH = 16;  // 原 24，更紧凑的横向间距
-public const int ChatBubblePadSelfV = 12;  // 原 18，更紧凑的纵向间距
-public const int ChatBubblePadPeerH = 20;  // 原 32
-public const int ChatBubblePadPeerV = 16;  // 原 24
+// 调整本人气泡 4 方向内边距 (例如打造紧凑型气泡)
+public const int ChatBubblePadSelfLeft = 12;   // 左内边距 (原 16)
+public const int ChatBubblePadSelfRight = 12;  // 右内边距 (原 16)
+public const int ChatBubblePadSelfTop = 8;     // 上内边距 (原 12)
+public const int ChatBubblePadSelfBottom = 8;  // 下内边距 (原 12)
+
+// 调整对方气泡 4 方向内边距
+public const int ChatBubblePadPeerLeft = 14;   // 左内边距 (原 16)
+public const int ChatBubblePadPeerRight = 14;  // 右内边距 (原 16)
+public const int ChatBubblePadPeerTop = 10;    // 上内边距 (原 12)
+public const int ChatBubblePadPeerBottom = 10; // 下内边距 (原 12)
 ```
+> [!TIP]
+> `WeChatChatView` 渲染引擎已彻底解耦，文字渲染起始点自动按 `padLeft` / `padTop` 动态定位，气泡总宽高自动按 `Left + Right` 与 `Top + Bottom` 扩展，彻底消除单侧偏心或不对称畸变。
 
 ---
 
