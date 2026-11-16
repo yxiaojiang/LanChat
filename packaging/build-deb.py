@@ -13,7 +13,7 @@ import tarfile
 import time
 import shutil
 
-VERSION = "2.0.14"
+VERSION = "2.0.15"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 RELEASE_DIR = os.path.join(ROOT_DIR, "release")
