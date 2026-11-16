@@ -2,7 +2,7 @@
 
 ## 模块定位与职责
 Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装、无外部依赖、支持 MSI 标准向导安装与绿色单文件执行**的现代化桌面应用。
-当前阶段正在基于 `feature/wechat-ui` 分支推进 WeChat 桌面端经典布局、GrokBot 极简深邃暗黑视觉系统与 WorkBuddy 现代化设置交互的深度融合（基线由 `main` 分支 Tag `v2.1.0` 锁定）。界面所有改动严格执行 `.claude/Rules.md` 第 9 条硬约束（Zero White Scrollbar 契约）与 `Docs/GrokBot_UI_Design_System.md`。
+`feature/wechat-ui` 已于 2026-11-16 快进合入 main，合并基线 `69b5310`，稳定快照标签 `Lanchat-v1.5`；内部版本仍为 `2.0.15`。当前分支为 `codex/non-lan-network`，跨网段功能仍在讨论，Windows UI 未因此修改。界面所有改动严格执行 `.claude/Rules.md` 第 9 条硬约束（Zero White Scrollbar 契约）与 `Docs/GrokBot_UI_Design_System.md`。
 
 ## 核心源码与构建物清单 (规范目录)
 - `src/Program.cs`：应用程序入口，具名 Mutex（`Global\LanChat_SingleInstance_Mutex_9F24FEA2`）单实例互斥，广播消息唤醒已运行实例；开启高 DPI 感知（`SetProcessDPIAware`），设置 `SetCurrentProcessExplicitAppUserModelID`，注册全局未捕获异常兜底处理。
