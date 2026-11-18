@@ -182,7 +182,7 @@ namespace LanChat
             _sessionManager.LoadPersistedHistories();
 
             InitializeComponent();
-            ApplyFontSettings();
+            ApplyAppearanceSettings();
             _resizeFilter = new FormResizeMessageFilter(this);
             Application.AddMessageFilter(_resizeFilter);
             this.FormClosed += (s, e) => {
@@ -206,14 +206,15 @@ namespace LanChat
             _sessionPresenter.PeerJoinedNotice += (peer) => {
                 if (peer != null)
                 {
-                    AppendChatSystem(string.Format("好友 [{0}] ({1}) 加入了局域网", peer.NickName, peer.IP));
+                    _chatPresenter.AppendChatSystem(string.Format("好友 [{0}] 已上线（{1}）", peer.NickName, peer.IP),
+                        SessionManager.BROADCAST_KEY, peer);
                 }
             };
             _sessionPresenter.ActiveSessionChanged += OnActiveSessionChanged;
 
             // 2. ChatPresenter 聊天收发绑定
             _chatPresenter.IsActivelyViewingPredicate = (msg) => {
-                string convKey = msg.IsBroadcast ? SessionManager.BROADCAST_KEY : msg.SenderId;
+                string convKey = msg.IsBroadcast ? SessionManager.BROADCAST_KEY : SessionManager.GetLanKey(msg.SenderId, msg.RemoteAddress);
                 return IsActivelyViewing(convKey);
             };
             _chatPresenter.MessageAppended += OnMessageAppended;
@@ -516,37 +517,43 @@ namespace LanChat
             menu.Show(_btnToolSendFile, new Point(0, -210));
         }
 
-        /// <summary>应用并动态刷新用户偏好的字体家族与字号</summary>
-        public void ApplyFontSettings()
+        /// <summary>即时应用主界面主题、强调色与字体，并重新排版聊天正文。</summary>
+        public void ApplyAppearanceSettings()
         {
-            try
+            BackColor = _chatPanel.BackColor = _chatHeader.BackColor = _chatView.BackColor =
+                _bottomSendPanel.BackColor = _inputPanel.BackColor = GrokTheme.Level05;
+            _sessionsPanel.BackColor = _searchHeaderPanel.BackColor = _heroProfilePanel.BackColor =
+                _leftBottomBar.BackColor = _listSessions.BackColor = GrokTheme.Level0;
+            _searchBoxContainer.BackColor = _txtSearch.BackColor = _txtInput.BackColor = GrokTheme.Level2;
+            _progressPanel.BackColor = GrokTheme.Surface(24, 24, 26);
+            _btnSearchToggle.FillColor = GrokTheme.Level2;
+            _btnSearchToggle.HoverFillColor = GrokTheme.Level3Hot;
+            _btnToolSendFile.FillColor = GrokTheme.InputPlus;
+            _btnToolSendFile.HoverFillColor = GrokTheme.Surface(56, 56, 62);
+            _btnSendWave.FillColor = AppSettings.AccentPreset == 0 ? GrokTheme.Accent : GrokTheme.AccentDeep;
+            _btnSendWave.HoverFillColor = AppSettings.AccentPreset == 0 ? GrokTheme.AccentHot : GrokTheme.ButtonPrimaryHover;
+
+            ApplyControlFont(this, GrokTheme.UiFont(10f));
+            ApplyControlFont(_txtSearch, GrokTheme.UiFont(10f));
+            ApplyControlFont(_txtInput, GrokTheme.UiFont(11f));
+            ApplyControlFont(_lblProgressInfo, GrokTheme.UiFont(9.5f));
+            _txtInput.Top = (_inputPanel.Height - _txtInput.Height) / 2;
+            UpdateResponsiveLayout();
+            _chatView.ApplyFontSettings();
+            Invalidate(true);
+        }
+
+        // 这些控件在初始化时各自创建字体，因此替换时可以释放原实例。
+        private static void ApplyControlFont(Control control, Font font)
+        {
+            Font previous = control.Font;
+            if (previous.Equals(font))
             {
-                string uiFam = !string.IsNullOrEmpty(AppSettings.UiFontFamily) ? AppSettings.UiFontFamily : "Microsoft YaHei UI";
-                float uiSz = AppSettings.UiFontSize >= 8f ? AppSettings.UiFontSize : 10.0f;
-                this.Font = new Font(uiFam, uiSz, FontStyle.Regular);
-
-                if (_txtInput != null)
-                {
-                    _txtInput.Font = new Font(uiFam, Math.Max(10f, uiSz + 1f), FontStyle.Regular);
-                }
-                if (_txtSearch != null)
-                {
-                    _txtSearch.Font = new Font(uiFam, uiSz, FontStyle.Regular);
-                }
-
-                if (_chatView != null)
-                {
-                    _chatView.ApplyFontSettings();
-                }
-
-                if (_listSessions != null)
-                {
-                    _listSessions.Invalidate();
-                }
-
-                this.Invalidate(true);
+                font.Dispose();
+                return;
             }
-            catch { }
+            control.Font = font;
+            previous.Dispose();
         }
 
         /// <summary>主窗体跨线程安全调度辅助</summary>

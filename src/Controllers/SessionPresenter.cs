@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace LanChat
@@ -23,8 +24,10 @@ namespace LanChat
         private readonly List<object> _filteredSessionItems = new List<object>();
         private string _searchFilter = "";
 
-        private string _activeChatKey = "BROADCAST";
+        private string _activeChatKey = SessionManager.BROADCAST_KEY;
         private PeerInfo _selectedPeer = null;
+        private string _selectedTitle;
+        private bool _selectedOnline;
         private int _broadcastUnreadCount = 0;
 
         /// <summary>会话列表数据源刷新通知事件（主界面据此执行 BeginUpdate/EndUpdate 重绑）</summary>
@@ -34,7 +37,7 @@ namespace LanChat
         /// <summary>新节点加入局域网通知事件</summary>
         public event Action<PeerInfo> PeerJoinedNotice;
 
-        /// <summary>获取或设置当前活跃会话标识键（"BROADCAST" 或 节点 GUID）</summary>
+        /// <summary>获取或设置当前活跃的本地会话键。</summary>
         public string ActiveChatKey
         {
             get { return _activeChatKey; }
@@ -129,10 +132,19 @@ namespace LanChat
             _allSessionItems.Add(BROADCAST_TARGET);
             HashSet<string> addedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            bool activeHistoryMerged = false;
             foreach (var p in peers)
             {
-                _allSessionItems.Add(p);
-                if (!string.IsNullOrEmpty(p.Id)) addedIds.Add(p.Id);
+                if (_sessionManager != null && _sessionManager.LinkPeer(p.Id, p.IP) &&
+                    string.Equals(_activeChatKey, GetSessionKey(p), StringComparison.OrdinalIgnoreCase))
+                    activeHistoryMerged = true;
+            }
+
+            // 重启后的新节点与尚未超时的旧节点可能短暂共存，优先显示最近确认在线的节点。
+            foreach (var group in peers.GroupBy(GetSessionKey, StringComparer.OrdinalIgnoreCase))
+            {
+                addedIds.Add(group.Key);
+                _allSessionItems.Add(group.OrderByDescending(peer => peer.LastSeen).First());
             }
 
             // 恢复历史聊天记录中的好友会话 (对标微信/QQ，重启或离线仍保留会话条目与历史查阅)
@@ -145,12 +157,14 @@ namespace LanChat
                     if (!addedIds.Contains(k))
                     {
                         var lastMsg = _sessionManager.GetLastMessage(k);
-                        string nick = (lastMsg != null && !string.IsNullOrEmpty(lastMsg.SenderNick) && !lastMsg.IsSelf) ? lastMsg.SenderNick : "历史好友 (" + k + ")";
+                        var address = SessionManager.GetArchivedAddress(k);
+                        string label = address != null ? address.ToString() : k.Substring(0, Math.Min(k.Length, 8));
                         PeerInfo offlinePeer = new PeerInfo
                         {
                             Id = k,
-                            NickName = nick,
+                            NickName = _sessionManager.GetArchivedNick(k) ?? "历史会话 (" + label + ")",
                             HostName = "离线",
+                            IP = address,
                             LastMessage = _sessionManager.GetLastMessageSnippet(k, 24),
                             LastMessageTime = lastMsg != null ? lastMsg.Timestamp : DateTime.MinValue
                         };
@@ -162,6 +176,13 @@ namespace LanChat
 
             ApplyFilter();
             if (SessionsUpdated != null) SessionsUpdated();
+            if (activeHistoryMerged && _selectedPeer != null) SelectSession(_selectedPeer, true);
+        }
+
+        internal string GetSessionKey(PeerInfo peer)
+        {
+            if (peer == null) return SessionManager.BROADCAST_KEY;
+            return SessionManager.GetLanKey(peer.Id, peer.IP);
         }
 
         /// <summary>
@@ -206,6 +227,11 @@ namespace LanChat
         /// <param name="item">被选中的会话对象（string 或 PeerInfo）</param>
         public void SelectSession(object item)
         {
+            SelectSession(item, false);
+        }
+
+        private void SelectSession(object item, bool historyChanged)
+        {
             if (item == null) return;
 
             string previousKey = _activeChatKey;
@@ -228,8 +254,7 @@ namespace LanChat
             else if (item is PeerInfo)
             {
                 newPeer = (PeerInfo)item;
-                newKey = newPeer.Id;
-                newPeer.UnreadCount = 0;
+                newKey = GetSessionKey(newPeer);
                 titleText = GrokTheme.SanitizeUiText(newPeer.NickName ?? "在线节点");
                 placeholder = GrokTheme.SanitizeUiText(string.Format("给 {0} 发消息", newPeer.NickName ?? "好友"));
                 showGroupSender = false;
@@ -240,15 +265,18 @@ namespace LanChat
             }
 
             // 相同会话防抖保护：避免重复点击引起视口闪烁与滚动位置重置
-            if (string.Equals(newKey, previousKey, StringComparison.Ordinal))
+            bool online = newPeer != null && newPeer.TcpPort > 0;
+            _selectedPeer = newPeer;
+            ClearActiveChatUnread(newKey);
+            if (!historyChanged && string.Equals(newKey, previousKey, StringComparison.OrdinalIgnoreCase) &&
+                titleText == _selectedTitle && online == _selectedOnline)
             {
-                _selectedPeer = newPeer;
-                ClearActiveChatUnread();
                 return;
             }
 
-            _selectedPeer = newPeer;
             _activeChatKey = newKey;
+            _selectedTitle = titleText;
+            _selectedOnline = online;
 
             if (ActiveSessionChanged != null)
             {
@@ -273,7 +301,7 @@ namespace LanChat
 
             if (_sessionManager != null)
             {
-                _sessionManager.DeleteSession(peerId);
+                _sessionManager.DeleteSession(GetSessionKey(peer));
             }
 
             if (_netService != null)
@@ -290,7 +318,7 @@ namespace LanChat
                 }
             }
 
-            if (string.Equals(_activeChatKey, peerId, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(_activeChatKey, GetSessionKey(peer), StringComparison.OrdinalIgnoreCase))
             {
                 SelectSession(BROADCAST_TARGET);
             }
@@ -317,13 +345,25 @@ namespace LanChat
         /// <summary>清除当前处于焦点的会话的未读角标计数</summary>
         public void ClearActiveChatUnread()
         {
-            if (_activeChatKey == "BROADCAST")
+            ClearActiveChatUnread(_activeChatKey);
+        }
+
+        private void ClearActiveChatUnread(string key)
+        {
+            if (key == SessionManager.BROADCAST_KEY)
             {
                 _broadcastUnreadCount = 0;
             }
             else if (_selectedPeer != null)
             {
                 _selectedPeer.UnreadCount = 0;
+                if (_netService != null)
+                {
+                    foreach (PeerInfo peer in _netService.GetActivePeers())
+                    {
+                        if (GetSessionKey(peer) == key) peer.UnreadCount = 0;
+                    }
+                }
             }
         }
 
@@ -334,15 +374,15 @@ namespace LanChat
         }
 
         /// <summary>在过滤列表中查找指定会话对象的索引位置</summary>
-        /// <param name="selected">待查找的对象</param>
+        /// <param name="key">待查找的会话键，可为升级前的旧键。</param>
         /// <returns>匹配的行索引，未找到返回 -1</returns>
-        public int FindSessionIndex(object selected)
+        public int FindSessionIndex(string key)
         {
-            if (selected == null) return -1;
-            string selStr = selected.ToString();
+            if (string.IsNullOrEmpty(key)) return -1;
+            if (_sessionManager != null) key = _sessionManager.ResolveKey(key);
             for (int i = 0; i < _filteredSessionItems.Count; i++)
             {
-                if (_filteredSessionItems[i].ToString() == selStr)
+                if (string.Equals(GetSessionKey(_filteredSessionItems[i] as PeerInfo), key, StringComparison.OrdinalIgnoreCase))
                     return i;
             }
             return -1;

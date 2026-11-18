@@ -85,8 +85,11 @@ namespace LanChat
             {
                 AppSettings.UiFontSize = val;
                 AppSettings.Save();
-                if (Context.OnFontChanged != null) Context.OnFontChanged();
+                if (Context.OnAppearanceChanged != null) Context.OnAppearanceChanged();
             });
+            sliderUiFont.VisibleChanged += (s, e) => {
+                if (sliderUiFont.Visible) sliderUiFont.SetCurrentValue(AppSettings.UiFontSize);
+            };
             sliderUiFont.Location = new Point(CARD_W - sliderUiFont.Width - 20, 108 + (54 - 34) / 2);
             card1.Controls.Add(sliderUiFont);
 

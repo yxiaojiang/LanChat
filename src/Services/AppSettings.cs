@@ -45,6 +45,12 @@ namespace LanChat
         /// <summary>聊天记录 SQLite/JSON 存储自定义物理目录</summary>
         public static string ChatHistoryDirectory { get; set; }
 
+        /// <summary>已选深色主题的预设索引，默认使用 Grok 深色。</summary>
+        internal static int ThemeMode { get; set; }
+
+        /// <summary>已选强调色的预设索引，默认使用魅紫。</summary>
+        internal static int AccentPreset { get; set; }
+
         // =========================================================================
         // 静态初始化与配置加载/保存
         // =========================================================================
@@ -93,6 +99,9 @@ namespace LanChat
 
                     string json = File.ReadAllText(_configPath, Encoding.UTF8);
                     if (string.IsNullOrEmpty(json)) return;
+
+                    ThemeMode = ReadPreset(json, "ThemeMode", 3);
+                    AccentPreset = ReadPreset(json, "AccentPreset", 5);
 
                     Match mNick = Regex.Match(json, "\"NickName\"\\s*:\\s*\"([^\"]*)\"");
                     if (mNick.Success)
@@ -180,6 +189,8 @@ namespace LanChat
                     sb.AppendLine("{");
                     sb.AppendLine(string.Format("  \"NickName\": \"{0}\",", EscapeJson(NickName ?? string.Empty)));
                     sb.AppendLine(string.Format("  \"AutoAcceptFiles\": {0},", AutoAcceptFiles ? "true" : "false"));
+                    sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  \"ThemeMode\": {0},", ThemeMode));
+                    sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  \"AccentPreset\": {0},", AccentPreset));
                     sb.AppendLine(string.Format("  \"SaveDirectory\": \"{0}\",", EscapeJson(SaveDirectory ?? string.Empty)));
                     sb.AppendLine(string.Format("  \"UiFontFamily\": \"{0}\",", EscapeJson(UiFontFamily ?? "Microsoft YaHei UI")));
                     sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  \"UiFontSize\": {0:0.0},", UiFontSize));
@@ -192,6 +203,13 @@ namespace LanChat
                 }
                 catch { }
             }
+        }
+
+        private static int ReadPreset(string json, string key, int count)
+        {
+            Match match = Regex.Match(json, "\"" + key + "\"\\s*:\\s*([0-9]+)\\s*[,}]");
+            int value;
+            return match.Success && int.TryParse(match.Groups[1].Value, out value) && value < count ? value : 0;
         }
 
         private static string EscapeJson(string s)

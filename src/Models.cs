@@ -12,7 +12,7 @@ namespace LanChat
     /// </summary>
     public class PeerInfo
     {
-        /// <summary>对端节点唯一标识（形如 "IP:Port"）</summary>
+        /// <summary>对端当前网络节点标识，用于协议寻址</summary>
         public string Id { get; set; }
 
         /// <summary>用户设置的个性昵称</summary>
@@ -81,6 +81,12 @@ namespace LanChat
 
         /// <summary>目标接收方标识（为 null 或空字符串时表示局域网广播）</summary>
         public string TargetId { get; set; }
+
+        /// <summary>私聊对端当时的昵称，用于仅有发出消息时恢复会话标题</summary>
+        public string PeerNick { get; set; }
+
+        /// <summary>由局域网发现或 TCP 连接取得的对端地址，仅供本地历史归档。</summary>
+        internal IPAddress RemoteAddress { get; set; }
 
         /// <summary>消息正文文本内容</summary>
         public string Content { get; set; }

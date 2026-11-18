@@ -63,11 +63,11 @@ namespace LanChat
             int avX = (_heroProfilePanel.Width - avSize) / 2;
             int avY = 20;
             Rectangle avRect = new Rectangle(avX, avY, avSize, avSize);
-            WeChatIcon.DrawMascotAvatar(g, avRect, Color.FromArgb(252, 44, 62), false, true, Color.FromArgb(14, 14, 14));
+            WeChatIcon.DrawMascotAvatar(g, avRect, GrokTheme.AccentCoral, false, true, GrokTheme.Level0);
 
             // Hero 昵称：12.0pt YaHei UI Regular + soft AA（对标 Alis Karina）
             string nick = _netService != null && !string.IsNullOrEmpty(_netService.NickName) ? _netService.NickName : Environment.UserName;
-            using (Font f = new Font("Microsoft YaHei UI", 12.0f, FontStyle.Regular))
+            using (Font f = GrokTheme.UiFont(12.0f))
             using (StringFormat sf = new StringFormat(StringFormatFlags.NoWrap))
             {
                 sf.Alignment = StringAlignment.Center;
@@ -153,10 +153,9 @@ namespace LanChat
                 () => ShowChangeNickDialog(),
                 () => OpenReceivedFolder(),
                 tab,
-                () => ApplyFontSettings()))
+                ApplyAppearanceSettings))
             {
                 dlg.ShowDialog(this);
-                ApplyFontSettings();
                 RefreshPeerListUI();
             }
         }
@@ -584,7 +583,8 @@ namespace LanChat
                     var p = peers[i];
                     if (p.UnreadCount > 0)
                     {
-                        string snippet = _sessionManager != null ? _sessionManager.GetLastMessageSnippet(p.Id, 30) : null;
+                        string key = SessionManager.GetLanKey(p.Id, p.IP);
+                        string snippet = _sessionManager != null ? _sessionManager.GetLastMessageSnippet(key, 30) : null;
                         if (string.IsNullOrEmpty(snippet)) snippet = p.LastMessage;
                         if (string.IsNullOrEmpty(snippet)) snippet = "[新消息]";
 
@@ -593,7 +593,7 @@ namespace LanChat
 
                         items.Add(new TrayUnreadItem
                         {
-                            ConvKey = p.Id,
+                            ConvKey = key,
                             Title = !string.IsNullOrEmpty(p.NickName) ? p.NickName : "局域网好友",
                             UnreadCount = p.UnreadCount,
                             LatestSnippet = snippet,

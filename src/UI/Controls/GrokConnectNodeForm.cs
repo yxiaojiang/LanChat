@@ -251,7 +251,7 @@ namespace LanChat
                 int avSize = 48;
                 Rectangle avRect = new Rectangle(14, (h - avSize) / 2, avSize, avSize);
                 int shapeIdx = Math.Abs(peer.HostName.GetHashCode()) % 14;
-                Color avColor = GrokTheme.AccentPurple;
+                Color avColor = GrokTheme.Accent;
                 if (shapeIdx % 3 == 0) avColor = Color.FromArgb(255, 107, 34);
                 else if (shapeIdx % 3 == 1) avColor = GrokTheme.AccentGreen;
 
@@ -401,7 +401,7 @@ namespace LanChat
             {
                 GrokTheme.DrawRoundedRectangle(g, bb, boltBox, 10);
             }
-            WeChatIcon.Draw(g, WeChatIconType.Bolt, new Rectangle(54, 511, 20, 20), false, GrokTheme.AccentPurple);
+            WeChatIcon.Draw(g, WeChatIconType.Bolt, new Rectangle(54, 511, 20, 20), false, GrokTheme.Accent);
 
             // 输入提示与输入框底框
             using (Font ipLblFont = GrokTheme.FontFootnote)

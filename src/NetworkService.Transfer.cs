@@ -76,6 +76,7 @@ namespace LanChat
                     }
 
                     byte packetType = reader.ReadByte();
+                    IPAddress remoteIp = ((IPEndPoint)client.Client.RemoteEndPoint).Address;
 
                     if (packetType == 1) // Text Message
                     {
@@ -84,8 +85,6 @@ namespace LanChat
                         string senderNick = reader.ReadString();
                         string targetId = reader.ReadString();
                         string content = reader.ReadString();
-
-                        IPAddress remoteIp = ((IPEndPoint)client.Client.RemoteEndPoint).Address;
 
                         // Auto learn peer immediately!
                         AddOrUpdatePeer(senderId, senderNick, "LAN-Host", remoteIp, TCP_BASE_PORT);
@@ -104,6 +103,7 @@ namespace LanChat
                         {
                             SenderId = senderId,
                             SenderNick = senderNick,
+                            RemoteAddress = remoteIp,
                             TargetId = targetId,
                             Content = content,
                             Timestamp = DateTime.Now,
@@ -203,7 +203,18 @@ namespace LanChat
 
                             if (OnFileReceived != null)
                             {
-                                OnFileReceived(senderNick, safeFileName, localPath, fileSize);
+                                OnFileReceived(new ChatMessage
+                                {
+                                    SenderId = senderId,
+                                    SenderNick = senderNick,
+                                    RemoteAddress = remoteIp,
+                                    Content = "[接收文件] " + safeFileName,
+                                    Timestamp = DateTime.Now,
+                                    IsFile = true,
+                                    FileName = safeFileName,
+                                    FilePath = localPath,
+                                    FileSize = fileSize
+                                });
                             }
 
                             writer.Write((byte)1);

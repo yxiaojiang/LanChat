@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -312,6 +313,9 @@ namespace LanChat
             sb.AppendFormat("\"SenderId\":\"{0}\",", EscapeJson(msg.SenderId ?? string.Empty));
             sb.AppendFormat("\"SenderNick\":\"{0}\",", EscapeJson(msg.SenderNick ?? string.Empty));
             sb.AppendFormat("\"TargetId\":\"{0}\",", EscapeJson(msg.TargetId ?? string.Empty));
+            sb.AppendFormat("\"PeerNick\":\"{0}\",", EscapeJson(msg.PeerNick ?? string.Empty));
+            if (msg.RemoteAddress != null)
+                sb.AppendFormat("\"RemoteAddress\":\"{0}\",", msg.RemoteAddress);
             sb.AppendFormat("\"Content\":\"{0}\",", EscapeJson(msg.Content ?? string.Empty));
             sb.AppendFormat("\"Timestamp\":\"{0}\",", msg.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fff", CultureInfo.InvariantCulture));
             sb.AppendFormat("\"IsSelf\":{0},", msg.IsSelf ? "true" : "false");
@@ -343,6 +347,9 @@ namespace LanChat
                 msg.SenderId = ExtractString(line, "SenderId");
                 msg.SenderNick = ExtractString(line, "SenderNick");
                 msg.TargetId = ExtractString(line, "TargetId");
+                msg.PeerNick = ExtractString(line, "PeerNick");
+                IPAddress address;
+                if (IPAddress.TryParse(ExtractString(line, "RemoteAddress"), out address)) msg.RemoteAddress = address;
                 msg.Content = ExtractString(line, "Content");
 
                 string tsStr = ExtractString(line, "Timestamp");
@@ -374,7 +381,7 @@ namespace LanChat
 
         private static string ExtractString(string json, string key)
         {
-            string pattern = "\"" + key + "\"\\s*:\\s*\"([^\"]*)\"";
+            string pattern = "\"" + key + "\"\\s*:\\s*\"((?:[^\x22\\\\]|\\\\.)*)\"";
             Match m = Regex.Match(json, pattern);
             if (m.Success)
             {
@@ -418,7 +425,16 @@ namespace LanChat
         private static string UnescapeJson(string s)
         {
             if (string.IsNullOrEmpty(s)) return "";
-            return s.Replace("\\n", "\n").Replace("\\r", "\r").Replace("\\t", "\t").Replace("\\\"", "\"").Replace("\\\\", "\\");
+            return Regex.Replace(s, @"\\[nrt""\\]", match =>
+            {
+                switch (match.Value[1])
+                {
+                    case 'n': return "\n";
+                    case 'r': return "\r";
+                    case 't': return "\t";
+                    default: return match.Value.Substring(1);
+                }
+            });
         }
     }
 }

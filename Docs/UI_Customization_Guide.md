@@ -178,17 +178,17 @@ public static readonly Color TextDestructiveHot = Color.FromArgb(255, 92, 108); 
 ### 2.4 品牌强调色与聊天状态 (Accent & Brands)
 
 ```csharp
-// GrokTheme.cs (行 51~66)
-public static readonly Color AccentPurple = Color.FromArgb(142, 100, 220);  // #8E64DC Grok 魅紫（悬停与发送键）
-public static readonly Color AccentPurpleHot = Color.FromArgb(157, 117, 236);
-public static readonly Color AccentPurpleDeep = Color.FromArgb(121, 70, 215); // #7946D7 主品牌色、发送气泡底色、选中项
+// GrokTheme.cs 根据外观设置读取当前强调色
+public static Color Accent { get { return AccentShade(0); } }
+public static Color AccentHot { get { return AccentShade(2); } }
+public static Color AccentDeep { get { return AccentShade(1); } }
 public static readonly Color AccentBlue = Color.FromArgb(77, 155, 255);     // #4D9BFF 智能天蓝（链接、提示、更新文本）
 public static readonly Color AccentBlueBtn = Color.FromArgb(17, 109, 210);  // #116DD2 蓝色按钮底色
 public static readonly Color AccentCoral = Color.FromArgb(252, 44, 62);     // #FC2C3E 珊瑚红（Hero 头像底色、警报）
 public static readonly Color AccentGreen = Color.FromArgb(31, 214, 126);    // #1FD67E 在线绿色指示点、开关开启色
 
 // 聊天与交互表面色
-public static readonly Color SessionSelected = Color.FromArgb(121, 70, 215); // #7946D7 会话列表选中底色 (与本人气泡一致)
+public static Color SessionSelected { get { return AccentDeep; } }        // 会话选中底色与本人气泡一致
 public static readonly Color SessionHover = Color.FromArgb(34, 34, 38);     // #222226 会话项悬停卡片底色
 public static readonly Color PeerBubble = Color.FromArgb(30, 30, 33);       // #1E1E21 对方发送的消息气泡底色
 public static readonly Color InputPlus = Color.FromArgb(42, 42, 46);        // #2A2A2E 输入框左侧 (+) 圆纽底色
@@ -839,18 +839,9 @@ Controllers & Presenters (src/Controllers/)
 
 ## 八、 高频修改场景实战 Cookbook (常见需求秒改)
 
-### 场景 1：全局一键更换主品牌色 (魅紫 → 极客蓝 / 翡翠绿)
-* **需求**：将发送按钮、本人聊天气泡、会话选中态从原本的魅紫变成极客蓝。
-* **修改位置**：`src/UI/Controls/GrokTheme.cs`
-```csharp
-// 找到 AccentPurpleDeep 与 SessionSelected，将 #7946D7 改为天蓝色 #116DD2
-public static readonly Color AccentPurpleDeep = Color.FromArgb(17, 109, 210);  // 原 (121, 70, 215)
-public static readonly Color AccentPurple = Color.FromArgb(77, 155, 255);      // 原 (142, 100, 220)
-public static readonly Color SessionSelected = AccentPurpleDeep;
-public static readonly Color ButtonPrimaryNormal = AccentPurpleDeep;
-public static readonly Color ButtonPrimaryHover = AccentPurple;
-```
-* **效果**：重新编译后，主界面向上发送圆纽、右侧本人聊天气泡、左侧会话选中高亮、设置中心的主按钮全量同步变蓝！
+### 场景 1：更换发送按钮、气泡和选中会话的颜色
+
+打开「设置 → 外观 → 强调色」选择预设。调整内置色值时，在 `GrokTheme.cs` 的 `AccentColors` 中修改对应预设的常态、实底和悬停三色。保存的配置以预设索引为准。
 
 ---
 

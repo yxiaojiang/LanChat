@@ -102,7 +102,7 @@ namespace LanChat
                     Dock = DockStyle.Bottom,
                     Height = 36,
                     DialogResult = DialogResult.OK,
-                    BackColor = System.Drawing.Color.FromArgb(121, 70, 215),
+                    BackColor = GrokTheme.AccentDeep,
                     ForeColor = System.Drawing.Color.White,
                     FlatStyle = FlatStyle.Flat
                 };
@@ -119,6 +119,11 @@ namespace LanChat
 
         private void SendFilesToPeer(PeerInfo peer, string[] filePaths)
         {
+            if (peer.TcpPort <= 0)
+            {
+                GrokMessageBox.Show(this, "好友当前离线，暂时无法发送文件。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
             if (_fileController != null)
             {
                 _fileController.SendFiles(peer, filePaths);
@@ -145,15 +150,15 @@ namespace LanChat
             }
         }
 
-        private void OnFileTransferCompleted(string fileName, bool success, string reason)
+        private void OnFileTransferCompleted(string convKey, string fileName, bool success, string reason)
         {
             _progressPanel.Visible = false;
-            if (_chatPresenter != null)
+            if (_chatPresenter != null && _sessionManager.GetLastMessage(convKey) != null)
             {
                 if (success)
-                    _chatPresenter.AppendChatSystem(string.Format("文件 {0} 发送成功！", fileName));
+                    _chatPresenter.AppendChatSystem(string.Format("文件 {0} 发送成功！", fileName), convKey);
                 else
-                    _chatPresenter.AppendChatSystem(string.Format("文件 {0} 发送失败: {1}", fileName, reason));
+                    _chatPresenter.AppendChatSystem(string.Format("文件 {0} 发送失败: {1}", fileName, reason), convKey);
             }
         }
 
@@ -172,7 +177,11 @@ namespace LanChat
             {
                 _chatView.AppendMessage(fileMsg);
             }
-            if (_listSessions != null) _listSessions.Invalidate();
+            if (_sessionPresenter != null && _sessionPresenter.SearchFilter.Length == 0 &&
+                _sessionPresenter.FindSessionIndex(convKey) < 0)
+                RefreshPeerListUI();
+            else if (_listSessions != null)
+                _listSessions.Invalidate();
 
             if (!this.Visible && _trayIcon != null)
             {

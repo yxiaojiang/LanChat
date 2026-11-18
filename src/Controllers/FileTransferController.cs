@@ -19,8 +19,8 @@ namespace LanChat
 
         /// <summary>文件传输百分比与速率进度刷新事件</summary>
         public event Action<FileTransferProgress> ProgressChanged;
-        /// <summary>传输完成或失败通知事件 (参数：fileName, success, reason)</summary>
-        public event Action<string, bool, string> TransferCompleted;
+        /// <summary>传输完成或失败通知事件（会话键、文件名、是否成功及失败原因）。</summary>
+        public event Action<string, string, bool, string> TransferCompleted;
         /// <summary>远端文件接收完毕并落盘通知事件 (参数：fileMsg, convKey, wasActivelyViewing)</summary>
         public event Action<ChatMessage, string, bool /* wasActivelyViewing */> FileReceived;
         /// <summary>本地文件发送成功创建气泡通知事件 (参数：fileMsg, targetPeerId)</summary>
@@ -44,7 +44,7 @@ namespace LanChat
             if (_netService != null)
             {
                 _netService.OnFileProgress += (prog) => SafeInvoke(() => HandleFileProgress(prog));
-                _netService.OnFileReceived += (nick, fn, path, sz) => SafeInvoke(() => HandleFileReceived(nick, fn, path, sz));
+                _netService.OnFileReceived += msg => SafeInvoke(() => HandleFileReceived(msg));
             }
         }
 
@@ -71,8 +71,9 @@ namespace LanChat
         /// <param name="filePaths">本地物理文件路径数组</param>
         public void SendFiles(PeerInfo peer, string[] filePaths)
         {
-            if (peer == null || filePaths == null || filePaths.Length == 0) return;
+            if (peer == null || peer.TcpPort <= 0 || filePaths == null || filePaths.Length == 0) return;
 
+            string convKey = SessionManager.GetLanKey(peer.Id, peer.IP);
             foreach (string filePath in filePaths)
             {
                 if (!File.Exists(filePath)) continue;
@@ -83,6 +84,8 @@ namespace LanChat
                 ChatMessage fileMsg = new ChatMessage
                 {
                     SenderNick = _netService != null ? _netService.NickName : Environment.UserName,
+                    TargetId = peer.Id,
+                    PeerNick = peer.NickName,
                     Content = "[发送文件] " + fileName,
                     Timestamp = DateTime.Now,
                     IsSelf = true,
@@ -96,12 +99,12 @@ namespace LanChat
                 peer.LastMessageTime = DateTime.Now;
                 if (_sessionManager != null)
                 {
-                    _sessionManager.AddMessage(peer.Id, fileMsg);
+                    _sessionManager.AddMessage(convKey, fileMsg);
                 }
 
                 if (FileSent != null)
                 {
-                    FileSent(fileMsg, peer.Id);
+                    FileSent(fileMsg, convKey);
                 }
 
                 if (_netService != null)
@@ -111,7 +114,7 @@ namespace LanChat
                         (success, reason) => SafeInvoke(() => {
                             if (TransferCompleted != null)
                             {
-                                TransferCompleted(fileName, success, reason);
+                                TransferCompleted(convKey, fileName, success, reason);
                             }
                         })
                     );
@@ -127,33 +130,20 @@ namespace LanChat
             }
         }
 
-        private void HandleFileReceived(string senderNick, string fileName, string localPath, long size)
+        private void HandleFileReceived(ChatMessage fileMsg)
         {
-            ChatMessage fileMsg = new ChatMessage
-            {
-                SenderNick = senderNick,
-                Content = "[接收文件] " + fileName,
-                Timestamp = DateTime.Now,
-                IsSelf = false,
-                IsFile = true,
-                FileName = fileName,
-                FilePath = localPath,
-                FileSize = size
-            };
-
-            string convKey = "BROADCAST";
+            string convKey = SessionManager.GetLanKey(fileMsg.SenderId, fileMsg.RemoteAddress);
             PeerInfo matchedPeer = null;
             if (_netService != null)
             {
                 var peers = _netService.GetActivePeers();
                 foreach (var p in peers)
                 {
-                    if (p.NickName == senderNick)
+                    if (p.Id == fileMsg.SenderId)
                     {
                         matchedPeer = p;
-                        convKey = p.Id;
-                        p.LastMessage = "[文件] " + fileName;
-                        p.LastMessageTime = DateTime.Now;
+                        p.LastMessage = "[文件] " + fileMsg.FileName;
+                        p.LastMessageTime = fileMsg.Timestamp;
                         break;
                     }
                 }
@@ -167,7 +157,7 @@ namespace LanChat
             bool wasActivelyViewing = false;
             if (IsActivelyViewingPredicate != null)
             {
-                wasActivelyViewing = IsActivelyViewingPredicate(convKey, senderNick);
+                wasActivelyViewing = IsActivelyViewingPredicate(convKey, fileMsg.SenderNick);
             }
 
             if (!wasActivelyViewing && matchedPeer != null)

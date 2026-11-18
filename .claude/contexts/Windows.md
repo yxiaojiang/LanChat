@@ -2,7 +2,7 @@
 
 ## 模块定位与职责
 Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装、无外部依赖、支持 MSI 标准向导安装与绿色单文件执行**的现代化桌面应用。
-当前阶段正在基于 `feature/wechat-ui` 分支推进 WeChat 桌面端经典布局、GrokBot 极简深邃暗黑视觉系统与 WorkBuddy 现代化设置交互的深度融合（基线由 `main` 分支 Tag `v2.1.0` 锁定）。界面所有改动严格执行 `.claude/Rules.md` 第 9 条硬约束（Zero White Scrollbar 契约）与 `Docs/GrokBot_UI_Design_System.md`。
+`feature/wechat-ui` 已合入 `main`，稳定标签 `Lanchat-v1.5` 对应 `69b5310`。当前在 `main` 打磨局域网客户端，互联网方向由独立分支承接。界面遵循 `.claude/Rules.md` 第 9 条及 `Docs/GrokBot_UI_Design_System.md`。
 
 ## 核心源码与构建物清单 (规范目录)
 - `src/Program.cs`：应用程序入口，具名 Mutex（`Global\LanChat_SingleInstance_Mutex_9F24FEA2`）单实例互斥，广播消息唤醒已运行实例；开启高 DPI 感知（`SetProcessDPIAware`），设置 `SetCurrentProcessExplicitAppUserModelID`，注册全局未捕获异常兜底处理。
@@ -54,3 +54,8 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - 主窗体保留原生缩放和最大化样式以使用系统贴靠；标题栏拖动消息携带鼠标屏幕坐标。Windows 默认负责多屏 `MINMAXINFO` 计算，不要把外接屏尺寸直接写入以主屏为基准的最大化字段。
 - `WM_NCCALCSIZE` 隐藏原生边框，最大化客户区按目标显示器工作区裁切；窗口区域也按工作区裁切，避免非客户区遮挡任务栏。还原时移除窗口区域，句柄重建时重置缓存；坐标使用相同 DPI 感知上下文。
 - 两块不同缩放屏幕上，隔离测试验证了最大化客户区、窗口区域、按钮、任务栏命中及还原；自动隐藏任务栏和真实鼠标贴靠尚需手工验证。系统 DPI 感知不等于每显示器 DPI 感知。
+
+## 局域网历史与外观（2026-11-18）
+
+- `SessionManager` 以局域网 IPv4 键分组，并合并地址已确认的旧记录。历史文件保持原 JSONL 来源。在线列表用当前节点路由，离线列表用档案昵称，地址证据不足的记录继续单独可查。
+- `AppearanceSettingsPanel` 通过设置宿主即时刷新主窗口，`GrokTheme` 定义暗色层级、强调色与主界面字号增量，`WeChatChatView` 独立使用正文设置。所有选项由 `AppSettings` 持久化。

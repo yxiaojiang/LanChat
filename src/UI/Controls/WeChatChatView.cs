@@ -73,7 +73,7 @@ namespace LanChat
         public WeChatChatView()
         {
             this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
-            this.BackColor = Color.FromArgb(18, 18, 18); // Grok Main Chat #121212
+            this.BackColor = GrokTheme.Level05;
             this.AutoScroll = false;
             this.TabStop = true;
 
@@ -110,7 +110,7 @@ namespace LanChat
         /// </summary>
         public void ApplyFontSettings()
         {
-            RecalculateLayout(true);
+            RecalculateLayout(_scrollY >= _maxScroll);
             Invalidate();
         }
 
@@ -769,7 +769,7 @@ namespace LanChat
             using (SolidBrush textLight = new SolidBrush(GrokTheme.TextPrimary))
             using (SolidBrush selfTextBrush = new SolidBrush(Color.FromArgb(250, 248, 255)))
             using (SolidBrush grayText = new SolidBrush(GrokTheme.TextSecondary))
-            using (SolidBrush nickBrush = new SolidBrush(Color.FromArgb(164, 132, 245)))
+            using (SolidBrush nickBrush = new SolidBrush(GrokTheme.AccentHot))
             using (SolidBrush otherBubbleBrush = new SolidBrush(GrokTheme.PeerBubble))
             using (Pen otherBubbleBorder = new Pen(GrokTheme.Border, 1f))
             using (SolidBrush selfBubbleBrush = new SolidBrush(GrokTheme.SessionSelected))
@@ -812,7 +812,7 @@ namespace LanChat
 
                         // 紫色文件图标徽章
                         Rectangle badgeRect = new Rectangle(bb.Left + 16, bb.Top + 16, 36, 36);
-                        using (SolidBrush badgeBg = new SolidBrush(Color.FromArgb(121, 70, 215)))
+                        using (SolidBrush badgeBg = new SolidBrush(GrokTheme.AccentDeep))
                         {
                             MainForm.DrawRoundedRectangle(g, badgeBg, badgeRect, 10);
                         }
@@ -829,7 +829,7 @@ namespace LanChat
                         Rectangle bOpen = new Rectangle(item.FileOpenBounds.X, item.FileOpenBounds.Y - scrollY, item.FileOpenBounds.Width, item.FileOpenBounds.Height);
                         Rectangle bFolder = new Rectangle(item.FileFolderBounds.X, item.FileFolderBounds.Y - scrollY, item.FileFolderBounds.Width, item.FileFolderBounds.Height);
 
-                        using (SolidBrush linkBrush = new SolidBrush(Color.FromArgb(168, 136, 250)))
+                        using (SolidBrush linkBrush = new SolidBrush(GrokTheme.AccentHot))
                         {
                             g.DrawString("打开文件", timeFont, linkBrush, bOpen);
                             g.DrawString("打开目录", timeFont, linkBrush, bFolder);
@@ -909,8 +909,8 @@ namespace LanChat
             }
 
             // 包含代码胶囊段落
-            using (SolidBrush codeBg = new SolidBrush(isSelf ? Color.FromArgb(98, 52, 185) : Color.FromArgb(42, 42, 46)))
-            using (Pen codeBorder = new Pen(isSelf ? Color.FromArgb(145, 98, 230) : Color.FromArgb(58, 58, 64), 1f))
+            using (SolidBrush codeBg = new SolidBrush(isSelf ? GrokTheme.ButtonPrimaryDown : GrokTheme.InputPlus))
+            using (Pen codeBorder = new Pen(isSelf ? GrokTheme.Accent : GrokTheme.Surface(58, 58, 64), 1f))
             using (SolidBrush codeFg = new SolidBrush(Color.FromArgb(228, 228, 235)))
             {
                 int idx = 0;

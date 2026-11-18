@@ -198,7 +198,7 @@ namespace LanChat
             int inputX = (this.Width - inputW) / 2;
             Rectangle nameBox = new Rectangle(inputX, 174, inputW, 42);
             using (SolidBrush nb = new SolidBrush(GrokTheme.Level0))
-            using (Pen np = new Pen((_txtName != null && _txtName.Focused) ? GrokTheme.AccentPurple : GrokTheme.Border, 1f))
+            using (Pen np = new Pen((_txtName != null && _txtName.Focused) ? GrokTheme.Accent : GrokTheme.Border, 1f))
             {
                 GrokTheme.DrawRoundedRectangle(g, nb, nameBox, 12);
                 GrokTheme.DrawRoundedRectangle(g, np, nameBox, 12);
@@ -249,7 +249,7 @@ namespace LanChat
 
                 // 底块背景
                 using (SolidBrush sb = new SolidBrush(isSelected ? GrokTheme.Level3Hot : GrokTheme.Level2))
-                using (Pen sp = new Pen(isSelected ? GrokTheme.AccentPurple : GrokTheme.Border, isSelected ? 1.5f : 1f))
+                using (Pen sp = new Pen(isSelected ? GrokTheme.Accent : GrokTheme.Border, isSelected ? 1.5f : 1f))
                 {
                     GrokTheme.DrawRoundedRectangle(g, sb, sr, 10);
                     GrokTheme.DrawRoundedRectangle(g, sp, sr, 10);
@@ -281,7 +281,7 @@ namespace LanChat
                 if (isSelected)
                 {
                     Rectangle ring = new Rectangle(cx - 3, cy - 3, cSize + 6, cSize + 6);
-                    using (Pen rp = new Pen(GrokTheme.AccentPurple, 2f))
+                    using (Pen rp = new Pen(GrokTheme.Accent, 2f))
                     {
                         g.DrawEllipse(rp, ring);
                     }

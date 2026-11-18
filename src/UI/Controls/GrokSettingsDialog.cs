@@ -72,9 +72,7 @@ namespace LanChat
         };
 
         private int _activeTabId = 0, _hoverTabId = -1;
-        private static readonly Color ColWindowBg = GrokTheme.Level05, ColSidebarBg = GrokTheme.Level0;
-        private static readonly Color ColCardBorder = GrokTheme.Border, ColNavActive = GrokTheme.Level3;
-        private static readonly Color ColNavHover = GrokTheme.Level2, ColGroupLabel = GrokTheme.TextPlaceholder;
+        private int _themeMode = AppSettings.ThemeMode;
 
         // =========================================================================
         // 构造函数与生命周期
@@ -92,27 +90,52 @@ namespace LanChat
             : this(netService, onCheckUpdate, onShowChangeNick, onOpenFolder, initialTab, null) { }
 
         /// <summary>
-        /// 初始化全局暗黑设置窗口 (完整重载，支持字体应用回调)
+        /// 初始化全局暗黑设置窗口，外观变更时同时刷新当前窗口与宿主。
         /// </summary>
         /// <param name="netService">网络通信服务</param>
         /// <param name="onCheckUpdate">检查更新回调</param>
         /// <param name="onShowChangeNick">修改昵称回调</param>
         /// <param name="onOpenFolder">打开接收目录回调</param>
         /// <param name="initialTab">初始激活的 Tab 索引</param>
-        /// <param name="onFontChanged">全局字体设置变更后的刷新回调</param>
-        public GrokSettingsDialog(NetworkService netService, Action onCheckUpdate, Action onShowChangeNick, Action onOpenFolder, int initialTab, Action onFontChanged)
+        /// <param name="onAppearanceChanged">应用主窗口外观的回调。</param>
+        public GrokSettingsDialog(NetworkService netService, Action onCheckUpdate, Action onShowChangeNick, Action onOpenFolder, int initialTab, Action onAppearanceChanged)
         {
-            _context = new SettingsContext(netService, onCheckUpdate, onShowChangeNick, onOpenFolder, onFontChanged, this);
+            _context = new SettingsContext(netService, onCheckUpdate, onShowChangeNick, onOpenFolder, () =>
+            {
+                ApplyAppearance();
+                if (onAppearanceChanged != null) onAppearanceChanged();
+            }, this);
             _activeTabId = (initialTab < 0 || initialTab > 7) ? 0 : initialTab;
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.CenterParent;
             this.ShowInTaskbar = false;
             int scrW = Screen.PrimaryScreen.WorkingArea.Width, scrH = Screen.PrimaryScreen.WorkingArea.Height;
             this.Size = new Size(Math.Min(DIALOG_W, scrW - 40), Math.Min(DIALOG_H, scrH - 40));
-            this.BackColor = ColWindowBg;
+            this.BackColor = GrokTheme.Level05;
             this.DoubleBuffered = true;
             this.Font = new Font(GrokTheme.FontFamily, 10.0f, FontStyle.Regular);
             BuildWindowComponents();
+        }
+
+        private void ApplyAppearance()
+        {
+            if (_themeMode != AppSettings.ThemeMode)
+            {
+                // 保留当前 Tab、滑块和滚动位置，只替换已有控件绑定的标准底色。
+                Color previousWindow = GrokTheme.Surface(18, 18, 18, _themeMode);
+                Color previousCard = GrokTheme.Surface(28, 28, 31, _themeMode);
+                ApplySurfaceColors(this, previousWindow, previousCard);
+                _txtSidebarSearch.BackColor = GrokTheme.Surface(30, 30, 34);
+                _themeMode = AppSettings.ThemeMode;
+            }
+            Invalidate(true);
+        }
+
+        private static void ApplySurfaceColors(Control control, Color previousWindow, Color previousCard)
+        {
+            if (control.BackColor == previousWindow) control.BackColor = GrokTheme.Level05;
+            else if (control.BackColor == previousCard) control.BackColor = GrokTheme.Level1;
+            foreach (Control child in control.Controls) ApplySurfaceColors(child, previousWindow, previousCard);
         }
 
         protected override CreateParams CreateParams
@@ -161,7 +184,7 @@ namespace LanChat
             _btnClose.BringToFront();
 
             int searchCapsuleW = SIDEBAR_W - 32;
-            _txtSidebarSearch = new TextBox { Location = new Point(50, 25), Size = new Size(searchCapsuleW - 46, 20), BackColor = Color.FromArgb(30, 30, 34), ForeColor = GrokTheme.TextPrimary, BorderStyle = BorderStyle.None, Font = new Font(GrokTheme.FontFamily, 10.0f, FontStyle.Regular) };
+            _txtSidebarSearch = new TextBox { Location = new Point(50, 25), Size = new Size(searchCapsuleW - 46, 20), BackColor = GrokTheme.Surface(30, 30, 34), ForeColor = GrokTheme.TextPrimary, BorderStyle = BorderStyle.None, Font = new Font(GrokTheme.FontFamily, 10.0f, FontStyle.Regular) };
             _txtSidebarSearch.HandleCreated += (s, e) => { try { SendMessageCue(_txtSidebarSearch.Handle, 0x1501, 1, "搜索设置项"); } catch { } };
             _txtSidebarSearch.GotFocus += (s, e) => Invalidate(new Rectangle(16, 18, searchCapsuleW, 34));
             _txtSidebarSearch.LostFocus += (s, e) => Invalidate(new Rectangle(16, 18, searchCapsuleW, 34));
@@ -169,14 +192,14 @@ namespace LanChat
             this.Controls.Add(_txtSidebarSearch);
 
             int vpW = this.Width - SIDEBAR_W - 74, vpH = this.Height - 44;
-            _viewportPanel = new DoubleBufferedPanel { Location = new Point(SIDEBAR_W + 20, 22), Size = new Size(vpW, vpH), BackColor = ColWindowBg, AutoScroll = false };
+            _viewportPanel = new DoubleBufferedPanel { Location = new Point(SIDEBAR_W + 20, 22), Size = new Size(vpW, vpH), BackColor = GrokTheme.Level05, AutoScroll = false };
             _viewportPanel.Paint += ViewportPanel_Paint;
             _viewportPanel.MouseDown += ViewportPanel_MouseDown;
             _viewportPanel.MouseMove += ViewportPanel_MouseMove;
             _viewportPanel.MouseUp += ViewportPanel_MouseUp;
             _viewportPanel.MouseWheel += (s, e) => HandleScrollWheel(e.Delta);
 
-            _scrollContainer = new DoubleBufferedPanel { Location = new Point(0, 0), Size = new Size(CARD_W, 600), BackColor = ColWindowBg };
+            _scrollContainer = new DoubleBufferedPanel { Location = new Point(0, 0), Size = new Size(CARD_W, 600), BackColor = GrokTheme.Level05 };
             _scrollContainer.MouseWheel += (s, e) => HandleScrollWheel(e.Delta);
             _viewportPanel.Controls.Add(_scrollContainer);
             this.Controls.Add(_viewportPanel);
@@ -208,6 +231,7 @@ namespace LanChat
             {
                 _scrollContainer.SuspendLayout();
                 SettingsPanelBase page = CreateTabPage(targetTabId);
+                if (targetTabId == 2) page.Width = Math.Max(1, Math.Min(CARD_W, _viewportPanel.ClientSize.Width - 8));
                 _tabPages[targetTabId] = page;
                 _scrollContainer.Controls.Add(page);
                 _scrollContainer.ResumeLayout(false);
@@ -360,13 +384,13 @@ namespace LanChat
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
-            using (SolidBrush sideBrush = new SolidBrush(ColSidebarBg)) g.FillRectangle(sideBrush, 0, 0, SIDEBAR_W, this.Height);
-            using (Pen borderPen = new Pen(ColCardBorder, 1f)) MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 14);
+            using (SolidBrush sideBrush = new SolidBrush(GrokTheme.Level0)) g.FillRectangle(sideBrush, 0, 0, SIDEBAR_W, this.Height);
+            using (Pen borderPen = new Pen(GrokTheme.Border, 1f)) MainForm.DrawRoundedRectangle(g, borderPen, new Rectangle(0, 0, this.Width - 1, this.Height - 1), 14);
 
             int searchCapsuleW = SIDEBAR_W - 32;
             Rectangle searchCapsule = new Rectangle(16, 18, searchCapsuleW, 34);
-            using (SolidBrush sb = new SolidBrush(Color.FromArgb(30, 30, 34)))
-            using (Pen sp = new Pen(ColCardBorder, 1f))
+            using (SolidBrush sb = new SolidBrush(GrokTheme.Surface(30, 30, 34)))
+            using (Pen sp = new Pen(GrokTheme.Border, 1f))
             {
                 MainForm.DrawRoundedRectangle(g, sb, searchCapsule, 8);
                 MainForm.DrawRoundedRectangle(g, sp, searchCapsule, 8);
@@ -384,7 +408,7 @@ namespace LanChat
             using (Font grpFont = new Font(GrokTheme.FontFamily, 9.0f, FontStyle.Bold))
             using (Font itemFont = new Font(GrokTheme.FontFamily, 10.0f, FontStyle.Regular))
             using (Font itemActiveFont = new Font(GrokTheme.FontFamily, 10.0f, FontStyle.Bold))
-            using (SolidBrush grpBrush = new SolidBrush(ColGroupLabel))
+            using (SolidBrush grpBrush = new SolidBrush(GrokTheme.TextSecondary))
             {
                 for (int i = 0; i < _allNavItems.Length; i++)
                 {
@@ -399,13 +423,13 @@ namespace LanChat
                     }
 
                     Rectangle itemR = new Rectangle(16, curY, SIDEBAR_W - 32, 38);
-                    Color itemBg = (item.Id == _activeTabId) ? ColNavActive : (item.Id == _hoverTabId ? ColNavHover : Color.Empty);
+                    Color itemBg = (item.Id == _activeTabId) ? GrokTheme.Level3 : (item.Id == _hoverTabId ? GrokTheme.Level2 : Color.Empty);
                     if (itemBg != Color.Empty)
                     {
                         using (SolidBrush b = new SolidBrush(itemBg)) MainForm.DrawRoundedRectangle(g, b, itemR, 8);
                     }
 
-                    Color ic = (item.Id == _activeTabId) ? Color.White : (item.Id == _hoverTabId ? Color.FromArgb(210, 210, 220) : Color.FromArgb(120, 120, 134));
+                    Color ic = (item.Id == _activeTabId) ? GrokTheme.Accent : (item.Id == _hoverTabId ? Color.FromArgb(210, 210, 220) : Color.FromArgb(120, 120, 134));
                     WeChatIcon.Draw(g, item.Icon, new Rectangle(itemR.X + 14, itemR.Y + 11, 16, 16), false, ic);
 
                     Color tc = (item.Id == _activeTabId) ? Color.White : (item.Id == _hoverTabId ? Color.FromArgb(230, 230, 238) : Color.FromArgb(150, 150, 164));

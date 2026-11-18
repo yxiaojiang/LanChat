@@ -138,11 +138,14 @@ namespace LanChat
             else
             {
                 // 2. 好友私聊
+                if (target.TcpPort <= 0) return;
+                string convKey = SessionManager.GetLanKey(target.Id, target.IP);
                 ChatMessage msg = new ChatMessage
                 {
                     SenderId = _netService != null ? _netService.LocalId : "",
                     SenderNick = myNick,
                     TargetId = target.Id,
+                    PeerNick = target.NickName,
                     Content = text,
                     Timestamp = DateTime.Now,
                     IsSelf = true,
@@ -154,12 +157,12 @@ namespace LanChat
 
                 if (_sessionManager != null)
                 {
-                    _sessionManager.AddMessage(target.Id, msg);
+                    _sessionManager.AddMessage(convKey, msg);
                 }
 
                 if (MessageAppended != null)
                 {
-                    MessageAppended(msg, target.Id);
+                    MessageAppended(msg, convKey);
                 }
 
                 new Thread(() => {
@@ -168,7 +171,7 @@ namespace LanChat
                         bool ok = _netService.SendTextMessage(target, text, false);
                         if (!ok)
                         {
-                            SafeInvoke(() => AppendChatSystem(string.Format("向 {0} 发送私聊消息失败，对方可能已离线", target.NickName)));
+                            SafeInvoke(() => AppendChatSystem(string.Format("向 {0} 发送私聊消息失败，对方可能已离线", target.NickName), convKey));
                         }
                     }
                 }) { IsBackground = true }.Start();
@@ -181,7 +184,7 @@ namespace LanChat
         /// <param name="msg">收到的消息实体模型</param>
         public void HandleReceivedMessage(ChatMessage msg)
         {
-            string convKey = msg.IsBroadcast ? SessionManager.BROADCAST_KEY : msg.SenderId;
+            string convKey = msg.IsBroadcast ? SessionManager.BROADCAST_KEY : SessionManager.GetLanKey(msg.SenderId, msg.RemoteAddress);
 
             if (!msg.IsBroadcast && _netService != null)
             {
@@ -246,17 +249,21 @@ namespace LanChat
         /// 在当前激活会话中插入一条灰色系统居中通知消息（如加入网络、IP绑定状态等）
         /// </summary>
         /// <param name="text">系统通知文案</param>
-        public void AppendChatSystem(string text)
+        /// <param name="sessionKey">通知所属的会话，省略时使用当前会话。</param>
+        /// <param name="discoveredPeer">上线通知对应的节点。提供时同时记录该次发现的地址归属。</param>
+        public void AppendChatSystem(string text, string sessionKey = null, PeerInfo discoveredPeer = null)
         {
             ChatMessage msg = new ChatMessage
             {
                 SenderNick = "系统",
+                SenderId = discoveredPeer != null ? discoveredPeer.Id : null,
+                RemoteAddress = discoveredPeer != null ? discoveredPeer.IP : null,
                 Content = text,
                 Timestamp = DateTime.Now,
                 IsSystem = true
             };
 
-            string activeKey = _sessionPresenter.ActiveChatKey;
+            string activeKey = sessionKey ?? _sessionPresenter.ActiveChatKey;
             if (_sessionManager != null)
             {
                 _sessionManager.AddMessage(activeKey, msg);

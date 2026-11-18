@@ -139,7 +139,7 @@ namespace LanChat
             };
             _searchBoxContainer.Paint += (s, e) => {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                using (Pen pen = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
+                using (Pen pen = new Pen(GrokTheme.Border, 1f))
                 {
                     DrawRoundedRectangle(e.Graphics, pen, new Rectangle(0, 0, _searchBoxContainer.Width - 1, _searchBoxContainer.Height - 1), 21);
                 }
@@ -247,8 +247,8 @@ namespace LanChat
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 GrokTheme.PrepareSoftText(g);
                 Rectangle r = new Rectangle(0, 0, _btnBottomUser.Width - 1, _btnBottomUser.Height - 1);
-                using (SolidBrush b = new SolidBrush(Color.FromArgb(40, 40, 44))) // #28282C Level3
-                using (Pen p = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
+                using (SolidBrush b = new SolidBrush(GrokTheme.Level3))
+                using (Pen p = new Pen(GrokTheme.Border, 1f))
                 {
                     g.FillEllipse(b, r);
                     g.DrawEllipse(p, r);
@@ -258,7 +258,7 @@ namespace LanChat
                 if (string.IsNullOrEmpty(nick)) nick = "?";
                 if (nick.Length > 2) nick = nick.Substring(0, 2);
                 // Bold 9.5 + soft AA + TextPill — fuller badge glyph like Grok user chip
-                using (Font f = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold))
+                using (Font f = GrokTheme.UiFont(9.5f, FontStyle.Bold))
                 {
                     GrokTheme.DrawUiTextCentered(g, nick, f, GrokTheme.TextPill,
                         new Rectangle(0, 0, _btnBottomUser.Width, _btnBottomUser.Height));
@@ -328,7 +328,7 @@ namespace LanChat
                 GrokTheme.PrepareSoftText(g);
 
                 string pillTitle = GrokTheme.SanitizeUiText(_lblChatTitle.Text ?? "局域网全员群聊");
-                using (Font pillFont = new Font("Microsoft YaHei UI", 20.0f, FontStyle.Bold))
+                using (Font pillFont = GrokTheme.UiFont(20.0f, FontStyle.Bold))
                 {
                     Size tsz = GrokTheme.MeasureUiText(g, pillTitle, pillFont);
                     int pillH = 76;
@@ -337,8 +337,8 @@ namespace LanChat
                     int pillY = (_chatHeader.Height - pillH) / 2;
 
                     Rectangle pillRect = new Rectangle(pillX, pillY, pillW, pillH);
-                    using (SolidBrush pillBg = new SolidBrush(Color.FromArgb(32, 32, 34)))
-                    using (Pen pillBorder = new Pen(Color.FromArgb(46, 46, 50), 1f))
+                    using (SolidBrush pillBg = new SolidBrush(GrokTheme.Surface(32, 32, 34)))
+                    using (Pen pillBorder = new Pen(GrokTheme.Border, 1f))
                     {
                         DrawRoundedRectangle(g, pillBg, pillRect, 38);
                         DrawRoundedRectangle(g, pillBorder, pillRect, 38);
@@ -349,7 +349,7 @@ namespace LanChat
                     int avX = pillX + 20;
                     int avY = pillY + (pillH - avSize) / 2;
                     Rectangle avRect = new Rectangle(avX, avY, avSize, avSize);
-                    Color avColor = _selectedPeer == null ? Color.FromArgb(144, 90, 251) : Color.FromArgb(246, 148, 18);
+                    Color avColor = _selectedPeer == null ? GrokTheme.Accent : Color.FromArgb(246, 148, 18);
                     WeChatIcon.DrawMascotAvatar(g, avRect, avColor, false, false, Color.Transparent);
 
                     GrokTheme.DrawUiTextLeft(g, pillTitle, pillFont, GrokTheme.TextPill,
@@ -463,8 +463,8 @@ namespace LanChat
                 GrokTheme.PrepareSoftText(g);
                 Rectangle pillRect = new Rectangle(0, 0, _inputPanel.Width - 1, _inputPanel.Height - 1);
                 int radius = Math.Max(8, _inputPanel.Height / 2); // 64→32 全圆角胶囊
-                using (SolidBrush bg = new SolidBrush(Color.FromArgb(32, 32, 36))) // #202024
-                using (Pen border = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
+                using (SolidBrush bg = new SolidBrush(GrokTheme.Level2))
+                using (Pen border = new Pen(GrokTheme.Border, 1f))
                 {
                     DrawRoundedRectangle(g, bg, pillRect, radius);
                     DrawRoundedRectangle(g, border, pillRect, radius);
@@ -473,7 +473,7 @@ namespace LanChat
                 // 空输入时绘制占位符（11.0 Regular #5E5E66 + soft AA，对标 Grok 胶囊 muted）
                 if (_txtInput != null && string.IsNullOrEmpty(_txtInput.Text))
                 {
-                    using (Font pf = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Regular))
+                    using (Font pf = GrokTheme.UiFont(11.0f))
                     {
                         GrokTheme.DrawUiTextLeft(g, _inputPlaceholder, pf, GrokTheme.TextPlaceholder,
                             64, 0, Math.Max(40, _inputPanel.Width - 64 - 56), _inputPanel.Height);

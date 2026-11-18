@@ -102,7 +102,7 @@ namespace LanChat
             // 3. 输入框暗黑容器 (高 42px, 圆角 8px)
             Rectangle boxRect = new Rectangle(24, 126, 392, 42);
             using (SolidBrush bb = new SolidBrush(GrokTheme.Level05))
-            using (Pen bp = new Pen((_txtNick != null && _txtNick.Focused) ? GrokTheme.AccentPurple : GrokTheme.Border, 1f))
+            using (Pen bp = new Pen((_txtNick != null && _txtNick.Focused) ? GrokTheme.Accent : GrokTheme.Border, 1f))
             {
                 GrokTheme.DrawRoundedRectangle(g, bb, boxRect, 8);
                 GrokTheme.DrawRoundedRectangle(g, bp, boxRect, 8);

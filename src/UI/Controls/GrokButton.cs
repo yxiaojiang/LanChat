@@ -250,7 +250,7 @@ namespace LanChat
                 {
                     case GrokButtonRole.Primary:
                         bgColor = _isPressed ? GrokTheme.ButtonPrimaryDown : (_isHover ? GrokTheme.ButtonPrimaryHover : GrokTheme.ButtonPrimaryNormal);
-                        borderColor = _isHover ? GrokTheme.AccentPurpleHot : GrokTheme.ButtonPrimaryHover;
+                        borderColor = _isHover ? GrokTheme.AccentHot : GrokTheme.ButtonPrimaryHover;
                         textColor = GrokTheme.TextTitle;
                         break;
 

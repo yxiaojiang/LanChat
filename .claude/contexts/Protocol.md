@@ -12,6 +12,8 @@
 - `lanchat.py` 中对应的网络服务与协议编解码实现。
 
 ## 核心实现机制
+
+Windows 将 TCP 接收端点地址和发送者 ID 用于本地文字、文件会话归档。文件完成事件以 `ChatMessage` 提供这些字段，Linux C# 终端沿用消息模型读取昵称和文件信息。地址直接由连接取得，LANC 文本与文件帧字段兼容原版本。
 1. **TUN 虚拟网卡穿透与物理绑定**：
    - 过滤带有 `tun`、`tap`、`vpn`、`virtual` 关键词或 MAC 为空的虚拟网卡。
    - `GetLocalEndpointForTarget`：发起 TCP 连接前，比对目标 IP 子网，强制绑定物理网卡 IP（如 `192.168.255.151:0`），防止操作系统按 TUN 虚拟网卡 Metric 0 路由发射 SYN。

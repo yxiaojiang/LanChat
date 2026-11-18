@@ -28,6 +28,8 @@ namespace LanChat
             public string Hint { get; set; }
             public bool IsSeparator { get; set; }
             public bool IsDestructive { get; set; }
+            /// <summary>预设颜色的可选圆形色样。</summary>
+            public Color Swatch { get; set; }
         }
 
         private readonly List<MenuItemInfo> _items = new List<MenuItemInfo>();
@@ -44,7 +46,7 @@ namespace LanChat
             this.ShowInTaskbar = false;
             this.StartPosition = FormStartPosition.Manual;
             this.TopMost = true;
-            this.BackColor = Color.FromArgb(28, 28, 31); // #1C1C1F Level1
+            this.BackColor = GrokTheme.Level1;
             this.DoubleBuffered = true;
             this.Cursor = Cursors.Default;
             this.Font = new Font("Microsoft YaHei UI", 10f, FontStyle.Regular);
@@ -65,7 +67,15 @@ namespace LanChat
             }
         }
 
-        public GrokPopupMenu AddItem(string text, WeChatIconType iconType, Action action, string hint = null, bool destructive = false)
+        /// <summary>添加菜单项，支持选中标记及可选颜色色样。</summary>
+        /// <param name="text">主标签。</param>
+        /// <param name="iconType">矢量图标类型。</param>
+        /// <param name="action">点击后执行的操作。</param>
+        /// <param name="hint">右侧辅助标签。</param>
+        /// <param name="destructive">是否采用危险操作颜色。</param>
+        /// <param name="swatch">可选的色样，省略时不绘制。</param>
+        /// <returns>当前菜单，用于继续添加选项。</returns>
+        public GrokPopupMenu AddItem(string text, WeChatIconType iconType, Action action, string hint = null, bool destructive = false, Color swatch = default(Color))
         {
             _items.Add(new MenuItemInfo
             {
@@ -74,7 +84,8 @@ namespace LanChat
                 Action = action,
                 Hint = hint,
                 IsSeparator = false,
-                IsDestructive = destructive
+                IsDestructive = destructive,
+                Swatch = swatch
             });
             return this;
         }
@@ -147,9 +158,10 @@ namespace LanChat
         protected override void OnMouseClick(MouseEventArgs e)
         {
             base.OnMouseClick(e);
-            if (e.Button == MouseButtons.Left && _hoverIndex >= 0 && _hoverIndex < _items.Count)
+            int clickedIndex = GetItemIndexAt(e.Location);
+            if (e.Button == MouseButtons.Left && clickedIndex >= 0)
             {
-                MenuItemInfo item = _items[_hoverIndex];
+                MenuItemInfo item = _items[clickedIndex];
                 if (!item.IsSeparator && item.Action != null)
                 {
                     this.Close();
@@ -171,8 +183,8 @@ namespace LanChat
 
             // 1. 背景与 1px 微妙描边
             Rectangle fullRect = new Rectangle(0, 0, this.Width - 1, this.Height - 1);
-            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(28, 28, 31))) // #1C1C1F
-            using (Pen borderPen = new Pen(Color.FromArgb(44, 44, 50), 1f)) // #2C2C32
+            using (SolidBrush bgBrush = new SolidBrush(GrokTheme.Level1))
+            using (Pen borderPen = new Pen(GrokTheme.Border, 1f))
             {
                 MainForm.DrawRoundedRectangle(g, bgBrush, fullRect, 16);
                 MainForm.DrawRoundedRectangle(g, borderPen, fullRect, 16);
@@ -185,7 +197,7 @@ namespace LanChat
                 MenuItemInfo item = _items[i];
                 if (item.IsSeparator)
                 {
-                    using (Pen sepPen = new Pen(Color.FromArgb(44, 44, 52), 1f)) // #2C2C34
+                    using (Pen sepPen = new Pen(GrokTheme.Separator, 1f))
                     {
                         int lineY = curY + SEPARATOR_HEIGHT / 2;
                         g.DrawLine(sepPen, PADDING_H + 8, lineY, this.Width - PADDING_H - 8, lineY);
@@ -200,7 +212,7 @@ namespace LanChat
                 // 悬停高亮圆角卡片 (#2E2E34)
                 if (isHover)
                 {
-                    Color hoverColor = item.IsDestructive ? Color.FromArgb(60, 24, 28) : Color.FromArgb(46, 46, 52); // #2E2E34
+                    Color hoverColor = item.IsDestructive ? GrokTheme.MenuHoverDanger : GrokTheme.Level3Hot;
                     using (SolidBrush hb = new SolidBrush(hoverColor))
                     {
                         MainForm.DrawRoundedRectangle(g, hb, itemRect, 8);
@@ -223,6 +235,11 @@ namespace LanChat
                 {
                     WeChatIcon.Draw(g, item.IconType, iconRect, false, iconColor);
                 }
+                else if (!item.Swatch.IsEmpty)
+                {
+                    iconRect.Inflate(-2, -2);
+                    using (SolidBrush swatch = new SolidBrush(item.Swatch)) g.FillEllipse(swatch, iconRect);
+                }
 
                 // 菜单标题文字 (10.0pt, 绝对垂直居中)
                 Color textColor;
@@ -243,7 +260,7 @@ namespace LanChat
                     FormatFlags = StringFormatFlags.NoWrap
                 })
                 {
-                    int textLeft = (item.IconType != WeChatIconType.None) ? (itemRect.X + 40) : (itemRect.X + 16);
+                    int textLeft = (item.IconType != WeChatIconType.None || !item.Swatch.IsEmpty) ? (itemRect.X + 40) : (itemRect.X + 16);
                     Rectangle textRect = new Rectangle(textLeft, itemRect.Y, itemRect.Right - textLeft - 36, itemRect.Height);
                     g.DrawString(item.Text, this.Font, textBrush, textRect, sf);
                 }
@@ -269,7 +286,10 @@ namespace LanChat
             }
         }
 
-        public void ShowAt(Point screenPoint)
+        /// <summary>在屏幕指定位置显示菜单，可为模态设置窗口指定所有者。</summary>
+        /// <param name="screenPoint">弹出位置的屏幕坐标。</param>
+        /// <param name="owner">拥有该菜单的窗口。省略时独立显示。</param>
+        public void ShowAt(Point screenPoint, IWin32Window owner = null)
         {
             this.Size = new Size(MENU_WIDTH, CalculateTotalHeight());
 
@@ -310,7 +330,8 @@ namespace LanChat
             }
             catch { }
 
-            this.Show();
+            if (owner == null) this.Show();
+            else this.Show(owner);
         }
 
         public void Show(Control parent, Point clientPoint)

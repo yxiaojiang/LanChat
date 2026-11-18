@@ -21,17 +21,23 @@ namespace LanChat
         // ==========================================
         // 统一颜色设计令牌 (对齐 GrokTheme)
         // ==========================================
-        protected static readonly Color ColWindowBg = GrokTheme.Level05;
-        protected static readonly Color ColCardBg = GrokTheme.Level1;
-        protected static readonly Color ColCardBorder = GrokTheme.Border;
-        protected static readonly Color ColCardDivider = GrokTheme.BorderInner;
+        /// <summary>当前主题的设置视口底色。</summary>
+        protected static Color ColWindowBg { get { return GrokTheme.Level05; } }
+        /// <summary>当前主题的卡片底色。</summary>
+        protected static Color ColCardBg { get { return GrokTheme.Level1; } }
+        /// <summary>当前主题的卡片描边。</summary>
+        protected static Color ColCardBorder { get { return GrokTheme.Border; } }
+        /// <summary>当前主题的卡片分割线。</summary>
+        protected static Color ColCardDivider { get { return GrokTheme.BorderInner; } }
         protected static readonly Color ColTextPrimary = GrokTheme.TextPrimary;
         protected static readonly Color ColTextSecondary = GrokTheme.TextSecondary;
         protected static readonly Color ColSectionHeader = GrokTheme.TextSubtitle;
         protected static readonly Color ColMintGreen = GrokTheme.AccentGreen;
         protected static readonly Color ColSwitchOff = GrokTheme.TextDisabled;
-        protected static readonly Color ColPillBg = GrokTheme.Level2;
-        protected static readonly Color ColPillBorder = GrokTheme.Border;
+        /// <summary>当前主题的胶囊底色。</summary>
+        protected static Color ColPillBg { get { return GrokTheme.Level2; } }
+        /// <summary>当前主题的胶囊描边。</summary>
+        protected static Color ColPillBorder { get { return GrokTheme.Border; } }
 
         /// <summary>
         /// 初始化子面板基础尺寸与背景
@@ -84,19 +90,19 @@ namespace LanChat
             p.Paint += (s, e) =>
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Rectangle r = new Rectangle(0, 0, w - 1, h - 1);
+                Rectangle r = new Rectangle(0, 0, p.ClientSize.Width - 1, h - 1);
                 using (SolidBrush b = new SolidBrush(ColCardBg))
                 using (Pen pen = new Pen(ColCardBorder, 1f))
                 {
-                    MainForm.DrawRoundedRectangle(e.Graphics, b, r, 12);
-                    MainForm.DrawRoundedRectangle(e.Graphics, pen, r, 12);
+                    GrokTheme.DrawRoundedRectangle(e.Graphics, b, r, GrokTheme.RadiusModal);
+                    GrokTheme.DrawRoundedRectangle(e.Graphics, pen, r, GrokTheme.RadiusModal);
                 }
             };
             return p;
         }
 
         /// <summary>
-        /// 创建右侧下拉药丸胶囊按钮（高度 32px，7px 圆角，带 ∨ 箭头与悬停提亮动效）
+        /// 创建右侧下拉药丸胶囊按钮，圆角随高度调整，并提供悬停和焦点反馈。
         /// </summary>
         /// <param name="text">按钮当前标签文字</param>
         /// <param name="minW">最小保证宽度</param>
@@ -113,7 +119,7 @@ namespace LanChat
                 FlatStyle = FlatStyle.Flat,
                 BackColor = ColCardBg,
                 Cursor = Cursors.Hand,
-                Font = GrokTheme.FontSecondary
+                Font = GrokTheme.FontButtonPill
             };
             btn.FlatAppearance.BorderSize = 0;
             btn.FlatAppearance.MouseOverBackColor = ColCardBg;
@@ -135,7 +141,7 @@ namespace LanChat
             {
                 Graphics g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                GrokTheme.PrepareSoftText(g);
 
                 using (SolidBrush bgB = new SolidBrush(ColCardBg))
                 {
@@ -143,25 +149,21 @@ namespace LanChat
                 }
 
                 Rectangle r = new Rectangle(0, 0, btn.Width - 1, btn.Height - 1);
-                using (SolidBrush b = new SolidBrush(hover ? GrokTheme.Level3Hot : ColPillBg))
-                using (Pen p = new Pen(hover ? Color.FromArgb(70, 70, 82) : ColPillBorder, 1f))
+                using (SolidBrush b = new SolidBrush(hover || btn.Focused ? GrokTheme.Level3Hot : ColPillBg))
+                using (Pen p = new Pen(ColPillBorder, 1f))
                 {
-                    GrokTheme.DrawRoundedRectangle(g, b, r, 7);
-                    GrokTheme.DrawRoundedRectangle(g, p, r, 7);
+                    GrokTheme.DrawRoundedRectangle(g, b, r, btn.Height / 2);
+                    GrokTheme.DrawRoundedRectangle(g, p, r, btn.Height / 2);
                 }
 
                 string curLabel = btn.Text.Replace("  ∨", "").Trim();
-                using (SolidBrush tb = new SolidBrush(GrokTheme.TextTitle))
+                GrokTheme.DrawUiTextLeft(g, curLabel, btn.Font, GrokTheme.TextTitle, 16, 0, btn.Width - 44, btn.Height);
+                using (Pen arrow = new Pen(hover ? GrokTheme.TextTitle : GrokTheme.TextSecondary, 1.6f))
                 {
-                    float ty = (btn.Height - btn.Font.GetHeight(g)) / 2f;
-                    g.DrawString(curLabel, btn.Font, tb, new PointF(16, ty));
-                }
-
-                using (Font arrowFont = new Font("Segoe UI", 8.5f, FontStyle.Regular))
-                using (SolidBrush arrowBrush = new SolidBrush(hover ? GrokTheme.TextTitle : GrokTheme.TextSecondary))
-                {
-                    float ay = (btn.Height - arrowFont.GetHeight(g)) / 2f;
-                    g.DrawString("∨", arrowFont, arrowBrush, new PointF(btn.Width - 22, ay));
+                    arrow.StartCap = arrow.EndCap = LineCap.Round;
+                    arrow.LineJoin = LineJoin.Round;
+                    float x = btn.Width - 17, y = btn.Height / 2f;
+                    g.DrawLines(arrow, new[] { new PointF(x - 3, y - 1), new PointF(x, y + 2), new PointF(x + 3, y - 1) });
                 }
             };
             return btn;
@@ -322,6 +324,7 @@ namespace LanChat
         private int _selectedIndex;
         private readonly Action<float> _onValueChanged;
         private bool _isDragging = false;
+        private const int TrackPadding = 18;
 
         /// <summary>
         /// 初始化刻度滑块
@@ -337,15 +340,35 @@ namespace LanChat
             this.SetStyle(ControlStyles.SupportsTransparentBackColor, true);
             this.BackColor = GrokTheme.Level1;
             this.Cursor = Cursors.Hand;
+            this.TabStop = true;
             _labels = labels;
             _values = values;
             _onValueChanged = onValueChanged;
 
+            SetCurrentValue(currentValue);
+            this.MouseDown += (s, e) =>
+            {
+                if (e.Button != MouseButtons.Left) return;
+                Focus();
+                Capture = true;
+                _isDragging = true;
+                HandleClick(e.X);
+            };
+            this.MouseMove += (s, e) => { if (_isDragging) HandleClick(e.X); };
+            this.MouseUp += (s, e) => { if (e.Button == MouseButtons.Left) Capture = false; };
+            this.MouseCaptureChanged += (s, e) => { if (!Capture) _isDragging = false; };
+            this.GotFocus += (s, e) => Invalidate();
+            this.LostFocus += (s, e) => Invalidate();
+        }
+
+        // 两个设置页面共享主界面字号。切页时更新滑块指示，不再次保存设置。
+        internal void SetCurrentValue(float currentValue)
+        {
             _selectedIndex = 0;
             float minDiff = float.MaxValue;
-            for (int i = 0; i < values.Length; i++)
+            for (int i = 0; i < _values.Length; i++)
             {
-                float diff = Math.Abs(values[i] - currentValue);
+                float diff = Math.Abs(_values[i] - currentValue);
                 if (diff < minDiff)
                 {
                     minDiff = diff;
@@ -353,15 +376,13 @@ namespace LanChat
                 }
             }
 
-            this.MouseDown += (s, e) => { _isDragging = true; HandleClick(e.X); };
-            this.MouseMove += (s, e) => { if (_isDragging) HandleClick(e.X); };
-            this.MouseUp += (s, e) => { _isDragging = false; };
+            Invalidate();
         }
 
         private void HandleClick(int mouseX)
         {
             int count = _labels.Length;
-            int trackPad = 12;
+            int trackPad = TrackPadding;
             float trackW = this.Width - trackPad * 2;
             int bestIdx = 0;
             float bestDist = float.MaxValue;
@@ -376,15 +397,37 @@ namespace LanChat
                 }
             }
 
-            if (bestIdx != _selectedIndex)
+            SelectIndex(bestIdx);
+        }
+
+        private void SelectIndex(int index)
+        {
+            if (index != _selectedIndex && index >= 0 && index < _values.Length)
             {
-                _selectedIndex = bestIdx;
+                _selectedIndex = index;
                 Invalidate();
                 if (_onValueChanged != null && _selectedIndex < _values.Length)
                 {
                     _onValueChanged(_values[_selectedIndex]);
                 }
             }
+        }
+
+        /// <summary>将左右方向键留给当前滑块处理。</summary>
+        /// <param name="keyData">按键及修饰键。</param>
+        /// <returns>是否由当前控件处理。</returns>
+        protected override bool IsInputKey(Keys keyData)
+        {
+            return keyData == Keys.Left || keyData == Keys.Right || base.IsInputKey(keyData);
+        }
+
+        /// <summary>使用左右方向键调整一个档位。</summary>
+        /// <param name="e">按键事件。</param>
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            if (e.KeyData == Keys.Left) SelectIndex(_selectedIndex - 1);
+            if (e.KeyData == Keys.Right) SelectIndex(_selectedIndex + 1);
         }
 
         /// <summary>绘制水平灰色轨道基准线、竖向离散刻度线、刻度文字与高光圆形滑块钮</summary>
@@ -400,7 +443,7 @@ namespace LanChat
             }
 
             int count = _labels.Length;
-            int trackPad = 12;
+            int trackPad = TrackPadding;
             int railY = 8;
             float trackW = this.Width - trackPad * 2;
 
@@ -412,9 +455,9 @@ namespace LanChat
 
             // 2. 绘制各离散刻度短线与底部档位标签
             using (Pen tp = new Pen(Color.FromArgb(70, 70, 80), 2f))
-            using (Font lf = new Font(GrokTheme.FontFamily, 8.0f, FontStyle.Regular))
-            using (SolidBrush textBrush = new SolidBrush(Color.FromArgb(120, 120, 132)))
-            using (SolidBrush activeText = new SolidBrush(Color.FromArgb(235, 235, 242)))
+            using (Font lf = GrokTheme.FontSecondary)
+            using (SolidBrush textBrush = new SolidBrush(GrokTheme.TextSecondary))
+            using (SolidBrush activeText = new SolidBrush(GrokTheme.TextPrimary))
             {
                 for (int i = 0; i < count; i++)
                 {
@@ -434,8 +477,8 @@ namespace LanChat
             int knobSize = 12;
             Rectangle knobRect = new Rectangle((int)thumbX - knobSize / 2, railY - knobSize / 2, knobSize, knobSize);
 
-            using (SolidBrush kb = new SolidBrush(Color.FromArgb(210, 210, 220)))
-            using (Pen kp = new Pen(Color.FromArgb(24, 24, 28), 1.5f))
+            using (SolidBrush kb = new SolidBrush(Focused ? GrokTheme.AccentHot : GrokTheme.Accent))
+            using (Pen kp = new Pen(GrokTheme.Level05, 1.5f))
             {
                 g.FillEllipse(kb, knobRect);
                 g.DrawEllipse(kp, knobRect);

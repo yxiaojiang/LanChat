@@ -15,7 +15,6 @@ namespace LanChat
         {
             if (_listSessions == null || _sessionPresenter == null) return;
 
-            object currentSelected = _listSessions.SelectedItem;
             _listSessions.BeginUpdate();
             _listSessions.Items.Clear();
 
@@ -25,7 +24,7 @@ namespace LanChat
                 _listSessions.Items.Add(items[i]);
             }
 
-            int index = _sessionPresenter.FindSessionIndex(currentSelected);
+            int index = _sessionPresenter.FindSessionIndex(_activeChatKey);
             if (index >= 0) _listSessions.SelectedIndex = index;
             else if (_listSessions.Items.Count > 0) _listSessions.SelectedIndex = 0;
 
@@ -125,14 +124,7 @@ namespace LanChat
 
         private int FindSessionIndexForKey(string key)
         {
-            if (string.IsNullOrEmpty(key) || _listSessions == null) return -1;
-            for (int i = 0; i < _listSessions.Items.Count; i++)
-            {
-                object item = _listSessions.Items[i];
-                if (item is string && key == "BROADCAST") return i;
-                if (item is PeerInfo && ((PeerInfo)item).Id == key) return i;
-            }
-            return -1;
+            return _sessionPresenter != null ? _sessionPresenter.FindSessionIndex(key) : -1;
         }
 
         private void ListSessions_MouseMove(object sender, MouseEventArgs e)
@@ -203,7 +195,7 @@ namespace LanChat
             {
                 currentCardBg = GrokTheme.SessionSelected;
                 using (SolidBrush cardBrush = new SolidBrush(currentCardBg))
-                using (Pen cardPen = new Pen(Color.FromArgb(145, 95, 240), 1f))
+                using (Pen cardPen = new Pen(GrokTheme.Accent, 1f))
                 {
                     DrawRoundedRectangle(g, cardBrush, cardRect, cardRadius);
                     DrawRoundedRectangle(g, cardPen, cardRect, cardRadius);
@@ -211,7 +203,7 @@ namespace LanChat
             }
             else if (isHover)
             {
-                currentCardBg = isPinned ? Color.FromArgb(32, 28, 42) : GrokTheme.SessionHover;
+                currentCardBg = isPinned ? GrokTheme.Surface(32, 28, 42) : GrokTheme.SessionHover;
                 using (SolidBrush cardBrush = new SolidBrush(currentCardBg))
                 {
                     DrawRoundedRectangle(g, cardBrush, cardRect, cardRadius);
@@ -219,8 +211,8 @@ namespace LanChat
             }
             else if (isPinned)
             {
-                currentCardBg = Color.FromArgb(24, 21, 32);
-                Color pinnedBorder = Color.FromArgb(42, 36, 56);
+                currentCardBg = GrokTheme.Surface(24, 21, 32);
+                Color pinnedBorder = GrokTheme.Surface(42, 36, 56);
                 using (SolidBrush cardBrush = new SolidBrush(currentCardBg))
                 using (Pen cardPen = new Pen(pinnedBorder, 1f))
                 {
@@ -238,14 +230,14 @@ namespace LanChat
             int titleY = r.Top + 14;
             int subY = r.Top + 38;
 
-            Color subTextColor = isSelected ? Color.FromArgb(228, 218, 250) : GrokTheme.TextSubtitle;
+            Color subTextColor = isSelected ? GrokTheme.TextPrimary : GrokTheme.TextSubtitle;
 
             if (item is string)
             {
                 string sItem = (string)item;
-                WeChatIcon.DrawMascotAvatar(g, avatarRect, Color.FromArgb(144, 90, 251), false, false, currentCardBg);
+                WeChatIcon.DrawMascotAvatar(g, avatarRect, GrokTheme.Accent, false, false, currentCardBg);
 
-                using (Font titleFont = GrokTheme.Font(11.0f, FontStyle.Bold))
+                using (Font titleFont = GrokTheme.UiFont(11.0f, FontStyle.Bold))
                 {
                     string title = sItem;
                     if (sItem == SessionPresenter.BROADCAST_TARGET)
@@ -254,23 +246,23 @@ namespace LanChat
                         title = onlineCount > 0 ? string.Format("局域网全员群聊 ({0})", onlineCount) : "局域网全员群聊";
                     }
                     GrokTheme.DrawUiTextLeft(g, title, titleFont, GrokTheme.TextTitle,
-                        textX, titleY, textW - (isPinned ? 38 : 0), 22);
+                        textX, titleY - 3, textW - (isPinned ? 38 : 0), 27);
                 }
 
                 if (isPinned)
                 {
-                    Color pinColor = isSelected ? Color.White : Color.FromArgb(144, 100, 220);
-                    using (Font pinFont = GrokTheme.Font(8.0f, FontStyle.Regular))
+                    Color pinColor = isSelected ? Color.White : GrokTheme.Accent;
+                    using (Font pinFont = GrokTheme.UiFont(9.5f))
                     {
                         GrokTheme.DrawUiTextRight(g, "置顶", pinFont, pinColor,
-                            r.Right - 55, titleY + 3, 35, 18);
+                            r.Right - 59, titleY - 2, 40, 26);
                     }
                 }
 
                 string snippet = _sessionManager != null ? _sessionManager.GetLastMessageSnippet(SessionManager.BROADCAST_KEY, 24) : null;
                 if (string.IsNullOrEmpty(snippet)) snippet = "已按 Rules 刷新本机记忆 (刷新...";
 
-                using (Font subFont = GrokTheme.Font(9.5f, FontStyle.Regular))
+                using (Font subFont = GrokTheme.UiFont(9.5f))
                 {
                     if (snippet.Length > 20) snippet = snippet.Substring(0, 19) + "...";
                     GrokTheme.DrawUiTextLeft(g, snippet, subFont, subTextColor,
@@ -288,20 +280,20 @@ namespace LanChat
                 string badge = useCoralStyle ? "节点" : null;
                 WeChatIcon.DrawMascotAvatar(g, avatarRect, bodyColor, !useCoralStyle, false, currentCardBg, badge);
 
-                using (Font titleFont = GrokTheme.Font(11.0f, FontStyle.Bold))
+                using (Font titleFont = GrokTheme.UiFont(11.0f, FontStyle.Bold))
                 {
                     string name = peer.NickName ?? "未知节点";
                     if (name.Length > 13) name = name.Substring(0, 12) + "...";
                     GrokTheme.DrawUiTextLeft(g, name, titleFont, GrokTheme.TextTitle,
-                        textX, titleY, textW, 22);
+                        textX, titleY - 3, textW, 27);
                 }
 
-                string snippet = peer.LastMessage;
+                string snippet = _sessionManager.GetLastMessageSnippet(_sessionPresenter.GetSessionKey(peer), 24);
                 if (string.IsNullOrEmpty(snippet))
                 {
-                    snippet = string.Format("{0} ({1})", peer.HostName, peer.IP);
+                    snippet = peer.IP == null ? peer.HostName : string.Format("{0} ({1})", peer.HostName, peer.IP);
                 }
-                using (Font subFont = GrokTheme.Font(9.5f, FontStyle.Regular))
+                using (Font subFont = GrokTheme.UiFont(9.5f))
                 {
                     if (snippet.Length > 16) snippet = snippet.Substring(0, 15) + "...";
                     GrokTheme.DrawUiTextLeft(g, snippet, subFont, subTextColor,
@@ -378,6 +370,11 @@ namespace LanChat
         {
             string text = _txtInput.Text.Trim();
             if (string.IsNullOrEmpty(text)) return;
+            if (_selectedPeer != null && _selectedPeer.TcpPort <= 0)
+            {
+                GrokMessageBox.Show(this, "好友当前离线，暂时无法发送消息。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
             _txtInput.Clear();
 
             if (_chatPresenter != null)

@@ -13,6 +13,58 @@ namespace LanChat
     /// </summary>
     public static class GrokTheme
     {
+        // 各预设依次定义常态、实底和悬停色。实底用于白字会话卡片和消息气泡。
+        private static readonly int[,] AccentColors =
+        {
+            { 0x8E64DC, 0x7946D7, 0x9D75EC },
+            { 0x5C9CFF, 0x285FAD, 0x78ADFF },
+            { 0x4AC5A1, 0x226D59, 0x6CD5B7 },
+            { 0xF27C8B, 0xA63F56, 0xFF99A7 },
+            { 0xEDAC5B, 0x885820, 0xF7C47C }
+        };
+
+        internal static Color GetAccentSwatch(int preset)
+        {
+            return Color.FromArgb(unchecked((int)0xff000000) | AccentColors[preset, 0]);
+        }
+
+        private static Color AccentShade(int shade)
+        {
+            return Color.FromArgb(unchecked((int)0xff000000) | AccentColors[AppSettings.AccentPreset, shade]);
+        }
+
+        private static Color DarkenAccent()
+        {
+            Color color = AccentDeep;
+            return Color.FromArgb(color.R * 9 / 10, color.G * 9 / 10, color.B * 9 / 10);
+        }
+
+        // 主题统一调整暗色层级，保留文本、反馈状态色和各层之间的明度差。
+        internal static Color Surface(int red, int green, int blue, int mode)
+        {
+            if (mode == 1) return Color.FromArgb(red + 11, green + 11, blue + 12);
+            if (mode == 2) return Color.FromArgb(red, green + 5, blue + 15);
+            return Color.FromArgb(red, green, blue);
+        }
+
+        internal static Color Surface(int red, int green, int blue)
+        {
+            return Surface(red, green, blue, AppSettings.ThemeMode);
+        }
+
+        /// <summary>当前强调色，用于高亮文字和交互状态。</summary>
+        public static Color Accent { get { return AccentShade(0); } }
+        /// <summary>当前强调色的悬停亮色。</summary>
+        public static Color AccentHot { get { return AccentShade(2); } }
+        /// <summary>当前强调色的深色实底，配合白字绘制。</summary>
+        public static Color AccentDeep { get { return AccentShade(1); } }
+
+        // 主界面按默认字号计算增量，保留各级标题与辅助文字的字号差。
+        internal static Font UiFont(float defaultSize, FontStyle style = FontStyle.Regular)
+        {
+            return Font(defaultSize + AppSettings.UiFontSize - 10.0f, style);
+        }
+
         /// <summary>
         /// 获取当前生效的 UI 界面字体家族名称（读取用户设置，默认回退为 Microsoft YaHei UI）
         /// </summary>
@@ -29,35 +81,35 @@ namespace LanChat
         // ==========================================
 
         /// <summary>Level 0 (5.5% 明度)：最底层哑光基板，用于左侧固定会话栏、设置侧边栏底色 (#0E0E0E)</summary>
-        public static readonly Color Level0 = Color.FromArgb(14, 14, 14);
+        public static Color Level0 { get { return Surface(14, 14, 14); } }
 
         /// <summary>Level 0.5 (7.1% 明度)：主视口底色，用于主聊天视口、设置主内容区底色 (#121212)</summary>
-        public static readonly Color Level05 = Color.FromArgb(18, 18, 18);
+        public static Color Level05 { get { return Surface(18, 18, 18); } }
 
         /// <summary>Level 1 (11.4% 明度)：卡片容器底色，用于大设置卡片容器、独立模态窗体底板 (#1C1C1F)</summary>
-        public static readonly Color Level1 = Color.FromArgb(28, 28, 31);
+        public static Color Level1 { get { return Surface(28, 28, 31); } }
 
         /// <summary>Level 2 (13.3% 明度)：浮动胶囊底色，用于底部主输入胶囊、弹窗搜索框底色 (#202024)</summary>
-        public static readonly Color Level2 = Color.FromArgb(32, 32, 36);
+        public static Color Level2 { get { return Surface(32, 32, 36); } }
 
         /// <summary>Level 3 (17.0% 明度)：高亮底色，用于次要按钮正常底色、侧边栏激活指示底块 (#28282C)</summary>
-        public static readonly Color Level3 = Color.FromArgb(40, 40, 44);
+        public static Color Level3 { get { return Surface(40, 40, 44); } }
 
         /// <summary>Level 3 Hot (19.5% 明度)：悬停反馈底色，用于菜单项悬停、按钮悬停提亮底块 (#2E2E34)</summary>
-        public static readonly Color Level3Hot = Color.FromArgb(46, 46, 52);
+        public static Color Level3Hot { get { return Surface(46, 46, 52); } }
 
         // ==========================================
         // 边框与微光分割线 (Borders & Separators)
         // ==========================================
 
         /// <summary>微光细外边框：用于所有模态窗体外沿、输入胶囊外框、卡片外描边 (#2C2C32，线宽 1.0px)</summary>
-        public static readonly Color Border = Color.FromArgb(44, 44, 50);
+        public static Color Border { get { return Surface(44, 44, 50); } }
 
         /// <summary>次级卡片内部分割线：用于卡片行间分割线 (#26262B，线宽 1.0px，左右缩进 20px)</summary>
-        public static readonly Color BorderInner = Color.FromArgb(38, 38, 43);
+        public static Color BorderInner { get { return Surface(38, 38, 43); } }
 
         /// <summary>浮动菜单分割线：用于右键弹出菜单的水平分隔线 (#2C2C34)</summary>
-        public static readonly Color Separator = Color.FromArgb(44, 44, 52);
+        public static Color Separator { get { return Surface(44, 44, 52); } }
 
         // ==========================================
         // 文本前景色阶与明度阶梯 (Text Foreground)
@@ -100,15 +152,6 @@ namespace LanChat
         // 品牌强调色与聊天状态 (Accent & Brand Colors)
         // ==========================================
 
-        /// <summary>Grok 魅紫高光色：用于发送圆钮与高亮状态 (#8E64DC)</summary>
-        public static readonly Color AccentPurple = Color.FromArgb(142, 100, 220);
-
-        /// <summary>Grok 魅紫悬停强化色 (#9D75EC)</summary>
-        public static readonly Color AccentPurpleHot = Color.FromArgb(157, 117, 236);
-
-        /// <summary>Grok 魅紫核心基准色：用于主品牌色、本人消息气泡与选中态 (#7946D7)</summary>
-        public static readonly Color AccentPurpleDeep = Color.FromArgb(121, 70, 215);
-
         /// <summary>智能天蓝色：用于更新提示文本、在线指示点 (#4D9BFF)</summary>
         public static readonly Color AccentBlue = Color.FromArgb(77, 155, 255);
 
@@ -122,16 +165,16 @@ namespace LanChat
         public static readonly Color AccentGreen = Color.FromArgb(31, 214, 126);
 
         /// <summary>会话列表选中态底色 (与本人发送气泡一致：#7946D7)</summary>
-        public static readonly Color SessionSelected = Color.FromArgb(121, 70, 215);
+        public static Color SessionSelected { get { return AccentDeep; } }
 
         /// <summary>会话列表项鼠标悬停底色 (#222226)</summary>
-        public static readonly Color SessionHover = Color.FromArgb(34, 34, 38);
+        public static Color SessionHover { get { return Surface(34, 34, 38); } }
 
         /// <summary>对方发送的消息气泡底色 (#1E1E21)</summary>
-        public static readonly Color PeerBubble = Color.FromArgb(30, 30, 33);
+        public static Color PeerBubble { get { return Surface(30, 30, 33); } }
 
         /// <summary>底部输入框左侧 (+) 附件圆钮底色 (#2A2A2E)</summary>
-        public static readonly Color InputPlus = Color.FromArgb(42, 42, 46);
+        public static Color InputPlus { get { return Surface(42, 42, 46); } }
 
         /// <summary>静止态暗灰图标线条色 (#A0A0A5)</summary>
         public static readonly Color IconMuted = Color.FromArgb(160, 160, 165);
@@ -144,18 +187,26 @@ namespace LanChat
         // ==========================================
 
         /// <summary>Primary 主按钮常态底色 (#7946D7)</summary>
-        public static readonly Color ButtonPrimaryNormal = Color.FromArgb(121, 70, 215);
+        public static Color ButtonPrimaryNormal { get { return AccentDeep; } }
         /// <summary>Primary 主按钮悬停底色 (#8E64DC)</summary>
-        public static readonly Color ButtonPrimaryHover = Color.FromArgb(142, 100, 220);
+        public static Color ButtonPrimaryHover
+        {
+            get
+            {
+                if (AppSettings.AccentPreset == 0) return Accent;
+                Color color = AccentDeep;
+                return Color.FromArgb(color.R + 8, color.G + 8, color.B + 8);
+            }
+        }
         /// <summary>Primary 主按钮按压底色</summary>
-        public static readonly Color ButtonPrimaryDown = Color.FromArgb(105, 55, 195);
+        public static Color ButtonPrimaryDown { get { return DarkenAccent(); } }
 
         /// <summary>Secondary 次按钮常态底色 (#28282C)</summary>
-        public static readonly Color ButtonSecondaryNormal = Color.FromArgb(40, 40, 44);
+        public static Color ButtonSecondaryNormal { get { return Surface(40, 40, 44); } }
         /// <summary>Secondary 次按钮悬停底色</summary>
-        public static readonly Color ButtonSecondaryHover = Color.FromArgb(52, 52, 58);
+        public static Color ButtonSecondaryHover { get { return Surface(52, 52, 58); } }
         /// <summary>Secondary 次按钮按压底色</summary>
-        public static readonly Color ButtonSecondaryDown = Color.FromArgb(32, 32, 36);
+        public static Color ButtonSecondaryDown { get { return Surface(32, 32, 36); } }
 
         /// <summary>Destructive 危险按钮常态底色 (#3C181C)</summary>
         public static readonly Color ButtonDestructiveNormal = Color.FromArgb(60, 24, 28);

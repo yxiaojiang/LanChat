@@ -112,7 +112,7 @@ namespace LanChat
             // 3. 文本框容器边框与占位提示 (圆角 10px)
             Rectangle boxRect = new Rectangle(22, 90, 476, 244);
             using (SolidBrush bb = new SolidBrush(GrokTheme.Level05))
-            using (Pen bp = new Pen((_txtFeedback != null && _txtFeedback.Focused) ? GrokTheme.AccentPurple : GrokTheme.Border, 1f))
+            using (Pen bp = new Pen((_txtFeedback != null && _txtFeedback.Focused) ? GrokTheme.Accent : GrokTheme.Border, 1f))
             {
                 GrokTheme.DrawRoundedRectangle(g, bb, boxRect, 10);
                 GrokTheme.DrawRoundedRectangle(g, bp, boxRect, 10);

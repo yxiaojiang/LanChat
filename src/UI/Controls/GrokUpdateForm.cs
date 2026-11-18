@@ -256,7 +256,7 @@ namespace LanChat
             {
                 GrokTheme.DrawRoundedRectangle(g, rb, rocketBox, 10);
             }
-            WeChatIcon.Draw(g, WeChatIconType.Bolt, new Rectangle(48, 74, 24, 24), false, GrokTheme.AccentPurpleHot);
+            WeChatIcon.Draw(g, WeChatIconType.Bolt, new Rectangle(48, 74, 24, 24), false, GrokTheme.AccentHot);
 
             using (Font vf = GrokTheme.FontPrimaryBold)
             using (Font sf = GrokTheme.FontFootnote)
@@ -292,7 +292,7 @@ namespace LanChat
                 }
                 int fillW = Math.Max(6, (int)(progBg.Width * (Math.Min(100, _downloadProgress) / 100f)));
                 Rectangle progFill = new Rectangle(24, 374, fillW, 6);
-                using (SolidBrush pfill = new SolidBrush(GrokTheme.AccentPurple))
+                using (SolidBrush pfill = new SolidBrush(GrokTheme.Accent))
                 {
                     GrokTheme.DrawRoundedRectangle(g, pfill, progFill, 3);
                 }

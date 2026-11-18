@@ -287,7 +287,7 @@ namespace LanChat
             // 右侧总未读徽标
             string badgeText = string.Format("{0} 条未读", totalUnread);
             using (Font badgeFont = new Font("Microsoft YaHei UI", 8.5f, FontStyle.Bold))
-            using (SolidBrush purpleBg = new SolidBrush(Color.FromArgb(142, 100, 220))) // #8E64DC
+            using (SolidBrush purpleBg = new SolidBrush(GrokTheme.AccentDeep))
             using (SolidBrush whiteText = new SolidBrush(Color.White))
             {
                 SizeF bSize = g.MeasureString(badgeText, badgeFont);
@@ -325,7 +325,7 @@ namespace LanChat
                 Rectangle avRect = new Rectangle(14, curY + (ROW_HEIGHT - avSize) / 2, avSize, avSize);
                 if (item.IsBroadcast)
                 {
-                    using (SolidBrush bBg = new SolidBrush(Color.FromArgb(142, 100, 220)))
+                    using (SolidBrush bBg = new SolidBrush(GrokTheme.AccentDeep))
                     {
                         g.FillEllipse(bBg, avRect);
                     }
@@ -349,7 +349,7 @@ namespace LanChat
                 using (Font nameFont = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold))
                 using (Font pillFont = new Font("Microsoft YaHei UI", 8.0f, FontStyle.Bold))
                 using (SolidBrush nameBrush = new SolidBrush(Color.FromArgb(240, 240, 244)))
-                using (SolidBrush pillBrush = new SolidBrush(Color.FromArgb(142, 100, 220)))
+                using (SolidBrush pillBrush = new SolidBrush(GrokTheme.AccentDeep))
                 {
                     g.DrawString(name, nameFont, nameBrush, new PointF(textX, curY + 9));
                     SizeF nSize = g.MeasureString(name, nameFont);

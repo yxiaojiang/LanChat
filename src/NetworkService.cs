@@ -71,8 +71,8 @@ namespace LanChat
         /// <summary>文件分块传输进度变化事件</summary>
         public event Action<FileTransferProgress> OnFileProgress;
 
-        /// <summary>文件接收顺利完成事件 (发送者昵称, 文件名, 本地完整路径, 字节大小)</summary>
-        public event Action<string, string, string, long> OnFileReceived;
+        /// <summary>文件接收并落盘完成事件，提供发送者、连接地址和本地文件信息。</summary>
+        public event Action<ChatMessage> OnFileReceived;
 
         /// <summary>网络引擎底层诊断日志回调</summary>
         public event Action<string> OnLogMessage;

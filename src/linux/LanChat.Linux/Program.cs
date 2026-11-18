@@ -99,10 +99,10 @@ namespace LanChat.Linux
                 PrintPrompt();
             };
 
-            _netService.OnFileReceived += (senderNick, fileName, localPath, size) =>
+            _netService.OnFileReceived += msg =>
             {
-                PrintColored(ConsoleColor.Green, string.Format("\n[{0}] 📎 收到文件: {1} ({2})", DateTime.Now.ToString("HH:mm:ss"), fileName, FormatSize(size)));
-                PrintColored(ConsoleColor.DarkGreen, string.Format("    来自: {0} | 保存路径: {1}", senderNick, localPath));
+                PrintColored(ConsoleColor.Green, string.Format("\n[{0}] 📎 收到文件: {1} ({2})", msg.Timestamp.ToString("HH:mm:ss"), msg.FileName, FormatSize(msg.FileSize)));
+                PrintColored(ConsoleColor.DarkGreen, string.Format("    来自: {0} | 保存路径: {1}", msg.SenderNick, msg.FilePath));
                 PrintPrompt();
             };
 
