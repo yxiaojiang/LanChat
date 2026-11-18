@@ -1,10 +1,8 @@
-计划审核怎么用
-代码审核继续走 CRDocs/。方向、顺序和验收口径走新的 PlanDocs/。讨论不另写一份设计基线；收口后只把短决定写进 PlanDocs/DECISIONS.md，并刷新 .claude/Plan.md。
+LanChat 方案审核从 PlanDocs/README.md 开始。STATUS.md 指定当前话题、轮次和接棒人。
 
-你不需要转发长文，只要按角色说一句：
+给提案方：读取 PlanDocs，把这件事写成提案并交接。
+给审核方：读取 PlanDocs，独立审核当前话题和轮次，写入 REVIEW.md 并更新 STATUS.md。
+收到审核意见后：读取 PlanDocs，按当前轮 REVIEW.md 逐条修订提案并交接。
+用户采纳时：我采纳这份方案，按 PlanDocs 规则记录决定并更新计划。
 
-对提案方：读取 PlanDocs，把这件事写成提案并交接。
-对审核方：读取 PlanDocs，独立审核这一轮提案。
-有审核意见之后：读取 PlanDocs，按 REVIEW.md 修正提案并交接。
-你确认可以收口：读取 PlanDocs，讨论已收敛，写入决定并更新计划。
-审核方只看 PROPOSAL.md，并且必须自己打开源码、测试和计划。同意也要写核对过哪个文件。只有「下一件会因此做错」才改顺序。最多 3 轮，第 3 轮必须收敛或标明卡住，没达成一致的点写成未决假设。今天这次讨论补记为 DIR-001，因为规则是在收口之后才建的。
+方向与验收走 PlanDocs，代码审核走 CRDocs。审核依据和验收环境写入 REVIEW.md。审核收敛后由用户决定是否采纳。

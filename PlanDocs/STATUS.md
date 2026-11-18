@@ -1,13 +1,10 @@
 # 当前计划讨论状态
 
 - **Topic ID**：无
-- **Topic**：无
 - **Round**：0
-- **Status**：**IDLE**
-- **Last decision**：`DIR-005`（2026-11-05），见 `DECISIONS.md`
+- **Status**：`IDLE`
 - **Current owner**：无
-- **Last updated at**：2026-11-05
+- **Last decision**：`LC-LINUX-001`（2026-11-18，`ADOPTED`）
+- **Last updated at**：2026-11-18
 
-## 下一步
-
-没有进行中的讨论。`DIR-005`（全客户端代码结构解耦与上帝类重构）已全部实施完成（第 1 步与第 2 步均已落地并通过编译验证，全工程已彻底治理大文件超限与上帝类紧耦合隐患）。等待用户下一步任务指示。
+最近收口的方案见 [采纳归档](LC-LINUX-001/STATUS.md) 和 [DECISIONS.md](DECISIONS.md)。Linux 重构执行顺序见 [当前计划](../.claude/Plan.md)。

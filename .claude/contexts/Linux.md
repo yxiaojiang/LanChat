@@ -1,36 +1,36 @@
 # Linux.md — Linux 客户端模块上下文
 
-## 模块定位与职责
-Linux 客户端支持在各种 Linux 发行版（Ubuntu、Debian、CentOS、统信UOS、银河麒麟、Arch、树莓派 OS、嵌入式 Linux）上运行。具备标准 deb 安装包、预编译自包含独立 ELF 二进制与纯 Python 单文件三种形态。**全面实现与 Windows 端高度一致的微信暗黑桌面 GUI，彻底解决“桌面点击图标只能启动黑框终端”的问题，且保持 0 外部重型依赖**。
+> 更新于 2026-11-18。发布基线 [v2.0.16](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.16)（a0e49c1）。重构方案 LC-LINUX-001 已采纳，实施进度以 [Plan.md](../Plan.md) 为准。
 
-## 源码与构建物清单 (规范目录)
-1. **Debian 标准安装包 (`.deb`)**：
-   - `release/LanChat.deb` / `release/lanchat_2.0.10_amd64.deb`：专为 x86_64 打造，内置自包含二进制与 Python WeChat GUI 双核，带 `.desktop` 快捷方式与最新 `assets/lanchat.svg` / `assets/app.png` 矢量图标。
-   - `release/lanchat_2.0.10_all.deb`：全架构通用包（纯 Python 标准库）。
-   - `packaging/build-deb.py`：纯 Python 构建 deb 包工具（v2.0 规格）。
-2. **纯标准库 GrokBot 暗黑原生 GUI (`src/linux/lanchat.py`)**：
-   - 基于 Python 3 标准库 `tkinter` 像素级自绘，全面对标 GrokBot 极简深邃暗黑系统（魅紫 `#8E64DC`、纯黑 `#121212` 纵深、深灰 `#1E1E21` 卡片），免除 PyQt/Electron 等数百 MB 臃肿依赖。
-   - **线程安全与防死锁**：网络工作线程与 Tkinter GUI 之间采用 `queue.Queue` 线程安全队列彻底解耦，由主线程定时事件泵调度，彻底根治 Linux/X11 平台下 Tcl/Tk 跨线程调用引发的死锁与界面卡死无响应。
-   - **杜绝字符缺失**：彻底剔除 Unicode 彩色 Emoji 依赖，使用专业字符与矢量绘制；内置自适应字体探测链（`WenQuanYi Micro Hei` / `Noto Sans CJK SC`），杜绝生硬粗糙点阵字。
-   - 包含 GitHub Releases 在线新版本检测与安全退出保障。
-   - **配置持久化体系**：配置保存于 `~/.config/lanchat/settings.json`（回退 `~/.local/share/lanchat/settings.json`，或同级便携模式），持久化记录昵称与自动接收偏好，更新版本不丢失。
-   - 自动检测运行环境：若处于图形桌面环境且 `tkinter` 可用，优先启动 GUI；若在 SSH/无头服务器或指定 `--cli`，平滑回退至命令行交互模式。
-3. **预编译自包含独立二进制（ELF）**：
-   - `release/linux-x64/lanchat`：针对 Intel / AMD 64位架构，单文件自带 Runtime（`--self-contained true`）。
-   - `release/linux-arm64/lanchat`：针对 aarch64 架构（树莓派 3/4/5、Jetson、RK3588、麒麟 ARM 服务器）。
-   - `src/linux/LanChat.Linux/`：自包含工程源码。
-4. **图标与桌面项规范**：
-   - `assets/lanchat.svg` / `assets/app.png`：Linux 专用矢量双气泡图标。
-   - `lanchat.desktop`：配置 `Terminal=false`，桌面双击图标直接启动无黑框图形桌面客户端。
-5. **智能启动器与日志保障机制 (`/usr/bin/lanchat`)**：
-   - **环境探测调度**：检测 `$DISPLAY` 或 `$WAYLAND_DISPLAY`。在桌面环境下优先运行 `python3 lanchat.py`；若系统缺少 `python3-tk`，自动唤起 `zenity` 或 `notify-send` 弹窗友好提示 `sudo apt install python3-tk`。
-   - **终端自适应**：仅在终端交互模式且缺失 TTY 时，才自适应拉起系统终端模拟器（GNOME Terminal/UKUI/Mate/Konsole/XFCE 等）。
-   - **全链路诊断日志**：启动器日志写入 `~/.local/share/lanchat/launcher.log` 及 `/tmp/lanchat_${USER}_launch.log`；Python 与 .NET 异常写入 `lanchat_python.log` 与 `lanchat_dotnet.log`。
+## 当前分发和入口
 
-## 常用终端指令映射 (CLI 降级模式)
-- `/list` 或 `/peers`：打印局域网在线主机表格。
-- `/chat <编号|IP|all>`：切换私聊目标（`0` 或 `all` 为群聊广播）。
-- `/send <文件路径>`：流式发送二进制文件。
-- `/add <IP>`：手动发起 TCP 握手添加指定 IP。
-- `/refresh`：触发网段扫描。
-- `/nick <新昵称>`：全网同步改名。
+| 形态 | 入口与实际内容 |
+| --- | --- |
+| amd64 Debian 包 | release/LanChat.deb（版本化文件为 lanchat_2.0.16_amd64.deb）；桌面启动 Python/Tk，另含 x64 ELF CLI |
+| all Debian 包 | release/lanchat_2.0.16_all.deb；包含 Python 入口和桌面资源 |
+| 自包含 CLI | release/linux-x64/lanchat、release/linux-arm64/lanchat；源码 src/linux/LanChat.Linux，链接 Models 和 NetworkService，目标 .NET 9 |
+| Python 源码 | src/linux/lanchat.py；目前同一文件管理 Tk GUI、CLI、网络、设置和更新 |
+
+- Debian 启动器由 packaging/build-deb.py 生成；桌面 .desktop 配置 Terminal=false。依赖为 python3，推荐 python3-tk。桌面优先启 GUI，缺 Tk 的提示与回退、SSH 无头和显式 --cli 待按实机矩阵验证。图标资源为 assets/lanchat.svg 与 assets/app.png。
+- 配置当前保存昵称与自动接收偏好，走便携同级文件或 ~/.config/lanchat/settings.json，目录不可用时回退 ~/.local/share/lanchat/settings.json。聊天历史当前在进程内。已安装接收目录根据可写性选择。日志入口为 ~/.local/share/lanchat/launcher.log 和 lanchat_python.log、lanchat_dotnet.log。
+- Python 基础发现、群聊、私聊和文件传输已有路径，网络事件经队列进入 Tk 主线程。现有桌面界面是三栏，多处使用原生 Tk 部件。可见差距集中在会话持久化、发送结果、节点身份、文件操作及 GrokBot 整体交互。
+
+## 已核查、待修复
+
+- Windows 宿主同机回环验证 Python 与 C# 文字和文件双向互通。群聊系统消息可触发重绘异常，离线发送清掉草稿，自动接收控件初值可能与配置不符。文件按昵称归档会串会话，发送未收到落盘 ACK 也可能误报成功。TCP 短读和两端文字学习覆盖监听端口都已纳入第一阶段。
+- Python UDP 使用公告地址的条件比 C# 宽。第一阶段按物理 IPv4 和掩码核对可信网络，保留无法确认的地址来源，供历史归档决策。
+- 两架构 ELF 最后入库提交为 da25ed5。已核对本地 v2.0.16 amd64 包携带仓库中的旧 x64 ELF。构建路径和打包入口待修；新旧 ELF、双机互通及 Linux 各发行版的桌面表现仍待实测。
+
+## 已采纳的改造约定
+
+- 第 1 阶段在现有入口修故障及候选包链，第 2 阶段按网络、会话、界面和入口职责拆分源码，标准库 zipapp 构建单个可执行 .pyz。安装和便携路径、已有配置及 --cli 需要迁移回归。按 Windows 的 LAN-<IPv4> 和历史 JSONL 语义做持久化。
+- 正式 UI 保持 Tk 轻量运行，构建期 GDI+ 生成符合规范的圆角和图标。原生文件选择器保留系统样式，应用内提示、菜单和接收者选择用暗色窗口内叠加层。先用 Linux 实测选择消息流和资源呈现方式，再做双栏、消息卡片和分类设置。规则和采纳详情见 [Rules.md](../Rules.md) 与 [决策归档](../../PlanDocs/LC-LINUX-001/STATUS.md)。
+
+## CLI 常用命令
+
+- /list 或 /peers 查看在线节点。
+- /chat <编号|IP|all> 切换私聊或群聊。
+- /send <文件路径> 发送文件。
+- /add <IP> 发起直连。
+- /refresh 刷新节点。
+- /nick <新昵称> 更新昵称。
