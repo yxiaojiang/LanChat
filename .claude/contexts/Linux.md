@@ -1,36 +1,23 @@
 # Linux.md — Linux 客户端模块上下文
 
-> 更新于 2026-11-18。发布基线 [v2.0.16](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.16)（a0e49c1）。重构方案 LC-LINUX-001 已采纳，实施进度以 [Plan.md](../Plan.md) 为准。
+> 2026-11-20 · 公开版 v2.0.16（a0e49c1）。LC-LINUX-002 已采纳，Electron 实施尚未开始。旧版状态与证据见 [LC-LINUX-001](../../PlanDocs/LC-LINUX-001/STATUS.md)。
 
-## 当前分发和入口
+## 当前源码和升级样本
 
-| 形态 | 入口与实际内容 |
+| 用途 | 入口 |
 | --- | --- |
-| amd64 Debian 包 | release/LanChat.deb（版本化文件为 lanchat_2.0.16_amd64.deb）；桌面启动 Python/Tk，另含 x64 ELF CLI |
-| all Debian 包 | release/lanchat_2.0.16_all.deb；包含 Python 入口和桌面资源 |
-| 自包含 CLI | release/linux-x64/lanchat、release/linux-arm64/lanchat；源码 src/linux/LanChat.Linux，链接 Models 和 NetworkService，目标 .NET 9 |
-| Python 源码 | src/linux/lanchat.py；目前同一文件管理 Tk GUI、CLI、网络、设置和更新 |
+| 自包含 ELF 和独立 CLI | [LanChat.Linux 项目](../../src/linux/LanChat.Linux/LanChat.Linux.csproj)，当前 net9.0，源码链接共享 NetworkService 和 Models |
+| 旧 Python 桌面与 CLI | `src/linux/lanchat.py`、`src/linux/lanchat_app/`。旧公开包直接运行脚本，旧候选经 zipapp |
+| 旧 Linux 打包 | [打包入口](../../packaging/build-deb.py)，公开及候选 deb 包含 `amd64` 与 `all`，其中 `all` 没有 ELF |
+| 已核验样本 | `release/`、`bin/lanchat-step2/`、`bin/lanchat-handoff/`。公开版和候选版都是 v2.0.16，按载荷与 SHA-256 区分 |
+| 回归证据 | [旧方案实施验证](../../PlanDocs/LC-LINUX-001/VALIDATION.md)，含 Windows 宿主回环、JSONL 互读、Ubuntu 两架构 QEMU 和 SSH 结果 |
 
-- Debian 启动器由 packaging/build-deb.py 生成；桌面 .desktop 配置 Terminal=false。依赖为 python3，推荐 python3-tk。桌面优先启 GUI，缺 Tk 的提示与回退、SSH 无头和显式 --cli 待按实机矩阵验证。图标资源为 assets/lanchat.svg 与 assets/app.png。
-- 配置当前保存昵称与自动接收偏好，走便携同级文件或 ~/.config/lanchat/settings.json，目录不可用时回退 ~/.local/share/lanchat/settings.json。聊天历史当前在进程内。已安装接收目录根据可写性选择。日志入口为 ~/.local/share/lanchat/launcher.log 和 lanchat_python.log、lanchat_dotnet.log。
-- Python 基础发现、群聊、私聊和文件传输已有路径，网络事件经队列进入 Tk 主线程。现有桌面界面是三栏，多处使用原生 Tk 部件。可见差距集中在会话持久化、发送结果、节点身份、文件操作及 GrokBot 整体交互。
+## 已采纳的实施边界
 
-## 已核查、待修复
+- Electron 负责本地界面及系统集成。通信、会话和持久化由同架构自包含 C# ELF 执行，保留共享 C# 网络核心和独立 CLI。主进程经继承的 stdin/stdout 传递 UTF-8 请求和事件。Electron 实现和 Linux 桌面服务模式等待第 1 步。
+- 新版 deb 只提供 `amd64` 与 `arm64`。新版应用及 CLI 无需 Python 运行时，便携根与二进制子目录独立。旧包供升级、回退和互通验证。
+- 设置优先旧程序同级已有文件。便携同级可创建时先创建，其余情况只要能创建或确认 `~/.config/lanchat` 就使用其中的 `settings.json`。仅此目录创建失败才读 `~/.local/share/lanchat/settings.json`，两份同时存在按固定顺序选择。备份后写入，旧位置只读时由用户确认可写位置。升级和回退沿用原历史、接收目录和附件路径。
+- UI 以当前 Windows 客户区及 GrokBot 为基准。托盘或通知不可用时仍能恢复窗口。原生 Wayland 自绘窗框不能完成拖动、缩放等规定操作时使用系统边框。Xorg 和 Wayland 后端分别取证。
+- 首包可用一个架构的 Linux 实机或虚拟机集成。正式候选要求物理 x86_64 和物理 ARM64 都完成升级、回退及与公开版 Windows 物理机的局域网互通，同时通过支持矩阵。虚拟机证据单列。
 
-- Windows 宿主同机回环验证 Python 与 C# 文字和文件双向互通。群聊系统消息可触发重绘异常，离线发送清掉草稿，自动接收控件初值可能与配置不符。文件按昵称归档会串会话，发送未收到落盘 ACK 也可能误报成功。TCP 短读和两端文字学习覆盖监听端口都已纳入第一阶段。
-- Python UDP 使用公告地址的条件比 C# 宽。第一阶段按物理 IPv4 和掩码核对可信网络，保留无法确认的地址来源，供历史归档决策。
-- 两架构 ELF 最后入库提交为 da25ed5。已核对本地 v2.0.16 amd64 包携带仓库中的旧 x64 ELF。构建路径和打包入口待修；新旧 ELF、双机互通及 Linux 各发行版的桌面表现仍待实测。
-
-## 已采纳的改造约定
-
-- 第 1 阶段在现有入口修故障及候选包链，第 2 阶段按网络、会话、界面和入口职责拆分源码，标准库 zipapp 构建单个可执行 .pyz。安装和便携路径、已有配置及 --cli 需要迁移回归。按 Windows 的 LAN-<IPv4> 和历史 JSONL 语义做持久化。
-- 正式 UI 保持 Tk 轻量运行，构建期 GDI+ 生成符合规范的圆角和图标。原生文件选择器保留系统样式，应用内提示、菜单和接收者选择用暗色窗口内叠加层。先用 Linux 实测选择消息流和资源呈现方式，再做双栏、消息卡片和分类设置。规则和采纳详情见 [Rules.md](../Rules.md) 与 [决策归档](../../PlanDocs/LC-LINUX-001/STATUS.md)。
-
-## CLI 常用命令
-
-- /list 或 /peers 查看在线节点。
-- /chat <编号|IP|all> 切换私聊或群聊。
-- /send <文件路径> 发送文件。
-- /add <IP> 发起直连。
-- /refresh 刷新节点。
-- /nick <新昵称> 更新昵称。
+[当前执行计划](../Plan.md) · [采纳定稿](../../PlanDocs/LC-LINUX-002/FINAL.md) · [共享协议](Protocol.md) · [Windows 基线](Windows.md)

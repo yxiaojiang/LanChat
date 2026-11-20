@@ -1,10 +1,10 @@
 # 当前计划讨论状态
 
-- **Topic ID**：无
-- **Round**：0
-- **Status**：`IDLE`
-- **Current owner**：无
-- **Last decision**：`LC-LINUX-001`（2026-11-18，`ADOPTED`）
-- **Last updated at**：2026-11-18
+- **Topic ID**　无
+- **Round**　0
+- **Status**　`IDLE`
+- **Current owner**　无
+- **Last decision**　`LC-LINUX-002`（2026-11-20，`ADOPTED`）
+- **Last updated at**　2026-11-20
 
-最近收口的方案见 [采纳归档](LC-LINUX-001/STATUS.md) 和 [DECISIONS.md](DECISIONS.md)。Linux 重构执行顺序见 [当前计划](../.claude/Plan.md)。
+本轮评审已归档。实施从 [当前计划](../.claude/Plan.md) 第 0 步开始。 [采纳定稿](LC-LINUX-002/FINAL.md) · [收口状态](LC-LINUX-002/STATUS.md) · [决定记录](DECISIONS.md)

@@ -185,11 +185,19 @@
 
 - 在 `main` 实现 IPv4 私聊历史归并、旧记录读取兼容、离线昵称恢复与实际发送者文件归档。上线通知随本地群聊保存。
 - 外观页提供三种暗色主题、五种强调色和独立的主界面与聊天字体配置。原生 Windows 与 Linux 源码构建通过，旧历史、LANC 回环收发和模态设置交互已在隔离环境验证。
-- 相关历史与外观改动进入 [v2.0.16 公开发布](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.16)，发布提交为 `a0e49c1`。Windows 真实环境回归保留在当前计划后段。
+- 相关历史与外观改动进入 [v2.0.16 公开发布](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.16)，发布提交为 `a0e49c1`。Windows 独立实机回归见下方移出活跃计划的事项。
 
 ---
 
 ## 归档事项：Linux 桌面审计与重构方案评审（2026-11-18）
 
 - 完成 24 项 Windows／Linux 桌面功能对照及同机回环、Tk 逻辑验证。Claude 第 2 轮审核收敛，用户确认采纳 Linux 绘制、文件选择器及弹层、Python 模块与单文件分发三项决定。
-- 两轮提案和审核已归档到 [LC-LINUX-001](../PlanDocs/LC-LINUX-001/STATUS.md)。实施及实机验收转入 [当前优先计划](Plan.md)。
+- 两轮提案和审核已归档到 [LC-LINUX-001](../PlanDocs/LC-LINUX-001/STATUS.md)。
+
+## 移出活跃计划的事项（2026-11-20）
+
+- **LC-LINUX-001**。步骤 1、2 完成候选构建及 Windows／Ubuntu 虚拟机验证，步骤 3a 完成 Tk 原型与 Windows 宿主基准。Tk 实机选型与 3b 界面改造由 LC-LINUX-002 接替。原步骤 1.6 和 2.5 的网络、数据和升级实机用例转为新版回归输入。旧版结论、源码差异及样本依据 [实施证据](../PlanDocs/LC-LINUX-001/VALIDATION.md) 保留。
+- **Windows 独立实机回归**。旧历史和双机换实例的归并、离线续聊、文件归档、窄窗与分数缩放、拖顶贴靠、跨屏最大化、任务栏自动隐藏。待 Linux 收口后再排期。
+- **互联网方向**。历史方案和工作树按 `codex/non-lan-network` 保留。
+
+唯一活跃事项见 [LC-LINUX-002 执行计划](Plan.md)。

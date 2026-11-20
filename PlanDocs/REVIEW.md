@@ -1,3 +1,3 @@
 # 审核
 
-上一题 `LC-LINUX-001` 已采纳。请查看 [第 1 轮审核](LC-LINUX-001/REVIEW-R1.md) 和 [第 2 轮审核](LC-LINUX-001/REVIEW-R2.md)。新话题见 [STATUS.md](STATUS.md)。
+LC-LINUX-002 第 2 轮审核已收敛并由用户采纳。 [Grok 审核归档](LC-LINUX-002/REVIEW-R2.md) · [采纳定稿](LC-LINUX-002/FINAL.md) · [当前状态](STATUS.md)

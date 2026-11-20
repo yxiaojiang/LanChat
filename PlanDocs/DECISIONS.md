@@ -163,3 +163,21 @@ OCCT 8.0 在清空环境变量后无隐式资源文件依赖，第 2 步沙盒�
 **未决验证**　双机混用旧版、非默认端口双向验证、两架构运行时和候选包、安装与便携历史、Xorg／Wayland、中文输入、缩放及长历史性能。
 
 **定稿与执行**　[第 2 轮提案](LC-LINUX-001/PROPOSAL-R2.md) · [审核补充](LC-LINUX-001/REVIEW-R2.md) · [采纳状态](LC-LINUX-001/STATUS.md) · [执行计划](../.claude/Plan.md)
+
+---
+
+## LC-LINUX-002（2026-11-20）Linux Electron 桌面重构
+
+**状态**　`ADOPTED`。Grok 第 2 轮审核收敛，用户采纳提案及启动补充。LC-LINUX-002 为唯一活跃事项，接替 LC-LINUX-001 的 Tk 选型、正式桌面和 Python 运行时交付。
+
+**决定**　新版采用 Linux Electron 桌面与现有共享 C# 核心的自包含 ELF，复用 LANC，保留独立 ELF CLI。桌面按现有 Windows 的应用内样式和已接通功能逐项验收。Linux 新版 deb 只发布 `amd64` 与 `arm64`，各带同架构 Electron 和 ELF，既有 Python 包用于升级、回退和互通。
+
+- 设置沿旧程序固定顺序。先用同级已有文件，便携同级可创建时优先创建。否则只要能创建或确认 `~/.config/lanchat`，就用该目录的文件，即便 `~/.local/share/lanchat/settings.json` 同时存在。只有创建配置目录失败才使用后者。
+- 升级和回退演练保留历史目录与已接收文件的位置。用户主动更改历史位置按 Windows 基线单独验收。原生 Wayland 的自绘窗框无法完成规定窗口操作时直接切换系统边框。
+- 首包可在一个架构的实机或虚拟机上集成。正式候选要求物理 x86_64 和物理 ARM64 分别完成升级、回退，各自与物理 Windows `v2.0.16` 在真实局域网互通。任一承诺的实机格和核心回归缺通过证据，候选未通过。
+
+**顺序**　0 固定基线与契约 → 1 打通 Electron 首包 → 2 接通会话、文件、升级和回退 → 3 对齐 Windows 界面与 Linux 桌面操作 → 4 双架构实机验收及代码审核。Windows Electron 在 Linux 验收后另行评估。
+
+**待验证**　同名包跨架构升级和回退、真实 Wayland 恢复行为及中文输入、并发同名收件、两架构物理设备与承诺的网络兼容矩阵。
+
+**定稿与执行**　[采纳定稿](LC-LINUX-002/FINAL.md) · [第 2 轮审核](LC-LINUX-002/REVIEW-R2.md) · [采纳状态](LC-LINUX-002/STATUS.md) · [执行计划](../.claude/Plan.md)

@@ -1,3 +1,3 @@
 # 提案
 
-上一题 `LC-LINUX-001` 已采纳。请查看 [采纳归档](LC-LINUX-001/STATUS.md) 和 [第 2 轮提案](LC-LINUX-001/PROPOSAL-R2.md)。新话题见 [STATUS.md](STATUS.md)。
+LC-LINUX-002 已采纳，本入口等待新话题。 [采纳定稿](LC-LINUX-002/FINAL.md) · [第 2 轮提案归档](LC-LINUX-002/PROPOSAL-R2.md) · [当前状态](STATUS.md)

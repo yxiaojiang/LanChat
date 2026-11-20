@@ -10,8 +10,8 @@
 - **跨平台对齐**：
   - **Windows 端**：C# WinForms，利用系统内置 .NET Framework 4.8 编译器（`csc.exe`）构建为单文件纯绿色可执行程序（~55 KB），免装任何环境，支持高 DPI 自适应与文件拖拽。
   - **Linux 端**：
-    1. C# 终端交互应用（`LanChat.Linux`），提供预编译好的 ELF 二进制（`release/linux-x64/lanchat` 和 `release/linux-arm64/lanchat`）。
-    2. Python 3 单文件版（`lanchat.py`），纯标准库编写，全架构通用（x86/ARM/MIPS/RISC-V/树莓派）。
+    1. 已采纳 Electron 桌面与自包含 C# ELF 的架构。Electron 负责界面和桌面集成，同架构 ELF 负责局域网、会话和持久化，并提供独立 CLI。新版只交付 x86_64 与 ARM64，无需 Python 运行时。实施进度见 [Linux 上下文](contexts/Linux.md)。
+    2. 已发布的 Python 3 桌面和 CLI 以及 LC-LINUX-001 候选保留为升级、回退与互通验证来源。
   - **核心逻辑复用**：`NetworkService.cs` 和 `Models.cs` 100% 平台无关，Windows 与 Linux C# 客户端直接源码级链接复用，杜绝协议分歧。
 
 ---
