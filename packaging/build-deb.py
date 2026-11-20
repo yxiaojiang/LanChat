@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Build Debian packages (.deb) for LanChat
-Produces:
-  - lanchat_1.0.0_amd64.deb (Self-contained x86_64 ELF + Python fallback)
-  - lanchat_1.0.0_all.deb   (Universal all-architecture zero-dependency edition)
-"""
+"""打包 LanChat 的 amd64、all Debian 包和便携 Python zipapp。"""
 
 import os
 import io
 import tarfile
 import time
 import shutil
+import argparse
+from pathlib import Path
+import tempfile
+import zipapp
+
+from build_linux import RID_MACHINES, check_elf
 
 VERSION = "2.0.16"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -108,18 +109,46 @@ def create_deb(deb_path: str, control_fields: dict, files: list):
             if len(content) % 2 != 0:
                 f.write(b"\n")
 
-    print(f"[SUCCESS] Generated: {deb_path} ({len(data_gz) + len(ctrl_gz) + len(debian_binary)} bytes)")
+def build_zipapp(zip_path):
+    """生成便携 Python 归档，成功后原子替换目标文件。"""
+    zip_path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".lanchat-zipapp-", dir=zip_path.parent) as tmp:
+        source = Path(tmp) / "source"
+        package = source / "lanchat_app"
+        shutil.copytree(Path(ROOT_DIR) / "src/linux/lanchat_app", package,
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        shutil.copyfile(Path(ROOT_DIR) / "assets/app.png", package / "app.png")
+        (source / "__main__.py").write_text(
+            "from lanchat_app.app import main\nraise SystemExit(main())\n", encoding="utf-8"
+        )
+        prepared = Path(tmp) / zip_path.name
+        zipapp.create_archive(source, prepared, interpreter="/usr/bin/env python3", compressed=True)
+        prepared.replace(zip_path)
 
-def build_packages():
-    print("=" * 60)
-    print("        Building LanChat Linux Debian Packages (.deb)")
-    print("=" * 60)
 
-    # Read lanchat.py
-    py_path = os.path.join(ROOT_DIR, "src", "linux", "lanchat.py")
-    with open(py_path, "rb") as f:
-        py_bytes = f.read()
+def build_packages(elf_dir, output_dir):
+    """使用显式传入的本轮 ELF 目录生成 amd64 与 all 包，缺失或架构错误时失败。"""
+    # 在写包之前校验两个架构，避免缺失时留下同名候选包。
+    for rid in RID_MACHINES:
+        path = elf_dir / rid / "lanchat"
+        data = path.read_bytes()
+        check_elf(data, rid)
+        if rid == "linux-x64":
+            x64_bytes = data
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".lanchat-deb-", dir=output_dir) as tmp:
+        stage = Path(tmp)
+        zip_path = stage / "lanchat.pyz"
+        build_zipapp(zip_path)
+        _assemble_debs(stage, zip_path.read_bytes(), x64_bytes)
+        generated = sorted(stage.iterdir())
+        for artifact in generated:
+            artifact.replace(output_dir / artifact.name)
+    for artifact in generated:
+        print(f"[SUCCESS] {output_dir / artifact.name}")
 
+
+def _assemble_debs(output_dir, py_bytes, x64_bytes):
     desktop_entry = b"""[Desktop Entry]
 Version=1.0
 Type=Application
@@ -151,147 +180,35 @@ Keywords=chat;lan;file;transfer;
         with open(png_path, "rb") as f:
             png_bytes = f.read()
 
-    launcher_script = """#!/bin/bash
-# LanChat Linux Launcher with Diagnostics Logging & Anti-Crash Guard
-# Priority: Python 3 WeChat Desktop GUI -> Fallback to Terminal CLI / Native ELF
-
-DIR="/usr/lib/lanchat"
+    launcher_script = r"""#!/bin/sh
+# 桌面、有终端及无头模式由 Python 入口统一判定。
+DIR=/usr/lib/lanchat
 LOG_DIR="$HOME/.local/share/lanchat"
-mkdir -p "$LOG_DIR" 2>/dev/null
-USER_LOG="$LOG_DIR/launcher.log"
-TMP_LOG="/tmp/lanchat_${USER:-default}_launch.log"
-
-log() {
-    local MSG="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
-    echo "$MSG" >> "$USER_LOG" 2>/dev/null
-    echo "$MSG" >> "$TMP_LOG" 2>/dev/null
-}
-
-log "========================================================"
-log "LanChat 启动器已调用 (PID: $$, USER: ${USER:-unknown})"
-log "OS: $(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d= -f2 | tr -d '\"' || uname -s)"
-log "Kernel: $(uname -r) | Arch: $(uname -m)"
-log "Python3: $(python3 --version 2>/dev/null || echo 'not found')"
-log "DISPLAY: $DISPLAY | WAYLAND_DISPLAY: $WAYLAND_DISPLAY"
-log "ARGS: $*"
-log "========================================================"
-
-HAS_GUI_ENV=0
-if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
-    HAS_GUI_ENV=1
+if mkdir -p "$LOG_DIR" 2>/dev/null; then
+    printf '%s LanChat 启动 DISPLAY=%s WAYLAND_DISPLAY=%s\n' \
+        "$(date '+%Y-%m-%d %H:%M:%S')" "$DISPLAY" "$WAYLAND_DISPLAY" >>"$LOG_DIR/launcher.log"
 fi
-
-FORCE_CLI=0
-for arg in "$@"; do
-    if [ "$arg" = "--cli" ] || [ "$arg" = "-c" ]; then
-        FORCE_CLI=1
-        break
-    fi
-done
-
-# 1. 桌面图形环境首选：优先直接拉起微信暗黑 GUI (无黑框、全功能)
-if [ $HAS_GUI_ENV -eq 1 ] && [ $FORCE_CLI -eq 0 ]; then
-    log "[INFO] 检测到图形桌面环境，优先以微信暗黑风格 GUI 启动..."
-    if command -v python3 >/dev/null 2>&1; then
-        if python3 -c "import tkinter" >/dev/null 2>&1; then
-            log "[INFO] 正在启动 Python WeChat GUI: $DIR/lanchat.py"
-            python3 "$DIR/lanchat.py" "$@"
-            EXIT_CODE=$?
-            log "[INFO] Python WeChat GUI 退出码: $EXIT_CODE"
-            exit $EXIT_CODE
-        else
-            log "[WARN] 检测到未安装 python3-tk，图形界面无法初始化"
-            MSG="LanChat 启动微信暗黑图形界面需要 python3-tk 组件。\n请在终端运行以下命令安装：\n\nsudo apt install python3-tk"
-            if command -v zenity >/dev/null 2>&1; then
-                zenity --warning --title="LanChat 提示" --text="$MSG" --width=350 2>/dev/null &
-            elif command -v notify-send >/dev/null 2>&1; then
-                notify-send "LanChat 提示" "缺少 python3-tk 组件，请执行 sudo apt install python3-tk" 2>/dev/null
-            fi
-        fi
-    fi
-fi
-
-# 2. 终端环境自适应检测 (若在无 TTY 环境下需要运行 CLI，则主动拉起终端窗口)
-if [ ! -t 0 ] || [ ! -t 1 ]; then
-    log "[INFO] 终端命令行模式：检测到无交互终端环境，尝试唤起系统可用终端窗口..."
-    for TERM_CMD in x-terminal-emulator gnome-terminal mate-terminal ukui-terminal deepin-terminal konsole xfce4-terminal terminator tilix lxterminal alacritty kitty xterm; do
-        if command -v "$TERM_CMD" >/dev/null 2>&1; then
-            log "[INFO] 找到可用终端模拟器: $TERM_CMD，正在拉起交互窗口..."
-            case "$TERM_CMD" in
-                gnome-terminal)
-                    exec gnome-terminal -- /usr/bin/lanchat --cli "$@"
-                    ;;
-                mate-terminal|ukui-terminal|xfce4-terminal|lxterminal)
-                    exec "$TERM_CMD" -e "/usr/bin/lanchat --cli $*"
-                    ;;
-                konsole)
-                    exec konsole -e /usr/bin/lanchat --cli "$@"
-                    ;;
-                *)
-                    exec "$TERM_CMD" -e /usr/bin/lanchat --cli "$@"
-                    ;;
-            esac
-        fi
-    done
-    log "[WARN] 未找到可用终端模拟器，将以无交互后台模式继续执行"
-fi
-
-EXIT_CODE=0
-
-# 3. 命令行模式下优先使用 Python 3 通用版
 if command -v python3 >/dev/null 2>&1; then
-    log "[INFO] 正在使用 Python 3 启动: $DIR/lanchat.py"
-    python3 "$DIR/lanchat.py" "$@"
-    EXIT_CODE=$?
-    log "[INFO] Python 3 退出码: $EXIT_CODE"
-elif [ -x "$DIR/lanchat-bin" ]; then
-    log "[INFO] Python 3 不可用，尝试启动 Linux 原生自包含 ELF 二进制: $DIR/lanchat-bin"
-    "$DIR/lanchat-bin" "$@"
-    EXIT_CODE=$?
-    log "[INFO] 原生二进制执行退出码: $EXIT_CODE"
-else
-    log "[FATAL] 系统既无法运行 Python 3，也未找到原生可执行文件"
-    echo "[Error] 无法启动 LanChat：未找到兼容的执行环境 (缺少 Python 3)。" >&2
-    EXIT_CODE=1
+    exec python3 "$DIR/lanchat.pyz" "$@"
 fi
-
-# 4. 防闪退兜底机制：若退出异常且处于交互终端中，阻止窗口秒退并提示查看日志
-if [ $EXIT_CODE -ne 0 ] && [ $EXIT_CODE -ne 130 ]; then
-    log "[ERROR] LanChat 异常退出，退出码: $EXIT_CODE"
-    echo ""
-    echo "=========================================================================="
-    echo " [LanChat 启动或运行异常 / Launch Error] (退出码: $EXIT_CODE)"
-    echo " 程序发生异常退出，详细诊断日志已写入以下位置："
-    echo "   1. $USER_LOG"
-    echo "   2. $TMP_LOG"
-    echo "   3. $LOG_DIR/lanchat_python.log"
-    echo "=========================================================================="
-    if [ -t 0 ]; then
-        read -p "按 [回车键] 关闭此窗口..." _dummy
-    fi
+if [ -x "$DIR/lanchat-bin" ]; then
+    exec "$DIR/lanchat-bin" "$@"
 fi
+printf '%s\n' '无法启动 LanChat：未找到 Python 3。' >&2
+exit 1
+""".encode("utf-8")
 
-exit $EXIT_CODE
-""".encode('utf-8')
-
-    # 1. Build lanchat_2.0.0_amd64.deb
-    x64_bin_path = os.path.join(RELEASE_DIR, "linux-x64", "lanchat")
     files_amd64 = [
         ("./usr/bin/lanchat", launcher_script, 0o755),
-        ("./usr/lib/lanchat/lanchat.py", py_bytes, 0o755),
+        ("./usr/lib/lanchat/lanchat.pyz", py_bytes, 0o755),
         ("./usr/share/applications/lanchat.desktop", desktop_entry, 0o644),
         ("./usr/share/icons/hicolor/scalable/apps/lanchat.svg", svg_icon, 0o644),
     ]
     if png_bytes:
         files_amd64.append(("./usr/share/icons/hicolor/256x256/apps/lanchat.png", png_bytes, 0o644))
 
-    if os.path.exists(x64_bin_path):
-        with open(x64_bin_path, "rb") as f:
-            x64_bytes = f.read()
-        files_amd64.append(("./usr/lib/lanchat/lanchat-bin", x64_bytes, 0o755))
-        installed_size = (len(x64_bytes) + len(py_bytes)) // 1024
-    else:
-        installed_size = len(py_bytes) // 1024
+    files_amd64.append(("./usr/lib/lanchat/lanchat-bin", x64_bytes, 0o755))
+    installed_size = (len(x64_bytes) + len(py_bytes)) // 1024
 
     ctrl_amd64 = {
         "Package": "lanchat",
@@ -306,112 +223,16 @@ exit $EXIT_CODE
         "Description": "LanChat - Lightweight LAN Chat and High-Speed File Transfer\n LanChat is a zero-dependency instant messenger and streaming file transfer\n tool for local area networks with WeChat dark GUI.",
     }
 
-    deb_amd64_path = os.path.join(RELEASE_DIR, f"lanchat_{VERSION}_amd64.deb")
+    deb_amd64_path = os.path.join(output_dir, f"lanchat_{VERSION}_amd64.deb")
     create_deb(deb_amd64_path, ctrl_amd64, files_amd64)
 
     # Copy also as LanChat.deb for convenience
-    shutil.copy2(deb_amd64_path, os.path.join(RELEASE_DIR, "LanChat.deb"))
+    shutil.copy2(deb_amd64_path, os.path.join(output_dir, "LanChat.deb"))
 
-    # 2. Build lanchat_2.0.0_all.deb (Universal Python-based deb, zero dependencies, works on ARM64, Raspberry Pi, Loongson, FT, etc.)
-    launcher_all = """#!/bin/bash
-# LanChat Universal Python Launcher with Diagnostics & Anti-Crash Guard
-DIR="/usr/lib/lanchat"
-LOG_DIR="$HOME/.local/share/lanchat"
-mkdir -p "$LOG_DIR" 2>/dev/null
-USER_LOG="$LOG_DIR/launcher.log"
-TMP_LOG="/tmp/lanchat_${USER:-default}_launch.log"
-
-log() {
-    local MSG="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
-    echo "$MSG" >> "$USER_LOG" 2>/dev/null
-    echo "$MSG" >> "$TMP_LOG" 2>/dev/null
-}
-
-log "========================================================"
-log "LanChat Universal 启动器已调用 (PID: $$, USER: ${USER:-unknown})"
-log "OS: $(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d= -f2 | tr -d '\"' || uname -s)"
-log "DISPLAY: $DISPLAY | WAYLAND_DISPLAY: $WAYLAND_DISPLAY"
-log "ARGS: $*"
-log "========================================================"
-
-HAS_GUI_ENV=0
-if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
-    HAS_GUI_ENV=1
-fi
-
-FORCE_CLI=0
-for arg in "$@"; do
-    if [ "$arg" = "--cli" ] || [ "$arg" = "-c" ]; then
-        FORCE_CLI=1
-        break
-    fi
-done
-
-# 图形桌面环境首选直接启动 WeChat GUI
-if [ $HAS_GUI_ENV -eq 1 ] && [ $FORCE_CLI -eq 0 ]; then
-    log "[INFO] 检测到图形桌面环境，优先以微信暗黑风格 GUI 启动..."
-    if command -v python3 >/dev/null 2>&1; then
-        if python3 -c "import tkinter" >/dev/null 2>&1; then
-            log "[INFO] 启动 GUI: $DIR/lanchat.py"
-            python3 "$DIR/lanchat.py" "$@"
-            EXIT_CODE=$?
-            log "[INFO] GUI 退出码: $EXIT_CODE"
-            exit $EXIT_CODE
-        else
-            log "[WARN] 缺少 python3-tk，图形界面无法初始化"
-            MSG="LanChat 启动微信暗黑图形界面需要 python3-tk 组件。\n请在终端运行以下命令安装：\n\nsudo apt install python3-tk"
-            if command -v zenity >/dev/null 2>&1; then
-                zenity --warning --title="LanChat 提示" --text="$MSG" --width=350 2>/dev/null &
-            elif command -v notify-send >/dev/null 2>&1; then
-                notify-send "LanChat 提示" "缺少 python3-tk 组件，请执行 sudo apt install python3-tk" 2>/dev/null
-            fi
-        fi
-    fi
-fi
-
-# 终端自适应
-if [ ! -t 0 ] || [ ! -t 1 ]; then
-    log "[INFO] 终端模式：检测到无交互 TTY，尝试唤起系统终端..."
-    for TERM_CMD in x-terminal-emulator gnome-terminal mate-terminal ukui-terminal deepin-terminal konsole xfce4-terminal terminator lxterminal xterm; do
-        if command -v "$TERM_CMD" >/dev/null 2>&1; then
-            case "$TERM_CMD" in
-                gnome-terminal) exec gnome-terminal -- /usr/bin/lanchat --cli "$@" ;;
-                mate-terminal|ukui-terminal|xfce4-terminal|lxterminal) exec "$TERM_CMD" -e "/usr/bin/lanchat --cli $*" ;;
-                konsole) exec konsole -e /usr/bin/lanchat --cli "$@" ;;
-                *) exec "$TERM_CMD" -e "/usr/bin/lanchat --cli $*" ;;
-            esac
-        fi
-    done
-fi
-
-EXIT_CODE=0
-if command -v python3 >/dev/null 2>&1; then
-    python3 "$DIR/lanchat.py" "$@"
-    EXIT_CODE=$?
-elif command -v python >/dev/null 2>&1; then
-    python "$DIR/lanchat.py" "$@"
-    EXIT_CODE=$?
-else
-    echo "[Error] 未检测到 Python 3 解释器" >&2
-    EXIT_CODE=1
-fi
-
-if [ $EXIT_CODE -ne 0 ] && [ $EXIT_CODE -ne 130 ]; then
-    echo ""
-    echo "=========================================================================="
-    echo " [LanChat 运行异常 / Error] (退出码: $EXIT_CODE)"
-    echo " 详细日志: $USER_LOG 及 $LOG_DIR/lanchat_python.log"
-    echo "=========================================================================="
-    if [ -t 0 ]; then
-        read -p "按 [回车键] 关闭此窗口..." _dummy
-    fi
-fi
-
-exit $EXIT_CODE
-""".encode('utf-8')
+    # all 包和 amd64 共用桌面及命令行入口。
     files_all = [
-        ("./usr/bin/lanchat", launcher_all, 0o755),
-        ("./usr/lib/lanchat/lanchat.py", py_bytes, 0o755),
+        ("./usr/bin/lanchat", launcher_script, 0o755),
+        ("./usr/lib/lanchat/lanchat.pyz", py_bytes, 0o755),
         ("./usr/share/applications/lanchat.desktop", desktop_entry, 0o644),
         ("./usr/share/icons/hicolor/scalable/apps/lanchat.svg", svg_icon, 0o644),
     ]
@@ -431,15 +252,22 @@ exit $EXIT_CODE
         "Description": "LanChat - Universal LAN Chat and File Transfer (Python Edition)\n Pure standard library, zero external dependencies. Works on all CPU architectures with WeChat dark GUI.",
     }
 
-    deb_all_path = os.path.join(RELEASE_DIR, f"lanchat_{VERSION}_all.deb")
+    deb_all_path = os.path.join(output_dir, f"lanchat_{VERSION}_all.deb")
     create_deb(deb_all_path, ctrl_all, files_all)
 
-    print("=" * 60)
-    print("Debian packaging complete!")
-    print(f"  - release/lanchat_{VERSION}_amd64.deb (x86_64 Self-Contained + Fallback)")
-    print(f"  - release/LanChat.deb               (Alias)")
-    print(f"  - release/lanchat_{VERSION}_all.deb   (Universal Architecture)")
-    print("=" * 60)
-
 if __name__ == "__main__":
-    build_packages()
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--elf-dir", type=Path, help="本轮双架构 ELF 输出目录")
+    mode.add_argument("--zipapp-only", action="store_true", help="仅生成便携 Python 归档")
+    parser.add_argument("--output-dir", type=Path, default=Path(RELEASE_DIR))
+    args = parser.parse_args()
+    try:
+        if args.zipapp_only:
+            archive = args.output_dir / "lanchat.pyz"
+            build_zipapp(archive)
+            print(f"[SUCCESS] {archive}")
+        else:
+            build_packages(args.elf_dir, args.output_dir)
+    except (OSError, ValueError) as exc:
+        parser.exit(1, f"打包失败：{exc}\n")

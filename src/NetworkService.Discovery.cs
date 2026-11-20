@@ -181,6 +181,12 @@ namespace LanChat
         /// <param name="port">对端 TCP 监听端口</param>
         public void AddOrUpdatePeer(string peerId, string nick, string host, IPAddress ip, int port)
         {
+            UpdatePeer(peerId, nick, host, ip, port);
+        }
+
+        // 文字帧没有监听端口和主机名，空端口表示只更新连接提供的信息。
+        private void UpdatePeer(string peerId, string nick, string host, IPAddress ip, int? announcedPort)
+        {
             if (peerId == LocalId) return;
 
             bool isNew = false;
@@ -197,7 +203,7 @@ namespace LanChat
                         NickName = string.IsNullOrEmpty(nick) ? "未知好友" : nick,
                         HostName = string.IsNullOrEmpty(host) ? "LAN-PC" : host,
                         IP = ip,
-                        TcpPort = port,
+                        TcpPort = announcedPort ?? TCP_BASE_PORT,
                         LastSeen = DateTime.Now
                     };
                     _peers[peerId] = peer;
@@ -205,12 +211,18 @@ namespace LanChat
                 }
                 else
                 {
-                    if (peer.NickName != nick || peer.TcpPort != port || !peer.IP.Equals(ip))
+                    if ((!string.IsNullOrEmpty(nick) && peer.NickName != nick) ||
+                        (announcedPort.HasValue && (peer.TcpPort != announcedPort.Value ||
+                            (!string.IsNullOrEmpty(host) && peer.HostName != host))) ||
+                        !peer.IP.Equals(ip))
                     {
                         if (!string.IsNullOrEmpty(nick)) peer.NickName = nick;
-                        if (!string.IsNullOrEmpty(host)) peer.HostName = host;
+                        if (announcedPort.HasValue)
+                        {
+                            if (!string.IsNullOrEmpty(host)) peer.HostName = host;
+                            peer.TcpPort = announcedPort.Value;
+                        }
                         peer.IP = ip;
-                        peer.TcpPort = port;
                         isUpdated = true;
                     }
                     peer.LastSeen = DateTime.Now;

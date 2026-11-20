@@ -51,6 +51,8 @@ namespace LanChat
 
         private readonly Dictionary<string, PeerInfo> _peers = new Dictionary<string, PeerInfo>();
         private readonly object _peerLock = new object();
+        // Unix 的 File.Move 先检查目标再重命名。串行提交避免同一进程的两路接收越过检查。
+        private static readonly object _receiveCommitLock = new object();
 
         // =========================================================================
         // 核心网络事件总线
@@ -81,14 +83,21 @@ namespace LanChat
         /// 初始化网络服务引擎
         /// </summary>
         /// <param name="nickName">初始昵称</param>
-        public NetworkService(string nickName)
+        public NetworkService(string nickName) : this(nickName, null)
+        {
+        }
+
+        /// <summary>初始化通信引擎，沿用调用方选定的数据目录。</summary>
+        /// <param name="nickName">初始昵称。</param>
+        /// <param name="saveDirectory">文件接收目录，空值使用平台原有默认位置。</param>
+        public NetworkService(string nickName, string saveDirectory)
         {
             LocalId = Guid.NewGuid().ToString("N");
             NickName = string.IsNullOrEmpty(nickName) ? Environment.UserName : nickName;
             HostName = Environment.MachineName;
             AutoAcceptFiles = true;
 
-            SaveDirectory = DetermineDefaultSaveDirectory();
+            SaveDirectory = saveDirectory ?? DetermineDefaultSaveDirectory();
         }
 
         /// <summary>
@@ -168,22 +177,28 @@ namespace LanChat
             BroadcastPresence("HELLO");
         }
 
-        private static string GetUniqueFilePath(string folder, string fileName)
+        private static string CommitReceivedFile(string temporary, string folder, string fileName)
         {
             string destination = Path.Combine(folder, fileName);
-            if (!File.Exists(destination)) return destination;
 
             string nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
             string ext = Path.GetExtension(fileName);
-            int count = 1;
-
-            while (File.Exists(destination))
+            lock (_receiveCommitLock)
             {
-                destination = Path.Combine(folder, string.Format("{0} ({1}){2}", nameWithoutExt, count, ext));
-                count++;
+                for (int count = 1; ; count++)
+                {
+                    try
+                    {
+                        File.Move(temporary, destination);
+                        return destination;
+                    }
+                    catch (IOException)
+                    {
+                        if (!File.Exists(destination) && !Directory.Exists(destination)) throw;
+                        destination = Path.Combine(folder, string.Format("{0} ({1}){2}", nameWithoutExt, count, ext));
+                    }
+                }
             }
-
-            return destination;
         }
 
         private void Log(string msg)

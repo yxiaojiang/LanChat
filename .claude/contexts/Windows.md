@@ -59,4 +59,4 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 
 - `SessionManager` 以局域网 IPv4 键分组，并合并地址已确认的旧记录。历史文件保持原 JSONL 来源。在线列表用当前节点路由，离线列表用档案昵称，地址证据不足的记录继续单独可查。
 - `AppearanceSettingsPanel` 通过设置宿主即时刷新主窗口，`GrokTheme` 定义暗色层级、强调色与主界面字号增量，`WeChatChatView` 独立使用正文设置。所有选项由 `AppSettings` 持久化。
-- 历史归并与外观设置已随 [v2.0.16](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.16) 发布。当前 WinForms 版提供 LC-LINUX-002 的样式、功能与双向协议基线。第 0 步固定本机实际构建和运行截图，第 4 步用公开 Windows 版联测两架构 Linux 实机并复跑 Windows 原生构建。Windows 独立实机回归已移入 [历史归档](../Plan-archive.md)，Windows Electron 迁移在 Linux 验收后另行评估。
+- 历史归并与外观设置已随 [v2.0.16](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.16) 发布。LC-LINUX-002 第 0 步已固定本机 WinForms 原生构建、18 张运行截图和操作清单。第 2 步修复共享核心并发同名接收，Windows 原生构建和同名文件回环均通过。第 4 步仍要用公开 Windows 版联测两架构 Linux 实机。Windows Electron 迁移在 Linux 验收后另行评估。 [Windows 基线](../../PlanDocs/LC-LINUX-002/BASELINE.md) · [集成记录](../../PlanDocs/LC-LINUX-002/INTEGRATION.md)

@@ -6,17 +6,18 @@ echo ========================================================
 echo.
 
 echo [1/3] Building Windows Executable and MSI Installer...
-call build-msi.bat 1
+call "%~dp0build-msi.bat" 1
+if errorlevel 1 exit /b %errorlevel%
 
 echo.
 echo [2/3] Publishing Self-Contained Linux Binaries...
-cd LanChat.Linux
-call build-linux.bat 1
-cd ..
+call "%~dp0..\src\linux\LanChat.Linux\build-linux.bat" 1
+if errorlevel 1 exit /b %errorlevel%
 
 echo.
 echo [3/3] Generating Linux Debian Packages (.deb)...
-python build-deb.py
+python "%~dp0build-deb.py" --elf-dir "%~dp0..\release"
+if errorlevel 1 exit /b %errorlevel%
 
 echo.
 echo ========================================================
@@ -29,11 +30,11 @@ echo   - release\LanChat.msi
 echo.
 echo Linux:
 echo   - release\LanChat.deb (Debian / Ubuntu / Kylin)
-echo   - release\lanchat_2.0.0_amd64.deb
-echo   - release\lanchat_2.0.0_all.deb
+echo   - release\lanchat_*_amd64.deb
+echo   - release\lanchat_*_all.deb
 echo   - release\linux-x64\lanchat (Self-contained ELF)
 echo   - release\linux-arm64\lanchat (Self-contained ELF)
-echo   - lanchat.py (Universal zero-dependency Python edition)
+echo   - release\lanchat.pyz (Portable Python edition)
 echo ========================================================
 echo.
 if "%~1"=="" (

@@ -1,6 +1,12 @@
 # Plan-archive.md — 历史归档计划
 
-> 归档时间：2026-10-24。
+> 最近更新：2026-11-20。
+
+## LC-LINUX-002 第 0、1 步
+
+- 第 0 步完成。固定当前 WinForms 原生构建、提交和工作树差异，以及 125% 下的 18 张运行截图和操作清单。按 SHA-256 保全旧公开包、LC-LINUX-001 候选、交接 ZIP 和便携回退样本。冻结 Ubuntu 22.04／24.04 的架构及桌面后端矩阵、桌面等效操作和资源测量口径。 [Windows 基线](../PlanDocs/LC-LINUX-002/BASELINE.md)
+- 第 1 步完成首包集成。Electron 通过继承管道连接共享 LANC 核心的 .NET 10 ELF，启动器支持显式和自动无头分流。Ubuntu 24.04.5 amd64 QEMU 的 Xorg／Openbox 从安装入口通过 ELF 就绪、刷新、双向私聊与群聊、双向文件 SHA-256、渲染沙盒、CLI、退出及端口释放。两架构 `2.0.17~experiment.1` 试验 deb、便携包与独立 ELF 已生成，包内机器码分别为 62 和 183，运行无需 Python。ARM64 在本阶段仅有静态核验证据。 [集成记录](../PlanDocs/LC-LINUX-002/INTEGRATION.md)
+- LC-LINUX-002 仍在第 2 步。物理双架构、升级回退与公开 Windows 的联测状态按 [当前计划](Plan.md) 更新。
 
 ---
 

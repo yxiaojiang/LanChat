@@ -21,6 +21,8 @@ namespace LanChat
     {
         private static readonly object _lock = new object();
         private static readonly char[] _invalidChars = Path.GetInvalidFileNameChars();
+        // Linux 启动时由已取得锁的配置选定原历史目录，Windows 沿用既有路径逻辑。
+        internal static string ProfileStorageDirectory { get; set; }
 
         /// <summary>
         /// 获取当前生效的聊天记录存储绝对路径
@@ -31,6 +33,7 @@ namespace LanChat
             {
                 lock (_lock)
                 {
+                    if (ProfileStorageDirectory != null) return ProfileStorageDirectory;
                     string configured = AppSettings.ChatHistoryDirectory;
                     if (!string.IsNullOrEmpty(configured))
                     {
@@ -78,20 +81,30 @@ namespace LanChat
         public static void SaveMessage(string sessionKey, ChatMessage msg)
         {
             if (msg == null) return;
-            if (string.IsNullOrEmpty(sessionKey)) sessionKey = SessionManager.BROADCAST_KEY;
+            try { AppendMessage(sessionKey, msg); }
+            catch { }
+        }
 
+        // Linux 桌面需要向用户报告落盘错误，共用同一写入格式。
+        internal static void AppendMessage(string sessionKey, ChatMessage msg)
+        {
+            if (string.IsNullOrEmpty(sessionKey)) sessionKey = SessionManager.BROADCAST_KEY;
             lock (_lock)
             {
-                try
+                string dir = StorageDirectory;
+                Directory.CreateDirectory(dir);
+                string fullPath = Path.Combine(dir, GetFileNameForSession(sessionKey));
+                string line = SerializeMessage(sessionKey, msg);
+                using (var stream = new FileStream(fullPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read))
                 {
-                    string dir = StorageDirectory;
-                    string fileName = GetFileNameForSession(sessionKey);
-                    string fullPath = Path.Combine(dir, fileName);
-
-                    string line = SerializeMessage(sessionKey, msg);
-                    File.AppendAllText(fullPath, line + Environment.NewLine, Encoding.UTF8);
+                    // 旧记录可能缺少最后的换行。保留原字节，另起一行使新版记录可独立读取。
+                    if (stream.Length != 0)
+                    {
+                        stream.Seek(-1, SeekOrigin.End);
+                        if (stream.ReadByte() != '\n') stream.WriteByte((byte)'\n');
+                    }
+                    using (var writer = new StreamWriter(stream, Encoding.UTF8)) writer.WriteLine(line);
                 }
-                catch { }
             }
         }
 
@@ -335,7 +348,9 @@ namespace LanChat
         private static ChatMessage DeserializeMessage(string line, out string sessionKey)
         {
             sessionKey = SessionManager.BROADCAST_KEY;
-            if (string.IsNullOrEmpty(line)) return null;
+            if (string.IsNullOrWhiteSpace(line)) return null;
+            line = line.Trim();
+            if (line[0] != '{' || line[line.Length - 1] != '}') return null;
 
             try
             {

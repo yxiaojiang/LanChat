@@ -1,24 +1,26 @@
 # SessionBrief.md — 当前接手摘要
 
-> 2026-11-20 · 工作目录 D:\TEmp\LanChat，开发分支 main。公开版基线 v2.0.16 对应 a0e49c1。
+> 2026-11-20 · 工作目录 `D:\TEmp\LanChat`，开发分支 `main`。公开联测基线 Windows `v2.0.16`（`a0e49c1`）。
 
 ## 当前状态
 
-唯一活跃事项是 LC-LINUX-002 Linux Electron 桌面重构。Grok 第 2 轮审核收敛，用户采纳定稿及启动补充。实施尚未开始。Linux 首先重做当前 Windows 版的应用内样式及真实功能，涵盖双栏、会话和聊天、节点与个人资料、文件传输、分类设置、维护入口和可恢复的窗口托盘操作。Windows Electron 等 Linux 验收后另行评估。正式发布按项目指定入口和用户授权执行。
+唯一活跃事项为 LC-LINUX-002。第 0 步已固定当前 WinForms 原生构建、采用 125% 缩放的 18 张运行截图和功能清单，并冻结 Ubuntu 22.04／24.04 的架构与桌面后端矩阵。第 1 步在 Ubuntu 24.04.5 amd64 QEMU 的 Xorg／Openbox 中通过首包集成，验证从已安装的桌面入口启动、刷新、双向私聊与群聊、双向文件 SHA-256、渲染器沙盒、无头入口、退出和端口释放。第 0、1 步已归档。
 
-Electron 用本地 HTML、CSS、JavaScript 负责桌面，现有 Linux C# 自包含 ELF 增加桌面服务模式。两端继续共享 NetworkService 和 Models，保留现有局域网 LANC 帧、端口语义、文件流和完成 ACK。Electron 与 ELF 经继承的标准输入输出传递结构化控制和事件，文件由 ELF 流式处理。显式 CLI 和无头入口直接进入独立 ELF。同一数据配置由一个新版进程写入，旧版本与新版同一配置的升级演练先退出正在运行的进程。
+新客户端由 Electron 45.4.1 加本地 HTML、CSS、JavaScript 构成，同架构 .NET 10 自包含 ELF 通过 stdin/stdout 提供桌面服务，也可作为独立 CLI。Windows 与 Linux 继续复用 NetworkService 和 Models，沿用 LANC、64 KiB 流式传输和最终 ACK。新版只打包 amd64 和 arm64，运行无需 Python。旧 Python 发布版及 LC-LINUX-001 候选用于升级、回退和兼容性对照。
 
-新版安装和便携运行时无需 Python，deb 只交付 amd64 与 arm64。旧公开包、候选 pyz 和 C# ELF 用于升级、回退和协议互通。设置沿旧入口固定优先级：同级已有就使用，便携同级可写时先创建，其余情况优先 ~/.config/lanchat/settings.json。只有配置目录创建失败才回退到 ~/.local/share/lanchat/settings.json，两处共存自动按优先级选定。首次改写备份，实际不可写由用户确认新位置。升级、回退就地保留原历史目录、接收文件和路径。旧候选应能读原有及新版追加的兼容历史；更改历史目录是用户另行操作。
+第 2 步已接入共享会话、离线历史和 CLI 昵称写回。设置沿用旧顺序，已有同级设置优先。可写便携目录优先新建同级设置，其余使用 `~/.config/lanchat`，仅配置目录创建失败时回退到 `~/.local/share/lanchat`。首次写入保留备份和未知键。旧 pyz 已读回原有及新版追加的 JSONL，原接收文件逐字节一致。只读位置目前报告写入错误，选择可写位置的确认流程仍待实现。共享接收核心已修复并发同名覆盖，Windows 原生回环的两份异内容文件分别匹配源 SHA-256，最终 ACK 和完成事件各两个。
 
-旧 LC-LINUX-001 完成了候选构建、宿主回环及 Ubuntu QEMU 检查，证据没有覆盖物理双机或 Linux 桌面。保留当前工作树已有改动。公开包在 release/，本机候选在 bin/lanchat-step2，交接 ZIP 在 bin/lanchat-handoff。新版仍需实测 apt 架构替换、回退 GUI、并发同名收件，以及在 Wayland 上恢复窗口和进行中文输入。原生 Wayland 自绘边框不能完成拖动、缩放等规定操作时直接采用系统边框，客户区继续按 Windows 和 GrokBot 对齐。
-
-验收要分别记录源件摘要、包内架构、桌面实际后端和物理局域网环境。共享网络的文字端口保留和文件完工语义在迁移时复跑，若并发同名收件复现冲突，修复共享落盘路径并回归 Windows 原生构建。
+当前试验版本为 `2.0.17~experiment.2`。两种架构的 deb、便携包、独立 ELF、公开旧版和回退样本在 `bin/lc-linux-002/handoff-experiment.2/`，25 件文件通过摘要检查。第 1 步原产物在 `bin/lc-linux-002/experiment/`，旧样本在 `bin/lc-linux-002/baseline/`，构建缓存和原始日志也在本地 `bin/`。这些产物属于本地忽略目录，仓库内的构建和验证文档记录了来源与路径。
 
 ## 下一步
 
-从第 0 步固定 Windows 实际构建、截图和操作清单，保全旧样本，并冻结支持矩阵与测量口径。然后打通第 1 步的 Linux 安装入口、Electron、真实 ELF、聊天、文件、退出和无头 CLI。单架构实机或虚拟机可完成首包集成，同时生成两个架构的试验包。第 2 步做数据、文件与包升级回退，第 3 步完整对齐界面和桌面行为。第 4 步必须有物理 x86_64 和物理 ARM64 各自的升级回退、以及分别与物理 Windows v2.0.16 的局域网互通。承诺的核心回归与实机格缺通过证据即候选未通过。用真实证据更新完成状态。
+先定位 ARM64 安装失败。用户报告第二轮 ARM64 桌面可启动、收发文字及刷新好友，截图显示 `dpkg` 缺依赖并保留未配置状态，画面可见 `libssl3`。包内控制字段为 `libssl3t64 | libssl3`，.NET 10 可使用 OpenSSL 1.1.1 及以上，现场实际加载版本尚不明确。先核对发行版、完整依赖报错、包状态、仓库可用的库和 `lanchat-bin` 的实际动态库。结合已冻结的发行版矩阵和复现结果处理打包依赖，再产出递增版本的试验包。
+
+继续完成第 2 步剩余文件与配置流程、实际旧包升级和回退、旧 GUI 恢复。第 2 步通过后进入第 3 步。用户自行执行实机验收，开发侧负责准备可核验的安装包并按证据更新 Plan。物理 x86_64 和 ARM64 各自完成升级与回退，并各自和物理 Windows 公开版完成真实 LAN 互通。已确认的安装失败及缺证据的必验项保持未通过。Windows Electron 留到 Linux 验收后另议，正式发布另等用户授权。
+
+剩余文件回归覆盖非默认端口、定长短读、拒收、中断、缺最终回执及大文件流式传输。旧包升级回退就地保留历史目录、附件路径和接收件，用户主动切换历史目录作为单独用例。原生 Wayland 仍需验证窗口恢复、系统托盘和中文输入。
 
 ## 入口
 
-- [执行计划](Plan.md) · [采纳定稿](../PlanDocs/LC-LINUX-002/FINAL.md) · [审核补充](../PlanDocs/LC-LINUX-002/REVIEW-R2.md)
+- [执行计划](Plan.md) · [阶段归档](Plan-archive.md) · [采纳定稿](../PlanDocs/LC-LINUX-002/FINAL.md) · [首包集成](../PlanDocs/LC-LINUX-002/INTEGRATION.md)
 - [Linux 模块](contexts/Linux.md) · [Windows 基线](contexts/Windows.md) · [共享协议](contexts/Protocol.md)

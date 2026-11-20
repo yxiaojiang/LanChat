@@ -74,10 +74,12 @@ sudo dpkg -i release/LanChat.deb
   ```
 
 #### 方式 C：通用免安装 Python 单文件版本
-内置单文件 `lanchat.py` 仅使用 Python 3 标准库，**无需 `pip install` 任何第三方包**：
+Linux 单文件构建产物 `lanchat.pyz` 仅使用 Python 3 标准库，**无需 `pip install` 任何第三方包**：
 ```bash
-python3 lanchat.py
+python3 lanchat.pyz
 ```
+
+从仓库生成便携版可运行 `python packaging/build-deb.py --zipapp-only`，产物位于 `release/lanchat.pyz`。桌面模式使用系统 Tk，`python3 lanchat.pyz --cli` 可直接进入命令行。
 
 ---
 
@@ -110,7 +112,8 @@ LanChat/
 │   ├── Uninstall.cs              # 绿色卸载向导源码
 │   ├── LanChat.csproj            # .NET 9 项目工程文件
 │   └── linux/                    # Linux 端源码
-│       ├── lanchat.py            # 纯 Python 3 标准库 WeChat 暗黑 GUI
+│       ├── lanchat.py            # Python 源码启动入口
+│       ├── lanchat_app/          # Python 桌面、网络、会话与命令行模块
 │       └── LanChat.Linux/        # .NET 9 自包含 Linux 控制台项目
 │
 ├── assets/                       # 图标与高精度设计资源

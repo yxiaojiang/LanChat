@@ -4,23 +4,18 @@
 
 ## LC-LINUX-002 · Linux Electron 桌面重构
 
-已采纳 [定稿](../PlanDocs/LC-LINUX-002/FINAL.md) 和 [Grok 第 2 轮审核补充](../PlanDocs/LC-LINUX-002/REVIEW-R2.md)。按 **0 → 1 → 2 → 3 → 4** 执行。实施尚未启动，从第 0 步开始。
-
-### 第 0 步 · 固定 Windows 基线和验收契约
-
-- [ ] 冻结 Windows 实际构建、提交与工作树差异、运行截图及操作清单。以当前 WinForms 和 [GrokBot 设计规范](../Docs/GrokBot_UI_Design_System.md) 核对主窗、聊天、文件、节点与个人资料、八个设置页、窗口托盘及维护入口。
-- [ ] 保全旧工作树和公开包、候选包、便携回退样本。按摘要区分同版本的公开包与候选包。冻结发行版、架构、桌面后端、等效操作和资源测量口径。Ubuntu 22.04／24.04 为拟验版本。候选和实验记录保留真实环境标记。
-
-### 第 1 步 · 打通 Electron 首包
-
-- [ ] Electron 本地 HTML、CSS、JavaScript 负责界面与桌面集成。现有 Linux C# ELF 增加桌面服务模式，复用 `NetworkService`／`Models`、原 LANC 和 ACK。主进程经继承的 stdin/stdout 传结构化请求及事件，诊断输出到 stderr。保留独立 ELF CLI，`--cli`、`-c` 和无头入口在 Electron 启动前分流。
-- [ ] 用一个架构的 Linux 实机或虚拟机走通安装启动、ELF 就绪、刷新、私聊、群聊、文件 SHA-256、退出、无头 CLI 和沙盒。生成 `amd64`、`arm64` 两份试验 deb，核对包内 Electron 与 ELF 机器类型。新版安装和便携运行时无需 Python。**首包结果只算集成。**
+已采纳 [定稿](../PlanDocs/LC-LINUX-002/FINAL.md) 和 [Grok 第 2 轮审核补充](../PlanDocs/LC-LINUX-002/REVIEW-R2.md)。第 0 步 Windows 基线及第 1 步首包集成已完成并[归档](Plan-archive.md)。当前推进第 2 步，优先定位 ARM64 安装依赖问题。
 
 ### 第 2 步 · 接通会话、文件、升级和回退
 
 - [ ] 恢复历史、离线会话和重连归并，接通草稿、文件进度和终态、设置及 CLI。回归非默认端口、定长短读、拒收、中断、缺最终 ACK、大文件流式传输与并发同名异内容文件。并发两份均须保留并分别核对 SHA-256 与终态。
+  - 已在原生 Windows 共享核心复现并修复并发同名异内容接收，两份独立落盘、SHA-256 各自匹配、最终 ACK 和完成事件各两个。共享历史和离线归档已接入，完整阶段回归待补。 [实施证据](../PlanDocs/LC-LINUX-002/INTEGRATION.md)
+  - 当前试验包为 `2.0.17~experiment.2`，本地交接目录 `bin/lc-linux-002/handoff-experiment.2/` 含两架构 deb、便携包、独立 CLI 和升级回退样本，25 件均核对 SHA-256。amd64 已复跑虚拟机桌面链路，结果计入首包集成。
 - [ ] 设置按旧顺序选定。优先同级已有 `settings.json`，便携同级可创建时优先创建。否则只要能创建或确认 `~/.config/lanchat`，就使用其中的文件，即使 `~/.local/share/lanchat/settings.json` 同时存在也自动选定。仅配置目录创建失败时回退到后者。改写前备份，原路径只读时经用户确认选用可写位置。
+  - 已验证固定选址顺序、目录创建失败回退、只读时原字节保留，及旧便携样本就地保留原历史和接收件。旧候选 pyz 能读取新版追加的 JSONL、写回的昵称和原未知配置键，写前备份逐字节一致。只读时确认可写位置的流程待接入，系统包矩阵尚待验。
 - [ ] 演练旧公开包、候选包和便携数据的升级与回退，覆盖 `amd64 → amd64`、`all → arm64` 与 `all → amd64`。升级及回退就地保留历史目录和已接收文件，验证旧 GUI 启动和旧候选读取原有及新版追加的兼容历史。用户主动修改历史目录单独验收。新版 deb 只交付 `amd64` 和 `arm64`，旧 `Architecture: all` 作为回归样本。
+  - 用户报告 `2.0.17~experiment.2` ARM64 桌面能启动、收发文字并刷新好友。安装截图显示 `dpkg` 缺依赖并将 `lanchat` 留在未配置状态，可见错误涉及 `libssl3`。已核对该包声明 `libssl3t64 | libssl3`。现场发行版、完整依赖输出与进程加载的 OpenSSL 版本待确认。桌面功能已有初步证据，ARM64 安装验收仍未通过。
+  - 取证先收集 `/etc/os-release`、`dpkg -l lanchat`、完整安装输出、`apt-cache policy libssl3t64 libssl3 libssl1.1` 以及运行中 `lanchat-bin` 的 libssl／libcrypto 映射。OpenSSL 1.1.1 回退是待核实的解释。确认发行版和依赖根因后再调整打包条件。
 
 ### 第 3 步 · 对齐 Windows 界面与桌面操作
 
@@ -28,6 +23,8 @@
 - [ ] Xorg、原生 Wayland、XWayland 记录实际后端。没有可用托盘或通知时保留窗口恢复入口和应用内未读。在原生 Wayland 上自绘窗框不能完成拖动、缩放或其他规定的窗口操作时，直接切换系统边框，客户区继续对齐 Windows。
 
 ### 第 4 步 · 双架构正式候选验收
+
+实机验收由用户执行，开发侧准备安装包和回退样本，并按回传证据更新状态。
 
 - [ ] 物理 x86_64 和物理 ARM64 各自完成从实际旧包升级、回退、桌面／无头 CLI 及端口释放，并各自与物理 Windows `v2.0.16` 在真实局域网验证发现、双向私聊和群聊、双向文件 SHA-256。
 - [ ] 完成承诺的核心矩阵，包括原生 GNOME Wayland 和 Xorg、fcitx5 与 ibus、TUN、多网卡、无默认路由、`v2.0.15` 与公开旧 ELF 互通。**承诺的实机格或核心回归缺通过证据，正式候选未通过。** KDE 等未承诺的组合单列未测。通过后复核 Windows 原生编译和构建摘要，再走 [独立代码审核](../CRDocs/STATUS.md)。

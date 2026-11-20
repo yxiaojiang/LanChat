@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""使用已锁定的 Electron 和本轮 ELF 构建 Linux 试验包。"""
+
+import argparse
+from hashlib import sha256
+import io
+import json
+from pathlib import Path, PurePosixPath
+import shutil
+import tarfile
+import tempfile
+import zipfile
+
+from build_linux import ROOT, check_elf
+
+
+ELECTRON = "45.4.1"
+VERSION = "2.0.17~experiment.2"
+ARCHITECTURES = {
+    "amd64": ("x64", "e1d077c7a087d7e344350ea0c5cd2b7dc5af3d9bf7979474f38e0fc1a560b875"),
+    "arm64": ("arm64", "3da04c450fa682e3b80961e92a918a1c2a1a10796527a7e63dec7b8e466b6334"),
+}
+APP = ROOT / "src/linux/desktop"
+DESKTOP_ENTRY = b"""[Desktop Entry]
+Type=Application
+Name=LanChat
+Comment=LAN messaging and file transfer
+Exec=lanchat
+Icon=lanchat
+Terminal=false
+Categories=Network;InstantMessaging;
+"""
+DEPENDENCIES = (
+    "libc6 (>= 2.35), libgcc-s1, libstdc++6, zlib1g, libssl3t64 | libssl3, "
+    "libasound2t64 | libasound2, libatk1.0-0t64 | libatk1.0-0, libatk-bridge2.0-0t64 | libatk-bridge2.0-0, "
+    "libatspi2.0-0t64 | libatspi2.0-0, libglib2.0-0t64 | libglib2.0-0, "
+    "libgtk-3-0t64 | libgtk-3-0, libdbus-1-3, libcairo2, libcups2t64 | libcups2, libdrm2, libexpat1, "
+    "libgbm1, libnspr4, libnss3, libpango-1.0-0, libudev1, libx11-6, libx11-xcb1, "
+    "libxcb1, libxcomposite1, libxdamage1, libxext6, libxfixes3, libxkbcommon0, libxrandr2"
+)
+
+
+def file_hash(path):
+    with path.open("rb") as source:
+        digest = sha256()
+        for block in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(block)
+        return digest.hexdigest()
+
+
+def tar_entry(archive, name, contents, mode):
+    header = tarfile.TarInfo(name)
+    header.mode = mode
+    header.uname = header.gname = "root"
+    if isinstance(contents, Path):
+        header.size = contents.stat().st_size
+        with contents.open("rb") as source:
+            archive.addfile(header, source)
+    elif contents is None:
+        header.type = tarfile.DIRTYPE
+        archive.addfile(header)
+    else:
+        header.size = len(contents)
+        archive.addfile(header, io.BytesIO(contents))
+
+
+def add_tree(archive, prefix, files):
+    directories = set()
+    for relative, contents, mode in files:
+        name = PurePosixPath(prefix) / relative
+        for parent in reversed(name.parents):
+            if parent not in directories and parent != PurePosixPath("."):
+                tar_entry(archive, parent.as_posix(), None, 0o755)
+                directories.add(parent)
+        tar_entry(archive, name.as_posix(), contents, mode)
+
+
+def debian_member(output, name, contents, length):
+    # ar 成员按偶数对齐，数据从临时文件流入，避免复制整份 Electron 到内存。
+    header = f"{name:<16}{0:<12}{0:<6}{0:<6}{'100644':<8}{length:<10}`\n"
+    output.write(header.encode("ascii"))
+    shutil.copyfileobj(contents, output)
+    if length % 2:
+        output.write(b"\n")
+
+
+def build_deb(stage, arch, files):
+    installed = [(f"usr/lib/lanchat/{name}", content, 0o4755 if name == "electron/chrome-sandbox" else mode)
+                 for name, content, mode in files if name != "lanchat"]
+    installed.extend([
+        ("usr/bin/lanchat", next(content for name, content, _ in files if name == "lanchat"), 0o755),
+        ("usr/share/applications/lanchat.desktop", DESKTOP_ENTRY, 0o644),
+        ("usr/share/icons/hicolor/256x256/apps/lanchat.png", ROOT / "assets/app.png", 0o644),
+    ])
+    size = sum(item.stat().st_size if isinstance(item, Path) else len(item) for _, item, _ in installed)
+    control = (
+        f"Package: lanchat\nVersion: {VERSION}\nArchitecture: {arch}\n"
+        "Maintainer: LanChat Team <lanchat@local>\nSection: net\nPriority: optional\n"
+        f"Installed-Size: {(size + 1023) // 1024}\nDepends: {DEPENDENCIES}\n"
+        "Description: LanChat Linux desktop integration experiment\n"
+        " Local network chat and file transfer with an Electron desktop and self-contained CLI.\n"
+    ).encode()
+    control_data = io.BytesIO()
+    with tarfile.open(fileobj=control_data, mode="w:gz") as archive:
+        tar_entry(archive, "./control", control, 0o644)
+    control_data.seek(0)
+    data_file = stage / "data.tar.gz"
+    with tarfile.open(data_file, "w:gz", compresslevel=3) as archive:
+        add_tree(archive, ".", installed)
+    deb = stage / f"lanchat_{VERSION}_{arch}.deb"
+    with deb.open("wb") as output, data_file.open("rb") as data:
+        output.write(b"!<arch>\n")
+        debian_member(output, "debian-binary", io.BytesIO(b"2.0\n"), 4)
+        debian_member(output, "control.tar.gz", control_data, len(control_data.getbuffer()))
+        debian_member(output, "data.tar.gz", data, data_file.stat().st_size)
+    data_file.unlink()
+    return deb
+
+
+def build(output, archives, elf, icons):
+    for image in ("Search", "Refresh", "Logout", "Add", "UpArrow", "avatar", "group", "peer"):
+        if not (icons / f"{image}.png").is_file():
+            raise ValueError(f"缺少原生导出的图标：{image}.png")
+    output.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".lanchat-desktop-", dir=output) as temporary:
+        stage = Path(temporary)
+        artifacts = []
+        manifest = {}
+        launcher = (ROOT / "packaging/lanchat-launcher.sh").read_bytes().replace(b"\r\n", b"\n")
+        launcher_path = stage / "lanchat-launcher.sh"
+        launcher_path.write_bytes(launcher)
+        for arch, (cpu, digest) in ARCHITECTURES.items():
+            runtime = archives / f"electron-v{ELECTRON}-linux-{cpu}.zip"
+            core = elf / f"linux-{cpu}" / "lanchat"
+            if file_hash(runtime) != digest:
+                raise ValueError(f"Electron 摘要不匹配：{runtime.name}")
+            check_elf(core.read_bytes(), f"linux-{cpu}")
+            print(f"打包 {arch}，Electron {ELECTRON}", flush=True)
+            extract = stage / arch
+            with zipfile.ZipFile(runtime) as zipped:
+                zipped.extractall(extract)
+            electron = extract / "electron"
+            check_elf(electron.read_bytes(), f"linux-{cpu}")
+            files = [("lanchat", launcher_path, 0o755), ("electron/resources/lanchat-bin", core, 0o755)]
+            for path in sorted(extract.rglob("*")):
+                if path.is_file() and path.name != "default_app.asar":
+                    relative = path.relative_to(extract).as_posix()
+                    mode = 0o755 if relative in ("electron", "chrome-sandbox", "chrome_crashpad_handler") else 0o644
+                    files.append((f"electron/{relative}", path, mode))
+            for path in sorted(APP.iterdir()):
+                if path.is_file():
+                    files.append((f"electron/resources/app/{path.name}", path, 0o644))
+            for path in sorted(icons.glob("*.png")):
+                files.append((f"electron/resources/app/assets/{path.name}", path, 0o644))
+            files.append(("electron/resources/app/assets/app.png", ROOT / "assets/app.png", 0o644))
+            deb = build_deb(stage, arch, files)
+            portable = stage / f"lanchat_{VERSION}_{arch}_portable.tar.gz"
+            with tarfile.open(portable, "w:gz", compresslevel=3) as archive:
+                add_tree(archive, "LanChat", files)
+            standalone = stage / f"lanchat-cli_{VERSION}_{arch}"
+            shutil.copyfile(core, standalone)
+            standalone.chmod(0o755)
+            artifacts.extend([deb, portable, standalone])
+            manifest[arch] = {
+                "electron_zip_sha256": digest,
+                "electron_sha256": file_hash(electron),
+                "artifacts": {path.name: file_hash(path) for path in (deb, portable, standalone)},
+            }
+            shutil.rmtree(extract)
+        artifact_manifest = stage / "SHA256SUMS.json"
+        artifact_manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        for artifact in (*artifacts, artifact_manifest):
+            artifact.replace(output / artifact.name)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    for option in ("output", "archives", "elf", "icons"):
+        parser.add_argument(f"--{option}", type=Path, required=True)
+    args = parser.parse_args()
+    try:
+        build(args.output, args.archives, args.elf, args.icons)
+    except (OSError, ValueError, zipfile.BadZipFile) as exc:
+        parser.exit(1, f"Electron 打包失败：{exc}\n")

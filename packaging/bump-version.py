@@ -6,7 +6,7 @@ LanChat 版本管理与全工程原子同步工具
   1. src/MainForm.cs
   2. src/Services/UpdateService.cs
   3. packaging/Package.wxs
-  4. src/linux/lanchat.py
+  4. src/linux/lanchat_app/__init__.py
   5. packaging/build-deb.py
 """
 
@@ -20,7 +20,7 @@ ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 MAIN_CS = os.path.join(ROOT_DIR, "src", "MainForm.cs")
 UPDATE_CS = os.path.join(ROOT_DIR, "src", "Services", "UpdateService.cs")
 PACKAGE_WXS = os.path.join(ROOT_DIR, "packaging", "Package.wxs")
-LINUX_PY = os.path.join(ROOT_DIR, "src", "linux", "lanchat.py")
+LINUX_PY = os.path.join(ROOT_DIR, "src", "linux", "lanchat_app", "__init__.py")
 BUILD_DEB_PY = os.path.join(ROOT_DIR, "packaging", "build-deb.py")
 
 def get_current_version() -> str:
@@ -73,7 +73,7 @@ def sync_all(new_version: str):
                       r'(Version=")[^"]+(")',
                       rf'\g<1>{new_version}\g<2>')
 
-    # 4. src/linux/lanchat.py
+    # 4. Linux Python 包版本
     update_file_regex(LINUX_PY,
                       r'(APP_VERSION\s*=\s*")[^"]+(")',
                       rf'\g<1>{new_version}\g<2>')

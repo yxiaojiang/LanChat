@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LanChat</title>
+  <link rel="stylesheet" href="desktop.css">
+  <script src="renderer.js" defer></script>
+</head>
+<body>
+  <aside aria-label="会话">
+    <div class="toolbar">
+      <label class="search"><img src="assets/Search.png" alt=""><input id="search" type="search" placeholder="搜索会话" aria-label="搜索会话"></label>
+      <button id="refresh" class="icon" type="button" title="刷新节点" aria-label="刷新节点"><img src="assets/Refresh.png" alt=""></button>
+    </div>
+    <div class="profile">
+      <img src="assets/avatar.png" alt="">
+      <strong id="nickname">LanChat</strong>
+    </div>
+    <nav id="chats" aria-label="会话列表"></nav>
+    <button id="quit" class="quit" type="button"><img src="assets/Logout.png" alt="">退出 LanChat</button>
+  </aside>
+  <main id="conversation">
+    <header class="chat-header">
+      <div class="identity">
+        <img id="avatar" src="assets/group.png" alt="">
+        <h1 id="title">局域网全员群聊</h1>
+      </div>
+        <div id="connection" class="secondary">正在连接通信服务…</div>
+    </header>
+    <section id="messages" tabindex="0" aria-label="聊天记录"></section>
+    <div id="status" class="status" role="status"></div>
+    <form id="compose" class="compose">
+      <button id="attach" class="icon attach" type="button" title="发送文件" aria-label="发送文件" disabled><img src="assets/Add.png" alt=""></button>
+      <textarea id="message" maxlength="32768" rows="1" placeholder="输入消息…" aria-label="消息" disabled></textarea>
+      <button id="send" class="icon send" title="发送消息" aria-label="发送消息" disabled><img src="assets/UpArrow.png" alt=""></button>
+    </form>
+  </main>
+  <dialog id="recipient">
+    <form method="dialog">
+      <h2>选择接收节点</h2>
+      <div id="recipients"></div>
+      <button value="" class="pill">取消</button>
+    </form>
+  </dialog>
+</body>
+</html>

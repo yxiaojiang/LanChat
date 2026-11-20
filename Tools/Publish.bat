@@ -105,17 +105,13 @@ if errorlevel 1 (
 echo       [SUCCESS] LanChat.msi created: release\LanChat.msi
 echo.
 
-REM 5. Update Linux deb package if script exists
-if exist "packaging\build-deb.py" (
-    echo [3/4] Checking and building Linux deb packages...
-    where python >nul 2>nul
-    if not errorlevel 1 (
-        python packaging\build-deb.py >nul 2>nul
-        echo       [SUCCESS] Linux deb packages updated.
-    ) else (
-        echo       [SKIP] Python not found, skipping Linux deb build.
-    )
-)
+REM 5. 从本轮的两架构 ELF 重建 Debian 包，失败时在上传前退出。
+echo [3/4] Building Linux ELF and Debian packages...
+call src\linux\LanChat.Linux\build-linux.bat 1
+if errorlevel 1 exit /b %errorlevel%
+python packaging\build-deb.py --elf-dir release
+if errorlevel 1 exit /b %errorlevel%
+echo       [SUCCESS] Linux deb packages updated.
 echo.
 
 REM 6. Publish to GitHub Releases

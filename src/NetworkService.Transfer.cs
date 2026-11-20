@@ -28,7 +28,7 @@ namespace LanChat
                 }
             }
 
-            if (_tcpListener == null)
+            if (LocalTcpPort == 0)
             {
                 throw new Exception("无法绑定任何可用的 TCP 端口（38889-38939）");
             }
@@ -86,8 +86,8 @@ namespace LanChat
                         string targetId = reader.ReadString();
                         string content = reader.ReadString();
 
-                        // Auto learn peer immediately!
-                        AddOrUpdatePeer(senderId, senderNick, "LAN-Host", remoteIp, TCP_BASE_PORT);
+                        // 连接源端口是临时端口。已知节点继续使用公告提供的监听端口与主机名。
+                        UpdatePeer(senderId, senderNick, "LAN-Host", remoteIp, null);
 
                         // Confirm immediately
                         writer.Write((byte)1);
@@ -124,19 +124,19 @@ namespace LanChat
                         string fileName = reader.ReadString();
                         long fileSize = reader.ReadInt64();
 
-                        if (!AutoAcceptFiles)
+                        string safeFileName = Path.GetFileName(fileName);
+                        if (!AutoAcceptFiles || fileSize < 0 || string.IsNullOrEmpty(safeFileName) ||
+                            safeFileName == "." || safeFileName == "..")
                         {
                             writer.Write((byte)0);
                             writer.Flush();
                             return;
                         }
 
-                        writer.Write((byte)1);
-                        writer.Flush();
-
-                        string safeFileName = Path.GetFileName(fileName);
-                        string localPath = GetUniqueFilePath(SaveDirectory, safeFileName);
-                        string tempPath = localPath + ".downloading";
+                        string folder = SaveDirectory;
+                        // 各连接独占临时文件，最终名称在落盘时决定。
+                        string tempPath = Path.Combine(folder, "." + Guid.NewGuid().ToString("N") + ".downloading");
+                        string localPath;
 
                         var progress = new FileTransferProgress
                         {
@@ -146,56 +146,70 @@ namespace LanChat
                             TransferredBytes = 0,
                             IsSending = false,
                             PeerNick = senderNick,
-                            LocalPath = localPath
+                            LocalPath = Path.Combine(folder, safeFileName)
                         };
 
-                        bool success = false;
                         byte[] chunk = new byte[65536];
                         long receivedBytes = 0;
                         DateTime lastTime = DateTime.Now;
                         long lastBytes = 0;
 
-                        using (FileStream fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                        try
                         {
-                            while (receivedBytes < fileSize)
+                            Directory.CreateDirectory(folder);
+                            using (FileStream fs = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                             {
-                                int toRead = (int)Math.Min(chunk.Length, fileSize - receivedBytes);
-                                int read = stream.Read(chunk, 0, toRead);
-                                if (read <= 0) break;
-
-                                fs.Write(chunk, 0, read);
-                                receivedBytes += read;
-
-                                DateTime now = DateTime.Now;
-                                double elapsed = (now - lastTime).TotalSeconds;
-                                if (elapsed >= 0.2 || receivedBytes == fileSize)
+                                writer.Write((byte)1);
+                                writer.Flush();
+                                while (receivedBytes < fileSize)
                                 {
-                                    double speed = (receivedBytes - lastBytes) / (elapsed * 1024.0 * 1024.0);
-                                    lastTime = now;
-                                    lastBytes = receivedBytes;
+                                    int toRead = (int)Math.Min(chunk.Length, fileSize - receivedBytes);
+                                    int read = stream.Read(chunk, 0, toRead);
+                                    if (read <= 0) throw new EndOfStreamException("传输中断");
+                                    fs.Write(chunk, 0, read);
+                                    receivedBytes += read;
 
-                                    progress.TransferredBytes = receivedBytes;
-                                    progress.SpeedMBps = speed;
-                                    if (OnFileProgress != null)
+                                    DateTime now = DateTime.Now;
+                                    double elapsed = (now - lastTime).TotalSeconds;
+                                    if (elapsed >= 0.2 || receivedBytes == fileSize)
                                     {
-                                        OnFileProgress(progress);
+                                        progress.TransferredBytes = receivedBytes;
+                                        progress.SpeedMBps = elapsed > 0 ? (receivedBytes - lastBytes) / (elapsed * 1024.0 * 1024.0) : 0;
+                                        lastTime = now;
+                                        lastBytes = receivedBytes;
+                                        if (OnFileProgress != null) OnFileProgress(progress);
                                     }
                                 }
                             }
-
-                            if (receivedBytes == fileSize)
-                            {
-                                success = true;
-                            }
+                            localPath = CommitReceivedFile(tempPath, folder, safeFileName);
+                        }
+                        catch (Exception ex)
+                        {
+                            progress.IsFailed = true;
+                            progress.ErrorMessage = ex.Message;
+                            progress.TransferredBytes = receivedBytes;
+                            if (OnFileProgress != null) OnFileProgress(progress);
+                            try { writer.Write((byte)0); writer.Flush(); } catch (IOException) { }
+                            Log("接收文件失败: " + ex.Message);
+                            return;
+                        }
+                        finally
+                        {
+                            try { File.Delete(tempPath); }
+                            catch (Exception ex) { Log("清理接收临时文件失败: " + ex.Message); }
                         }
 
-                        if (success)
+                        progress.LocalPath = localPath;
+                        progress.IsCompleted = true;
+                        progress.TransferredBytes = fileSize;
+                        try
                         {
-                            if (File.Exists(localPath)) File.Delete(localPath);
-                            File.Move(tempPath, localPath);
-
-                            progress.IsCompleted = true;
-                            progress.TransferredBytes = fileSize;
+                            writer.Write((byte)1);
+                            writer.Flush();
+                        }
+                        finally
+                        {
+                            // 在确认发送失败时，已提交的本地文件仍应出现在会话里。
                             if (OnFileProgress != null)
                             {
                                 OnFileProgress(progress);
@@ -217,18 +231,6 @@ namespace LanChat
                                 });
                             }
 
-                            writer.Write((byte)1);
-                            writer.Flush();
-                        }
-                        else
-                        {
-                            if (File.Exists(tempPath)) File.Delete(tempPath);
-                            progress.IsFailed = true;
-                            progress.ErrorMessage = "传输中断";
-                            if (OnFileProgress != null)
-                            {
-                                OnFileProgress(progress);
-                            }
                         }
                     }
                 }
@@ -302,14 +304,11 @@ namespace LanChat
             {
                 string transferId = Guid.NewGuid().ToString("N");
                 string fileName = Path.GetFileName(filePath);
-                FileInfo fi = new FileInfo(filePath);
-                long fileSize = fi.Length;
 
                 var progress = new FileTransferProgress
                 {
                     TransferId = transferId,
                     FileName = fileName,
-                    TotalBytes = fileSize,
                     TransferredBytes = 0,
                     IsSending = true,
                     PeerNick = peer.NickName,
@@ -318,6 +317,8 @@ namespace LanChat
 
                 try
                 {
+                    long fileSize = new FileInfo(filePath).Length;
+                    progress.TotalBytes = fileSize;
                     IPEndPoint localEp = GetLocalEndpointForTarget(peer.IP);
                     using (TcpClient client = new TcpClient(localEp))
                     {

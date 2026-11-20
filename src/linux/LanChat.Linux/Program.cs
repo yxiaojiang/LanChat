@@ -34,8 +34,15 @@ namespace LanChat.Linux
             catch { }
         }
 
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
+            Console.OutputEncoding = Encoding.UTF8;
+            Console.InputEncoding = Encoding.UTF8;
+            if (args.Length == 1 && args[0] == "--desktop-service")
+                return DesktopService.Run();
+            if (args.Length > 0 && (args[0] == "--cli" || args[0] == "-c"))
+                args = args[1..];
+
             AppDomain.CurrentDomain.UnhandledException += (s, e) =>
             {
                 Exception ex = e.ExceptionObject as Exception;
@@ -46,29 +53,32 @@ namespace LanChat.Linux
 
             try
             {
+                using var profile = new LinuxProfile();
                 LogToFile("INFO", string.Format("=== LanChat Linux (.NET Native) 启动 (PID: {0}) ===", Environment.ProcessId));
-                RunMain(args);
+                try { RunMain(args, profile); }
+                finally { _netService?.Dispose(); }
+                return 0;
             }
             catch (Exception ex)
             {
                 LogToFile("FATAL", "主循环发生致命异常:\n" + ex.ToString());
-                PrintColored(ConsoleColor.Red, "\n[FATAL ERROR] 程序发生致命异常:\n" + ex.ToString());
-                ExitApp();
+                Console.Error.WriteLine(ex.Message);
+                return 1;
             }
         }
 
-        static void RunMain(string[] args)
+        static void RunMain(string[] args, LinuxProfile profile)
         {
             Console.OutputEncoding = Encoding.UTF8;
             Console.InputEncoding = Encoding.UTF8;
 
-            string initialNick = Environment.UserName;
+            string initialNick = null;
             if (args.Length > 0 && !args[0].StartsWith("-"))
             {
                 initialNick = args[0];
             }
 
-            _netService = new NetworkService(initialNick);
+            _netService = profile.CreateNetwork(initialNick);
             _netService.OnLogMessage += log => LogToFile("NET", log);
 
             // Register events
@@ -159,7 +169,7 @@ namespace LanChat.Linux
 
                 if (line.StartsWith("/"))
                 {
-                    HandleCommand(line);
+                    HandleCommand(line, profile);
                 }
                 else
                 {
@@ -248,7 +258,7 @@ namespace LanChat.Linux
             }
         }
 
-        private static void HandleCommand(string cmdLine)
+        private static void HandleCommand(string cmdLine, LinuxProfile profile)
         {
             string[] parts = cmdLine.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 0) return;
@@ -304,9 +314,18 @@ namespace LanChat.Linux
                         PrintColored(ConsoleColor.Yellow, "用法: /nick <新昵称>");
                         return;
                     }
-                    _netService.NickName = parts[1];
-                    _netService.BroadcastPresence("HELLO");
-                    PrintColored(ConsoleColor.Green, "昵称已修改为: " + parts[1]);
+                    string nickname = cmdLine.Substring(parts[0].Length).Trim();
+                    try
+                    {
+                        profile.SaveNickname(nickname);
+                        _netService.NickName = nickname;
+                        _netService.BroadcastPresence("HELLO");
+                        PrintColored(ConsoleColor.Green, "昵称已修改为: " + nickname);
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+                    {
+                        PrintColored(ConsoleColor.Red, "无法保存昵称: " + ex.Message);
+                    }
                     break;
 
                 case "/clear":
