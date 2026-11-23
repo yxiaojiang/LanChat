@@ -8,7 +8,7 @@
 - 修复 ARM64 Electron deb 内文件与目录同路径冲突，打包器在归档阶段拒绝文件/目录冲突。Linux Electron 设置拆为独立窗口及八个页面。
 - Windows 原生构建、同名文件并发回环、UI 草稿/粘贴格式回归和 MSI 内容校验通过；Linux UI 回归、双架构 ELF 构建和 Electron 包结构核验通过。未运行虚拟机；ARM64 Linux 与 Windows 安装/真实剪贴板仍由用户验收。系统图形后端、输入法、托盘及长历史测试仍在 LC-LINUX-002 计划中。
 - v2.0.18 正式 Release 已发布：https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.18；发布 commit `6a11ea04b2c71ba89e9042e25b80955a1741506e`，分支 `main` 已 push。Release 的 9 个附件均核对远端上传状态、大小与 SHA-256。Windows MSI SHA-256：`12472e5050bd4ef05fda47711fe986942efa9733613b0cfbb22d4f83d6f07e43`；ARM64 deb：`92874c84da1032f78160f87015c312c65aedb21faefb8df736ac71fecaaba8cd`。Linux 双架构其余摘要见 Release 附件 `SHA256SUMS.json`。
-- 发布期间发现 Python urllib 对大包上传等待过久；完整附件最终以 curl 流式方式补齐。发布器已更新为流式传输并在超时后核验远端资产，修复将在后续 commit push；该脚本修复不改变本次已发布产物。
+- 发布期间发现 Python urllib 对大包上传等待过久；完整附件最终以 curl 流式方式补齐。发布器改为流式传输并在超时后核验远端资产，修复已于 `e416ab8` push 到 `main`；该脚本修复不改变本次已发布产物。
 
 ## LC-LINUX-002 第 2 步（已完成）
 
