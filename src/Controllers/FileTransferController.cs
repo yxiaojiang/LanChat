@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -16,15 +17,13 @@ namespace LanChat
         private readonly NetworkService _netService;
         private readonly SessionManager _sessionManager;
         private readonly ISynchronizeInvoke _sync;
+        // 收件先有进度、后有最终路径，按会话和传输号关联同一气泡。
+        private readonly Dictionary<Tuple<string, string>, ChatMessage> _incoming = new Dictionary<Tuple<string, string>, ChatMessage>();
 
-        /// <summary>文件传输百分比与速率进度刷新事件</summary>
-        public event Action<FileTransferProgress> ProgressChanged;
-        /// <summary>传输完成或失败通知事件（会话键、文件名、是否成功及失败原因）。</summary>
-        public event Action<string, string, bool, string> TransferCompleted;
+        /// <summary>向界面通知文件气泡、会话键以及是否是首次追加。</summary>
+        internal event Action<ChatMessage, string, bool> TransferMessageChanged;
         /// <summary>远端文件接收完毕并落盘通知事件 (参数：fileMsg, convKey, wasActivelyViewing)</summary>
         public event Action<ChatMessage, string, bool /* wasActivelyViewing */> FileReceived;
-        /// <summary>本地文件发送成功创建气泡通知事件 (参数：fileMsg, targetPeerId)</summary>
-        public event Action<ChatMessage, string> FileSent;
 
         /// <summary>获取或设置判定当前接收的文件是否处于当前激活查看视口的委托</summary>
         public Func<string, string, bool> IsActivelyViewingPredicate { get; set; }
@@ -43,7 +42,11 @@ namespace LanChat
 
             if (_netService != null)
             {
-                _netService.OnFileProgress += (prog) => SafeInvoke(() => HandleFileProgress(prog));
+                _netService.OnFileProgress += progress =>
+                {
+                    var snapshot = progress.Snapshot();
+                    SafeInvoke(() => HandleIncomingProgress(snapshot));
+                };
                 _netService.OnFileReceived += msg => SafeInvoke(() => HandleFileReceived(msg));
             }
         }
@@ -69,22 +72,28 @@ namespace LanChat
         /// </summary>
         /// <param name="peer">目标接收节点</param>
         /// <param name="filePaths">本地物理文件路径数组</param>
-        public void SendFiles(PeerInfo peer, string[] filePaths)
+        /// <returns>进入传输的文件数。</returns>
+        public int SendFiles(PeerInfo peer, string[] filePaths)
         {
-            if (peer == null || peer.TcpPort <= 0 || filePaths == null || filePaths.Length == 0) return;
+            if (_netService == null || peer == null || peer.TcpPort <= 0 || filePaths == null) return 0;
 
-            string convKey = SessionManager.GetLanKey(peer.Id, peer.IP);
+            string convKey = _sessionManager.ResolveKey(SessionManager.GetLanKey(peer.Id, peer.IP));
+            var batch = new List<ChatMessage>();
             foreach (string filePath in filePaths)
             {
                 if (!File.Exists(filePath)) continue;
-
                 string fileName = Path.GetFileName(filePath);
-                long fileSize = new FileInfo(filePath).Length;
+                long fileSize;
+                try { fileSize = new FileInfo(filePath).Length; }
+                catch (IOException) { continue; }
+                catch (UnauthorizedAccessException) { continue; }
 
                 ChatMessage fileMsg = new ChatMessage
                 {
-                    SenderNick = _netService != null ? _netService.NickName : Environment.UserName,
+                    SenderNick = _netService.NickName,
+                    SenderId = _netService.LocalId,
                     TargetId = peer.Id,
+                    RemoteAddress = peer.IP,
                     PeerNick = peer.NickName,
                     Content = "[发送文件] " + fileName,
                     Timestamp = DateTime.Now,
@@ -92,47 +101,73 @@ namespace LanChat
                     IsFile = true,
                     FileName = fileName,
                     FilePath = filePath,
-                    FileSize = fileSize
+                    FileSize = fileSize,
+                    TransferProgress = new FileTransferProgress { IsSending = true, TotalBytes = fileSize }
                 };
 
                 peer.LastMessage = "[文件] " + fileName;
                 peer.LastMessageTime = DateTime.Now;
-                if (_sessionManager != null)
-                {
-                    _sessionManager.AddMessage(convKey, fileMsg);
-                }
-
-                if (FileSent != null)
-                {
-                    FileSent(fileMsg, convKey);
-                }
-
-                if (_netService != null)
-                {
-                    _netService.SendFileAsync(peer, filePath,
-                        prog => SafeInvoke(() => HandleFileProgress(prog)),
-                        (success, reason) => SafeInvoke(() => {
-                            if (TransferCompleted != null)
-                            {
-                                TransferCompleted(convKey, fileName, success, reason);
-                            }
-                        })
-                    );
-                }
+                _sessionManager.AddMessage(convKey, fileMsg, persist: false);
+                batch.Add(fileMsg);
             }
+            // 先追加整批气泡，再启动原有并行文件流。
+            foreach (ChatMessage message in batch) PublishTransferMessage(message, convKey, true);
+            foreach (ChatMessage message in batch)
+            {
+                ChatMessage fileMsg = message;
+                _netService.SendFileAsync(peer, fileMsg.FilePath, progress =>
+                {
+                    var snapshot = progress.Snapshot();
+                    SafeInvoke(() =>
+                    {
+                        fileMsg.TransferProgress = snapshot;
+                        fileMsg.FileSize = snapshot.TotalBytes;
+                        PublishTransferMessage(fileMsg, convKey, false);
+                    });
+                }, (success, reason) =>
+                {
+                    if (!success) return;
+                    SafeInvoke(() =>
+                    {
+                        fileMsg.TransferProgress = null;
+                        _sessionManager.PersistExistingMessage(convKey, fileMsg);
+                        PublishTransferMessage(fileMsg, convKey, false);
+                    });
+                });
+            }
+            return batch.Count;
         }
 
-        private void HandleFileProgress(FileTransferProgress prog)
+        private void PublishTransferMessage(ChatMessage message, string key, bool added)
         {
-            if (ProgressChanged != null)
+            if (TransferMessageChanged != null) TransferMessageChanged(message, key, added);
+        }
+
+        private void HandleIncomingProgress(FileTransferProgress progress)
+        {
+            string key = _sessionManager.ResolveKey(SessionManager.GetLanKey(progress.TransferPeerId, progress.TransferPeerAddress));
+            var id = Tuple.Create(key, progress.TransferId);
+            ChatMessage message;
+            bool added = !_incoming.TryGetValue(id, out message);
+            if (added)
             {
-                ProgressChanged(prog);
+                message = new ChatMessage
+                {
+                    SenderId = progress.TransferPeerId, RemoteAddress = progress.TransferPeerAddress,
+                    SenderNick = progress.PeerNick, IsFile = true, Timestamp = DateTime.Now,
+                    FileName = progress.FileName, FileSize = progress.TotalBytes, TransferProgress = progress
+                };
+                _sessionManager.AddMessage(key, message, persist: false);
+                _incoming.Add(id, message);
             }
+            message.TransferProgress = progress;
+            if (progress.IsFailed) _incoming.Remove(id);
+            PublishTransferMessage(message, key, added);
         }
 
         private void HandleFileReceived(ChatMessage fileMsg)
         {
-            string convKey = SessionManager.GetLanKey(fileMsg.SenderId, fileMsg.RemoteAddress);
+            string convKey = _sessionManager.ResolveKey(SessionManager.GetLanKey(fileMsg.SenderId, fileMsg.RemoteAddress));
             PeerInfo matchedPeer = null;
             if (_netService != null)
             {
@@ -149,10 +184,21 @@ namespace LanChat
                 }
             }
 
-            if (_sessionManager != null)
+            var id = Tuple.Create(convKey, fileMsg.FileTransferId);
+            ChatMessage message;
+            bool added = true;
+            if (_incoming.TryGetValue(id, out message))
             {
-                _sessionManager.AddMessage(convKey, fileMsg);
+                _incoming.Remove(id);
+                message.FilePath = fileMsg.FilePath;
+                message.FileName = fileMsg.FileName;
+                message.FileSize = fileMsg.FileSize;
+                message.Content = fileMsg.Content;
+                message.TransferProgress = null;
+                if (_sessionManager.PersistExistingMessage(convKey, message)) added = false;
             }
+            if (added) _sessionManager.AddMessage(convKey, fileMsg);
+            PublishTransferMessage(added ? fileMsg : message, convKey, added);
 
             bool wasActivelyViewing = false;
             if (IsActivelyViewingPredicate != null)

@@ -131,15 +131,29 @@ def settings_regression(executable, bundle, home):
     with Service(executable, bundle, home) as service:
         assert service.call("settings")["nickname"] == "original"
         service.call("save-settings", nickname="accepted", autoAcceptFiles=False)
-        result = service.call("save-settings", nickname="accepted", autoAcceptFiles=False, confirmOverride=True)
+        result = service.call(
+            "save-settings", nickname="accepted", autoAcceptFiles=False, confirmOverride=True,
+            themeMode=2, accentPreset=3, uiFontFamily="SimHei", uiFontSize=12.0,
+            chatFontFamily="Consolas", chatFontSize=13.0,
+        )
         assert result["settingsPath"] == str(override) and result["autoAcceptFiles"] is False
-        assert json.loads(override.read_bytes())["Unknown"] is True
+        assert result["themeMode"] == 2 and result["accentPreset"] == 3
+        assert result["uiFontFamily"] == "SimHei" and result["uiFontSize"] == 12.0
+        assert result["chatFontFamily"] == "Consolas" and result["chatFontSize"] == 13.0
+        saved = json.loads(override.read_bytes())
+        assert saved["Unknown"] is True
+        assert saved["ThemeMode"] == 2 and saved["AccentPreset"] == 3
+        assert saved["UiFontFamily"] == "SimHei" and saved["UiFontSize"] == 12.0
+        assert saved["ChatFontFamily"] == "Consolas" and saved["ChatFontSize"] == 13.0
 
     with Service(executable, bundle, home) as service:
         result = service.call("settings")
         assert result["settingsPath"] == str(override) and result["nickname"] == "accepted"
         assert result["autoAcceptFiles"] is False and original.read_bytes() == backup.read_bytes() == seed
-    print("只读设置备份、取消、确认、锁互斥、重启及原字节通过")
+        assert result["themeMode"] == 2 and result["accentPreset"] == 3
+        assert result["uiFontFamily"] == "SimHei" and result["uiFontSize"] == 12.0
+        assert result["chatFontFamily"] == "Consolas" and result["chatFontSize"] == 13.0
+    print("只读设置备份、取消、确认、外观持久化、锁互斥、重启及原字节通过")
 
 
 def transfer_regression(executable, bundle, home):
@@ -345,7 +359,11 @@ def history_regression(executable, bundle, home):
         assert [Path(item["FilePath"]) for item in entries] == [
             receive_dir / "before.bin", receive_dir / "after.bin",
         ], entries
-        print("用户主动迁移历史、冲突时保留原数据、迁移后追加与重启恢复通过")
+        clear_reply, clear_events = service.call_collect("clear-all-histories")
+        assert "result" in clear_reply
+        assert any(row.get("event") == "histories-cleared" for row in clear_events)
+        assert service.call("history", chat=chat)["messages"] == []
+        print("用户主动迁移历史、冲突时保留原数据、迁移后追加、全清与重启恢复通过")
 
 
 def delete_session_regression(executable, bundle, home):

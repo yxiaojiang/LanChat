@@ -152,11 +152,11 @@ LanChat/
 
 ## 🛠️ 项目构建与开发者快捷指令
 
-在 `Tools/` 文件夹中为您提供了 3 个一键自动化脚本：
+双击 `Tools/BuildPanel.bat` 可打开构建控制台，集中运行纯编译、编译覆盖、正式发布和 Linux 桌面包构建，并实时查看日志。控制台脚本位于 `Tools/Scripts/`：
 
-1. **`Tools/Compile.bat`（纯编译）**：
+1. **`Tools/Scripts/Compile.bat`（纯编译）**：
    调用系统原生 `csc.exe` 极速编译链接 `release\LanChat.exe` 与 `release\uninstall.exe`，不触碰本地安装，用于快速排查代码语法。
-2. **`Tools/CompileAndLink.bat`（编译覆盖）**：
+2. **`Tools/Scripts/CompileAndLink.bat`（编译覆盖）**：
    编译后自动检测并安全退出后台运行中的旧程序，将最新版程序热替换覆盖至 `D:\soft\LanChat\`，按回车即可立即启动全新程序体验。
-3. **`Tools/Publish.bat`（一键发布）**：
+3. **`Tools/Scripts/Publish.bat`（一键发布）**：
    自动调用 WiX 5 将最新程序打包为 `release\LanChat.msi`，刷新 Linux deb 包，并自动创建/更新对应版本的 GitHub Release 并流式挂载安装包资产。

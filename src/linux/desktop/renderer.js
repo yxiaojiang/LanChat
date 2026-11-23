@@ -1,9 +1,24 @@
-const api = window.lanchat;
-const presentation = window.LanChatPresentation;
-const byId = id => document.getElementById(id);
+(function (root, factory) {
+  const api = factory(root);
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  root.LanChatMainApp = api;
+  if (!(typeof process === 'object' && process?.env?.LANCHAT_TEST_MODE === '1') && typeof document !== 'undefined') {
+    api.createMainController();
+  }
+})(typeof globalThis === 'undefined' ? this : globalThis, function (root) {
+function createMainController(deps = {}) {
+const doc = deps.document || root.document;
+const win = deps.window || root.window || root;
+const api = deps.api !== undefined ? deps.api : win.lanchat;
+const presentation = deps.presentation || root.LanChatPresentation;
+const appearance = deps.appearance || root.LanChatAppearance;
+const overlay = deps.overlay || root.LanChatOverlay;
+const scroll = deps.scroll || root.LanChatScroll;
+const byId = id => doc.getElementById(id);
 const group = presentation.GROUP;
 const messages = new Map();
 const drafts = new Map();
+const attachments = new Map();
 const unread = new Map();
 const sending = new Set();
 const transfers = new Map();
@@ -12,7 +27,6 @@ const historyLoads = new Map();
 const compose = byId('message');
 const feed = byId('messages');
 const dialog = byId('recipient');
-const settingsDialog = byId('settings');
 let active = group;
 let online = false;
 let address = '';
@@ -21,6 +35,12 @@ let connecting = true;
 let deferredEvents = [];
 let connectionGeneration = 0;
 let composeScroll = null;
+
+function applyAppearance(settingsData) {
+  if (!appearance || !settingsData) return;
+  appearance.applyAppearance(doc.documentElement, settingsData);
+  syncComposeHeight();
+}
 
 function status(line, error = false) {
   const output = byId('status');
@@ -130,7 +150,10 @@ function updateHeader() {
   byId('open-settings').disabled = !online;
   compose.disabled = !online;
   compose.placeholder = presentation.composePlaceholder(active, peer);
-  byId('send').disabled = !available || !compose.value.trim() || sending.has(active);
+  compose.dataset.draftChat = active;
+  const hasFiles = Boolean(attachments.get(active)?.length);
+  byId('send').disabled = !available || (!compose.value.trim() && !hasFiles) || sending.has(active);
+  byId('send').title = byId('send').ariaLabel = hasFiles ? '发送附件' : '发送消息';
 }
 
 function appendRendered(message, previous, target = feed) {
@@ -179,11 +202,40 @@ function fileCard(message) {
   name.textContent = message.name || '未知文件';
   const size = document.createElement('small');
   size.textContent = presentation.formatFileSize(message.size) + (message.exists === false ? ' · 原文件不可用' : '');
+  card.append(badge, name, size);
+  if (message.transferState) {
+    const progress = document.createElement('div');
+    progress.className = 'file-progress';
+    const bar = document.createElement('progress');
+    bar.max = 100;
+    bar.setAttribute('aria-label', message.name || '文件传输进度');
+    const label = document.createElement('small');
+    progress.append(bar, label);
+    card.append(progress);
+    message.card = card;
+    message.progressView = { bar, label };
+    paintProgress(message);
+    return card;
+  }
   const actions = document.createElement('div');
   actions.className = 'file-actions';
   actions.append(fileAction('打开文件', message, 'file', message.exists === false), fileAction('打开目录', message, 'directory', false));
-  card.append(badge, name, size, actions);
+  card.append(actions);
   return card;
+}
+
+function paintProgress(message) {
+  const { bar, label } = message.progressView;
+  const state = message.transferState;
+  const action = state.sending ? '发送' : '接收';
+  const percent = state.completed ? 100 : state.total > 0
+    ? Math.min(100, Math.max(0, Math.floor(100 * (state.received ?? 0) / state.total))) : 0;
+  bar.value = percent;
+  label.classList.toggle('error', Boolean(state.failed || state.unknown));
+  label.textContent = state.unknown ? (state.queued ? '未发送' : `${action}结果未确认 · ${percent}%`) :
+    state.failed ? `${action}失败${state.error ? ` · ${state.error}` : ''}` :
+    state.completed ? `${action}完成 · 100%` : `${state.queued ? '等待发送' : `${action}中`} · ${percent}%`;
+  label.title = label.textContent;
 }
 
 function fileAction(label, message, kind, unavailable) {
@@ -201,27 +253,84 @@ function fileAction(label, message, kind, unavailable) {
   return button;
 }
 
-function remember(message) {
-  if (message.sequence <= lastSequence) return;
-  lastSequence = message.sequence;
+function appendMessage(message) {
   if (!messages.has(message.chat)) messages.set(message.chat, []);
-  messages.get(message.chat).push(message);
+  const list = messages.get(message.chat);
+  const previous = list.at(-1);
+  list.push(message);
   if (message.chat !== group && !peers.has(message.chat)) {
     peers.set(message.chat, { key: message.chat, nick: message.peerNick || (!message.self && message.nick) || '局域网节点', online: false });
   }
   if (message.chat === active) {
     const nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 32;
-    const list = messages.get(message.chat);
-    appendRendered(message, list.length > 1 ? list[list.length - 2] : null);
+    appendRendered(message, previous);
     if (nearBottom || message.self) feed.scrollTop = feed.scrollHeight;
-  } else if (!message.self) {
+  }
+}
+
+// 发送用本地请求号，接收用对端传输号和会话键。相同文件名和并行收发均独立更新。
+function transferKey(sendingFile, chat, transfer, operation) {
+  return JSON.stringify([connectionGeneration, sendingFile, sendingFile && operation ? operation : [chat, transfer]]);
+}
+
+function remember(message) {
+  if (message.sequence <= lastSequence) return;
+  lastSequence = message.sequence;
+  const key = transferKey(message.self, message.chat, message.transfer, message.operation);
+  const pending = message.file && transfers.get(key);
+  if (pending && pending.chat === message.chat) {
+    const list = messages.get(message.chat);
+    list[list.indexOf(pending)] = message;
+    if (message.chat === active && feed.contains(pending.card)) pending.card.replaceWith(fileCard(message));
+  } else {
+    if (pending) {
+      const previousChat = messages.get(pending.chat);
+      previousChat.splice(previousChat.indexOf(pending), 1);
+      if (pending.chat === active) drawHistory(false);
+    }
+    appendMessage(message);
+  }
+  if (pending) transfers.delete(key);
+  if (message.chat !== active && !message.self) {
     unread.set(message.chat, (unread.get(message.chat) ?? 0) + 1);
   }
   if (message.storageError) status(message.storageError, true);
   drawChats();
 }
 
-function drawHistory() {
+function showTransfer(event) {
+  const key = transferKey(event.sending, event.chat, event.transfer, event.operation);
+  const pending = transfers.get(key);
+  if (pending) {
+    if (pending.transferState.failed || pending.transferState.completed) return;
+    pending.transferState = { ...pending.transferState, ...event, queued: event.queued === true };
+    if (pending.progressView) paintProgress(pending);
+  } else {
+    const message = {
+      chat: event.chat, self: event.sending, nick: event.peerNick, peerNick: event.peerNick,
+      file: true, name: event.name, size: event.total, timestamp: new Date().toISOString(), transferState: event
+    };
+    transfers.set(key, message);
+    appendMessage(message);
+    drawChats();
+  }
+  if (event.failed) pruneTransfers();
+}
+
+function pruneTransfers() {
+  const terminal = [...transfers].filter(([, item]) => item.transferState.failed || item.transferState.unknown);
+  let redraw = false;
+  for (const [key, item] of terminal.slice(0, Math.max(0, terminal.length - 50))) {
+    transfers.delete(key);
+    const list = messages.get(item.chat);
+    list.splice(list.indexOf(item), 1);
+    redraw ||= item.chat === active;
+  }
+  if (redraw) drawHistory(false);
+}
+
+function drawHistory(scrollToBottom = true) {
+  const position = feed.scrollTop;
   const fragment = document.createDocumentFragment();
   let previous = null;
   for (const item of messages.get(active) ?? []) {
@@ -229,7 +338,7 @@ function drawHistory() {
     previous = item;
   }
   feed.replaceChildren(fragment);
-  feed.scrollTop = feed.scrollHeight;
+  feed.scrollTop = scrollToBottom ? feed.scrollHeight : position;
 }
 
 async function loadHistory(chat) {
@@ -239,7 +348,7 @@ async function loadHistory(chat) {
   try {
     const page = await api.history(chat);
     if (historyLoads.get(chat) !== operation) return;
-    const newer = (messages.get(chat) ?? []).filter(message => message.sequence > page.sequence);
+    const newer = (messages.get(chat) ?? []).filter(message => message.transferState || message.sequence > page.sequence);
     messages.set(chat, [...page.messages, ...newer]);
     if (active === chat) drawHistory();
     drawChats();
@@ -266,7 +375,7 @@ function switchChat(id, focusCompose = true, force = false) {
   syncComposeHeight();
   unread.delete(active);
   drawHistory();
-  drawTransfers();
+  drawAttachments();
   drawChats();
   updateHeader();
   if (online && focusCompose) compose.focus();
@@ -274,29 +383,50 @@ function switchChat(id, focusCompose = true, force = false) {
   void loadHistory(active);
 }
 
-function drawTransfers() {
-  const list = byId('transfers');
+function drawAttachments() {
+  const list = byId('attachments');
+  const files = attachments.get(active) ?? [];
   list.replaceChildren();
-  for (const transfer of transfers.values()) {
-    if (transfer.chat !== active) continue;
-    const row = document.createElement('div');
-    const action = transfer.sending ? '发送' : '接收';
-    const percentage = transfer.total ? Math.round(100 * transfer.received / transfer.total) : 0;
-    row.textContent = transfer.unknown ? `${action}结果未确认 · ${transfer.name}` :
-      transfer.failed ? `${action}失败 · ${transfer.name} · ${transfer.error ?? ''}` :
-      transfer.completed ? `${action}完成 · ${transfer.name}` :
-      `${action}中 · ${transfer.name} · ${percentage}%`;
-    list.append(row);
+  for (const file of files) {
+    const chat = active;
+    const item = document.createElement('div');
+    item.className = 'attachment';
+    item.title = `${file.name} · ${presentation.formatFileSize(file.size)}`;
+    const icon = document.createElement('img');
+    icon.src = 'assets/BoxWhite.png';
+    icon.alt = '';
+    const name = document.createElement('span');
+    name.textContent = file.name;
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.textContent = '×';
+    remove.setAttribute('aria-label', `移除附件 ${file.name}`);
+    remove.addEventListener('click', () => {
+      if (sending.has(chat)) return;
+      removeAttachments(chat, [file]);
+      void api.discardPastedFiles([file.id]).catch(error => status(error.message, true));
+      compose.focus();
+    });
+    item.append(icon, name, remove);
+    list.append(item);
   }
-  const empty = !list.childElementCount;
-  list.hidden = empty;
-  list.parentElement.hidden = empty;
+  byId('attachments-host').hidden = !files.length;
 }
 
-async function sendText() {
+function removeAttachments(chat, files) {
+  const removed = new Set(files.map(file => file.id));
+  const remaining = (attachments.get(chat) ?? []).filter(file => !removed.has(file.id));
+  if (remaining.length) attachments.set(chat, remaining);
+  else attachments.delete(chat);
+  if (chat === active) drawAttachments();
+  updateHeader();
+}
+
+async function sendCompose() {
   const chat = active;
   const value = compose.value;
-  if (!value.trim()) return;
+  const files = attachments.get(chat) ?? [];
+  if (!value.trim() && !files.length) return;
   if (online && chat !== group && !peers.get(chat)?.online) {
     status('好友当前离线，暂时无法发送消息', true);
     return;
@@ -305,6 +435,13 @@ async function sendText() {
   sending.add(chat);
   updateHeader();
   try {
+    if (files.length) {
+      const recipient = chat === group ? await pickRecipient() : peers.get(chat)?.id;
+      if (!recipient) return;
+      await api.sendPastedFiles(recipient, files.map(file => file.id));
+      removeAttachments(chat, files);
+    }
+    if (!value.trim()) return;
     const result = await api.sendText(chat === group ? group : peers.get(chat)?.id, value.trim());
     if (chat === active && compose.value === value) {
       compose.value = '';
@@ -475,6 +612,9 @@ async function forgetChat(key, removePeer) {
     if (peers.has(key)) peers.get(key).summary = '';
     for (const [id, item] of transfers) if (item.chat === key) transfers.delete(id);
     if (removePeer) {
+      const files = attachments.get(key) ?? [];
+      removeAttachments(key, files);
+      if (files.length) void api.discardPastedFiles(files.map(file => file.id)).catch(() => {});
       drafts.delete(key);
       peers.delete(key);
     }
@@ -483,7 +623,6 @@ async function forgetChat(key, removePeer) {
     if (removePeer && active === key) switchChat(group, true);
     else {
       if (active === key) drawHistory();
-      drawTransfers();
       drawChats();
       updateHeader();
     }
@@ -534,7 +673,20 @@ feed.addEventListener('keydown', event => {
   event.preventDefault();
   selectBubbleText(bubble);
 });
-byId('compose').addEventListener('submit', event => { event.preventDefault(); void sendText(); });
+byId('compose').addEventListener('submit', event => { event.preventDefault(); void sendCompose(); });
+compose.addEventListener('files-pasted', event => {
+  const { chat, files } = JSON.parse(event.detail);
+  const existing = attachments.get(chat) ?? [];
+  const available = Math.max(0, 32 - existing.length);
+  attachments.set(chat, [...existing, ...files.slice(0, available)]);
+  if (files.length > available) {
+    void api.discardPastedFiles(files.slice(available).map(file => file.id)).catch(() => {});
+    status('一次最多发送 32 个文件', true);
+  }
+  if (chat === active) drawAttachments();
+  updateHeader();
+});
+compose.addEventListener('paste-error', event => status(event.detail, true));
 compose.addEventListener('input', () => {
   syncComposeHeight();
   updateHeader();
@@ -553,7 +705,7 @@ compose.addEventListener('keydown', event => {
   }
   if (!presentation.shouldSendOnEnter(event)) return;
   event.preventDefault();
-  void sendText();
+  void sendCompose();
 });
 byId('search').addEventListener('input', () => {
   window.LanChatOverlay.closeMenu();
@@ -590,82 +742,14 @@ byId('chats').addEventListener('keydown', event => {
 byId('chats').addEventListener('scroll', () => window.LanChatOverlay.closeMenu());
 byId('quit').addEventListener('click', () => api?.quit());
 
-// 更换只读配置需要再次确认。输入变化后应重新显示原路径的写入结果。
-let pickedDirectory = null;
-let pickedHistory = null;
-let confirmOverride = false;
+// 设置窗口独立为 1260×820 模态子窗体，主窗仅负责触发打开与焦点恢复。
 let settingsTrigger = null;
-function resetSettingsConfirmation() {
-  confirmOverride = false;
-  byId('settings-save').textContent = '保存';
-  byId('settings-message').hidden = true;
-}
-function settingsMessage(text) {
-  byId('settings-message').textContent = text;
-  byId('settings-message').hidden = false;
-}
 byId('open-settings').addEventListener('click', async () => {
   try {
-    const current = await api.settings();
-    byId('settings-nickname').value = current.nickname;
-    byId('settings-auto-accept').checked = current.autoAcceptFiles;
-    byId('settings-directory').textContent = current.downloadDirectory;
-    byId('settings-history').textContent = current.historyDirectory;
-    pickedDirectory = null;
-    pickedHistory = null;
-    resetSettingsConfirmation();
     settingsTrigger = document.activeElement;
-    if (!settingsDialog.open) settingsDialog.showModal();
+    await api.openSettings();
   } catch (error) {
     status(error.message, true);
-  }
-});
-settingsDialog.addEventListener('close', () => {
-  if (settingsTrigger && settingsTrigger.isConnected) settingsTrigger.focus();
-  settingsTrigger = null;
-});
-byId('settings-form').addEventListener('input', resetSettingsConfirmation);
-byId('settings-cancel').addEventListener('click', () => settingsDialog.close());
-async function pickSettingsDirectory(kind) {
-  try {
-    const folder = await api.selectSettingsDirectory(kind);
-    if (!folder) return;
-    if (kind === 'history') {
-      pickedHistory = folder;
-      byId('settings-history').textContent = folder;
-    } else {
-      pickedDirectory = folder;
-      byId('settings-directory').textContent = folder;
-    }
-    resetSettingsConfirmation();
-  } catch (error) {
-    settingsMessage(error.message);
-  }
-}
-byId('settings-pick-directory').addEventListener('click', () => pickSettingsDirectory('downloads'));
-byId('settings-pick-history').addEventListener('click', () => pickSettingsDirectory('history'));
-byId('settings-form').addEventListener('submit', async event => {
-  event.preventDefault();
-  const save = byId('settings-save');
-  if (save.disabled) return;
-  const controls = Array.from(event.currentTarget.elements);
-  for (const control of controls) control.disabled = true;
-  try {
-    const result = await api.saveSettings(byId('settings-nickname').value, byId('settings-auto-accept').checked,
-      pickedDirectory, confirmOverride, pickedHistory);
-    if (result.overridePath) {
-      confirmOverride = true;
-      settingsMessage(`原设置只读，已备份到\n${result.backupPath}\n\n可改用\n${result.overridePath}`);
-      save.textContent = '使用备用位置';
-      return;
-    }
-    paintNick(result.nickname);
-    settingsDialog.close();
-    status('设置已保存');
-  } catch (error) {
-    settingsMessage(error.message);
-  } finally {
-    for (const control of controls) control.disabled = false;
   }
 });
 byId('refresh').addEventListener('click', async () => {
@@ -694,7 +778,11 @@ async function initialize(reconnect = false) {
   updateHeader();
   try {
     if (reconnect) await api.reconnect();
-    const state = await api.state();
+    const [state, settingsData] = await Promise.all([
+      api.state(),
+      api.settings ? api.settings() : Promise.resolve(null)
+    ]);
+    if (settingsData) applyAppearance(settingsData);
     address = state.ip + ':' + state.tcpPort;
     paintNick(state.nick);
     online = true;
@@ -704,6 +792,11 @@ async function initialize(reconnect = false) {
     peers.clear();
     for (const conversation of state.sessions) {
       peers.set(conversation.key, { ...conversation, nick: conversation.nick || '局域网节点', online: false });
+    }
+    for (const item of transfers.values()) {
+      if (!messages.has(item.chat)) messages.set(item.chat, []);
+      messages.get(item.chat).push(item);
+      if (!peers.has(item.chat)) peers.set(item.chat, { key: item.chat, nick: item.peerNick || '局域网节点', online: false });
     }
     setPeers(state.peers);
     switchChat(peers.has(active) ? active : group, true, true);
@@ -728,11 +821,27 @@ function handleEvent(event) {
   else if (event.event === 'linked') {
     const { oldKey, key } = event.data;
     peers.delete(oldKey);
+    const pending = (messages.get(oldKey) ?? []).filter(item => item.transferState);
     messages.delete(oldKey);
+    if (pending.length) {
+      if (!messages.has(key)) messages.set(key, []);
+      for (const item of pending) {
+        const state = item.transferState;
+        const previous = transferKey(state.sending, oldKey, state.transfer, state.operation);
+        if (transfers.delete(previous)) transfers.set(transferKey(state.sending, key, state.transfer, state.operation), item);
+        item.chat = key;
+        messages.get(key).push(item);
+      }
+    }
     historyLoads.delete(oldKey);
     const oldDraft = active === oldKey ? compose.value : drafts.get(oldKey);
     if (oldDraft && !drafts.has(key)) drafts.set(key, oldDraft);
     drafts.delete(oldKey);
+    if (attachments.has(oldKey)) {
+      attachments.set(key, [...(attachments.get(key) ?? []), ...attachments.get(oldKey)]);
+      attachments.delete(oldKey);
+      if (active === key) drawAttachments();
+    }
     if (unread.has(oldKey)) {
       unread.set(key, (unread.get(key) ?? 0) + unread.get(oldKey));
       unread.delete(oldKey);
@@ -749,36 +858,53 @@ function handleEvent(event) {
     }
     drawChats();
   }
-  else if (event.event === 'progress') {
-    const key = JSON.stringify([connectionGeneration, event.sending, event.transfer, event.chat]);
-    transfers.set(key, event);
-    if (!peers.has(event.chat)) {
-      peers.set(event.chat, { key: event.chat, nick: event.peerNick || '局域网节点', online: false });
-      drawChats();
+  else if (event.event === 'progress') showTransfer(event);
+  else if (event.event === 'file-error') status(event.data, true);
+  else if (event.event === 'settings-updated') {
+    if (event.data?.nickname) paintNick(event.data.nickname);
+    if (event.data) applyAppearance(event.data);
+    status('设置已保存');
+  } else if (event.event === 'histories-cleared') {
+    historyLoads.clear();
+    messages.clear();
+    for (const [key, item] of transfers) {
+      if (item.transferState.failed || item.transferState.unknown) {
+        transfers.delete(key);
+      } else {
+        if (!messages.has(item.chat)) messages.set(item.chat, []);
+        messages.get(item.chat).push(item);
+      }
     }
-    if (event.completed || event.failed) {
-      const finished = Array.from(transfers).filter(([, item]) => item.completed || item.failed);
-      for (const [id] of finished.slice(0, Math.max(0, finished.length - 50))) transfers.delete(id);
-    }
-    drawTransfers();
+    unread.clear();
+    for (const peer of peers.values()) peer.summary = '';
+    drawHistory();
+    drawChats();
+    updateHeader();
+    status('已彻底清空所有本地聊天记录');
+  } else if (event.event === 'settings-closed') {
+    if (settingsTrigger && settingsTrigger.isConnected) settingsTrigger.focus();
+    settingsTrigger = null;
   } else if (event.event === 'disconnect') {
     online = false;
     connectionGeneration++;
     for (const item of transfers.values()) {
-      if (!item.completed && !item.failed) item.unknown = true;
+      const state = item.transferState;
+      if (!state.completed && !state.failed) state.unknown = true;
+      if (item.progressView) paintProgress(item);
     }
-    drawTransfers();
+    pruneTransfers();
     status(event.data, true);
     updateHeader();
   }
 }
 
-window.LanChatScroll.bind(byId('chats'));
-window.LanChatScroll.bind(byId('messages'));
-window.LanChatScroll.bind(byId('transfers'));
-composeScroll = window.LanChatScroll.bind(compose);
-window.LanChatScroll.bind(byId('recipients'));
+scroll.bind(byId('chats'));
+scroll.bind(byId('messages'));
+scroll.bind(byId('attachments'));
+composeScroll = scroll.bind(compose);
+scroll.bind(byId('recipients'));
 drawChats();
+let initPromise = Promise.resolve();
 if (!api) {
   connecting = false;
   status('桌面桥接不可用', true);
@@ -788,5 +914,9 @@ if (!api) {
     if (connecting) deferredEvents.push(event);
     else handleEvent(event);
   });
-  void initialize();
+  initPromise = initialize();
 }
+return { initPromise, messages, historyLoads, loadHistory, handleEvent, switchChat, applyAppearance };
+}
+return { createMainController };
+});

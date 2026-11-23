@@ -8,9 +8,9 @@ echo.
 
 REM 1. Locate LanChat project root directory
 set "PROJECT_DIR="
-if exist "%~dp0..\src\MainForm*.cs" set "PROJECT_DIR=%~dp0.."
+if exist "%~dp0..\..\src\MainForm*.cs" set "PROJECT_DIR=%~dp0..\.."
 if not defined PROJECT_DIR (
-    if exist "%~dp0..\LanChat\src\MainForm*.cs" set "PROJECT_DIR=%~dp0..\LanChat"
+    if exist "%~dp0..\..\LanChat\src\MainForm*.cs" set "PROJECT_DIR=%~dp0..\..\LanChat"
 )
 if not defined PROJECT_DIR (
     if exist "%~dp0src\MainForm*.cs" set "PROJECT_DIR=%~dp0"
@@ -105,13 +105,11 @@ if errorlevel 1 (
 echo       [SUCCESS] LanChat.msi created: release\LanChat.msi
 echo.
 
-REM 5. 从本轮的两架构 ELF 重建 Debian 包，失败时在上传前退出。
-echo [3/4] Building Linux ELF and Debian packages...
-call src\linux\LanChat.Linux\build-linux.bat 1
+REM 5. 从本轮的两架构 ELF 重建 Electron Debian、便携与 CLI 包。
+echo [3/4] Building Linux Electron packages...
+python Tools\Scripts\BuildLinuxDeb.py
 if errorlevel 1 exit /b %errorlevel%
-python packaging\build-deb.py --elf-dir release
-if errorlevel 1 exit /b %errorlevel%
-echo       [SUCCESS] Linux deb packages updated.
+echo       [SUCCESS] Linux Electron packages updated.
 echo.
 
 REM 6. Publish to GitHub Releases

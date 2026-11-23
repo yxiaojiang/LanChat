@@ -169,6 +169,15 @@ namespace LanChat.Linux
                             Reply(id, PeerList());
                         }
                         break;
+                    case "clear-all-histories":
+                        // 彻底清空全部本地聊天记录文件并同步通知桌面端刷新视图。
+                        lock (_gate)
+                        {
+                            _sessions.ClearAllHistories();
+                            Publish("histories-cleared");
+                            Reply(id, PeerList());
+                        }
+                        break;
                     case "quit":
                         Reply(id, null);
                         return true;
@@ -218,13 +227,51 @@ namespace LanChat.Linux
             throw new ArgumentException("无效的 " + name);
         }
 
+        private static string OptionalString(JsonObject request, string name, int limit)
+        {
+            JsonNode node = request[name];
+            if (node == null) return null;
+            if (node is JsonValue value && value.TryGetValue(out string text) &&
+                !string.IsNullOrWhiteSpace(text) && text.Length <= limit) return text;
+            throw new ArgumentException("无效的 " + name);
+        }
+
+        private static int? OptionalInt(JsonObject request, string name)
+        {
+            JsonNode node = request[name];
+            if (node == null) return null;
+            if (node is JsonValue value)
+            {
+                if (value.TryGetValue(out int iv)) return iv;
+                if (value.TryGetValue(out double dv) && !double.IsNaN(dv) && !double.IsInfinity(dv) &&
+                    Math.Abs(dv - Math.Truncate(dv)) < 1e-6 && dv >= int.MinValue && dv <= int.MaxValue)
+                    return (int)dv;
+            }
+            throw new ArgumentException("无效的 " + name);
+        }
+
+        private static double? OptionalDouble(JsonObject request, string name)
+        {
+            JsonNode node = request[name];
+            if (node == null) return null;
+            if (node is JsonValue value && value.TryGetValue(out double dv) && !double.IsNaN(dv) && !double.IsInfinity(dv))
+                return dv;
+            throw new ArgumentException("无效的 " + name);
+        }
+
         private JsonObject SettingsFrame() => new()
         {
             ["nickname"] = _network.NickName,
             ["autoAcceptFiles"] = _network.AutoAcceptFiles,
             ["downloadDirectory"] = _profile.DownloadDirectory,
             ["historyDirectory"] = _profile.HistoryDirectory,
-            ["settingsPath"] = _profile.SettingsPath
+            ["settingsPath"] = _profile.SettingsPath,
+            ["themeMode"] = _profile.ThemeMode,
+            ["accentPreset"] = _profile.AccentPreset,
+            ["uiFontFamily"] = _profile.UiFontFamily,
+            ["uiFontSize"] = _profile.UiFontSize,
+            ["chatFontFamily"] = _profile.ChatFontFamily,
+            ["chatFontSize"] = _profile.ChatFontSize
         };
 
         private JsonObject SaveSettings(JsonObject request)
@@ -233,12 +280,19 @@ namespace LanChat.Linux
             bool autoAccept = request["autoAcceptFiles"]?.GetValue<bool>() ??
                 throw new ArgumentException("缺少文件自动接收选项");
             bool confirm = request["confirmOverride"]?.GetValue<bool>() ?? false;
-            string directory = request["downloadDirectory"] == null ? null : Required(request, "downloadDirectory", 4096);
-            string historyDirectory = request["historyDirectory"] == null ? null : Required(request, "historyDirectory", 4096);
+            string directory = OptionalString(request, "downloadDirectory", 4096);
+            string historyDirectory = OptionalString(request, "historyDirectory", 4096);
+            int? themeMode = OptionalInt(request, "themeMode");
+            int? accentPreset = OptionalInt(request, "accentPreset");
+            string uiFontFamily = OptionalString(request, "uiFontFamily", 128);
+            double? uiFontSize = OptionalDouble(request, "uiFontSize");
+            string chatFontFamily = OptionalString(request, "chatFontFamily", 128);
+            double? chatFontSize = OptionalDouble(request, "chatFontSize");
             // 复制历史与切换写入位置期间，接收线程等待同一把锁。
             lock (_gate)
             {
-                if (!_profile.SaveSettings(nickname, autoAccept, directory, confirm, historyDirectory))
+                if (!_profile.SaveSettings(nickname, autoAccept, directory, confirm, historyDirectory,
+                    themeMode, accentPreset, uiFontFamily, uiFontSize, chatFontFamily, chatFontSize))
                     return new JsonObject
                     {
                         ["backupPath"] = _profile.BackupPath,
@@ -361,7 +415,11 @@ namespace LanChat.Linux
                 ["exists"] = value.IsFile && !string.IsNullOrEmpty(value.FilePath) && File.Exists(value.FilePath)
             };
             // 路径只随文件消息下发，打开动作仍由桌面主进程核验本地文件。
-            if (value.IsFile) frame["path"] = value.FilePath ?? "";
+            if (value.IsFile)
+            {
+                frame["path"] = value.FilePath ?? "";
+                if (value.FileTransferId != null) frame["transfer"] = value.FileTransferId;
+            }
             return frame;
         }
 

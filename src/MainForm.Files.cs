@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
 
@@ -7,6 +8,110 @@ namespace LanChat
 {
     public partial class MainForm : Form
     {
+        // 附件草稿依附会话，切换聊天时不发送或丢弃草稿。
+        private readonly Dictionary<string, List<string>> _attachmentDrafts = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        private SessionListBox _attachmentList;
+
+        private void InitializeFileAttachments()
+        {
+            _attachmentList = new SessionListBox
+            {
+                Dock = DockStyle.Top, Visible = false, BorderStyle = BorderStyle.None,
+                DrawMode = DrawMode.OwnerDrawFixed, IntegralHeight = false, ItemHeight = 34,
+                AccessibleName = "待发送附件", BackColor = GrokTheme.Level05
+            };
+            _attachmentList.DrawItem += DrawAttachment;
+            _attachmentList.MouseClick += (sender, e) =>
+            {
+                int index = _attachmentList.IndexFromPoint(e.Location);
+                if (e.Button != MouseButtons.Left || index < 0) return;
+                if (AttachmentRemoveBounds(_attachmentList.GetItemRectangle(index)).Contains(e.Location)) RemoveAttachment(index);
+            };
+            _attachmentList.KeyDown += (sender, e) =>
+            {
+                if (e.KeyCode != Keys.Delete) return;
+                e.SuppressKeyPress = true;
+                RemoveAttachment(_attachmentList.SelectedIndex);
+            };
+            _bottomSendPanel.Controls.Add(_attachmentList);
+        }
+
+        private static Rectangle AttachmentRemoveBounds(Rectangle row)
+        {
+            return new Rectangle(row.Right - 46, row.Top + 1, 32, 32);
+        }
+
+        private void DrawAttachment(object sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0) return;
+            var row = new Rectangle(e.Bounds.X + 1, e.Bounds.Y + 1, e.Bounds.Width - 14, 32);
+            bool selected = (e.State & DrawItemState.Selected) != 0;
+            using (var bg = new SolidBrush(selected ? GrokTheme.Level3 : GrokTheme.Level2))
+            using (var border = new Pen(GrokTheme.Border, 1f))
+            using (var font = GrokTheme.UiFont(9.5f))
+            {
+                DrawRoundedRectangle(e.Graphics, bg, row, 16);
+                DrawRoundedRectangle(e.Graphics, border, row, 16);
+                WeChatIcon.Draw(e.Graphics, WeChatIconType.Box, new Rectangle(row.X + 11, row.Y + 7, 18, 18), false, GrokTheme.AccentHot);
+                GrokTheme.DrawUiTextLeft(e.Graphics, Path.GetFileName((string)_attachmentList.Items[e.Index]), font, GrokTheme.TextPrimary,
+                    row.X + 38, row.Y, Math.Max(1, row.Width - 74), row.Height);
+                var remove = AttachmentRemoveBounds(e.Bounds);
+                WeChatIcon.Draw(e.Graphics, WeChatIconType.Dismiss, remove, false, GrokTheme.TextSecondary);
+            }
+        }
+
+        private List<string> GetAttachmentDraft(string key)
+        {
+            List<string> paths;
+            return _attachmentDrafts.TryGetValue(key, out paths) ? paths : null;
+        }
+
+        private void StageClipboardFiles(string[] files)
+        {
+            string key = _activeChatKey;
+            var paths = GetAttachmentDraft(key) ?? new List<string>();
+            foreach (string file in files)
+            {
+                if (paths.Count == 32) break;
+                if (File.Exists(file) && !paths.Contains(file)) paths.Add(file);
+            }
+            if (paths.Count == 0)
+            {
+                GrokMessageBox.Show(this, "剪贴板里没有可发送的文件。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            _attachmentDrafts[key] = paths;
+            RefreshAttachmentDraft();
+        }
+
+        private void RemoveAttachment(int index)
+        {
+            string key = _activeChatKey;
+            var paths = GetAttachmentDraft(key);
+            if (paths == null || index < 0 || index >= paths.Count) return;
+            paths.RemoveAt(index);
+            if (paths.Count == 0) _attachmentDrafts.Remove(key);
+            RefreshAttachmentDraft();
+            _txtInput.Visible = true;
+            _txtInput.Focus();
+        }
+
+        private void RefreshAttachmentDraft()
+        {
+            if (_attachmentList == null) return;
+            var paths = GetAttachmentDraft(_activeChatKey);
+            _attachmentList.BeginUpdate();
+            _attachmentList.Items.Clear();
+            if (paths != null) _attachmentList.Items.AddRange(paths.ToArray());
+            _attachmentList.EndUpdate();
+            // 最多展开三行，更多附件使用会话列表已有的暗色自绘滑块。
+            int height = Math.Min(3, _attachmentList.Items.Count) * _attachmentList.ItemHeight;
+            _attachmentList.Visible = height > 0;
+            _attachmentList.Height = height;
+            _bottomSendPanel.Height = 90 + height;
+            TxtInput_TextChanged(_txtInput, EventArgs.Empty);
+        }
+
         #region File Transfer & Drag Drop
 
         private void BtnSendFile_Click(object sender, EventArgs e)
@@ -63,17 +168,22 @@ namespace LanChat
 
         private void PromptPeerAndSendFiles(string[] filePaths)
         {
+            PeerInfo peer = PickFileRecipient();
+            if (peer != null) SendFilesToPeer(peer, filePaths);
+        }
+
+        private PeerInfo PickFileRecipient()
+        {
             var peers = _netService != null ? _netService.GetActivePeers() : new List<PeerInfo>();
             if (peers.Count == 0)
             {
                 GrokMessageBox.Show(this, "当前无在线好友，无法发送文件", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                return null;
             }
 
             if (peers.Count == 1)
             {
-                SendFilesToPeer(peers[0], filePaths);
-                return;
+                return peers[0];
             }
 
             using (Form picker = new Form())
@@ -86,86 +196,75 @@ namespace LanChat
                 picker.BackColor = System.Drawing.Color.FromArgb(24, 24, 26);
                 picker.ForeColor = System.Drawing.Color.White;
 
-                ListBox lb = new ListBox
+                var lb = new SessionListBox
                 {
-                    Dock = DockStyle.Fill,
-                    Font = new System.Drawing.Font("Microsoft YaHei UI", 9.5f),
-                    BackColor = System.Drawing.Color.FromArgb(18, 18, 20),
-                    ForeColor = System.Drawing.Color.White
+                    Dock = DockStyle.Fill, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 32,
+                    IntegralHeight = false, BorderStyle = BorderStyle.None, BackColor = GrokTheme.Level05
+                };
+                lb.DrawItem += (sender, e) =>
+                {
+                    if (e.Index < 0) return;
+                    var row = Rectangle.Inflate(e.Bounds, -6, -2);
+                    bool selected = (e.State & DrawItemState.Selected) != 0;
+                    using (var bg = new SolidBrush(selected ? GrokTheme.Level3 : GrokTheme.Level2))
+                    using (var font = GrokTheme.UiFont(9.5f))
+                    {
+                        DrawRoundedRectangle(e.Graphics, bg, row, 8);
+                        GrokTheme.DrawUiTextLeft(e.Graphics, lb.Items[e.Index].ToString(), font, GrokTheme.TextPrimary,
+                            row.X + 10, row.Y, row.Width - 28, row.Height);
+                    }
                 };
                 foreach (var p in peers) lb.Items.Add(p);
                 lb.SelectedIndex = 0;
 
-                Button btnOk = new Button
+                var btnOk = new GrokButton("确定发送", GrokButtonRole.Primary, DialogResult.OK)
                 {
-                    Text = "确定发送",
                     Dock = DockStyle.Bottom,
-                    Height = 36,
-                    DialogResult = DialogResult.OK,
-                    BackColor = GrokTheme.AccentDeep,
-                    ForeColor = System.Drawing.Color.White,
-                    FlatStyle = FlatStyle.Flat
+                    Height = 36
                 };
-                btnOk.FlatAppearance.BorderSize = 0;
+                picker.AcceptButton = btnOk;
                 picker.Controls.Add(lb);
                 picker.Controls.Add(btnOk);
 
                 if (picker.ShowDialog(this) == DialogResult.OK && lb.SelectedItem is PeerInfo)
                 {
-                    SendFilesToPeer((PeerInfo)lb.SelectedItem, filePaths);
+                    return (PeerInfo)lb.SelectedItem;
                 }
             }
+            return null;
         }
 
-        private void SendFilesToPeer(PeerInfo peer, string[] filePaths)
+        private bool SendFilesToPeer(PeerInfo peer, string[] filePaths)
         {
             if (peer.TcpPort <= 0)
             {
                 GrokMessageBox.Show(this, "好友当前离线，暂时无法发送文件。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
+                return false;
             }
-            if (_fileController != null)
+            if (_fileController == null || _fileController.SendFiles(peer, filePaths) == 0)
             {
-                _fileController.SendFiles(peer, filePaths);
+                GrokMessageBox.Show(this, "选中的文件已不可用。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
             }
             if (_listSessions != null) _listSessions.Invalidate();
+            return true;
         }
 
-        private void HandleFileProgress(FileTransferProgress prog)
+        private void OnFileTransferMessageChanged(ChatMessage message, string convKey, bool added)
         {
-            _progressPanel.Visible = true;
-            _progressBar.Value = prog.ProgressPercentage;
-
-            string action = prog.IsSending ? "发送给 " + prog.PeerNick : "来自 " + prog.PeerNick + " 接收";
-            _lblProgressInfo.Text = string.Format("[{0}] {1} ({2}/{3}) - {4:F1} MB/s [{5}%]",
-                action, prog.FileName,
-                FileTransferController.FormatFileSize(prog.TransferredBytes),
-                FileTransferController.FormatFileSize(prog.TotalBytes),
-                prog.SpeedMBps,
-                prog.ProgressPercentage);
-
-            if (prog.IsCompleted || prog.IsFailed)
+            if (_activeChatKey == convKey && _chatView != null)
             {
-                _progressPanel.Visible = false;
+                if (added) _chatView.AppendMessage(message);
+                else _chatView.RefreshFileMessage(message);
             }
-        }
-
-        private void OnFileTransferCompleted(string convKey, string fileName, bool success, string reason)
-        {
-            _progressPanel.Visible = false;
-            if (_chatPresenter != null && _sessionManager.GetLastMessage(convKey) != null)
-            {
-                if (success)
-                    _chatPresenter.AppendChatSystem(string.Format("文件 {0} 发送成功！", fileName), convKey);
-                else
-                    _chatPresenter.AppendChatSystem(string.Format("文件 {0} 发送失败: {1}", fileName, reason), convKey);
-            }
+            if (!added) return;
+            if (_sessionPresenter != null && _sessionPresenter.SearchFilter.Length == 0 && _sessionPresenter.FindSessionIndex(convKey) < 0)
+                RefreshPeerListUI();
+            else if (_listSessions != null) _listSessions.Invalidate();
         }
 
         private void OnFileReceived(ChatMessage fileMsg, string convKey, bool wasActivelyViewing)
         {
-            _progressPanel.Visible = false;
-
             if (!wasActivelyViewing)
             {
                 FlashTaskbar(true);
@@ -173,15 +272,7 @@ namespace LanChat
                 UpdateTrayTooltipText();
             }
 
-            if (_activeChatKey == convKey && _chatView != null)
-            {
-                _chatView.AppendMessage(fileMsg);
-            }
-            if (_sessionPresenter != null && _sessionPresenter.SearchFilter.Length == 0 &&
-                _sessionPresenter.FindSessionIndex(convKey) < 0)
-                RefreshPeerListUI();
-            else if (_listSessions != null)
-                _listSessions.Invalidate();
+            if (_listSessions != null) _listSessions.Invalidate();
 
             if (!this.Visible && _trayIcon != null)
             {

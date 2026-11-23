@@ -148,6 +148,20 @@ namespace LanChat
             Invalidate();
         }
 
+        /// <summary>传输进度只重绘对应文件气泡，保留滚动位置和文本选区。</summary>
+        internal void RefreshFileMessage(ChatMessage message)
+        {
+            foreach (var item in _renderItems)
+            {
+                if (item.Message != message) continue;
+                var bounds = item.BubbleBounds;
+                bounds.Offset(0, -_scrollY);
+                bounds.Inflate(1, 1);
+                Invalidate(bounds);
+                return;
+            }
+        }
+
         private void WeChatChatView_MouseWheel(object sender, MouseEventArgs e)
         {
             if (_maxScroll <= 0 || this.Height <= 0) return;
@@ -180,7 +194,7 @@ namespace LanChat
                 // 1. 检查是否点击文件操作按钮
                 foreach (var item in _renderItems)
                 {
-                    if (item.Message.IsFile)
+                    if (item.Message.IsFile && item.Message.TransferProgress == null)
                     {
                         if (item.FileOpenBounds.Contains(pt))
                         {
@@ -309,7 +323,7 @@ namespace LanChat
             {
                 if (item.Message.IsFile)
                 {
-                    if (item.FileOpenBounds.Contains(pt) || item.FileFolderBounds.Contains(pt))
+                    if (item.Message.TransferProgress == null && (item.FileOpenBounds.Contains(pt) || item.FileFolderBounds.Contains(pt)))
                     {
                         this.Cursor = Cursors.Hand;
                         return;
@@ -807,33 +821,11 @@ namespace LanChat
                             g.DrawString(msg.SenderNick ?? "节点", nickFont, nickBrush, bb.Left + 6, bb.Top - 18);
                         }
 
-                        MainForm.DrawRoundedRectangle(g, otherBubbleBrush, bb, 20);
-                        MainForm.DrawRoundedRectangle(g, otherBubbleBorder, bb, 20);
-
-                        // 紫色文件图标徽章
-                        Rectangle badgeRect = new Rectangle(bb.Left + 16, bb.Top + 16, 36, 36);
-                        using (SolidBrush badgeBg = new SolidBrush(GrokTheme.AccentDeep))
-                        {
-                            MainForm.DrawRoundedRectangle(g, badgeBg, badgeRect, 10);
-                        }
-                        WeChatIcon.Draw(g, WeChatIconType.Box, new Rectangle(badgeRect.Left + 8, badgeRect.Top + 8, 20, 20), false, Color.White);
-
-                        using (Font fnFont = new Font("Microsoft YaHei UI", 10.0f, FontStyle.Bold))
-                        {
-                            string nameSnippet = msg.FileName ?? "未知文件";
-                            if (nameSnippet.Length > 28) nameSnippet = nameSnippet.Substring(0, 25) + "...";
-                            g.DrawString(nameSnippet, fnFont, textLight, bb.Left + 62, bb.Top + 14);
-                        }
-                        g.DrawString(FormatFileSize(msg.FileSize), timeFont, grayText, bb.Left + 62, bb.Top + 36);
-
-                        Rectangle bOpen = new Rectangle(item.FileOpenBounds.X, item.FileOpenBounds.Y - scrollY, item.FileOpenBounds.Width, item.FileOpenBounds.Height);
-                        Rectangle bFolder = new Rectangle(item.FileFolderBounds.X, item.FileFolderBounds.Y - scrollY, item.FileFolderBounds.Width, item.FileFolderBounds.Height);
-
-                        using (SolidBrush linkBrush = new SolidBrush(GrokTheme.AccentHot))
-                        {
-                            g.DrawString("打开文件", timeFont, linkBrush, bOpen);
-                            g.DrawString("打开目录", timeFont, linkBrush, bFolder);
-                        }
+                        Rectangle open = item.FileOpenBounds;
+                        Rectangle folder = item.FileFolderBounds;
+                        open.Offset(0, -scrollY);
+                        folder.Offset(0, -scrollY);
+                        ChatFileCardRenderer.Draw(g, msg, bb, open, folder);
                     }
                     else
                     {
@@ -961,13 +953,6 @@ namespace LanChat
             return dt.ToString("M月d日 H:mm");
         }
 
-        private static string FormatFileSize(long bytes)
-        {
-            if (bytes < 1024) return bytes + " B";
-            if (bytes < 1024 * 1024) return (bytes / 1024.0).ToString("F1") + " KB";
-            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024.0 * 1024.0)).ToString("F2") + " MB";
-            return (bytes / (1024.0 * 1024.0 * 1024.0)).ToString("F2") + " GB";
-        }
     }
 
     #endregion

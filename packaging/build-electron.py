@@ -5,6 +5,8 @@ import argparse
 from hashlib import sha256
 import io
 import json
+from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 import shutil
 import tarfile
@@ -15,7 +17,7 @@ from build_linux import ROOT, check_elf
 
 
 ELECTRON = "45.4.1"
-VERSION = "2.0.17~experiment.5"
+VERSION = "2.0.18"
 ARCHITECTURES = {
     "amd64": ("x64", "e1d077c7a087d7e344350ea0c5cd2b7dc5af3d9bf7979474f38e0fc1a560b875"),
     "arm64": ("arm64", "3da04c450fa682e3b80961e92a918a1c2a1a10796527a7e63dec7b8e466b6334"),
@@ -41,8 +43,25 @@ DEPENDENCIES = (
 )
 
 
+@dataclass(frozen=True)
+class ZipArchiveEntry:
+    """指向已校验 Electron ZIP 内文件的惰性只读引用。"""
+
+    archive: Path
+    member: str
+    size: int
+
+    @contextmanager
+    def open(self):
+        """以流方式读取归档成员，不在磁盘创建临时可执行文件。"""
+        with zipfile.ZipFile(self.archive) as zipped:
+            with zipped.open(self.member) as source:
+                yield source
+
+
 def file_hash(path):
-    with path.open("rb") as source:
+    source_context = path.open() if isinstance(path, ZipArchiveEntry) else path.open("rb")
+    with source_context as source:
         digest = sha256()
         for block in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(block)
@@ -53,7 +72,11 @@ def tar_entry(archive, name, contents, mode):
     header = tarfile.TarInfo(name)
     header.mode = mode
     header.uname = header.gname = "root"
-    if isinstance(contents, Path):
+    if isinstance(contents, ZipArchiveEntry):
+        header.size = contents.size
+        with contents.open() as source:
+            archive.addfile(header, source)
+    elif isinstance(contents, Path):
         header.size = contents.stat().st_size
         with contents.open("rb") as source:
             archive.addfile(header, source)
@@ -67,13 +90,20 @@ def tar_entry(archive, name, contents, mode):
 
 def add_tree(archive, prefix, files):
     directories = set()
+    written_files = set()
     for relative, contents, mode in files:
         name = PurePosixPath(prefix) / relative
+        # 同一路径写成文件和目录会导致安装时解包失败，在生成归档时就报错。
+        if name in directories or name in written_files:
+            raise ValueError(f"归档路径冲突：{name}")
         for parent in reversed(name.parents):
+            if parent in written_files:
+                raise ValueError(f"归档路径冲突：{parent}")
             if parent not in directories and parent != PurePosixPath("."):
                 tar_entry(archive, parent.as_posix(), None, 0o755)
                 directories.add(parent)
         tar_entry(archive, name.as_posix(), contents, mode)
+        written_files.add(name)
 
 
 def debian_member(output, name, contents, length):
@@ -93,12 +123,17 @@ def build_deb(stage, arch, files):
         ("usr/share/applications/lanchat.desktop", DESKTOP_ENTRY, 0o644),
         ("usr/share/icons/hicolor/256x256/apps/lanchat.png", ROOT / "assets/app.png", 0o644),
     ])
-    size = sum(item.stat().st_size if isinstance(item, Path) else len(item) for _, item, _ in installed)
+    size = sum(
+        item.stat().st_size if isinstance(item, Path)
+        else item.size if isinstance(item, ZipArchiveEntry)
+        else len(item)
+        for _, item, _ in installed
+    )
     control = (
         f"Package: lanchat\nVersion: {VERSION}\nArchitecture: {arch}\n"
         "Maintainer: LanChat Team <lanchat@local>\nSection: net\nPriority: optional\n"
         f"Installed-Size: {(size + 1023) // 1024}\nDepends: {DEPENDENCIES}\n"
-        "Description: LanChat Linux desktop integration experiment\n"
+        "Description: LanChat Linux desktop client\n"
         " Local network chat and file transfer with an Electron desktop and self-contained CLI.\n"
     ).encode()
     control_data = io.BytesIO()
@@ -114,17 +149,24 @@ def build_deb(stage, arch, files):
         debian_member(output, "debian-binary", io.BytesIO(b"2.0\n"), 4)
         debian_member(output, "control.tar.gz", control_data, len(control_data.getbuffer()))
         debian_member(output, "data.tar.gz", data, data_file.stat().st_size)
-    data_file.unlink()
     return deb
 
 
 def build(output, archives, elf, icons):
     for image in ("Search", "Refresh", "Logout", "Add", "UpArrow", "Folder", "BoxWhite",
-                  "Emoji", "Clear", "ClearDanger", "Copy", "User", "avatar", "group", "peer"):
+                  "Emoji", "Clear", "ClearDanger", "Copy", "User", "Settings", "Menu", "Contacts",
+                  "SettingsActive", "UserActive", "EmojiActive", "MenuActive", "FolderActive",
+                  "ClearActive", "ContactsActive", "RefreshActive",
+                  "avatar", "MascotProfile", "MascotWhite", "group", "peer"):
         if not (icons / f"{image}.png").is_file():
             raise ValueError(f"缺少原生导出的图标：{image}.png")
     output.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=".lanchat-desktop-", dir=output) as temporary:
+    # 中间归档放入忽略目录，避开发布产物目录的实时扫描；系统短暂占用时不让清理失败覆盖打包结果。
+    stage_root = ROOT / "bin/linux-deb-build/staging"
+    stage_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix=".lanchat-desktop-", dir=stage_root, ignore_cleanup_errors=True
+    ) as temporary:
         stage = Path(temporary)
         artifacts = []
         manifest = {}
@@ -138,17 +180,23 @@ def build(output, archives, elf, icons):
                 raise ValueError(f"Electron 摘要不匹配：{runtime.name}")
             check_elf(core.read_bytes(), f"linux-{cpu}")
             print(f"打包 {arch}，Electron {ELECTRON}", flush=True)
-            extract = stage / arch
             with zipfile.ZipFile(runtime) as zipped:
-                zipped.extractall(extract)
-            electron = extract / "electron"
-            check_elf(electron.read_bytes(), f"linux-{cpu}")
+                members = {member.filename: member for member in zipped.infolist()}
+                electron_member = members.get("electron")
+                if electron_member is None:
+                    raise ValueError(f"Electron 归档缺少可执行文件：{runtime.name}")
+                with zipped.open(electron_member) as source:
+                    check_elf(source.read(64), f"linux-{cpu}")
+                electron = ZipArchiveEntry(runtime, electron_member.filename, electron_member.file_size)
             files = [("lanchat", launcher_path, 0o755), ("electron/resources/lanchat-bin", core, 0o755)]
-            for path in sorted(extract.rglob("*")):
-                if path.is_file() and path.name != "default_app.asar":
-                    relative = path.relative_to(extract).as_posix()
-                    mode = 0o755 if relative in ("electron", "chrome-sandbox", "chrome_crashpad_handler") else 0o644
-                    files.append((f"electron/{relative}", path, mode))
+            for member in sorted(members.values(), key=lambda item: item.filename):
+                relative = PurePosixPath(member.filename)
+                # 默认应用归档不会进入 LanChat 载荷，跳过可避免无用读写。
+                if member.is_dir() or relative.name == "default_app.asar":
+                    continue
+                archive_file = ZipArchiveEntry(runtime, member.filename, member.file_size)
+                mode = 0o755 if relative.as_posix() in ("electron", "chrome-sandbox", "chrome_crashpad_handler") else 0o644
+                files.append((f"electron/{relative.as_posix()}", archive_file, mode))
             for path in sorted(APP.iterdir()):
                 if path.is_file():
                     files.append((f"electron/resources/app/{path.name}", path, 0o644))
@@ -168,7 +216,6 @@ def build(output, archives, elf, icons):
                 "electron_sha256": file_hash(electron),
                 "artifacts": {path.name: file_hash(path) for path in (deb, portable, standalone)},
             }
-            shutil.rmtree(extract)
         artifact_manifest = stage / "SHA256SUMS.json"
         artifact_manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         for artifact in (*artifacts, artifact_manifest):

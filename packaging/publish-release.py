@@ -77,9 +77,9 @@ def sync_git(version: str, branch: str):
         if push_proc.returncode == 0:
             print(f"    [SUCCESS] 分支 {branch} 已成功推送至 GitHub！")
         else:
-            print(f"    [!] git push 警告: {push_proc.stderr.strip()[:120]}")
+            raise RuntimeError(f"git push 失败：{push_proc.stderr.strip()[:300]}")
     except Exception as e:
-        print(f"    [!] 同步 Git 警告: {e}")
+        raise RuntimeError(f"同步 Git 失败，已中止 Release：{e}") from e
 
 def get_git_token():
     # 1. 优先读取环境变量
@@ -226,12 +226,19 @@ def publish():
     assets_to_upload = [
         os.path.join(RELEASE_DIR, "LanChat.exe"),
         os.path.join(RELEASE_DIR, "LanChat.msi"),
-        os.path.join(SCRIPT_DIR, "LanChat.msi"),
-        os.path.join(RELEASE_DIR, "LanChat.deb"),
-        os.path.join(RELEASE_DIR, f"lanchat_{version}_all.deb"),
     ]
+    linux_release_dir = os.path.join(RELEASE_DIR, "linux-electron")
+    if os.path.isdir(linux_release_dir):
+        assets_to_upload.extend(
+            os.path.join(linux_release_dir, name)
+            for name in sorted(os.listdir(linux_release_dir))
+            if name == "SHA256SUMS.json"
+            or name.startswith(f"lanchat_{version}_")
+            or name.startswith(f"lanchat-cli_{version}_")
+        )
 
     uploaded_names = set()
+    upload_failures = []
     for asset_path in assets_to_upload:
         if not os.path.exists(asset_path):
             continue
@@ -294,8 +301,12 @@ def publish():
 
         if not upload_success:
             print(f"    [FAILED] 资产 {filename} 经多次重试仍上传失败，请检查网络连接或运行 ipconfig /flushdns。")
+            upload_failures.append(filename)
 
     print("=" * 65)
+    if upload_failures:
+        print("Release 已创建，但以下资产上传失败：" + ", ".join(upload_failures))
+        sys.exit(1)
     print("Release 发布与资产上传全部完成！")
     print(f"查看页面: https://github.com/{REPO}/releases/tag/{tag_name}")
     print("=" * 65)

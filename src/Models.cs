@@ -106,6 +106,12 @@ namespace LanChat
         /// <summary>是否为文件传输卡片消息</summary>
         public bool IsFile { get; set; }
 
+        /// <summary>接收完成时用于关联本地进度气泡的传输标识，不写入历史。</summary>
+        internal string FileTransferId { get; set; }
+
+        /// <summary>气泡中的本次传输状态。历史消息和已完成的文件没有此状态。</summary>
+        internal FileTransferProgress TransferProgress { get; set; }
+
         /// <summary>文件名称（含扩展名）</summary>
         public string FileName { get; set; }
 
@@ -163,6 +169,9 @@ namespace LanChat
 
         /// <summary>错误详细异常信息</summary>
         public string ErrorMessage { get; set; }
+
+        /// <summary>复制网络线程当前的进度，供异步界面回调独立读取。</summary>
+        internal FileTransferProgress Snapshot() { return (FileTransferProgress)MemberwiseClone(); }
 
         /// <summary>
         /// 传输百分比进度值 (0 ~ 100)

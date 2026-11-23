@@ -8,9 +8,9 @@ echo.
 
 REM 1. Locate LanChat project root directory
 set "PROJECT_DIR="
-if exist "%~dp0..\src\MainForm*.cs" set "PROJECT_DIR=%~dp0.."
+if exist "%~dp0..\..\src\MainForm*.cs" set "PROJECT_DIR=%~dp0..\.."
 if not defined PROJECT_DIR (
-    if exist "%~dp0..\LanChat\src\MainForm*.cs" set "PROJECT_DIR=%~dp0..\LanChat"
+    if exist "%~dp0..\..\LanChat\src\MainForm*.cs" set "PROJECT_DIR=%~dp0..\..\LanChat"
 )
 if not defined PROJECT_DIR (
     if exist "%~dp0src\MainForm*.cs" set "PROJECT_DIR=%~dp0"
@@ -98,7 +98,11 @@ echo  Compilation and local update completed successfully.
 echo ====================================================================
 echo.
 
-set /p RUN_NOW="Launch LanChat now? [Y/N, default=Y]: "
+if defined LANCHAT_RUN_AFTER_LINK (
+    set "RUN_NOW=%LANCHAT_RUN_AFTER_LINK%"
+) else (
+    set /p RUN_NOW="Launch LanChat now? [Y/N, default=Y]: "
+)
 if /i "%RUN_NOW%"=="" set RUN_NOW=Y
 if /i "%RUN_NOW%"=="Y" (
     echo Starting: %TARGET_INSTALL_DIR%\LanChat.exe ...

@@ -256,6 +256,19 @@ namespace LanChat
             }
         }
 
+        /// <summary>将已经在会话内存中的文件气泡写入历史。清空后的旧气泡不会重新写回。</summary>
+        internal bool PersistExistingMessage(string sessionKey, ChatMessage message)
+        {
+            lock (_lock)
+            {
+                sessionKey = ResolveKey(sessionKey);
+                List<ChatMessage> messages;
+                if (!_histories.TryGetValue(sessionKey, out messages) || !messages.Contains(message)) return false;
+                ChatHistoryService.SaveMessage(sessionKey, message);
+                return true;
+            }
+        }
+
         /// <summary>
         /// 获取指定会话的全部历史消息（副本）
         /// </summary>

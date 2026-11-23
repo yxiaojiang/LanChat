@@ -56,11 +56,10 @@ class Service extends EventEmitter {
     this.ready.catch(() => {});
   }
 
-  async request(method, args = {}) {
+  async request(method, args = {}, id = randomUUID()) {
     await this.ready;
     if (this.#failure) throw this.#failure;
     return new Promise((resolve, reject) => {
-      const id = randomUUID();
       const timer = method === 'file' ? null : setTimeout(() => {
         this.#pending.delete(id);
         reject(new Error('通信服务响应超时，操作结果未确认'));

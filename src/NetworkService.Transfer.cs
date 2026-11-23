@@ -228,6 +228,7 @@ namespace LanChat
                                     Content = "[接收文件] " + safeFileName,
                                     Timestamp = DateTime.Now,
                                     IsFile = true,
+                                    FileTransferId = transferId,
                                     FileName = safeFileName,
                                     FilePath = localPath,
                                     FileSize = fileSize

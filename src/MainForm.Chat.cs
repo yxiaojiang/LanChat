@@ -72,6 +72,7 @@ namespace LanChat
             }
 
             SwitchActiveChatView();
+            RefreshAttachmentDraft();
 
             if (_chatHeader != null) _chatHeader.Invalidate();
             if (_inputPanel != null) _inputPanel.Invalidate();
@@ -340,7 +341,7 @@ namespace LanChat
 
         private void TxtInput_TextChanged(object sender, EventArgs e)
         {
-            bool hasText = !string.IsNullOrWhiteSpace(_txtInput.Text);
+            bool hasText = !string.IsNullOrWhiteSpace(_txtInput.Text) || GetAttachmentDraft(_activeChatKey) != null;
             if (_btnSendWave != null && _btnSendWave.IsActive != hasText)
             {
                 _btnSendWave.IsActive = hasText;
@@ -369,12 +370,23 @@ namespace LanChat
         private void SendMessage()
         {
             string text = _txtInput.Text.Trim();
-            if (string.IsNullOrEmpty(text)) return;
+            string chat = _activeChatKey;
+            var attachments = GetAttachmentDraft(chat);
+            if (string.IsNullOrEmpty(text) && attachments == null) return;
             if (_selectedPeer != null && _selectedPeer.TcpPort <= 0)
             {
                 GrokMessageBox.Show(this, "好友当前离线，暂时无法发送消息。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
+            if (attachments != null)
+            {
+                PeerInfo recipient = _selectedPeer ?? PickFileRecipient();
+                if (recipient == null || !SendFilesToPeer(recipient, attachments.ToArray())) return;
+                _attachmentDrafts.Remove(chat);
+                RefreshAttachmentDraft();
+            }
+
+            if (string.IsNullOrEmpty(text)) return;
             _txtInput.Clear();
 
             if (_chatPresenter != null)
@@ -586,6 +598,7 @@ namespace LanChat
 
             if (dr == DialogResult.OK && _sessionPresenter != null)
             {
+                _attachmentDrafts.Remove(SessionManager.GetLanKey(peer.Id, peer.IP));
                 _sessionPresenter.DeletePeerSession(peer);
             }
         }

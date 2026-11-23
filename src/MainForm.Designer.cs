@@ -45,11 +45,6 @@ namespace LanChat
         private WeChatIconButton _btnHeaderFolder;
         private WeChatIconButton _btnHeaderClear;
 
-        // File Progress Banner
-        private Panel _progressPanel;
-        private Label _lblProgressInfo;
-        private ProgressBar _progressBar;
-
         // Chat History View
         private WeChatChatView _chatView;
 
@@ -66,7 +61,7 @@ namespace LanChat
         private Label _lblAutoAccept;
 
         private Panel _inputPanel;
-        private TextBox _txtInput;
+        private ChatInputBox _txtInput;
         private Panel _bottomSendPanel;
         private Label _lblSendTip;
         private Button _btnSend; // 兼容占位（发送改由 _btnSendWave）
@@ -404,36 +399,6 @@ namespace LanChat
             winCtrlPanel.Controls.Add(_btnWinClose);
             _chatHeader.Controls.Add(winCtrlPanel);
 
-            // 2.2 Collapsible Transfer Progress Banner
-            _progressPanel = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 44,
-                BackColor = Color.FromArgb(24, 24, 26),
-                Visible = false,
-                Padding = new Padding(18, 6, 18, 6)
-            };
-            _lblProgressInfo = new Label
-            {
-                Text = "准备传输...",
-                Font = new Font("Microsoft YaHei UI", 9.0f),
-                ForeColor = Color.FromArgb(142, 142, 147), // #8E8E93 secondary
-                AutoSize = true,
-                Location = new Point(18, 5)
-            };
-            _progressBar = new ProgressBar
-            {
-                Location = new Point(18, 24),
-                Height = 10,
-                Width = 500,
-                Style = ProgressBarStyle.Continuous
-            };
-            _progressPanel.Controls.Add(_lblProgressInfo);
-            _progressPanel.Controls.Add(_progressBar);
-            _progressPanel.Resize += (s, e) => {
-                _progressBar.Width = Math.Max(100, _progressPanel.Width - 36);
-            };
-
             // 2.3 Grok-Style Chat History View
             _chatView = new WeChatChatView
             {
@@ -509,7 +474,7 @@ namespace LanChat
             _btnToolEmoji = _btnToolSendFile; // Emoji 弹层锚定到 (+)
 
             // 单行无边框输入框（11.0pt #F2F2F6，起点 x≈64，垂直居中）
-            _txtInput = new TextBox
+            _txtInput = new ChatInputBox
             {
                 Multiline = false,
                 Font = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Regular),
@@ -523,6 +488,7 @@ namespace LanChat
             };
             _txtInput.KeyDown += TxtInput_KeyDown;
             _txtInput.TextChanged += TxtInput_TextChanged;
+            _txtInput.FilesPasted += StageClipboardFiles;
             _txtInput.LostFocus += (s, e) => {
                 if (string.IsNullOrEmpty(_txtInput.Text)) _txtInput.Visible = false;
                 _inputPanel.Invalidate();
@@ -572,10 +538,10 @@ namespace LanChat
             _inputPanel.Controls.Add(_txtInput);
             _inputPanel.Controls.Add(_btnSendWave);
             _bottomSendPanel.Controls.Add(_inputPanel);
+            InitializeFileAttachments();
 
             // Assemble Panels
             _chatPanel.Controls.Add(_chatView);
-            _chatPanel.Controls.Add(_progressPanel);
             _chatPanel.Controls.Add(_chatHeader);
             _chatPanel.Controls.Add(_bottomSendPanel);
 
@@ -675,7 +641,7 @@ namespace LanChat
             if (_bottomSendPanel != null)
             {
                 _bottomSendPanel.Padding = new Padding(28, 4, 28, 22);
-                _bottomSendPanel.Height = 90; // 4 + 64 + 22
+                _bottomSendPanel.Height = 90 + (_attachmentList == null ? 0 : _attachmentList.Height);
                 if (_inputPanel != null) _inputPanel.Invalidate();
                 _bottomSendPanel.Invalidate();
             }

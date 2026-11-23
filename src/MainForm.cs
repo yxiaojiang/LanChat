@@ -96,7 +96,7 @@ namespace LanChat
         // 全局核心常量
         // ==========================================
         /// <summary>当前应用程序版本号</summary>
-        public const string APP_VERSION = "2.0.16";
+        public const string APP_VERSION = "2.0.18";
         /// <summary>GitHub 开源仓库标识</summary>
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
         private const string BROADCAST_TARGET = "📢 局域网全员群聊";
@@ -226,16 +226,8 @@ namespace LanChat
 
             // 3. FileTransferController 文件传输绑定
             _fileController.IsActivelyViewingPredicate = (convKey, senderNick) => IsActivelyViewing(convKey);
-            _fileController.ProgressChanged += HandleFileProgress;
-            _fileController.TransferCompleted += OnFileTransferCompleted;
+            _fileController.TransferMessageChanged += OnFileTransferMessageChanged;
             _fileController.FileReceived += OnFileReceived;
-            _fileController.FileSent += (fileMsg, convKey) => {
-                if (_activeChatKey == convKey && _chatView != null)
-                {
-                    _chatView.AppendMessage(fileMsg);
-                }
-                if (_listSessions != null) _listSessions.Invalidate();
-            };
         }
 
         /// <summary>扩展窗体创建样式：支持无边框窗口点击任务栏最小化/还原及系统动画</summary>
@@ -525,7 +517,7 @@ namespace LanChat
             _sessionsPanel.BackColor = _searchHeaderPanel.BackColor = _heroProfilePanel.BackColor =
                 _leftBottomBar.BackColor = _listSessions.BackColor = GrokTheme.Level0;
             _searchBoxContainer.BackColor = _txtSearch.BackColor = _txtInput.BackColor = GrokTheme.Level2;
-            _progressPanel.BackColor = GrokTheme.Surface(24, 24, 26);
+            _attachmentList.BackColor = GrokTheme.Level05;
             _btnSearchToggle.FillColor = GrokTheme.Level2;
             _btnSearchToggle.HoverFillColor = GrokTheme.Level3Hot;
             _btnToolSendFile.FillColor = GrokTheme.InputPlus;
@@ -536,7 +528,6 @@ namespace LanChat
             ApplyControlFont(this, GrokTheme.UiFont(10f));
             ApplyControlFont(_txtSearch, GrokTheme.UiFont(10f));
             ApplyControlFont(_txtInput, GrokTheme.UiFont(11f));
-            ApplyControlFont(_lblProgressInfo, GrokTheme.UiFont(9.5f));
             _txtInput.Top = (_inputPanel.Height - _txtInput.Height) / 2;
             UpdateResponsiveLayout();
             _chatView.ApplyFontSettings();

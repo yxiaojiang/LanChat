@@ -1,23 +1,30 @@
-# 当前代码审核状态 (CRDocs)
+## 当前任务 — LC-LINUX-002-STEP-3-SLICE-2（Round 2：设置八页整改复审）
 
-- **Task ID**：`LC-LINUX-002-STEP-3-SLICE-1`
-- **Topic**：Linux Electron 桌面重构 — 第 3 步切片 1（主窗客户区对齐：双栏、会话、聊天、文件卡片、暗色菜单与浮动滑块）
+- **Task ID**：`LC-LINUX-002-STEP-3-SLICE-2`
+- **Round**：2
 - **Status**：**APPROVED**
-- **Reviewer**：独立审核方
-- **Last updated at**：2026-11-23
-- **Review Report**：`CRDocs/REVIEW.md`
+- **Executor**：Gemini
+- **Reviewer / Last updated by**：Grok（独立审核方已确认通过，由执行者按用户指示同步归档并升级 CRDocs）；2026-11-23
+- **Current owner**：用户
+- **Scope**：独立设置模态窗八页（`settings.html`、`settings.css`、`settings-model.js`、`settings-pages.js`、`settings.js`、`appearance.js`、`main.cjs`、`renderer.js`、`LinuxProfile.cs`、`DesktopService.cs`）。不含托盘恢复、系统通知、维护入口，不改 LANC 封包。
+- **需求来源**：`PlanDocs/LC-LINUX-002/BASELINE.md`、`INTEGRATION.md`、`src/Services/AppSettings.cs`、`src/UI/Controls/GrokTheme.cs`、`src/UI/Controls/SettingsPanels/` 与 Round 1 `REVIEW.md`。
+- **代码基线**：基于 Round 1 返修后的未提交工作区。
+- **审核入口**：`CRDocs/REVIEW.md` 顶部 Round 2；交付记录见 `CRDocs/IMPLEMENTATION.md` 顶部 Round 2。
 
-## 结论
+`LC-S3-001`（外观四项持久化与即时/重启生效）、`LC-S3-002`（`histories-cleared` 作废在途 `historyLoads`）均已闭环。P2 项中，反馈框浮动滑块、小工作区窗口尺寸夹紧、只读备用确认真实分支回归、快捷键页 `Ctrl + Enter / Shift + Enter` 对齐与同目录不提示已迁移已在本轮处理；`LC-S3-003`（`ClearAllHistories` 吞异常，与 WinForms 一致）及 Linux/ELF 实跑、Xorg/Wayland 桌面联调、后续切片 3 已写入 `CRDocs/DEFERRED.md`。
 
-本轮代码复核结论为 **`APPROVED`**（Round 3）。
+宿主机 Node UI 回归、Python 语法检查、Edge Headless 静态 DOM 与双架构 ELF 编译均通过；未在 Linux/QEMU 上运行最新 ELF 与真实桌面环境，不宣称实机已通过。
 
-Round 2 的阻塞项已闭环：
+---
 
-1. **R2-P0-1**：可编辑控件不再拦截方向键、`Home`/`End`/`PageUp`/`PageDown`；满高后 `input` 与 `syncComposeHeight()` 会刷新滑块；输入框右侧留出 `10px`。
-2. **R2-P0-2**：`call_collect()` 在同一次消费中保留 `delete-session` 响应前的事件帧。清空群聊和删除离线会话期望 `peers` 为 0，删除在线好友期望恰好 1 次。文档已改为 .NET SDK 10.0.404，并保留「宿主机无 QEMU、新 ELF 未实跑 delete/history」的边界。
-3. **R2-P1-1**：`suppressAttachToggle` 维持到 `pointerup`/`pointercancel` 之后再清，70ms 按压下二次点击可以关闭菜单。
-4. **R2-P2**：末尾才滚底、单气泡 `Ctrl+A`，以及滑块和 `+` 按钮单测，均已落地。
+## Round 1 首轮审核状态（历史） — LC-LINUX-002-STEP-3-SLICE-2
 
-本地复核：`"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ui_regression.js` 输出 `linux desktop ui regression: ok`；`python -m py_compile packaging/build-electron.py packaging/build_linux.py tests/linux_desktop_regression.py` 通过。手写文件均低于 1000 行，最长为 `renderer.js` 792 行。
+- **Task ID**：`LC-LINUX-002-STEP-3-SLICE-2`
+- **Round**：1（独立审核）
+- **Status**：**CHANGES_REQUESTED**（原记录为 `REJECTED`）
+- **Executor**：前序执行者
+- **Reviewer / Last updated by**：Grok；2026-11-23
+- **Current owner**：执行者（返修）
+- **Scope**：Linux Electron 桌面设置八页初版拆分、IPC 白名单、昵称/自动接收/目录迁移/只读备用确认与 `clear-all-histories`。
 
-**不挂起等待 VM。** 缺 Linux/QEMU 实跑只说明 `delete`/`history` 还不能记成已通过的 ELF 证据，不再说明测试代码必然失败。第 3 步的图形后端、输入法、缩放、长历史、设置八页和托盘通知仍未通过，见 `PlanDocs/LC-LINUX-002/INTEGRATION.md`。
+2 项 P1 OPEN：`LC-S3-001` 外观四项只在设置窗内存生效且被写成 Windows 未接线；`LC-S3-002` 清空后在途 `historyLoads` 响应可能把旧气泡填回。P2 含反馈框原生滚动条、小工作区 `minWidth/minHeight` 顶破 `computeSettingsBounds`、只读备用确认缺少真实分支执行测试、快捷键页缺少 `Ctrl + Enter`、相同历史目录仍提示已迁移。

@@ -93,6 +93,6 @@
 
 | 用户指令关键词 | 执行脚本路径 | 行为规范与说明 |
 | :--- | :--- | :--- |
-| **“编译”** 或 **“纯编译”** | `Tools/Compile.bat` | 仅在项目根目录下调用系统原生 `csc.exe` 极速编译链接 `LanChat.exe` 与 `uninstall.exe`。**不触碰本地安装目录，不打包 MSI，不上传发布**。用于快速语法与链接校验。 |
-| **“编译覆盖”** | `Tools/CompileAndLink.bat` | 编译链接 `LanChat.exe`，自动检测并关闭正在运行中的旧程序，将最新程序热替换覆盖至 `D:\soft\LanChat\` 本地安装目录，并同步配套文件。 |
-| **“发布”** | `Tools/Publish.bat` | 自动检查并编译 `LanChat.exe`，调用 WiX 5 打包生成 `LanChat.msi`，刷新 Linux deb 安装包，并调用 `publish-release.py` 自动创建/更新 GitHub Release，删除线上同名旧资产并流式上传最新安装包。 |
+| **“编译”** 或 **“纯编译”** | `Tools/Scripts/Compile.bat` | 仅在项目根目录下调用系统原生 `csc.exe` 极速编译链接 `LanChat.exe` 与 `uninstall.exe`。**不触碰本地安装目录，不打包 MSI，不上传发布**。用于快速语法与链接校验。 |
+| **“编译覆盖”** | `Tools/Scripts/CompileAndLink.bat` | 编译链接 `LanChat.exe`，自动检测并关闭正在运行中的旧程序，将最新程序热替换覆盖至 `D:\soft\LanChat\` 本地安装目录，并同步配套文件。 |
+| **“发布”** | `Tools/Scripts/Publish.bat` | 自动检查并编译 `LanChat.exe`，调用 WiX 5 打包生成 `LanChat.msi`，刷新 Linux deb 安装包，并调用 `publish-release.py` 自动创建/更新 GitHub Release，删除线上同名旧资产并流式上传最新安装包。 |

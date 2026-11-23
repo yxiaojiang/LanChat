@@ -19,13 +19,22 @@ internal static class ExportLinuxDesktopAssets
         if (args.Length != 1) return 2;
         string output = Directory.CreateDirectory(args[0]).FullName;
         var muted = ColorTranslator.FromHtml("#A0A0A5");
+        var accent = ColorTranslator.FromHtml("#8E64DC");
         foreach (var icon in new[] { WeChatIconType.Search, WeChatIconType.Refresh, WeChatIconType.Logout,
             WeChatIconType.Add, WeChatIconType.UpArrow, WeChatIconType.Folder, WeChatIconType.Box,
             WeChatIconType.Emoji, WeChatIconType.Clear, WeChatIconType.Copy, WeChatIconType.User,
+            WeChatIconType.Settings, WeChatIconType.Menu, WeChatIconType.Contacts,
             WeChatIconType.WinClose, WeChatIconType.WinMin, WeChatIconType.WinMax, WeChatIconType.WinRestore })
         {
             Draw(output, icon.ToString(), 20, (g, bounds) =>
                 WeChatIcon.Draw(g, icon, bounds, false, icon == WeChatIconType.UpArrow ? Color.White : muted));
+        }
+        foreach (var icon in new[] { WeChatIconType.Settings, WeChatIconType.User, WeChatIconType.Emoji,
+            WeChatIconType.Menu, WeChatIconType.Folder, WeChatIconType.Clear,
+            WeChatIconType.Contacts, WeChatIconType.Refresh })
+        {
+            Draw(output, icon + "Active", 20, (g, bounds) =>
+                WeChatIcon.Draw(g, icon, bounds, false, accent));
         }
         Draw(output, "BoxWhite", 20, (g, bounds) =>
             WeChatIcon.Draw(g, WeChatIconType.Box, bounds, false, Color.White));
@@ -33,6 +42,10 @@ internal static class ExportLinuxDesktopAssets
             WeChatIcon.Draw(g, WeChatIconType.Clear, bounds, false, ColorTranslator.FromHtml("#FC4455")));
         Draw(output, "avatar", 82, (g, bounds) =>
             WeChatIcon.DrawMascotAvatar(g, bounds, ColorTranslator.FromHtml("#FC2C3E"), false, true, ColorTranslator.FromHtml("#0E0E0E")));
+        Draw(output, "MascotProfile", 48, (g, bounds) =>
+            WeChatIcon.DrawMascotAvatar(g, bounds, ColorTranslator.FromHtml("#FC2C3E"), false, true, ColorTranslator.FromHtml("#1C1C1F")));
+        Draw(output, "MascotWhite", 40, (g, bounds) =>
+            WeChatIcon.DrawMascotAvatar(g, bounds, ColorTranslator.FromHtml("#F5F5FA"), false, false, Color.Transparent));
         Draw(output, "peer", 48, (g, bounds) =>
             WeChatIcon.DrawMascotAvatar(g, bounds, ColorTranslator.FromHtml("#FF9F0A"), true, false, Color.Transparent));
         Draw(output, "group", 48, (g, bounds) =>

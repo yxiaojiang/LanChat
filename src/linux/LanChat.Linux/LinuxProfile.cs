@@ -27,6 +27,12 @@ namespace LanChat.Linux
         internal bool AutoAcceptFiles =>
             (_settings["AutoAcceptFiles"] ?? _settings["auto_accept"]) is not JsonValue accept ||
             !accept.TryGetValue(out bool enabled) || enabled;
+        internal int ThemeMode => ReadPreset("ThemeMode", 3);
+        internal int AccentPreset => ReadPreset("AccentPreset", 5);
+        internal string UiFontFamily => ReadNonEmpty("UiFontFamily") ?? "Microsoft YaHei UI";
+        internal double UiFontSize => ReadSize("UiFontSize", 8.0, 24.0, 10.0);
+        internal string ChatFontFamily => ReadNonEmpty("ChatFontFamily") ?? "Microsoft YaHei UI";
+        internal double ChatFontSize => ReadSize("ChatFontSize", 8.0, 26.0, 10.5);
         private JsonObject _settings;
 
         internal LinuxProfile()
@@ -85,7 +91,10 @@ namespace LanChat.Linux
         }
 
         internal bool SaveSettings(string nickname, bool? autoAccept = null, string downloadDirectory = null,
-            bool confirmOverride = false, string historyDirectory = null)
+            bool confirmOverride = false, string historyDirectory = null,
+            int? themeMode = null, int? accentPreset = null,
+            string uiFontFamily = null, double? uiFontSize = null,
+            string chatFontFamily = null, double? chatFontSize = null)
         {
             if (string.IsNullOrWhiteSpace(nickname) || nickname.Length > 80 || nickname.Contains('|') ||
                 nickname.Contains('\r') || nickname.Contains('\n'))
@@ -93,6 +102,44 @@ namespace LanChat.Linux
             var next = (JsonObject)_settings.DeepClone();
             next["NickName"] = nickname;
             if (autoAccept.HasValue) next["AutoAcceptFiles"] = autoAccept.Value;
+            if (themeMode.HasValue)
+            {
+                if (themeMode.Value < 0 || themeMode.Value >= 3) throw new ArgumentException("主题模式无效");
+                next["ThemeMode"] = themeMode.Value;
+            }
+            if (accentPreset.HasValue)
+            {
+                if (accentPreset.Value < 0 || accentPreset.Value >= 5) throw new ArgumentException("强调色预设无效");
+                next["AccentPreset"] = accentPreset.Value;
+            }
+            if (uiFontFamily != null)
+            {
+                string font = uiFontFamily.Trim();
+                if (string.IsNullOrEmpty(font) || font.Length > 128 || font.Contains('\r') || font.Contains('\n'))
+                    throw new ArgumentException("主界面字体样式无效");
+                next["UiFontFamily"] = font;
+            }
+            if (uiFontSize.HasValue)
+            {
+                if (double.IsNaN(uiFontSize.Value) || double.IsInfinity(uiFontSize.Value) ||
+                    uiFontSize.Value < 8.0 || uiFontSize.Value > 24.0)
+                    throw new ArgumentException("主界面字号无效");
+                next["UiFontSize"] = Math.Round(uiFontSize.Value, 1);
+            }
+            if (chatFontFamily != null)
+            {
+                string font = chatFontFamily.Trim();
+                if (string.IsNullOrEmpty(font) || font.Length > 128 || font.Contains('\r') || font.Contains('\n'))
+                    throw new ArgumentException("聊天框字体样式无效");
+                next["ChatFontFamily"] = font;
+            }
+            if (chatFontSize.HasValue)
+            {
+                if (double.IsNaN(chatFontSize.Value) || double.IsInfinity(chatFontSize.Value) ||
+                    chatFontSize.Value < 8.0 || chatFontSize.Value > 26.0)
+                    throw new ArgumentException("聊天框字号无效");
+                next["ChatFontSize"] = Math.Round(chatFontSize.Value, 1);
+            }
             if (downloadDirectory != null && downloadDirectory != DownloadDirectory)
             {
                 if (!Path.IsPathFullyQualified(downloadDirectory) || !TryDirectory(downloadDirectory, writable: true))
@@ -261,6 +308,30 @@ namespace LanChat.Linux
 
         private string ReadString(string key) =>
             _settings[key] is JsonValue value && value.TryGetValue(out string text) ? text : null;
+
+        private string ReadNonEmpty(string key)
+        {
+            string text = ReadString(key)?.Trim();
+            return string.IsNullOrEmpty(text) ? null : text;
+        }
+
+        private int ReadPreset(string key, int count)
+        {
+            if (_settings[key] is JsonValue value)
+            {
+                if (value.TryGetValue(out int iv) && iv >= 0 && iv < count) return iv;
+                if (value.TryGetValue(out double dv) && dv >= 0 && dv < count && Math.Abs(dv - Math.Truncate(dv)) < 1e-6) return (int)dv;
+            }
+            return 0;
+        }
+
+        private double ReadSize(string key, double min, double max, double fallback)
+        {
+            if (_settings[key] is JsonValue value && value.TryGetValue(out double sz) &&
+                !double.IsNaN(sz) && !double.IsInfinity(sz) && sz >= min && sz <= max)
+                return Math.Round(sz, 1);
+            return fallback;
+        }
 
         private static JsonObject ReadSettings(string file)
         {

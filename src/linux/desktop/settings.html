@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LanChat 设置</title>
+  <link rel="stylesheet" href="desktop.css">
+  <link rel="stylesheet" href="settings.css">
+  <script src="scrollbar.js" defer></script>
+  <script src="appearance.js" defer></script>
+  <script src="settings-model.js" defer></script>
+  <script src="settings-pages.js" defer></script>
+  <script src="settings.js" defer></script>
+</head>
+<body class="settings-body">
+  <aside class="settings-sidebar" aria-label="设置分类">
+    <div class="settings-search-wrap">
+      <div class="settings-search-box">
+        <img class="search-icon-img" src="assets/Search.png" alt="">
+        <input id="settings-search" type="search" placeholder="搜索设置项" aria-label="搜索设置项">
+        <button id="settings-search-clear" type="button" hidden aria-label="清除搜索内容">×</button>
+      </div>
+    </div>
+    <div class="scroll-host settings-nav-host">
+      <nav id="settings-nav" class="scroll-view" aria-label="设置页面导航"></nav>
+    </div>
+  </aside>
+
+  <main class="settings-main">
+    <div id="settings-banner" class="settings-banner" role="status" hidden></div>
+    <div class="scroll-host settings-scroll">
+      <div id="settings-viewport" class="scroll-view" tabindex="0" aria-label="设置详情">
+        <div id="settings-panels" class="settings-panels"></div>
+      </div>
+    </div>
+  </main>
+
+  <div id="settings-menu" class="settings-popup-menu" role="menu" hidden></div>
+
+  <dialog id="settings-nick-dialog" class="settings-modal settings-nick-modal" aria-labelledby="nick-dialog-title">
+    <form id="nick-form" method="dialog">
+      <h2 id="nick-dialog-title" class="settings-modal-title">修改我的昵称</h2>
+      <div class="nick-tip-row">
+        <img class="nick-mascot" src="assets/MascotProfile.png" alt="">
+        <p class="secondary">在局域网内向其他节点展示您的身份名称:</p>
+      </div>
+      <div class="settings-input-box">
+        <input id="nick-input" maxlength="80" autocomplete="off" aria-label="新昵称" required>
+      </div>
+      <p id="nick-error" class="settings-modal-error" role="alert" hidden></p>
+      <div class="settings-modal-actions">
+        <button id="nick-cancel" class="btn-secondary" type="button">取消</button>
+        <button id="nick-save" class="btn-primary" type="submit">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="settings-feedback-dialog" class="settings-modal settings-feedback-modal" aria-labelledby="feedback-dialog-title">
+    <form id="feedback-form" method="dialog">
+      <h2 id="feedback-dialog-title" class="settings-modal-title">发送反馈</h2>
+      <p class="secondary feedback-subtitle">我们重视所有反馈，无论是错误、想法还是体验建议</p>
+      <div class="settings-textarea-box">
+        <div class="scroll-host feedback-scroll">
+          <textarea id="feedback-input" class="scroll-view" rows="7" placeholder="请详细描述您遇到的问题或改进建议..." aria-label="反馈内容"></textarea>
+        </div>
+      </div>
+      <label class="feedback-diag-check">
+        <input id="feedback-include-diag" type="checkbox" checked>
+        <span>附带系统诊断环境信息，协助排查异常</span>
+      </label>
+      <p id="feedback-error" class="settings-modal-error" role="alert" hidden></p>
+      <div class="settings-modal-actions">
+        <button id="feedback-cancel" class="btn-secondary" type="button">取消</button>
+        <button id="feedback-submit" class="btn-primary" type="submit">发送反馈</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="settings-confirm-dialog" class="settings-modal settings-confirm-modal" aria-labelledby="settings-confirm-title">
+    <form method="dialog">
+      <h2 id="settings-confirm-title" class="settings-modal-title"></h2>
+      <p id="settings-confirm-body" class="settings-confirm-body"></p>
+      <div class="settings-modal-actions">
+        <button id="settings-confirm-cancel" class="btn-secondary" type="button" value="cancel">取消</button>
+        <button id="settings-confirm-accept" class="btn-primary" type="submit" value="ok">确定</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

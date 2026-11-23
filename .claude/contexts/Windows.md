@@ -36,11 +36,18 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `src/Services/SessionManager.cs`：会话与消息历史纯领域解耦服务，支持 `DeleteSession` 物理删除磁盘历史与内存清理。
 - `packaging/bump-version.py`：全工程版本号自动自增与原子同步脚本。
 - `Docs/GrokBot_UI_Design_System.md`：完整 GrokBot UI 设计规范与视觉对齐标准文档。
-- `Tools/Compile.bat`：原生纯编译脚本，纯 ASCII 0-BOM，秒级生成 `release\LanChat.exe` 与 `release\uninstall.exe`。
-- `Tools/CompileAndLink.bat`：一键编译链接并热替换覆盖至 `D:\soft\LanChat\`。
-- `Tools/Publish.bat`：全自动版本自增、强制编译、WiX 5 打包与带网络重试的 GitHub Releases 发布脚本。
+- `Tools/Scripts/Compile.bat`：原生纯编译脚本，纯 ASCII 0-BOM，秒级生成 `release\LanChat.exe` 与 `release\uninstall.exe`。
+- `Tools/Scripts/CompileAndLink.bat`：一键编译链接并热替换覆盖至 `D:\soft\LanChat\`。
+- `Tools/Scripts/Publish.bat`：全自动版本自增、强制编译、WiX 5 打包与带网络重试的 GitHub Releases 发布脚本。
 
 ## 关键设计点与演进状态
+### v2.0.18 文件传输界面与剪贴板
+
+- `FileTransferController.TransferMessageChanged` 按每个文件更新聊天记录里的进行中气泡；多文件分别显示百分比，成功后同一气泡变为文件卡片，失败/断线保留终态。`SessionManager.PersistExistingMessage` 只持久化确认完成的记录，更新现有记录不重复追加。
+- `ChatFileCardRenderer` 负责聊天气泡内文件信息与进度绘制；主窗顶栏不再放传输总进度条。
+- `ChatInputBox` 在 Ctrl+V、Shift+Insert 与 WM_PASTE 中识别系统 `FileDrop`；`MainForm.Files.cs` 按当前会话暂存附件，可移除，点击发送/Enter 才真正传输。普通文本仍交给 TextBox 原生粘贴。
+- 原生构建和隔离同名文件并发回环、UI/附件草稿回归及 MSI 内容核验已通过。用户尚未执行实际 MSI 覆盖安装或桌面剪贴板验收。
+
 1. **暗黑设计系统规范 (Rule 9 硬约束 - Zero White Scrollbar 契约)**：
    - 界面严格遵循暗黑纵深：主聊天区 `#121212`、工具栏底色 `#121212`、按钮与卡片底色 `#1C1C20`（悬停 `#2E2E34`）、选中高饱和魅紫 `#7946D7`、主色调 Grok 魅紫 `#8E64DC`；
    - **绝对禁止全系统原生 Win32 白底滚动条**：无论主界面会话栏、聊天流还是弹窗设置，全量使用纯 GDI+ 暗灰浮动极窄滑块，禁止出现原生白框破坏暗黑沉浸感；

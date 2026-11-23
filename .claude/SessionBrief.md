@@ -1,27 +1,20 @@
 # SessionBrief.md — 当前接手摘要
 
-> 2026-11-23 · 工作目录 `D:\TEmp\LanChat`，分支 `main`。公开基线 Windows `v2.0.16`（`a0e49c1`）。LC-LINUX-002 第 0 至第 2 步已归档。第 3 步切片 1 代码审核已通过，下一步做设置八页。
+> 2026-11-23 · 工作目录 `D:\TEmp\LanChat`，分支 `main`。Windows 与 Linux Electron 同步至 v2.0.18，发布流程正在执行。公开基线为 v2.0.16；远端已有一个无 Release 的 v2.1.0 标签，v2.0.18 标签原先不存在。
 
 ## 当前状态
 
-试验版 `2.0.17~experiment.5`。桌面由 Electron 45.4.1 与本地页面组成，通信由同架构 .NET 10 自包含 ELF 承担，独立 CLI 共用该 ELF。Windows 与 Linux 共用 NetworkService、Models 和现有 LANC 封包。新版 deb 只交付 amd64、arm64，无需 Python。设置优先同级旧文件；便携同级可写时在同级创建，否则用 `~/.config/lanchat`，仅该目录创建失败才回退 `~/.local/share/lanchat`。原设置只读时，备份后须用户确认才切换。历史迁移逐个复制 JSONL，目标已有记录时拒绝覆盖。
+Windows 原生 WinForms 与 Linux Electron 均已实现文件收发进度显示在各自聊天气泡中，多文件逐项显示百分比；系统剪贴板复制的文件可粘贴为待发送附件，点击发送或按 Enter 后发送，普通文本粘贴不变。接收进度使用既有文件传输标识，未改变 LANC 封包。Windows 支持独立收发终态气泡，Linux 复用服务操作 ID；聊天历史只保留成功传输记录。ARM64 Debian 解包时的文件/目录冲突已在打包器中修复并加入冲突检查。
 
-第 2 步已由用户验收。共享会话、离线历史、草稿、文件终态和 CLI 昵称写回已接通。Ubuntu 24.04/22.04 的升级、回退与重装有记录。银河麒麟 V10 国防版用户确认第五轮可安装、刷新并收发文字；该回报没有 dpkg、CLI、回退或库映射，不补记为已观察。物理双架构、无头 CLI 和 Windows 局域网互通留在第 4 步。交接在 `bin/lc-linux-002/handoff-experiment.5/`。证据见 [集成记录](../PlanDocs/LC-LINUX-002/INTEGRATION.md)。
+Windows 原生编译、WinForms 输入/视图回归、同名文件并发收发和 MSI 内容核验均通过；用户仍需自己进行实际覆盖安装与剪贴板操作。Linux Electron 设置已拆为独立八页设置窗；剪贴板、每文件进度及页面回归通过，x64/ARM64 ELF 可构建，Linux Electron deb、便携包、独立 CLI 和摘要已在 `release/linux-electron/`。Linux Electron 桌面尚未实机验收；用户明确要求不启动虚拟机并自行安装测试。正式发布说明应保留 ARM64 实机、Xorg/Wayland、输入法、托盘与长历史矩阵未验收状态。
 
-第 3 步切片 1 是主窗客户区。会话列表、聊天头、文件卡片、暗色菜单、确认框和浮动滑块已按 WinForms 实测尺寸接入。独立审核 Round 3 为 `APPROVED`，报告在 [CRDocs/REVIEW.md](../CRDocs/REVIEW.md)。删除好友会清历史并移出在线列表，清空只删历史。群聊「发送文件给所有人...」仍先选择一个接收人。窗口使用系统边框。托盘唤回尚无运行证据，关闭仍是退出。
-
-界面回归命令是 `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ui_regression.js`，结果为 `linux desktop ui regression: ok`。`C:\Windows\System32\node` 不能执行该脚本。Chromium 1040×720 量到侧栏 420px、顶栏 96px、会话行 72px、选中色 `#7946D7`、滑块静止 4px；800px 宽时侧栏 280px。这是无 ELF 的页面测量。缓存 SDK 10.0.404 已编过 linux-x64 与 linux-arm64 ELF。本机无 QEMU，`tests/linux_desktop_regression.py` 的 `delete` 与 `history` 尚未对新 ELF 实跑，不能记成通过。`renderer.js` 现为 792 行，继续加页面会逼近 1000 行预警线。
-
-现有设置框只有昵称、自动接收、接收目录和历史迁移，还不是八页。WinForms 八页在 `src/UI/Controls/SettingsPanels/`：通用、个人主页、外观、快捷键、文件传输、聊天记录、设备连接、关于与更新。设置窗实测基准是 1260×820。视觉以 `Docs/GrokBot_UI_Design_System.md` 和 125% 基线截图 `settings-1` 至 `settings-8` 为准。Linux 手写 JavaScript、CSS 与 C# 到 1000 行预警、1500 行硬停。注释使用中文。新页面使用暗色自绘滑块，文件和目录选择继续走系统对话框。
+通信继续共用 `src/Models.cs`、`src/NetworkService*.cs`、`src/Services/SessionManager.cs` 与 `src/linux/LanChat.Linux/`。文件进度仅为本地视图状态，传输协议与历史格式没有新增字段。Linux 采用 Electron 45.4.1 和同架构 .NET 10 自包含 ELF，包只支持 amd64/arm64，不依赖 Python。Linux 包产物忽略在 Git 源码提交之外，通过 Release 附件交付。
 
 ## 下一步
 
-实现第 3 步切片 2：把设置对话框对齐 WinForms 八页，即通用、个人主页、外观、快捷键、文件传输、聊天记录、设备连接、关于与更新。窗口基准 1260×820，并适应工作区。已接通的昵称、自动接收、目录选择、历史迁移和只读确认必须保留。语言、链接、主题、快捷键里 Windows 只改按钮文案的项保持展示，不新造未接线行为。新界面放到独立模块，不要继续堆进 `renderer.js`。
-
-这一片不要做托盘、通知、维护入口，也不要把关闭改成隐藏。输入法、125% 与 150% 叠图、至少 2000 条历史和三种图形后端仍未通过。实机由用户验收。Windows Electron 与正式发布另议。
+确认 v2.0.18 Windows MSI/EXE 与 Linux 双架构安装包上传完成后，将链接与摘要回报用户。等待用户在 ARM64 Linux 和 Windows 实机安装、验证文件收发气泡和剪贴板粘贴，并按反馈修复。随后继续 LC-LINUX-002 第 3 步其余运行验收（Xorg/Wayland、输入法、托盘/通知、长历史性能等），再完成物理双架构升级回退及 Windows 局域网互通；证据不足时不标记候选验收通过。
 
 ## 入口
 
-- [执行计划](Plan.md) · [阶段归档](Plan-archive.md) · [采纳定稿](../PlanDocs/LC-LINUX-002/FINAL.md)
+- [执行计划](Plan.md) · [阶段归档](Plan-archive.md) · [集成记录](../PlanDocs/LC-LINUX-002/INTEGRATION.md)
 - [Linux 模块](contexts/Linux.md) · [共享协议](contexts/Protocol.md) · [Windows 基线](contexts/Windows.md)
-- [代码审核](../CRDocs/STATUS.md)

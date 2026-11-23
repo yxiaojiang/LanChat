@@ -1,4 +1,4 @@
 """LanChat Linux 客户端。"""
 
-APP_VERSION = "2.0.16"
+APP_VERSION = "2.0.18"
 GITHUB_REPO = "yxiaojiang/LanChat"

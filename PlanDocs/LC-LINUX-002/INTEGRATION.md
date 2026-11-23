@@ -108,4 +108,35 @@ QEMU 10.2.0 TCG，Ubuntu Minimal 24.04.5 amd64；基于旧实验 VM 的独立写
 
 独立代码审核 Round 3（2026-11-23）结论为 `APPROVED`，报告在 `CRDocs/REVIEW.md`。放行范围是主窗客户区源码。ELF 的 `delete`/`history` 仍未实跑，不记为通过。
 
-仍未通过：Xorg、原生 Wayland、XWayland、fcitx5、ibus、125% 与 150% 同尺寸叠图、至少 2000 条历史的切换和滚动性能、托盘恢复、通知点击，以及设置八页。缺这些运行证据时，第 3 步保持未通过。
+仍未通过：Xorg、原生 Wayland、XWayland、fcitx5、ibus、125% 与 150% 同尺寸叠图、至少 2000 条历史的切换和滚动性能、托盘恢复、通知点击、维护入口，以及设置八页在 Linux 实机／桌面环境中的实跑验收。缺这些运行证据时，第 3 步保持未通过。
+
+## 第 3 步切片 2 · 设置八页（2026-11-23）
+
+这一片只做独立设置对话框及其八个页面，不做托盘、通知、维护入口，也不改关闭窗口退出语义；`handoff-experiment.2` 至 `handoff-experiment.5` 均未改动，LANC 封包结构未改。
+
+已实现的结构与行为：
+
+- 设置窗口拆为独立 Electron 模态子窗体（`settings.html`、`settings.css`、`settings-model.js`、`settings-pages.js`、`settings.js`，共用 `appearance.js`），`renderer.js` 移除旧内联 `<dialog id="settings">` 逻辑并保持主窗监听与同步；`histories-cleared` 事件会作废进行中的 `historyLoads`，防止晚到的 `history` 响应把已清空的气泡写回。基准客户区 `1260×820`，经 `computeSettingsBounds`、`computeSettingsMinSize` 与 `ready-to-show` 外框夹紧适配小工作区并居中限位；使用系统边框与 `Esc` 关闭，关闭后焦点回到主窗设置触发按钮。
+- 左侧 `270px` 侧栏（`#0E0E0E`，无竖向分割线）含实时关键字搜索框及四组八页导航：`通用`、`个人主页`、`外观`、`快捷键`、`文件传输`、`聊天记录`、`设备连接`、`关于与更新`；侧栏、右侧视口与反馈文本框均使用现有 `scrollbar.js` 暗色浮动滑块并关闭原生滚动条。
+- 保留已接通的昵称修改（440×260 暗色模态与 `1~80` 字符/无竖线换行校验）、自动接收文件开关（通用与文件传输页双向同步）、接收目录选择与打开文件夹、聊天记录目录迁移（选择相同目录不提示已迁移）与打开文件夹、只读配置备份及「使用备用位置」二次确认（`overridePath` / `confirmOverride`）；同时在 `DesktopService.cs` 接入 `clear-all-histories` 以响应聊天记录页「立即清空 >」暗色确认。目录选择继续走系统对话框。
+- 外观四项（主题模式 `ThemeMode`、强调色 `AccentPreset`、主界面/聊天框字体族 `UiFontFamily` / `ChatFontFamily`、两套字号 `UiFontSize` / `ChatFontSize`）按 WinForms `AppSettings` 键名经 `save-settings` 落盘，并立即作用到主窗与设置窗，重启后从配置恢复；通用页「字体大小」与外观页「主界面字体大小」共享并双向同步 `UiFontSize`。快捷键页与主窗实际输入按键一致（`Enter` 发送，`Ctrl + Enter / Shift + Enter` 换行）。
+- Windows 中仅更新按钮文案或静态展示的 10 项（语言、链接打开方式、网络协议通道、快捷键徽章、托盘未读悬浮预览、后台网络驻留运行、64KB 分块校验、自动加载历史消息、TUN/TAP 过滤、多网卡并发单播探测）继续只做展示与本地状态切换，不新增 RPC（其中「后台网络驻留运行」保持空回调）；`检查更新 >` 仅提示将由后续维护切片接入，`发送反馈 >` 为本地暗色反馈表单。
+- `ExportLinuxDesktopAssets.cs` 增补 `Settings`、`Menu`、`Contacts`（常态与 `#8E64DC` 激活态）、`MascotProfile`、`MascotWhite` 的 GDI+ 导出；主进程和 preload 对设置窗口放行限定的设置/状态/目录 IPC，其余主窗发送、删会话与打开文件白名单仍只限主页面。
+
+本地回归、构建与页面测量（非 Linux 桌面实跑）：
+
+| 检查 | 结果 | 边界 |
+| --- | --- | --- |
+| `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ui_regression.js` | 输出 `linux desktop ui regression: ok` | 覆盖 `settings-model.js`、`computeSettingsBounds` 各种工作区夹紧、八页结构/令牌/白名单和全部手写文件行数（均 `< 1000` 行）。`C:\Windows\System32\node` 不能用来判断通过。 |
+| `python -m py_compile packaging/build-electron.py packaging/build_linux.py tests/linux_desktop_regression.py` | 退出码 0 | 仅校验打包与测试脚本语法。 |
+| `ExportLinuxDesktopAssets.cs`（Framework64 `csc.exe` 临时编译并导出至 `bin/lc-linux-002/icons/`） | 成功生成新增 PNG 图标 | 使用 `bin/lc-linux-002/baseline/windows/LanChat.exe` 作为 GDI+ 引用，临时构建目录已清理。 |
+| Edge Headless（无预加载桥、无 ELF）`settings.html` `1260×820` 视口测量与八页截图 | 侧栏 `270×820` `rgb(14, 14, 14)`、搜索框 `238×34`、8 项导航（行高 `38px`）、卡片容器宽 `900px` 底色 `rgb(28, 28, 31)`、通用页 10 行均为 `54px`、开关 `40×22` `rgb(31, 214, 126)`、刻度滑块 `280×34`、各页卡片高度对齐 WinForms、无溢出时滑块隐藏 | 仅无桥接静态页面渲染与计算样式测量（状态展示为默认/未连接回退值），不是 Linux 桌面实机截图。 |
+| 同一页面 `1240×600` 与 `720×500` 视口 | `1240×600` 触发溢出（`scrollHeight 726 > 600`），滑块可见且静止 `4px` `rgb(52, 52, 60)`、拖拽态 `5px`；`720×500` 侧栏缩至 `210px`、内容区 `466px`、无水平溢出 | 仅页面测量，未录制实际鼠标拖拽与系统边框高度叠加。 |
+| `build_linux.py`（`.NET SDK 10.0.404` 缓存） | `linux-x64` 与 `linux-arm64` 自包含 ELF 均以 0 警告、0 错误编过并校验 ELF64 机器码（62 / 183） | 仅验证 `DesktopService.cs` 新增 `clear-all-histories` 后的双架构编译，构建到临时目录后已清理。 |
+
+尚无 Linux 桌面／ELF 运行证据（仍未通过）：
+
+- Linux Electron 实机运行下点击左下角芯片拉起独立设置 `BrowserWindow`、模态居中与工作区适配、关闭回焦主窗，以及与 `DesktopService` 联动的真实保存、只读备用确认、历史迁移冲突提示、`clear-all-histories`、系统 GTK 目录选择器和打开目录动作。
+- Xorg、原生 Wayland、XWayland 三种后端表现，fcitx5 / ibus 输入法在昵称与反馈输入中的预编辑行为，以及 100% / 125% / 150% 同尺寸叠图核对。
+- `tests/linux_desktop_regression.py` 的 `delete`、`history` 及本切片新增 `clear-all-histories` 在 Linux 网络命名空间对最新 ELF 的实跑（宿主机无 QEMU）。
+- 本切片代码审核尚未进行（`CRDocs/STATUS.md` 仍记录切片 1 状态）。

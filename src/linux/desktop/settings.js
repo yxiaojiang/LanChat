@@ -1,0 +1,704 @@
+// 设置对话框交互控制器。负责侧栏搜索导航、IPC 持久化同步、外观即时应用、只读配置确认、暗色弹层与键盘无障碍。
+(function (root, factory) {
+  const api = factory(root);
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  root.LanChatSettingsApp = api;
+  if (!(typeof process === 'object' && process?.env?.LANCHAT_TEST_MODE === '1') && typeof document !== 'undefined') {
+    api.createSettingsController();
+  }
+})(typeof globalThis === 'undefined' ? this : globalThis, function (root) {
+  function normalizeDir(value) {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    return text.length > 1 ? text.replace(/[\\/]+$/, '') : text;
+  }
+
+  function createSettingsController(deps = {}) {
+    const doc = deps.document || root.document;
+    const win = deps.window || root.window || root;
+    const api = deps.api !== undefined ? deps.api : win.lanchat;
+    const model = deps.model || root.LanChatSettingsModel;
+    const pages = deps.pages || root.LanChatSettingsPages;
+    const appearance = deps.appearance || root.LanChatAppearance;
+    const scroll = deps.scroll || root.LanChatScroll;
+    const byId = id => doc.getElementById(id);
+
+    const navEl = byId('settings-nav');
+    const searchInput = byId('settings-search');
+    const searchClear = byId('settings-search-clear');
+    const viewport = byId('settings-viewport');
+    const panelsHost = byId('settings-panels');
+    const bannerEl = byId('settings-banner');
+    const menuEl = byId('settings-menu');
+
+    const committed = {
+      nickname: 'LanChat',
+      autoAcceptFiles: true,
+      downloadDirectory: 'ReceivedFiles',
+      historyDirectory: 'ChatHistory',
+      settingsPath: '',
+      themeMode: 0,
+      accentPreset: 0,
+      uiFontFamily: 'Microsoft YaHei UI',
+      uiFontSize: 10.0,
+      chatFontFamily: 'Microsoft YaHei UI',
+      chatFontSize: 10.5
+    };
+
+    const runtime = {
+      id: '0000-0000',
+      ip: '127.0.0.1',
+      tcpPort: 38889,
+      hostname: 'localhost',
+      osText: 'Linux',
+      arch: 'x64',
+      version: '2.0.18',
+      electronVersion: '45.4.1',
+      connected: false
+    };
+
+    // 与 WinForms 面板一致的展示态（语言、链接打开方式及展示型开关等本地 UI 状态）。
+    const display = {
+      languagePill: model.LANGUAGES[0].pill,
+      linkPill: model.LINK_MODES[0].pill,
+      trayPreview: true,
+      keepAlive: true,
+      chunkCheck: true,
+      autoLoadHistory: true,
+      tunFilter: true,
+      unicastProbe: true
+    };
+
+    let activeTab = 0;
+    let saving = false;
+    let queuedAppearance = null;
+    let pendingAppearance = null;
+    let menuRestoreTarget = null;
+    let bannerTimer = 0;
+    let navScroll = null;
+    let pageScroll = null;
+    let feedbackScroll = null;
+
+    // 跨页联动控件引用（通用与文件传输共享自动接收/接收目录，通用与外观共享主界面字号）。
+    const syncRefs = {
+      autoSwitches: [],
+      downloadDescs: [],
+      historyDescs: [],
+      uiSliders: [],
+      chatSliders: [],
+      themeLabels: [],
+      accentLabels: [],
+      uiFontLabels: [],
+      chatFontLabels: [],
+      nickLabels: []
+    };
+
+    function showBanner(message, isError = false, autoHideMs = 0) {
+      if (bannerTimer) {
+        clearTimeout(bannerTimer);
+        bannerTimer = 0;
+      }
+      if (!message) {
+        bannerEl.hidden = true;
+        bannerEl.textContent = '';
+        bannerEl.classList.remove('error');
+        return;
+      }
+      bannerEl.textContent = message;
+      bannerEl.classList.toggle('error', isError);
+      bannerEl.hidden = false;
+      if (autoHideMs > 0) {
+        bannerTimer = setTimeout(() => showBanner(''), autoHideMs);
+      }
+    }
+
+    function applyAppearanceState(source = committed) {
+      const normalized = appearance.normalizeSettings(source);
+      appearance.applyAppearance(doc.documentElement, normalized);
+      syncAppearanceControls(normalized);
+    }
+
+    function syncAppearanceControls(source = committed) {
+      const normalized = appearance.normalizeSettings(source);
+      for (const el of syncRefs.themeLabels) el.textContent = model.THEMES[normalized.themeMode];
+      for (const el of syncRefs.accentLabels) el.textContent = model.ACCENTS[normalized.accentPreset].label;
+      for (const el of syncRefs.uiFontLabels) el.textContent = appearance.fontDisplayLabel(normalized.uiFontFamily);
+      for (const el of syncRefs.chatFontLabels) el.textContent = appearance.fontDisplayLabel(normalized.chatFontFamily);
+      const uiIdx = model.sliderIndexForValue(model.UI_FONT_SIZES, normalized.uiFontSize);
+      for (const slider of syncRefs.uiSliders) slider.setIndex(uiIdx);
+      const chatIdx = model.sliderIndexForValue(model.CHAT_FONT_SIZES, normalized.chatFontSize);
+      for (const slider of syncRefs.chatSliders) slider.setIndex(chatIdx);
+    }
+
+    function closeMenu(restoreFocus = true) {
+      if (menuEl.hidden) return;
+      menuEl.hidden = true;
+      menuEl.replaceChildren();
+      const target = menuRestoreTarget;
+      menuRestoreTarget = null;
+      if (restoreFocus && target && target.isConnected) target.focus();
+    }
+
+    function openMenu(anchor, items) {
+      closeMenu(false);
+      menuRestoreTarget = anchor;
+      menuEl.replaceChildren();
+      const buttons = [];
+      for (const item of items) {
+        const button = doc.createElement('button');
+        button.type = 'button';
+        button.setAttribute('role', 'menuitem');
+        if (item.swatch) {
+          const dot = doc.createElement('span');
+          dot.className = 'menu-swatch';
+          dot.style.backgroundColor = item.swatch;
+          button.append(dot);
+        }
+        const label = doc.createElement('span');
+        label.textContent = item.label;
+        button.append(label);
+        if (item.checked) {
+          const check = doc.createElement('span');
+          check.className = 'menu-check';
+          check.textContent = '✓';
+          button.append(check);
+        }
+        button.addEventListener('click', () => {
+          closeMenu(true);
+          item.run();
+        });
+        menuEl.append(button);
+        buttons.push(button);
+      }
+      menuEl.hidden = false;
+      const anchorRect = anchor.getBoundingClientRect();
+      const menuRect = menuEl.getBoundingClientRect();
+      const left = Math.max(8, Math.min(anchorRect.left, win.innerWidth - menuRect.width - 8));
+      let top = anchorRect.bottom + 4;
+      if (top + menuRect.height > win.innerHeight - 8) {
+        top = Math.max(8, anchorRect.top - menuRect.height - 4);
+      }
+      menuEl.style.left = `${left}px`;
+      menuEl.style.top = `${top}px`;
+      buttons[0]?.focus();
+    }
+
+    function openConfirmModal({ title, body, confirmLabel = '确定', cancelLabel = '取消', danger = false, alertOnly = false }) {
+      const dialog = byId('settings-confirm-dialog');
+      if (dialog.open) return Promise.resolve(false);
+      const previousFocus = doc.activeElement;
+      byId('settings-confirm-title').textContent = title;
+      byId('settings-confirm-body').textContent = body;
+      const acceptBtn = byId('settings-confirm-accept');
+      const cancelBtn = byId('settings-confirm-cancel');
+      acceptBtn.textContent = confirmLabel;
+      acceptBtn.className = danger ? 'btn-primary danger' : 'btn-primary';
+      cancelBtn.textContent = cancelLabel;
+      cancelBtn.hidden = alertOnly;
+      dialog.returnValue = 'cancel';
+      dialog.showModal();
+      (alertOnly ? acceptBtn : cancelBtn).focus();
+      return new Promise(resolve => {
+        dialog.addEventListener('close', () => {
+          if (previousFocus && previousFocus.isConnected) previousFocus.focus();
+          resolve(dialog.returnValue === 'ok');
+        }, { once: true });
+      });
+    }
+
+    async function copyToClipboard(text) {
+      if (!text) return false;
+      try {
+        if (win.navigator?.clipboard?.writeText) {
+          await win.navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch {}
+      const helper = doc.createElement('textarea');
+      helper.value = text;
+      helper.style.position = 'fixed';
+      helper.style.opacity = '0';
+      doc.body.append(helper);
+      helper.select();
+      const ok = typeof doc.execCommand === 'function' ? doc.execCommand('copy') : false;
+      helper.remove();
+      return ok;
+    }
+
+    // 所有设置写回统一经此入口处理，保证只读配置备份与二次确认链路与 DesktopService 一致。
+    async function persistSettings(patch) {
+      if (!api) {
+        showBanner('桌面桥接不可用，当前仅展示界面布局', true, 3000);
+        return { ok: false, error: '桌面桥接不可用' };
+      }
+      if (saving) return { ok: false, error: '正在保存上一项设置，请稍候' };
+      saving = true;
+      const previousHistory = committed.historyDirectory;
+      const nextNick = patch.nickname !== undefined ? patch.nickname : committed.nickname;
+      const nextAuto = patch.autoAcceptFiles !== undefined ? patch.autoAcceptFiles : committed.autoAcceptFiles;
+      const nextDownload = patch.downloadDirectory !== undefined ? patch.downloadDirectory : null;
+      const nextHistory = patch.historyDirectory !== undefined ? patch.historyDirectory : null;
+      const appearancePayload = appearance.normalizeSettings({ ...committed, ...patch });
+      try {
+        let result = await api.saveSettings(nextNick, nextAuto, nextDownload, false, nextHistory, appearancePayload);
+        if (result?.overridePath) {
+          const confirmed = await openConfirmModal({
+            title: '原设置只读',
+            body: `原设置只读，已备份到\n${result.backupPath}\n\n是否改用以下备用位置保存修改？\n${result.overridePath}`,
+            confirmLabel: '使用备用位置',
+            cancelLabel: '取消'
+          });
+          if (!confirmed) {
+            pendingAppearance = null;
+            queuedAppearance = null;
+            applyAppearanceState(committed);
+            syncBoundControls();
+            showBanner('已取消更改，原只读设置保持不变', false, 3500);
+            return { ok: false, cancelled: true };
+          }
+          result = await api.saveSettings(nextNick, nextAuto, nextDownload, true, nextHistory, appearancePayload);
+        }
+        Object.assign(committed, result);
+        pendingAppearance = null;
+        applyAppearanceState(committed);
+        syncBoundControls();
+        const sameHistory = Boolean(nextHistory) && normalizeDir(nextHistory) === normalizeDir(previousHistory);
+        const migratedHistory = Boolean(nextHistory) && !sameHistory &&
+          normalizeDir(result?.historyDirectory) !== normalizeDir(previousHistory);
+        const message = migratedHistory
+          ? '聊天记录已迁移并保存设置'
+          : (sameHistory ? '所选目录与当前目录相同，无需迁移' : '设置已保存');
+        showBanner(message, false, 2400);
+        return { ok: true, result };
+      } catch (error) {
+        pendingAppearance = null;
+        queuedAppearance = null;
+        applyAppearanceState(committed);
+        syncBoundControls();
+        showBanner(error.message, true);
+        return { ok: false, error: error.message };
+      } finally {
+        saving = false;
+      }
+    }
+
+    async function updateAppearance(patch) {
+      const nextPreview = appearance.normalizeSettings({ ...(pendingAppearance || committed), ...patch });
+      pendingAppearance = nextPreview;
+      applyAppearanceState(nextPreview);
+      if (!api) {
+        Object.assign(committed, nextPreview);
+        pendingAppearance = null;
+        showBanner('桌面桥接不可用，当前仅展示界面布局', true, 3000);
+        return { ok: false, error: '桌面桥接不可用' };
+      }
+      if (saving) {
+        queuedAppearance = { ...(queuedAppearance || {}), ...patch };
+        return { ok: true, queued: true };
+      }
+      let res = await persistSettings(nextPreview);
+      while (queuedAppearance) {
+        const nextPatch = queuedAppearance;
+        queuedAppearance = null;
+        const merged = appearance.normalizeSettings({ ...committed, ...nextPatch });
+        res = await persistSettings(merged);
+        if (!res.ok) break;
+      }
+      return res;
+    }
+
+    function syncBoundControls() {
+      for (const el of syncRefs.autoSwitches) {
+        el.setAttribute('aria-checked', String(Boolean(committed.autoAcceptFiles)));
+      }
+      for (const el of syncRefs.downloadDescs) {
+        el.textContent = model.formatShortPath(committed.downloadDirectory);
+        el.title = committed.downloadDirectory || '';
+      }
+      for (const el of syncRefs.historyDescs) {
+        el.textContent = model.formatShortPath(committed.historyDirectory);
+        el.title = committed.historyDirectory || '';
+      }
+      for (const el of syncRefs.nickLabels) {
+        el.textContent = committed.nickname || 'LanChat';
+      }
+      syncAppearanceControls(pendingAppearance || committed);
+    }
+
+    async function pickDirectory(kind) {
+      if (!api) {
+        showBanner('桌面桥接不可用，无法打开系统目录选择框', true, 3000);
+        return;
+      }
+      try {
+        const folder = await api.selectSettingsDirectory(kind);
+        if (!folder) return;
+        await persistSettings(kind === 'history' ? { historyDirectory: folder } : { downloadDirectory: folder });
+      } catch (error) {
+        showBanner(error.message, true);
+      }
+    }
+
+    async function toggleAutoAccept(next) {
+      const res = await persistSettings({ autoAcceptFiles: next });
+      if (!res.ok) syncBoundControls();
+    }
+
+    async function openDownloads() {
+      if (!api) return;
+      try {
+        await api.openDownloads();
+      } catch (error) {
+        showBanner(error.message, true);
+      }
+    }
+
+    async function openHistory() {
+      if (!api) return;
+      try {
+        await api.openHistory();
+      } catch (error) {
+        showBanner(error.message, true);
+      }
+    }
+
+    async function clearAllHistories(btn) {
+      const accepted = await openConfirmModal({
+        title: '清空记录确认',
+        body: '确定要彻底清空本机所有本地聊天记录吗？此操作将删除所有往期历史且无法撤销。',
+        confirmLabel: '立即清空',
+        danger: true
+      });
+      if (!accepted) return;
+      if (!api) {
+        showBanner('桌面桥接不可用，无法清空历史', true, 3000);
+        return;
+      }
+      try {
+        await api.clearAllHistories();
+        btn.textContent = '已清空 ✓';
+        showBanner('已彻底清空所有本地聊天记录', false, 2400);
+      } catch (error) {
+        showBanner(error.message, true);
+      }
+    }
+
+    function openNickDialog() {
+      const dialog = byId('settings-nick-dialog');
+      if (dialog.open) return;
+      const input = byId('nick-input');
+      const errorEl = byId('nick-error');
+      const previousFocus = doc.activeElement;
+      input.value = committed.nickname || '';
+      errorEl.hidden = true;
+      errorEl.textContent = '';
+      dialog.showModal();
+      input.focus();
+      input.select();
+      dialog.addEventListener('close', () => {
+        if (previousFocus && previousFocus.isConnected) previousFocus.focus();
+      }, { once: true });
+    }
+
+    function openFeedbackDialog() {
+      const dialog = byId('settings-feedback-dialog');
+      if (dialog.open) return;
+      const input = byId('feedback-input');
+      const errorEl = byId('feedback-error');
+      const previousFocus = doc.activeElement;
+      input.value = '';
+      errorEl.hidden = true;
+      errorEl.textContent = '';
+      dialog.showModal();
+      feedbackScroll?.refresh();
+      input.focus();
+      dialog.addEventListener('close', () => {
+        if (previousFocus && previousFocus.isConnected) previousFocus.focus();
+      }, { once: true });
+    }
+
+    function showUpdateNotice() {
+      void openConfirmModal({
+        title: '检查更新',
+        body: `当前版本 v${runtime.version}\n版本检查与安装包更新将在后续维护切片接入。`,
+        confirmLabel: '知道了',
+        alertOnly: true
+      });
+    }
+
+    function renderAllPanels() {
+      syncRefs.autoSwitches = [];
+      syncRefs.downloadDescs = [];
+      syncRefs.historyDescs = [];
+      syncRefs.uiSliders = [];
+      syncRefs.chatSliders = [];
+      syncRefs.themeLabels = [];
+      syncRefs.accentLabels = [];
+      syncRefs.uiFontLabels = [];
+      syncRefs.chatFontLabels = [];
+      syncRefs.nickLabels = [];
+      const built = pages.buildAll({
+        committed,
+        runtime,
+        display,
+        syncRefs,
+        activeTab,
+        hasBridge: Boolean(api),
+        actions: {
+          openMenu,
+          updateAppearance: patch => { void updateAppearance(patch); },
+          pickDirectory: kind => { void pickDirectory(kind); },
+          openDownloads: () => { void openDownloads(); },
+          openHistory: () => { void openHistory(); },
+          toggleAutoAccept: next => { void toggleAutoAccept(next); },
+          clearAllHistories: btn => { void clearAllHistories(btn); },
+          openNickDialog,
+          openFeedbackDialog,
+          showUpdateNotice,
+          copyText: copyToClipboard
+        }
+      });
+      panelsHost.replaceChildren(...built);
+      syncBoundControls();
+      pageScroll?.refresh();
+    }
+
+    function renderNav() {
+      navEl.replaceChildren();
+      const items = model.filterNavItems(searchInput.value);
+      if (!items.length) {
+        const empty = doc.createElement('div');
+        empty.className = 'nav-empty';
+        empty.textContent = '未找到匹配的设置项';
+        navEl.append(empty);
+        navScroll?.refresh();
+        return;
+      }
+      let lastGroup = '';
+      for (const item of items) {
+        if (item.group !== lastGroup) {
+          lastGroup = item.group;
+          const groupLabel = doc.createElement('div');
+          groupLabel.className = 'nav-group-label';
+          groupLabel.textContent = item.group;
+          navEl.append(groupLabel);
+        }
+        const btn = doc.createElement('button');
+        btn.type = 'button';
+        btn.className = 'nav-item';
+        btn.dataset.tabId = String(item.id);
+        btn.dataset.icon = item.icon;
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', String(item.id === activeTab));
+        const icon = doc.createElement('img');
+        icon.className = 'nav-icon';
+        icon.src = `assets/${item.icon}${item.id === activeTab ? 'Active' : ''}.png`;
+        icon.alt = '';
+        const label = doc.createElement('span');
+        label.textContent = item.title;
+        btn.append(icon, label);
+        btn.addEventListener('click', () => switchTab(item.id));
+        navEl.append(btn);
+      }
+      navScroll?.refresh();
+    }
+
+    function switchTab(tabId) {
+      if (tabId < 0 || tabId > 7) return;
+      closeMenu(false);
+      activeTab = tabId;
+      for (const btn of navEl.querySelectorAll('.nav-item')) {
+        const selected = Number(btn.dataset.tabId) === activeTab;
+        btn.setAttribute('aria-selected', String(selected));
+        const icon = btn.querySelector('.nav-icon');
+        if (icon && btn.dataset.icon) {
+          icon.src = `assets/${btn.dataset.icon}${selected ? 'Active' : ''}.png`;
+        }
+      }
+      for (const page of panelsHost.querySelectorAll('.settings-page')) {
+        page.hidden = Number(page.dataset.tabId) !== activeTab;
+      }
+      viewport.scrollTop = 0;
+      pageScroll?.refresh();
+    }
+
+    navEl.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      const items = [...navEl.querySelectorAll('.nav-item')];
+      if (!items.length) return;
+      const currentIdx = items.indexOf(doc.activeElement);
+      const nextIdx = currentIdx < 0
+        ? 0
+        : event.key === 'ArrowDown'
+          ? (currentIdx + 1) % items.length
+          : (currentIdx - 1 + items.length) % items.length;
+      event.preventDefault();
+      const target = items[nextIdx];
+      target.focus();
+      switchTab(Number(target.dataset.tabId));
+    });
+
+    menuEl.addEventListener('keydown', event => {
+      const buttons = [...menuEl.querySelectorAll('button')];
+      if (!buttons.length) return;
+      const idx = buttons.indexOf(doc.activeElement);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        closeMenu(true);
+      } else if (event.key === 'ArrowDown' || (event.key === 'Tab' && !event.shiftKey)) {
+        event.preventDefault();
+        buttons[(idx < 0 ? 0 : idx + 1) % buttons.length]?.focus();
+      } else if (event.key === 'ArrowUp' || (event.key === 'Tab' && event.shiftKey)) {
+        event.preventDefault();
+        buttons[(idx <= 0 ? buttons.length : idx) - 1]?.focus();
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        buttons[0]?.focus();
+      } else if (event.key === 'End') {
+        event.preventDefault();
+        buttons.at(-1)?.focus();
+      }
+    });
+
+    doc.addEventListener('pointerdown', event => {
+      if (!menuEl.hidden && !menuEl.contains(event.target) && !menuRestoreTarget?.contains(event.target)) {
+        closeMenu(false);
+      }
+    });
+
+    win.addEventListener('resize', () => {
+      closeMenu(false);
+      pageScroll?.refresh();
+      navScroll?.refresh();
+      feedbackScroll?.refresh();
+    });
+
+    doc.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      if (!menuEl.hidden) {
+        event.preventDefault();
+        closeMenu(true);
+        return;
+      }
+      if (byId('settings-nick-dialog').open || byId('settings-feedback-dialog').open || byId('settings-confirm-dialog').open) {
+        return;
+      }
+      if (doc.activeElement === searchInput && searchInput.value) {
+        event.preventDefault();
+        searchInput.value = '';
+        searchClear.hidden = true;
+        renderNav();
+        return;
+      }
+      if (api?.closeSettings) {
+        event.preventDefault();
+        void api.closeSettings();
+      }
+    });
+
+    searchInput.addEventListener('input', () => {
+      searchClear.hidden = !searchInput.value;
+      renderNav();
+    });
+
+    searchClear.addEventListener('click', () => {
+      searchInput.value = '';
+      searchClear.hidden = true;
+      renderNav();
+      searchInput.focus();
+    });
+
+    byId('nick-cancel').addEventListener('click', () => byId('settings-nick-dialog').close());
+    byId('nick-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const check = model.validateNickname(byId('nick-input').value);
+      const errorEl = byId('nick-error');
+      if (!check.ok) {
+        errorEl.textContent = check.error;
+        errorEl.hidden = false;
+        return;
+      }
+      errorEl.hidden = true;
+      const res = await persistSettings({ nickname: check.value });
+      if (res.ok) {
+        byId('settings-nick-dialog').close();
+      } else {
+        errorEl.textContent = res.cancelled ? '已取消更改，原只读设置保持不变' : (res.error || '保存失败');
+        errorEl.hidden = false;
+      }
+    });
+
+    byId('feedback-cancel').addEventListener('click', () => byId('settings-feedback-dialog').close());
+    byId('feedback-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const errorEl = byId('feedback-error');
+      if (!byId('feedback-input').value.trim()) {
+        errorEl.textContent = '请先输入您的反馈或问题描述。';
+        errorEl.hidden = false;
+        return;
+      }
+      byId('settings-feedback-dialog').close();
+      void openConfirmModal({
+        title: '反馈成功',
+        body: '感谢您的宝贵反馈！我们将持续精进优化 LanChat。',
+        confirmLabel: '知道了',
+        alertOnly: true
+      });
+    });
+
+    byId('settings-confirm-cancel').addEventListener('click', () => byId('settings-confirm-dialog').close('cancel'));
+    byId('settings-confirm-accept').addEventListener('click', event => {
+      event.preventDefault();
+      byId('settings-confirm-dialog').close('ok');
+    });
+
+    async function bootstrap() {
+      navScroll = scroll.bind(navEl);
+      pageScroll = scroll.bind(viewport);
+      feedbackScroll = scroll.bind(byId('feedback-input'));
+      applyAppearanceState(committed);
+      renderNav();
+      renderAllPanels();
+      if (!api) return;
+      try {
+        const [settingsData, stateData, sysData] = await Promise.all([
+          api.settings(),
+          api.state(),
+          api.systemInfo()
+        ]);
+        if (settingsData) Object.assign(committed, appearance.normalizeSettings(settingsData), settingsData);
+        if (stateData) {
+          runtime.id = stateData.id || runtime.id;
+          runtime.ip = stateData.ip || runtime.ip;
+          runtime.tcpPort = stateData.tcpPort || runtime.tcpPort;
+          runtime.connected = true;
+        }
+        if (sysData) {
+          runtime.hostname = sysData.hostname || runtime.hostname;
+          runtime.osText = sysData.osText || runtime.osText;
+          runtime.arch = sysData.arch || runtime.arch;
+          runtime.version = sysData.version || runtime.version;
+          runtime.electronVersion = sysData.electronVersion || runtime.electronVersion;
+        }
+        applyAppearanceState(committed);
+        renderAllPanels();
+      } catch (error) {
+        showBanner(error.message, true);
+      }
+    }
+
+    const ready = bootstrap();
+    return {
+      ready,
+      committed,
+      persistSettings,
+      updateAppearance,
+      pickDirectory,
+      openFeedbackDialog,
+      applyAppearanceState
+    };
+  }
+
+  return { createSettingsController, normalizeDir };
+});

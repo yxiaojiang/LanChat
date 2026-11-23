@@ -19,3 +19,4 @@ ReceivedFiles/
 *.log
 *.wixpdb
 .wix/
+/release/linux-electron/

@@ -7,6 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LanChat</title>
   <link rel="stylesheet" href="desktop.css">
+  <script src="appearance.js" defer></script>
   <script src="presentation.js" defer></script>
   <script src="scrollbar.js" defer></script>
   <script src="overlay.js" defer></script>
@@ -47,10 +48,10 @@
     <div class="scroll-host feed">
       <section id="messages" class="scroll-view" tabindex="0" aria-label="聊天记录"></section>
     </div>
-    <div class="scroll-host transfers-host" hidden>
-      <div id="transfers" class="scroll-view secondary" aria-label="本会话文件传输" aria-live="polite"></div>
-    </div>
     <div id="status" class="status" role="status"></div>
+    <div id="attachments-host" class="scroll-host attachments-host" hidden>
+      <div id="attachments" class="scroll-view" aria-label="待发送附件"></div>
+    </div>
     <form id="compose" class="compose">
       <button id="attach" class="icon attach" type="button" title="附件与快捷操作 (点击打开菜单)" aria-label="附件与快捷操作" disabled><img src="assets/Add.png" alt=""></button>
       <div class="scroll-host compose-scroll">
@@ -77,26 +78,6 @@
       <div class="settings-actions">
         <button id="confirm-cancel" class="pill" value="cancel">取消</button>
         <button id="confirm-accept" class="pill danger" value="ok">确定</button>
-      </div>
-    </form>
-  </dialog>
-  <dialog id="settings" aria-labelledby="settings-title">
-    <form id="settings-form" method="dialog">
-      <h2 id="settings-title">设置</h2>
-      <label>昵称 <input id="settings-nickname" maxlength="80" required></label>
-      <label><input id="settings-auto-accept" type="checkbox"> 自动接收文件</label>
-      <div>
-        <button id="settings-pick-directory" class="pill" type="button">更改接收目录</button>
-        <p class="settings-path secondary" id="settings-directory"></p>
-      </div>
-      <div>
-        <button id="settings-pick-history" class="pill" type="button">迁移聊天记录</button>
-        <p class="settings-path secondary" id="settings-history"></p>
-      </div>
-      <p class="settings-path secondary" id="settings-message" role="status" hidden></p>
-      <div class="settings-actions">
-        <button id="settings-cancel" class="pill" type="button">取消</button>
-        <button id="settings-save" class="pill" type="submit">保存</button>
       </div>
     </form>
   </dialog>

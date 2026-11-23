@@ -1,19 +1,27 @@
-const { app, BrowserWindow, dialog, ipcMain, session, shell } = require('electron');
+const { app, BrowserWindow, clipboard, dialog, ipcMain, screen, session, shell } = require('electron');
 const { randomUUID } = require('node:crypto');
 const { mkdir, realpath, stat } = require('node:fs/promises');
-const { dirname, isAbsolute, join, resolve } = require('node:path');
-const { pathToFileURL } = require('node:url');
+const os = require('node:os');
+const { basename, dirname, isAbsolute, join, resolve } = require('node:path');
+const { fileURLToPath, pathToFileURL } = require('node:url');
+const appearance = require('./appearance.js');
 const Service = require('./service.cjs');
 
 const page = join(__dirname, 'index.html');
 const pageUrl = pathToFileURL(page).href;
+const settingsPage = join(__dirname, 'settings.html');
+const settingsPageUrl = pathToFileURL(settingsPage).href;
 const allowedFilePaths = new Set();
 const pendingDrops = new Map();
+const pendingPastes = new Map();
+const maxFiles = 32;
 let window;
+let settingsWindow;
 let service;
 let restarting;
 let exiting = false;
 let stopped = false;
+let windowBackground = '#121212';
 
 function recordMessagePaths(message) {
   if (message?.file && typeof message.path === 'string' && isAbsolute(message.path)) {
@@ -75,10 +83,103 @@ function showWindow() {
   }
 }
 
-function handle(name, operation) {
+// 按 1260×820 基准计算设置窗口客户区尺寸，并适配当前显示器工作区与居中位置。
+function computeSettingsBounds(workArea, parentBounds = null) {
+  const minWidth = Math.min(480, Math.max(240, workArea.width - 16));
+  const minHeight = Math.min(400, Math.max(200, workArea.height - 40));
+  const width = Math.max(minWidth, Math.min(1260, workArea.width - 40));
+  const height = Math.max(minHeight, Math.min(820, workArea.height - 40));
+  const originX = parentBounds
+    ? Math.round(parentBounds.x + (parentBounds.width - width) / 2)
+    : Math.round(workArea.x + (workArea.width - width) / 2);
+  const originY = parentBounds
+    ? Math.round(parentBounds.y + (parentBounds.height - height) / 2)
+    : Math.round(workArea.y + (workArea.height - height) / 2);
+  const x = Math.max(workArea.x, Math.min(originX, workArea.x + workArea.width - width));
+  const y = Math.max(workArea.y, Math.min(originY, workArea.y + workArea.height - height));
+  return { width, height, x, y };
+}
+
+function computeSettingsMinSize(bounds) {
+  return {
+    minWidth: Math.min(720, bounds.width),
+    minHeight: Math.min(500, bounds.height)
+  };
+}
+
+function openSettingsWindow() {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    if (settingsWindow.isMinimized()) settingsWindow.restore();
+    settingsWindow.show();
+    settingsWindow.focus();
+    return;
+  }
+  const hasParent = window && !window.isDestroyed();
+  const parentBounds = hasParent ? window.getBounds() : null;
+  const display = parentBounds ? screen.getDisplayMatching(parentBounds) : screen.getPrimaryDisplay();
+  const bounds = computeSettingsBounds(display.workArea, parentBounds);
+  const minSize = computeSettingsMinSize(bounds);
+  settingsWindow = new BrowserWindow({
+    parent: hasParent ? window : undefined,
+    modal: Boolean(hasParent),
+    useContentSize: true,
+    width: bounds.width,
+    height: bounds.height,
+    x: bounds.x,
+    y: bounds.y,
+    minWidth: minSize.minWidth,
+    minHeight: minSize.minHeight,
+    title: 'LanChat 设置',
+    backgroundColor: windowBackground,
+    show: false,
+    autoHideMenuBar: true,
+    icon: join(__dirname, 'assets/app.png'),
+    webPreferences: {
+      preload: join(__dirname, 'preload.cjs'),
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      spellcheck: false
+    }
+  });
+  settingsWindow.removeMenu();
+  settingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  settingsWindow.webContents.on('will-navigate', event => event.preventDefault());
+  settingsWindow.webContents.on('will-attach-webview', event => event.preventDefault());
+  settingsWindow.once('ready-to-show', () => {
+    if (!settingsWindow || settingsWindow.isDestroyed()) return;
+    const wa = display.workArea;
+    const outer = settingsWindow.getBounds();
+    const clampedWidth = Math.min(outer.width, wa.width);
+    const clampedHeight = Math.min(outer.height, wa.height);
+    const clampedX = Math.max(wa.x, Math.min(outer.x, wa.x + wa.width - clampedWidth));
+    const clampedY = Math.max(wa.y, Math.min(outer.y, wa.y + wa.height - clampedHeight));
+    if (clampedWidth !== outer.width || clampedHeight !== outer.height || clampedX !== outer.x || clampedY !== outer.y) {
+      settingsWindow.setMinimumSize(Math.min(720, clampedWidth), Math.min(500, clampedHeight));
+      settingsWindow.setBounds({ x: clampedX, y: clampedY, width: clampedWidth, height: clampedHeight });
+    }
+    settingsWindow.show();
+  });
+  settingsWindow.on('closed', () => {
+    settingsWindow = null;
+    if (window && !window.isDestroyed() && !exiting) {
+      window.focus();
+      forward({ event: 'settings-closed' });
+    }
+  });
+  settingsWindow.loadFile(settingsPage).catch(error => {
+    console.error(error);
+    settingsWindow?.close();
+  });
+}
+
+function handle(name, operation, allowSettings = false) {
   ipcMain.handle('lanchat:' + name, async (event, ...args) => {
-    if (event.sender !== window?.webContents || event.senderFrame !== event.sender.mainFrame ||
-        event.senderFrame.url !== pageUrl || exiting) throw new Error('无效的桌面请求');
+    const fromMain = event.sender === window?.webContents && event.senderFrame === event.sender.mainFrame &&
+      event.senderFrame.url === pageUrl;
+    const fromSettings = allowSettings && event.sender === settingsWindow?.webContents &&
+      event.senderFrame === event.sender.mainFrame && event.senderFrame.url === settingsPageUrl;
+    if ((!fromMain && !fromSettings) || exiting) throw new Error('无效的桌面请求');
     return operation(...args);
   });
 }
@@ -95,29 +196,78 @@ function fileRecipient(chat) {
 }
 
 async function validateLocalFiles(paths) {
-  if (!Array.isArray(paths) || !paths.length || paths.length > 32)
-    throw new Error('一次最多发送 32 个文件');
+  if (!Array.isArray(paths) || !paths.length || paths.length > maxFiles)
+    throw new Error(`一次最多发送 ${maxFiles} 个文件`);
   return Promise.all(paths.map(async path => {
     if (!isAbsolute(text(path, 4096))) throw new Error('请选择本地文件');
     const file = await realpath(path);
-    if (!(await stat(file)).isFile()) throw new Error('只能发送普通文件');
-    return file;
+    const info = await stat(file);
+    if (!info.isFile()) throw new Error('只能发送普通文件');
+    return { path: file, name: basename(file), size: info.size };
   }));
 }
 
-async function dispatchFiles(chat, files) {
-  fileRecipient(chat);
-  const results = [];
-  for (const path of files) {
-    try {
-      await service.request('file', { chat, path });
-      allowedFilePaths.add(resolve(path));
-      results.push({ ok: true });
-    } catch (error) {
-      results.push({ ok: false, error: error.message });
+// 优先读取桌面文件管理器的文件格式，普通文本中的路径仍按文本粘贴。
+async function readClipboardPaths(source = clipboard) {
+  const items = await source.read();
+  const formats = ['electron application/osclipboard;format="x-special/gnome-copied-files"', 'text/uri-list'];
+  for (const format of formats) {
+    const paths = new Set();
+    for (const item of items) {
+      if (!item.types.includes(format)) continue;
+      const content = await (await item.getType(format)).text();
+      for (const line of content.replace(/\0+$/, '').split(/\r?\n/)) {
+        if (!line.startsWith('file:')) continue;
+        try { paths.add(fileURLToPath(line)); } catch { /* 忽略无效或远程地址。 */ }
+      }
     }
+    if (paths.size) return [...paths];
   }
-  return results;
+  return [];
+}
+
+async function stagePastedFiles(paths) {
+  const localPaths = paths.length ? paths : await readClipboardPaths();
+  if (!localPaths.length) return [];
+  const files = await validateLocalFiles([...new Set(localPaths)]);
+  return files.map(file => {
+    const id = randomUUID();
+    pendingPastes.set(id, file);
+    return { id, name: file.name, size: file.size };
+  });
+}
+
+async function dispatchFiles(chat, files, waitForResult = true) {
+  fileRecipient(chat);
+  const child = service;
+  const peer = (await child.request('peers')).find(item => item.id === chat);
+  if (service !== child || child.disconnected) throw new Error('通信服务已断开，请重新连接后发送');
+  if (!peer) throw new Error('好友当前离线，暂时无法发送文件');
+  const batch = files.map(({ path, name, size }) => ({ path, progress: {
+    event: 'progress', operation: randomUUID(), chat: peer.key, peerNick: peer.nick,
+    name, total: size, sending: true
+  } }));
+  // 先显示整批的待发送气泡，仍沿用逐个发送，避免一次打开多条大文件流。
+  for (const { progress } of batch) forward({ ...progress, queued: true, received: 0 });
+  const send = async () => {
+    const results = [];
+    for (const { path, progress } of batch) {
+      try {
+        await child.request('file', { chat, path }, progress.operation);
+        allowedFilePaths.add(resolve(path));
+        results.push({ ok: true });
+      } catch (error) {
+        // 文件在排队时被删除等失败可能发生在通信服务发出首帧之前。
+        if (service === child && !child.disconnected)
+          forward({ ...progress, queued: false, failed: true, error: error.message });
+        results.push({ ok: false, error: error.message });
+      }
+    }
+    return results;
+  };
+  const result = send();
+  if (waitForResult) return result;
+  void result.catch(error => forward({ event: 'file-error', data: error.message }));
 }
 
 async function sendFiles(chat, paths) {
@@ -160,7 +310,7 @@ async function openPath(target, kind) {
 }
 
 if (process.env.LANCHAT_TEST_MODE === '1') {
-  module.exports = { openPath, recordMessagePaths, allowedFilePaths };
+  module.exports = { openPath, recordMessagePaths, allowedFilePaths, computeSettingsBounds, computeSettingsMinSize, readClipboardPaths };
 } else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -180,7 +330,7 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, decide) => decide(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
     session.defaultSession.on('will-download', event => event.preventDefault());
-    handle('state', () => service.request('state'));
+    handle('state', () => service.request('state'), true);
     handle('history', async chat => {
       const result = await service.request('history', { chat: text(chat, 256) });
       for (const item of result?.messages ?? []) recordMessagePaths(item);
@@ -199,24 +349,79 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       }
       await restarting;
     });
-    handle('settings', () => service.request('settings'));
-    handle('save-settings', (nickname, autoAcceptFiles, downloadDirectory, confirmOverride, historyDirectory) => {
+    handle('open-settings', () => { openSettingsWindow(); });
+    handle('close-settings', () => {
+      if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.close();
+    }, true);
+    handle('system-info', () => ({
+      hostname: os.hostname(),
+      osText: `${os.type()} ${os.release()} (${os.arch() === 'arm64' ? 'ARM64 64位' : os.arch() === 'x64' ? 'x86_64 64位' : os.arch()})`,
+      arch: os.arch(),
+      version: app.getVersion(),
+      electronVersion: process.versions.electron
+    }), true);
+    handle('settings', async () => {
+      const current = await service.request('settings');
+      if (current) {
+        windowBackground = appearance.surfaceHex(18, 18, 18, appearance.normalizeThemeMode(current.themeMode));
+      }
+      return current;
+    }, true);
+    handle('save-settings', async (nickname, autoAcceptFiles, downloadDirectory, confirmOverride, historyDirectory, appearanceInput = null) => {
       if (typeof autoAcceptFiles !== 'boolean' || typeof confirmOverride !== 'boolean')
         throw new Error('设置值无效');
       if (downloadDirectory !== null && !isAbsolute(text(downloadDirectory, 4096)))
         throw new Error('文件接收目录无效');
       if (historyDirectory !== null && !isAbsolute(text(historyDirectory, 4096)))
         throw new Error('聊天记录目录无效');
-      return service.request('save-settings', {
+      const payload = {
         nickname: text(nickname, 80), autoAcceptFiles, downloadDirectory, confirmOverride, historyDirectory
-      });
-    });
+      };
+      if (appearanceInput !== null && appearanceInput !== undefined) {
+        if (typeof appearanceInput !== 'object' || Array.isArray(appearanceInput))
+          throw new Error('外观设置无效');
+        if (appearanceInput.themeMode !== undefined && appearanceInput.themeMode !== null) {
+          if (!Number.isInteger(appearanceInput.themeMode) || appearanceInput.themeMode < 0 || appearanceInput.themeMode >= 3)
+            throw new Error('主题模式无效');
+          payload.themeMode = appearanceInput.themeMode;
+        }
+        if (appearanceInput.accentPreset !== undefined && appearanceInput.accentPreset !== null) {
+          if (!Number.isInteger(appearanceInput.accentPreset) || appearanceInput.accentPreset < 0 || appearanceInput.accentPreset >= 5)
+            throw new Error('强调色预设无效');
+          payload.accentPreset = appearanceInput.accentPreset;
+        }
+        if (appearanceInput.uiFontFamily !== undefined && appearanceInput.uiFontFamily !== null)
+          payload.uiFontFamily = text(appearanceInput.uiFontFamily, 128);
+        if (appearanceInput.uiFontSize !== undefined && appearanceInput.uiFontSize !== null) {
+          if (typeof appearanceInput.uiFontSize !== 'number' || !Number.isFinite(appearanceInput.uiFontSize) ||
+              appearanceInput.uiFontSize < 8 || appearanceInput.uiFontSize > 24)
+            throw new Error('主界面字号无效');
+          payload.uiFontSize = appearanceInput.uiFontSize;
+        }
+        if (appearanceInput.chatFontFamily !== undefined && appearanceInput.chatFontFamily !== null)
+          payload.chatFontFamily = text(appearanceInput.chatFontFamily, 128);
+        if (appearanceInput.chatFontSize !== undefined && appearanceInput.chatFontSize !== null) {
+          if (typeof appearanceInput.chatFontSize !== 'number' || !Number.isFinite(appearanceInput.chatFontSize) ||
+              appearanceInput.chatFontSize < 8 || appearanceInput.chatFontSize > 26)
+            throw new Error('聊天框字号无效');
+          payload.chatFontSize = appearanceInput.chatFontSize;
+        }
+      }
+      const result = await service.request('save-settings', payload);
+      if (result && !result.overridePath) {
+        windowBackground = appearance.surfaceHex(18, 18, 18, appearance.normalizeThemeMode(result.themeMode));
+        forward({ event: 'settings-updated', data: result });
+      }
+      return result;
+    }, true);
     handle('select-settings-directory', async kind => {
       if (kind !== 'downloads' && kind !== 'history') throw new Error('目录类型无效');
       const title = kind === 'downloads' ? '选择文件接收目录' : '选择聊天记录目录';
-      const selection = await dialog.showOpenDialog(window, { title, properties: ['openDirectory'] });
+      const hostWindow = settingsWindow && !settingsWindow.isDestroyed() ? settingsWindow : window;
+      const selection = await dialog.showOpenDialog(hostWindow, { title, properties: ['openDirectory'] });
       return selection.canceled ? null : selection.filePaths[0];
-    });
+    }, true);
+    handle('clear-all-histories', () => service.request('clear-all-histories'), true);
     handle('send-text', (chat, message) => service.request('text', { chat: text(chat, 256), text: text(message, 32768) }));
     handle('select-files', async chat => {
       fileRecipient(chat);
@@ -226,6 +431,19 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       return selection.canceled ? [] : sendFiles(chat, selection.filePaths);
     });
     handle('drop-files', sendFiles);
+    handle('stage-paste', stagePastedFiles);
+    handle('discard-paste', ids => {
+      if (!Array.isArray(ids)) throw new Error('附件列表无效');
+      for (const id of ids) pendingPastes.delete(id);
+    });
+    handle('send-paste', async (chat, ids) => {
+      if (!Array.isArray(ids) || !ids.length || ids.length > maxFiles || new Set(ids).size !== ids.length)
+        throw new Error(`一次最多发送 ${maxFiles} 个文件`);
+      const files = ids.map(id => pendingPastes.get(id));
+      if (files.some(file => !file)) throw new Error('粘贴的文件已不可用，请重新粘贴');
+      await dispatchFiles(chat, files, false);
+      for (const id of ids) pendingPastes.delete(id);
+    });
     handle('stage-drop', async paths => {
       const files = await validateLocalFiles(paths);
       const token = randomUUID();
@@ -251,7 +469,14 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       if (!isAbsolute(directory)) throw new Error('文件接收目录无效');
       await mkdir(directory, { recursive: true });
       await reveal(await realpath(directory));
-    });
+    }, true);
+    handle('open-history', async () => {
+      const current = await service.request('settings');
+      const directory = text(current.historyDirectory, 4096);
+      if (!isAbsolute(directory)) throw new Error('聊天记录目录无效');
+      await mkdir(directory, { recursive: true });
+      await reveal(await realpath(directory));
+    }, true);
     handle('quit', () => { setImmediate(() => app.quit()); });
     startService();
     showWindow();

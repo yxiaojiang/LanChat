@@ -8,9 +8,9 @@ echo.
 
 REM 1. Locate LanChat project root directory
 set "PROJECT_DIR="
-if exist "%~dp0..\src\MainForm*.cs" set "PROJECT_DIR=%~dp0.."
+if exist "%~dp0..\..\src\MainForm*.cs" set "PROJECT_DIR=%~dp0..\.."
 if not defined PROJECT_DIR (
-    if exist "%~dp0..\LanChat\src\MainForm*.cs" set "PROJECT_DIR=%~dp0..\LanChat"
+    if exist "%~dp0..\..\LanChat\src\MainForm*.cs" set "PROJECT_DIR=%~dp0..\..\LanChat"
 )
 if not defined PROJECT_DIR (
     if exist "%~dp0src\MainForm*.cs" set "PROJECT_DIR=%~dp0"
