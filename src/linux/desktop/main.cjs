@@ -1,26 +1,39 @@
-const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
-const { realpath, stat } = require('node:fs/promises');
-const { isAbsolute, join } = require('node:path');
+const { app, BrowserWindow, dialog, ipcMain, session, shell } = require('electron');
+const { randomUUID } = require('node:crypto');
+const { mkdir, realpath, stat } = require('node:fs/promises');
+const { dirname, isAbsolute, join, resolve } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const Service = require('./service.cjs');
 
 const page = join(__dirname, 'index.html');
 const pageUrl = pathToFileURL(page).href;
+const allowedFilePaths = new Set();
+const pendingDrops = new Map();
 let window;
 let service;
 let restarting;
 let exiting = false;
 let stopped = false;
 
+function recordMessagePaths(message) {
+  if (message?.file && typeof message.path === 'string' && isAbsolute(message.path)) {
+    allowedFilePaths.add(resolve(message.path));
+  }
+}
+
 function forward(event) {
   if (window && !window.isDestroyed()) window.webContents.send('lanchat:event', event);
 }
 
 function startService() {
+  allowedFilePaths.clear();
+  pendingDrops.clear();
   const child = new Service(join(process.resourcesPath, 'lanchat-bin'));
   service = child;
   child.on('event', event => {
-    if (service === child) forward(event);
+    if (service !== child) return;
+    if (event?.event === 'message') recordMessagePaths(event.data);
+    forward(event);
   });
   child.on('disconnect', error => {
     if (service === child && !exiting) forward({ event: 'disconnect', data: error.message });
@@ -81,19 +94,24 @@ function fileRecipient(chat) {
   return text(chat, 256);
 }
 
-async function sendFiles(chat, paths) {
-  fileRecipient(chat);
-  if (!Array.isArray(paths) || paths.length > 32) throw new Error('一次最多发送 32 个文件');
-  const files = await Promise.all(paths.map(async path => {
+async function validateLocalFiles(paths) {
+  if (!Array.isArray(paths) || !paths.length || paths.length > 32)
+    throw new Error('一次最多发送 32 个文件');
+  return Promise.all(paths.map(async path => {
     if (!isAbsolute(text(path, 4096))) throw new Error('请选择本地文件');
     const file = await realpath(path);
     if (!(await stat(file)).isFile()) throw new Error('只能发送普通文件');
     return file;
   }));
+}
+
+async function dispatchFiles(chat, files) {
+  fileRecipient(chat);
   const results = [];
   for (const path of files) {
     try {
       await service.request('file', { chat, path });
+      allowedFilePaths.add(resolve(path));
       results.push({ ok: true });
     } catch (error) {
       results.push({ ok: false, error: error.message });
@@ -102,7 +120,48 @@ async function sendFiles(chat, paths) {
   return results;
 }
 
-if (!app.requestSingleInstanceLock()) {
+async function sendFiles(chat, paths) {
+  fileRecipient(chat);
+  return dispatchFiles(chat, await validateLocalFiles(paths));
+}
+
+async function reveal(target) {
+  const error = await shell.openPath(target);
+  if (error) throw new Error(error);
+}
+
+// 只打开通信记录登记过的本地绝对路径。原文件丢失时仍允许打开其直接父目录。
+async function openPath(target, kind) {
+  if (kind !== 'file' && kind !== 'directory') throw new Error('打开类型无效');
+  const requested = text(target, 4096);
+  if (!isAbsolute(requested)) throw new Error('路径无效');
+  if (!allowedFilePaths.has(resolve(requested))) throw new Error('文件路径未在通信记录中登记');
+  if (kind === 'file') {
+    const file = await realpath(requested);
+    if (!(await stat(file)).isFile()) throw new Error('原文件不可用');
+    await reveal(file);
+    return;
+  }
+  let folder = '';
+  try {
+    const file = await realpath(requested);
+    const info = await stat(file);
+    folder = info.isDirectory() ? file : dirname(file);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+    try {
+      folder = await realpath(dirname(requested));
+    } catch {
+      throw new Error('所在目录不可用');
+    }
+  }
+  if (!(await stat(folder)).isDirectory()) throw new Error('所在目录不可用');
+  await reveal(folder);
+}
+
+if (process.env.LANCHAT_TEST_MODE === '1') {
+  module.exports = { openPath, recordMessagePaths, allowedFilePaths };
+} else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.enableSandbox();
@@ -122,7 +181,11 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setPermissionCheckHandler(() => false);
     session.defaultSession.on('will-download', event => event.preventDefault());
     handle('state', () => service.request('state'));
-    handle('history', chat => service.request('history', { chat: text(chat, 256) }));
+    handle('history', async chat => {
+      const result = await service.request('history', { chat: text(chat, 256) });
+      for (const item of result?.messages ?? []) recordMessagePaths(item);
+      return result;
+    });
     handle('peers', () => service.request('peers'));
     handle('refresh', () => service.request('refresh'));
     handle('reconnect', async () => {
@@ -163,6 +226,32 @@ if (!app.requestSingleInstanceLock()) {
       return selection.canceled ? [] : sendFiles(chat, selection.filePaths);
     });
     handle('drop-files', sendFiles);
+    handle('stage-drop', async paths => {
+      const files = await validateLocalFiles(paths);
+      const token = randomUUID();
+      if (pendingDrops.size >= 10) pendingDrops.delete(pendingDrops.keys().next().value);
+      pendingDrops.set(token, files);
+      return token;
+    });
+    handle('confirm-drop', async (chat, token) => {
+      const key = text(token, 128);
+      const files = pendingDrops.get(key);
+      pendingDrops.delete(key);
+      if (!files || !chat) return [];
+      return dispatchFiles(chat, files);
+    });
+    handle('delete-session', (chat, removePeer) => {
+      if (typeof removePeer !== 'boolean') throw new Error('删除参数无效');
+      return service.request('delete-session', { chat: text(chat, 256), removePeer });
+    });
+    handle('open-path', openPath);
+    handle('open-downloads', async () => {
+      const current = await service.request('settings');
+      const directory = text(current.downloadDirectory, 4096);
+      if (!isAbsolute(directory)) throw new Error('文件接收目录无效');
+      await mkdir(directory, { recursive: true });
+      await reveal(await realpath(directory));
+    });
     handle('quit', () => { setImmediate(() => app.quit()); });
     startService();
     showWindow();

@@ -75,6 +75,16 @@ class Service:
     def reply(self, request):
         return self.wait(lambda row: row.get("id") == request)
 
+    def call_collect(self, method, **fields):
+        request = self.send(method, **fields)
+        events = []
+        while True:
+            row = self.events.get(timeout=35 * TIMEOUT_SCALE)
+            assert row is not None, "桌面服务提前退出"
+            if row.get("id") == request:
+                return row, events
+            events.append(row)
+
     def call(self, method, **fields):
         return self.reply(self.send(method, **fields))["result"]
 
@@ -300,6 +310,7 @@ def history_regression(executable, bundle, home):
         receive_fixture(service, "before.bin", b"old")
         previous = service.call("history", chat=chat)["messages"]
         assert len(previous) == 1 and previous[0]["exists"]
+        assert previous[0]["timestamp"] and Path(previous[0]["path"]) == receive_dir / "before.bin"
         original = {file.name: file.read_bytes() for file in old_history.glob("history_*.jsonl")}
         assert original
         occupied = bundle / "occupied"
@@ -337,10 +348,54 @@ def history_regression(executable, bundle, home):
         print("用户主动迁移历史、冲突时保留原数据、迁移后追加与重启恢复通过")
 
 
+def delete_session_regression(executable, bundle, home):
+    with socket.socket() as listener, Service(executable, bundle, home) as service:
+        listener.bind(("127.0.0.2", 0))
+        listener.listen()
+        failed = service.reply(service.send("delete-session", chat="BROADCAST", removePeer=True))
+        assert "不能删除全员群聊" in failed["error"]
+
+        with socket.socket(type=socket.SOCK_DGRAM) as udp:
+            udp.bind(("127.0.0.2", 0))
+            udp.sendto(f"ACK|online-peer|在线节点|test-host|{listener.getsockname()[1]}|127.0.0.2".encode(),
+                       ("127.0.0.1", service.ready["udpPort"]))
+        service.wait(lambda row: row.get("event") == "peers")
+
+        receive_fixture(service, "drop.bin", b"payload")
+        history_rows = service.call("history", chat="LAN-127.0.0.2")["messages"]
+        assert len(history_rows) == 1 and history_rows[0]["exists"] and history_rows[0]["timestamp"]
+        assert Path(history_rows[0]["path"]).name == "drop.bin"
+
+        # 清空群聊时不移除群聊本身，也不应额外广播 peers；先通过同步屏障清空先前的异步事件。
+        service.call_collect("history", chat="BROADCAST")
+        clear_reply, clear_events = service.call_collect("delete-session", chat="BROADCAST", removePeer=False)
+        assert "result" in clear_reply
+        hist_reply, hist_events = service.call_collect("history", chat="BROADCAST")
+        assert hist_reply["result"]["messages"] == []
+        assert not any(row.get("event") == "peers" for row in clear_events + hist_events)
+
+        # 删除在线好友应清空历史、移出在线列表，且仅由 OnPeerLeft 触发一次 peers 广播。
+        del_reply, del_events = service.call_collect("delete-session", chat="LAN-127.0.0.2", removePeer=True)
+        assert not any(peer["id"] == "online-peer" for peer in del_reply["result"])
+        after_reply, after_events = service.call_collect("history", chat="LAN-127.0.0.2")
+        assert after_reply["result"]["messages"] == []
+        peer_events = [row for row in del_events + after_events if row.get("event") == "peers"]
+        assert len(peer_events) == 1, peer_events
+
+        # 删除不存在于在线列表的离线会话也不应报错或触发 peers 广播。
+        off_reply, off_events = service.call_collect("delete-session", chat="LAN-127.0.0.99", removePeer=True)
+        assert "result" in off_reply
+        off_hist, off_after = service.call_collect("history", chat="LAN-127.0.0.99")
+        assert off_hist["result"]["messages"] == []
+        assert not any(row.get("event") == "peers" for row in off_events + off_after)
+    print("delete-session（禁止删群聊、清空群聊、删除在线/离线好友及单次 peers 事件）通过")
+
+
 def main():
     executable = str(Path(sys.argv[1]).resolve(strict=True))
     cases = {"settings": settings_regression, "history": history_regression,
-             "transfer": transfer_regression, "crash": crash_regression}
+             "transfer": transfer_regression, "crash": crash_regression,
+             "delete": delete_session_regression}
     selected = sys.argv[2:] or list(cases)
     with tempfile.TemporaryDirectory(prefix="lanchat-desktop-") as directory:
         for case in selected:

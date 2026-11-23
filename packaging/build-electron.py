@@ -119,7 +119,8 @@ def build_deb(stage, arch, files):
 
 
 def build(output, archives, elf, icons):
-    for image in ("Search", "Refresh", "Logout", "Add", "UpArrow", "avatar", "group", "peer"):
+    for image in ("Search", "Refresh", "Logout", "Add", "UpArrow", "Folder", "BoxWhite",
+                  "Emoji", "Clear", "ClearDanger", "Copy", "User", "avatar", "group", "peer"):
         if not (icons / f"{image}.png").is_file():
             raise ValueError(f"缺少原生导出的图标：{image}.png")
     output.mkdir(parents=True, exist_ok=True)

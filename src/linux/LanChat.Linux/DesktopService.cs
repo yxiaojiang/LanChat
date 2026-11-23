@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -160,6 +161,14 @@ namespace LanChat.Linux
                     case "file":
                         SendFile(id, FindPeer(Required(request, "chat", 256)), Required(request, "path", 4096));
                         break;
+                    case "delete-session":
+                        // 清空只删历史；删除好友时 RemovePeer 会同步派发 OnPeerLeft -> peers 事件。
+                        lock (_gate)
+                        {
+                            DeleteChat(Required(request, "chat", 256), Flag(request, "removePeer"));
+                            Reply(id, PeerList());
+                        }
+                        break;
                     case "quit":
                         Reply(id, null);
                         return true;
@@ -174,6 +183,32 @@ namespace LanChat.Linux
                 else Console.Error.WriteLine(ex.Message);
             }
             return false;
+        }
+
+        // 全员群聊只能清空。私聊删除会按局域网地址键匹配当前在线节点并移除。
+        private void DeleteChat(string chat, bool removePeer)
+        {
+            if (removePeer && chat.Equals(SessionManager.BROADCAST_KEY, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("不能删除全员群聊");
+            string key = _sessions.ResolveKey(chat);
+            _sessions.DeleteSession(key);
+            if (!removePeer || key.Equals(SessionManager.BROADCAST_KEY, StringComparison.OrdinalIgnoreCase)) return;
+            foreach (PeerInfo peer in _network.GetActivePeers())
+            {
+                string peerKey = SessionManager.GetLanKey(peer.Id, peer.IP);
+                if (string.Equals(peer.Id, chat, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(peer.Id, key, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(peerKey, key, StringComparison.OrdinalIgnoreCase))
+                    _network.RemovePeer(peer.Id);
+            }
+        }
+
+        private static bool Flag(JsonObject request, string name)
+        {
+            JsonNode node = request[name];
+            if (node == null) return false;
+            if (node is JsonValue value && value.TryGetValue(out bool flag)) return flag;
+            throw new ArgumentException("无效的 " + name);
         }
 
         private static string Required(JsonObject request, string name, int limit)
@@ -312,15 +347,23 @@ namespace LanChat.Linux
             }
         }
 
-        private static JsonObject MessageFrame(ChatMessage value, string key, string operation, long sequence) => new()
+        private static JsonObject MessageFrame(ChatMessage value, string key, string operation, long sequence)
         {
-            ["sequence"] = sequence, ["operation"] = operation, ["chat"] = key,
-            ["nick"] = value.SenderNick, ["peerNick"] = value.PeerNick,
-            ["text"] = value.Content, ["self"] = value.IsSelf,
-            ["time"] = value.Timestamp.ToString("HH:mm:ss"),
-            ["file"] = value.IsFile, ["name"] = value.FileName, ["size"] = value.FileSize,
-            ["exists"] = value.IsFile && File.Exists(value.FilePath)
-        };
+            var frame = new JsonObject
+            {
+                ["sequence"] = sequence, ["operation"] = operation, ["chat"] = key,
+                ["nick"] = value.SenderNick, ["peerNick"] = value.PeerNick,
+                ["text"] = value.Content, ["self"] = value.IsSelf,
+                ["system"] = value.IsSystem, ["broadcast"] = value.IsBroadcast,
+                ["time"] = value.Timestamp.ToString("HH:mm:ss", CultureInfo.InvariantCulture),
+                ["timestamp"] = value.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
+                ["file"] = value.IsFile, ["name"] = value.FileName, ["size"] = value.FileSize,
+                ["exists"] = value.IsFile && !string.IsNullOrEmpty(value.FilePath) && File.Exists(value.FilePath)
+            };
+            // 路径只随文件消息下发，打开动作仍由桌面主进程核验本地文件。
+            if (value.IsFile) frame["path"] = value.FilePath ?? "";
+            return frame;
+        }
 
         private void OnProgress(FileTransferProgress value, string operation)
         {

@@ -21,11 +21,16 @@ internal static class ExportLinuxDesktopAssets
         var muted = ColorTranslator.FromHtml("#A0A0A5");
         foreach (var icon in new[] { WeChatIconType.Search, WeChatIconType.Refresh, WeChatIconType.Logout,
             WeChatIconType.Add, WeChatIconType.UpArrow, WeChatIconType.Folder, WeChatIconType.Box,
+            WeChatIconType.Emoji, WeChatIconType.Clear, WeChatIconType.Copy, WeChatIconType.User,
             WeChatIconType.WinClose, WeChatIconType.WinMin, WeChatIconType.WinMax, WeChatIconType.WinRestore })
         {
             Draw(output, icon.ToString(), 20, (g, bounds) =>
                 WeChatIcon.Draw(g, icon, bounds, false, icon == WeChatIconType.UpArrow ? Color.White : muted));
         }
+        Draw(output, "BoxWhite", 20, (g, bounds) =>
+            WeChatIcon.Draw(g, WeChatIconType.Box, bounds, false, Color.White));
+        Draw(output, "ClearDanger", 20, (g, bounds) =>
+            WeChatIcon.Draw(g, WeChatIconType.Clear, bounds, false, ColorTranslator.FromHtml("#FC4455")));
         Draw(output, "avatar", 82, (g, bounds) =>
             WeChatIcon.DrawMascotAvatar(g, bounds, ColorTranslator.FromHtml("#FC2C3E"), false, true, ColorTranslator.FromHtml("#0E0E0E")));
         Draw(output, "peer", 48, (g, bounds) =>

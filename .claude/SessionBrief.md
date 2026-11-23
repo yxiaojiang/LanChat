@@ -1,28 +1,27 @@
 # SessionBrief.md — 当前接手摘要
 
-> 2026-11-23 · 工作目录 `D:\TEmp\LanChat`，开发分支 `main`。公开基线 Windows `v2.0.16`（`a0e49c1`）。LC-LINUX-002 第 0 至第 2 步已归档，当前从第 3 步继续。
+> 2026-11-23 · 工作目录 `D:\TEmp\LanChat`，分支 `main`。公开基线 Windows `v2.0.16`（`a0e49c1`）。LC-LINUX-002 第 0 至第 2 步已归档。第 3 步切片 1 代码审核已通过，下一步做设置八页。
 
 ## 当前状态
 
-第 0 步冻结 WinForms 原生基线、125% 下的 18 张运行截图、Windows 功能清单及 Linux 支持矩阵。第 1 步在 Ubuntu 24.04.5 amd64 QEMU 的 Xorg/Openbox 中通过安装入口启动 Electron 和真实 ELF，完成刷新、双向私聊/群聊、双向文件 SHA-256、沙盒、CLI、退出和端口释放。阶段证据见 [LC-LINUX-002 集成记录](../PlanDocs/LC-LINUX-002/INTEGRATION.md)。
+试验版 `2.0.17~experiment.5`。桌面由 Electron 45.4.1 与本地页面组成，通信由同架构 .NET 10 自包含 ELF 承担，独立 CLI 共用该 ELF。Windows 与 Linux 共用 NetworkService、Models 和现有 LANC 封包。新版 deb 只交付 amd64、arm64，无需 Python。设置优先同级旧文件；便携同级可写时在同级创建，否则用 `~/.config/lanchat`，仅该目录创建失败才回退 `~/.local/share/lanchat`。原设置只读时，备份后须用户确认才切换。历史迁移逐个复制 JSONL，目标已有记录时拒绝覆盖。
 
-新版 Linux 客户端由 Electron 45.4.1、本地 HTML/CSS/JavaScript 和同架构 .NET 10 自包含 ELF 组成。桌面与独立 CLI 共用 ELF；Windows/Linux 共用 NetworkService、Models 及现有 LANC 封包。新版 deb 只交付 amd64、arm64，无需 Python。旧 Python 公开版和 LC-LINUX-001 候选作为升级、回退与互通样本。
+第 2 步已由用户验收。共享会话、离线历史、草稿、文件终态和 CLI 昵称写回已接通。Ubuntu 24.04/22.04 的升级、回退与重装有记录。银河麒麟 V10 国防版用户确认第五轮可安装、刷新并收发文字；该回报没有 dpkg、CLI、回退或库映射，不补记为已观察。物理双架构、无头 CLI 和 Windows 局域网互通留在第 4 步。交接在 `bin/lc-linux-002/handoff-experiment.5/`。证据见 [集成记录](../PlanDocs/LC-LINUX-002/INTEGRATION.md)。
 
-第 2 步已接入共享会话、离线历史、草稿、文件进度/终态、设置和 CLI 昵称写回。旧版设置选择顺序与数据路径得到保留；只读配置经备份和用户确认后才切换。旧 pyz 能读新版追加的 JSONL，原收件文件逐字节一致。双架构 ELF 隔离回归覆盖配置锁、历史迁移、非默认端口、短读、中断、拒收、最终 ACK 异常、64 MiB 传输、并发同名双哈希、重连和崩溃恢复；Ubuntu 24.04/22.04 的双架构升级、回退与重装矩阵也通过。可复跑脚本为 `tests/linux_desktop_regression.py`，日志和 VM harness 位于本地忽略目录 `bin/lc-linux-002/vm/step2-current/`。
+第 3 步切片 1 是主窗客户区。会话列表、聊天头、文件卡片、暗色菜单、确认框和浮动滑块已按 WinForms 实测尺寸接入。独立审核 Round 3 为 `APPROVED`，报告在 [CRDocs/REVIEW.md](../CRDocs/REVIEW.md)。删除好友会清历史并移出在线列表，清空只删历史。群聊「发送文件给所有人...」仍先选择一个接收人。窗口使用系统边框。托盘唤回尚无运行证据，关闭仍是退出。
 
-设置路径优先同级旧配置；便携目录可写时在同级创建，其余优先 `~/.config/lanchat`，仅该配置目录创建失败才回退至 `~/.local/share/lanchat`。原设置只读时，备份后须经用户确认才切换备用文件。历史目录主动迁移逐个复制 JSONL，目标含 LanChat 历史时拒绝覆盖；旧目录及附件路径继续保留供回退版读取。包回归覆盖 `amd64 → amd64 → amd64`、`all → amd64 → all` 和 `all → arm64 → all`，均有公开版与候选版样本。
+界面回归命令是 `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ui_regression.js`，结果为 `linux desktop ui regression: ok`。`C:\Windows\System32\node` 不能执行该脚本。Chromium 1040×720 量到侧栏 420px、顶栏 96px、会话行 72px、选中色 `#7946D7`、滑块静止 4px；800px 宽时侧栏 280px。这是无 ELF 的页面测量。缓存 SDK 10.0.404 已编过 linux-x64 与 linux-arm64 ELF。本机无 QEMU，`tests/linux_desktop_regression.py` 的 `delete` 与 `history` 尚未对新 ELF 实跑，不能记成通过。`renderer.js` 现为 792 行，继续加页面会逼近 1000 行预警线。
 
-当前试验版 `2.0.17~experiment.5`。银河麒麟 V10 国防版（020）ARM64 的旧包因 glibc 2.31 和 OpenSSL 1.1 环境而被依赖阻塞；新包下限为 glibc 2.31，并允许 `libssl1.1 (>= 1.1.1)`。用户已确认第五轮实机安装无报错，桌面可刷新并收发文字，并验收第 2 步通过。该回报未含 `dpkg -l`、独立 CLI、回退或库映射输出，不登记为本次已观察。物理双架构升级/回退、无头 CLI 和 Windows LAN 互通仍是第 4 步必验项。第五轮交接为 `bin/lc-linux-002/handoff-experiment.5/`，旧 `.2` 至 `.4` 目录均保留。
+现有设置框只有昵称、自动接收、接收目录和历史迁移，还不是八页。WinForms 八页在 `src/UI/Controls/SettingsPanels/`：通用、个人主页、外观、快捷键、文件传输、聊天记录、设备连接、关于与更新。设置窗实测基准是 1260×820。视觉以 `Docs/GrokBot_UI_Design_System.md` 和 125% 基线截图 `settings-1` 至 `settings-8` 为准。Linux 手写 JavaScript、CSS 与 C# 到 1000 行预警、1500 行硬停。注释使用中文。新页面使用暗色自绘滑块，文件和目录选择继续走系统对话框。
 
 ## 下一步
 
-从第 3 步开始，按 Windows 清单实现双栏主界面、会话与聊天、文件卡片、弹层、八个设置页、维护入口及托盘/通知。逐项保存运行截图和操作证据，并回归缩放、窄窗、中文 IME、焦点、长历史、浮动滑块和性能。记录 Xorg、原生 Wayland、XWayland 的实际后端；托盘/通知不可用时保留窗口恢复和应用内未读，Wayland 自绘窗框无法完成规定操作时改用系统边框。
+实现第 3 步切片 2：把设置对话框对齐 WinForms 八页，即通用、个人主页、外观、快捷键、文件传输、聊天记录、设备连接、关于与更新。窗口基准 1260×820，并适应工作区。已接通的昵称、自动接收、目录选择、历史迁移和只读确认必须保留。语言、链接、主题、快捷键里 Windows 只改按钮文案的项保持展示，不新造未接线行为。新界面放到独立模块，不要继续堆进 `renderer.js`。
 
-第 3 步按模块逐项交付，优先复用现有 Electron 主进程、预加载桥接和渲染器结构；动手前读取 Windows 基线及 GrokBot 设计规范，并遵守 Linux 手写源码行数上限。虚拟桌面只能作为回归证据，不能替代用户计划中的物理机验收。截图应能对应具体清单项和运行环境。
-
-实机由用户验收，开发侧负责实现、可复现回归、打包和按证据更新 Plan。证据缺失的必验项保持未通过。Windows Electron 在 Linux 验收后另议；正式发布需另行授权。
+这一片不要做托盘、通知、维护入口，也不要把关闭改成隐藏。输入法、125% 与 150% 叠图、至少 2000 条历史和三种图形后端仍未通过。实机由用户验收。Windows Electron 与正式发布另议。
 
 ## 入口
 
 - [执行计划](Plan.md) · [阶段归档](Plan-archive.md) · [采纳定稿](../PlanDocs/LC-LINUX-002/FINAL.md)
 - [Linux 模块](contexts/Linux.md) · [共享协议](contexts/Protocol.md) · [Windows 基线](contexts/Windows.md)
+- [代码审核](../CRDocs/STATUS.md)
