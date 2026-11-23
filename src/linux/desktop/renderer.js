@@ -5,15 +5,20 @@ const messages = new Map();
 const drafts = new Map();
 const unread = new Map();
 const sending = new Set();
+const transfers = new Map();
 const peers = new Map();
 const historyLoads = new Map();
 const compose = byId('message');
 const feed = byId('messages');
 const dialog = byId('recipient');
+const settingsDialog = byId('settings');
 let active = group;
 let online = false;
 let address = '';
 let lastSequence = 0;
+let connecting = true;
+let deferredEvents = [];
+let connectionGeneration = 0;
 
 function status(line, error = false) {
   const output = byId('status');
@@ -69,7 +74,9 @@ function updateHeader() {
   const available = online && (active === group || peer?.online);
   byId('conversation').dataset.fileChat = online && peer?.online ? peer.id : '';
   byId('attach').disabled = !available;
-  byId('refresh').disabled = !online;
+  byId('refresh').disabled = connecting;
+  byId('refresh').title = byId('refresh').ariaLabel = online ? '刷新节点' : '重连通信服务';
+  byId('open-settings').disabled = !online;
   compose.disabled = !online;
   byId('send').disabled = !available || !compose.value.trim() || sending.has(active);
 }
@@ -137,10 +144,28 @@ function switchChat(id) {
   compose.value = drafts.get(id) ?? '';
   unread.delete(active);
   drawHistory();
+  drawTransfers();
   drawChats();
   updateHeader();
   if (online) compose.focus();
   void loadHistory(active);
+}
+
+function drawTransfers() {
+  const list = byId('transfers');
+  list.replaceChildren();
+  for (const transfer of transfers.values()) {
+    if (transfer.chat !== active) continue;
+    const row = document.createElement('div');
+    const action = transfer.sending ? '发送' : '接收';
+    const percentage = transfer.total ? Math.round(100 * transfer.received / transfer.total) : 0;
+    row.textContent = transfer.unknown ? `${action}结果未确认 · ${transfer.name}` :
+      transfer.failed ? `${action}失败 · ${transfer.name} · ${transfer.error ?? ''}` :
+      transfer.completed ? `${action}完成 · ${transfer.name}` :
+      `${action}中 · ${transfer.name} · ${percentage}%`;
+    list.append(row);
+  }
+  list.hidden = !list.childElementCount;
 }
 
 async function sendText() {
@@ -203,7 +228,84 @@ compose.addEventListener('keydown', event => {
 });
 byId('search').addEventListener('input', drawChats);
 byId('quit').addEventListener('click', api.quit);
+
+// 更换只读配置需要再次确认。输入变化后应重新显示原路径的写入结果。
+let pickedDirectory = null;
+let pickedHistory = null;
+let confirmOverride = false;
+function resetSettingsConfirmation() {
+  confirmOverride = false;
+  byId('settings-save').textContent = '保存';
+  byId('settings-message').hidden = true;
+}
+function settingsMessage(text) {
+  byId('settings-message').textContent = text;
+  byId('settings-message').hidden = false;
+}
+byId('open-settings').addEventListener('click', async () => {
+  try {
+    const current = await api.settings();
+    byId('settings-nickname').value = current.nickname;
+    byId('settings-auto-accept').checked = current.autoAcceptFiles;
+    byId('settings-directory').textContent = current.downloadDirectory;
+    byId('settings-history').textContent = current.historyDirectory;
+    pickedDirectory = null;
+    pickedHistory = null;
+    resetSettingsConfirmation();
+    if (!settingsDialog.open) settingsDialog.showModal();
+  } catch (error) {
+    status(error.message, true);
+  }
+});
+byId('settings-form').addEventListener('input', resetSettingsConfirmation);
+byId('settings-cancel').addEventListener('click', () => settingsDialog.close());
+async function pickSettingsDirectory(kind) {
+  try {
+    const folder = await api.selectSettingsDirectory(kind);
+    if (!folder) return;
+    if (kind === 'history') {
+      pickedHistory = folder;
+      byId('settings-history').textContent = folder;
+    } else {
+      pickedDirectory = folder;
+      byId('settings-directory').textContent = folder;
+    }
+    resetSettingsConfirmation();
+  } catch (error) {
+    settingsMessage(error.message);
+  }
+}
+byId('settings-pick-directory').addEventListener('click', () => pickSettingsDirectory('downloads'));
+byId('settings-pick-history').addEventListener('click', () => pickSettingsDirectory('history'));
+byId('settings-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const save = byId('settings-save');
+  if (save.disabled) return;
+  const controls = Array.from(event.currentTarget.elements);
+  for (const control of controls) control.disabled = true;
+  try {
+    const result = await api.saveSettings(byId('settings-nickname').value, byId('settings-auto-accept').checked,
+      pickedDirectory, confirmOverride, pickedHistory);
+    if (result.overridePath) {
+      confirmOverride = true;
+      settingsMessage(`原设置只读，已备份到\n${result.backupPath}\n\n可改用\n${result.overridePath}`);
+      save.textContent = '使用备用位置';
+      return;
+    }
+    byId('nickname').textContent = result.nickname;
+    settingsDialog.close();
+    status('设置已保存');
+  } catch (error) {
+    settingsMessage(error.message);
+  } finally {
+    for (const control of controls) control.disabled = false;
+  }
+});
 byId('refresh').addEventListener('click', async () => {
+  if (!online) {
+    await initialize(true);
+    return;
+  }
   try {
     setPeers(await api.refresh());
     status('已请求刷新局域网节点');
@@ -212,36 +314,42 @@ byId('refresh').addEventListener('click', async () => {
   }
 });
 
-// 初始快照与事件之间可能有重叠，使用服务序号去重，保留快照等待期间收到的事件。
-async function initialize() {
-  const deferred = [];
-  let waiting = true;
-  api.onEvent(event => {
-    if (waiting) deferred.push(event);
-    else handleEvent(event);
-  });
+// 从重启后的服务重新读取会话和历史，保留输入草稿与未确认的传输状态。
+async function initialize(reconnect = false) {
+  connecting = true;
+  updateHeader();
   try {
+    if (reconnect) await api.reconnect();
     const state = await api.state();
     address = state.ip + ':' + state.tcpPort;
     byId('nickname').textContent = state.nick;
     online = true;
     lastSequence = state.sequence;
+    historyLoads.clear();
+    messages.clear();
+    peers.clear();
     for (const conversation of state.sessions) {
       peers.set(conversation.key, { ...conversation, nick: conversation.nick || '局域网节点', online: false });
     }
     setPeers(state.peers);
-    switchChat(group);
+    switchChat(peers.has(active) ? active : group);
+    if (reconnect) status('通信服务已重新连接');
   } catch (error) {
+    online = false;
     status(error.message, true);
-    updateHeader();
   } finally {
-    waiting = false;
-    for (const event of deferred) handleEvent(event);
+    connecting = false;
+    for (const event of deferredEvents) handleEvent(event);
+    deferredEvents = [];
+    updateHeader();
   }
 }
 
 function handleEvent(event) {
-  if (event.event === 'peers') api.peers().then(setPeers, () => {});
+  if (event.event === 'peers' && online) {
+    const generation = connectionGeneration;
+    api.peers().then(list => { if (online && generation === connectionGeneration) setPeers(list); }, () => {});
+  }
   else if (event.event === 'message') remember(event.data);
   else if (event.event === 'linked') {
     const { oldKey, key } = event.data;
@@ -251,6 +359,10 @@ function handleEvent(event) {
     const oldDraft = active === oldKey ? compose.value : drafts.get(oldKey);
     if (oldDraft && !drafts.has(key)) drafts.set(key, oldDraft);
     drafts.delete(oldKey);
+    if (unread.has(oldKey)) {
+      unread.set(key, (unread.get(key) ?? 0) + unread.get(oldKey));
+      unread.delete(oldKey);
+    }
     if (active === oldKey) {
       active = key;
       compose.value = drafts.get(key) ?? '';
@@ -263,16 +375,32 @@ function handleEvent(event) {
     drawChats();
   }
   else if (event.event === 'progress') {
-    const action = event.sending ? '发送' : '接收';
-    const percentage = event.total ? Math.round(100 * event.received / event.total) : 0;
-    status(event.failed ? `${action}失败 · ${event.name} · ${event.error ?? ''}` :
-      event.completed ? `${action}完成 · ${event.name}` : `${action}中 · ${event.name} · ${percentage}%`, event.failed);
+    const key = JSON.stringify([connectionGeneration, event.sending, event.transfer, event.chat]);
+    transfers.set(key, event);
+    if (!peers.has(event.chat)) {
+      peers.set(event.chat, { key: event.chat, nick: event.peerNick || '局域网节点', online: false });
+      drawChats();
+    }
+    if (event.completed || event.failed) {
+      const finished = Array.from(transfers).filter(([, item]) => item.completed || item.failed);
+      for (const [id] of finished.slice(0, Math.max(0, finished.length - 50))) transfers.delete(id);
+    }
+    drawTransfers();
   } else if (event.event === 'disconnect') {
     online = false;
+    connectionGeneration++;
+    for (const item of transfers.values()) {
+      if (!item.completed && !item.failed) item.unknown = true;
+    }
+    drawTransfers();
     status(event.data, true);
     updateHeader();
   }
 }
 
 drawChats();
+api.onEvent(event => {
+  if (connecting) deferredEvents.push(event);
+  else handleEvent(event);
+});
 void initialize();

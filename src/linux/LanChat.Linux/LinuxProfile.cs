@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -14,9 +15,18 @@ namespace LanChat.Linux
     internal sealed class LinuxProfile : IDisposable
     {
         private readonly FileStream _lock;
-        internal string SettingsPath { get; }
-        internal string DownloadDirectory { get; }
-        internal string HistoryDirectory { get; }
+        private FileStream _overrideLock;
+        private readonly string _lockDirectory;
+        private readonly string _overridePath;
+        private bool _awaitingConfirmation;
+        internal string SettingsPath { get; private set; }
+        internal string DownloadDirectory { get; private set; }
+        internal string HistoryDirectory { get; private set; }
+        internal string OverridePath => _overridePath;
+        internal string BackupPath => _overridePath + ".before-electron.bak";
+        internal bool AutoAcceptFiles =>
+            (_settings["AutoAcceptFiles"] ?? _settings["auto_accept"]) is not JsonValue accept ||
+            !accept.TryGetValue(out bool enabled) || enabled;
         private JsonObject _settings;
 
         internal LinuxProfile()
@@ -33,15 +43,19 @@ namespace LanChat.Linux
             if (settingsFile.Exists && settingsFile.ResolveLinkTarget(true) is FileInfo target) settingsFile = target;
             SettingsPath = settingsFile.FullName;
 
-            string lockDir = Path.Combine(data, "locks");
-            Directory.CreateDirectory(lockDir);
-            string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(SettingsPath)));
-            var handle = File.Open(Path.Combine(lockDir, key), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+            _lockDirectory = Path.Combine(data, "locks");
+            Directory.CreateDirectory(_lockDirectory);
+            string key = LockKey(SettingsPath);
+            _overridePath = Path.Combine(data, "settings-overrides", key, "settings.json");
+            var handle = LockSettings(SettingsPath);
             try
             {
-                if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException("Linux 配置锁需要 Linux");
-                try { handle.Lock(0, 1); }
-                catch (IOException ex) { throw new IOException("同一配置正在被另一个 LanChat 进程使用：" + SettingsPath, ex); }
+                if (File.Exists(_overridePath))
+                {
+                    // 原配置锁继续持有，备用配置也使用同一套锁，防止其他入口绕开互斥。
+                    _overrideLock = LockSettings(_overridePath);
+                    SettingsPath = _overridePath;
+                }
                 _settings = ReadSettings(SettingsPath);
                 string configured = ReadString("SaveDirectory");
                 DownloadDirectory = string.IsNullOrWhiteSpace(configured)
@@ -57,6 +71,7 @@ namespace LanChat.Linux
             }
             catch
             {
+                _overrideLock?.Dispose();
                 handle.Dispose();
                 throw;
             }
@@ -65,42 +80,178 @@ namespace LanChat.Linux
         internal NetworkService CreateNetwork(string nickname = null)
         {
             var service = new NetworkService(nickname ?? ReadString("NickName") ?? ReadString("nickname"), DownloadDirectory);
-            if ((_settings["AutoAcceptFiles"] ?? _settings["auto_accept"]) is JsonValue accept && accept.TryGetValue(out bool enabled))
-                service.AutoAcceptFiles = enabled;
+            service.AutoAcceptFiles = AutoAcceptFiles;
             return service;
         }
 
-        internal void SaveNickname(string nickname)
+        internal bool SaveSettings(string nickname, bool? autoAccept = null, string downloadDirectory = null,
+            bool confirmOverride = false, string historyDirectory = null)
         {
             if (string.IsNullOrWhiteSpace(nickname) || nickname.Length > 80 || nickname.Contains('|') ||
                 nickname.Contains('\r') || nickname.Contains('\n'))
                 throw new ArgumentException("昵称须为 1 至 80 个字符，且不能包含竖线或换行");
             var next = (JsonObject)_settings.DeepClone();
             next["NickName"] = nickname;
-            string temporary = SettingsPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            if (autoAccept.HasValue) next["AutoAcceptFiles"] = autoAccept.Value;
+            if (downloadDirectory != null && downloadDirectory != DownloadDirectory)
+            {
+                if (!Path.IsPathFullyQualified(downloadDirectory) || !TryDirectory(downloadDirectory, writable: true))
+                    throw new IOException("文件接收目录不可写：" + downloadDirectory);
+                next["SaveDirectory"] = downloadDirectory;
+            }
+            if (historyDirectory != null)
+            {
+                if (!Path.IsPathFullyQualified(historyDirectory))
+                    throw new ArgumentException("聊天记录目录必须是绝对路径");
+                historyDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(historyDirectory));
+                if (historyDirectory == Path.TrimEndingDirectorySeparator(HistoryDirectory)) historyDirectory = null;
+                else next["ChatHistoryDirectory"] = historyDirectory;
+            }
+            if (confirmOverride)
+            {
+                if (!_awaitingConfirmation) throw new InvalidOperationException("请先保存设置并确认备用位置");
+                var alternate = LockSettings(_overridePath);
+                try { CommitSettings(_overridePath, next, historyDirectory, overwrite: false); }
+                catch
+                {
+                    alternate.Dispose();
+                    throw;
+                }
+                _overrideLock = alternate;
+                SettingsPath = _overridePath;
+                _awaitingConfirmation = false;
+            }
+            else
+            {
+                try
+                {
+                    if (File.Exists(SettingsPath))
+                    {
+                        using (File.Open(SettingsPath, FileMode.Open, FileAccess.Write, FileShare.ReadWrite)) { }
+                        Backup(SettingsPath, SettingsPath + ".before-electron.bak");
+                    }
+                    CommitSettings(SettingsPath, next, historyDirectory);
+                    _awaitingConfirmation = false;
+                }
+                catch (Exception ex) when (SettingsPath != _overridePath && File.Exists(SettingsPath) &&
+                    (ex is UnauthorizedAccessException || ex is IOException { HResult: 30 }))
+                {
+                    // Linux 的 EROFS 为 30。先把原字节保全到用户目录，再询问是否启用备用位置。
+                    Directory.CreateDirectory(Path.GetDirectoryName(_overridePath));
+                    Backup(SettingsPath, BackupPath);
+                    _awaitingConfirmation = true;
+                    return false;
+                }
+            }
+            _settings = next;
+            if (downloadDirectory != null) DownloadDirectory = downloadDirectory;
+            if (historyDirectory != null) HistoryDirectory = historyDirectory;
+            return true;
+        }
+
+        private void CommitSettings(string path, JsonObject settings, string historyDirectory, bool overwrite = true)
+        {
+            var copied = new List<string>();
             try
             {
-                if (File.Exists(SettingsPath))
+                if (historyDirectory != null) CopyHistory(historyDirectory, copied);
+                WriteAtomic(path, stream => WriteJson(stream, settings), overwrite);
+            }
+            catch
+            {
+                foreach (string file in copied)
                 {
-                    // 原位置只读时停止写回。由用户确认备用位置，启动器不会代选。
-                    using (File.Open(SettingsPath, FileMode.Open, FileAccess.Write, FileShare.ReadWrite)) { }
-                    string backup = SettingsPath + ".before-electron.bak";
-                    if (!File.Exists(backup)) File.Copy(SettingsPath, backup);
+                    try { File.Delete(file); }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        Console.Error.WriteLine("未能清理聊天记录副本：" + ex.Message);
+                    }
                 }
+                throw;
+            }
+        }
+
+        private void CopyHistory(string destination, List<string> copied)
+        {
+            try
+            {
+                if (!TryDirectory(destination, writable: true))
+                    throw new IOException("目标目录不可写");
+                // 仅在目录中没有历史记录时迁移，源文件留给旧版回退使用。
+                using var existing = Directory.EnumerateFileSystemEntries(destination, "history_*.jsonl").GetEnumerator();
+                if (existing.MoveNext()) throw new IOException("目标目录已有聊天记录，请选择其他目录");
+                if (!Directory.Exists(HistoryDirectory)) return;
+                foreach (string source in Directory.EnumerateFiles(HistoryDirectory, "history_*.jsonl"))
+                {
+                    string file = Path.Combine(destination, Path.GetFileName(source));
+                    CopyAtomic(source, file);
+                    copied.Add(file);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                throw new IOException("无法迁移聊天记录：" + ex.Message, ex);
+            }
+        }
+
+        private static string LockKey(string path) =>
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(path)));
+
+        private FileStream LockSettings(string path)
+        {
+            if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException("Linux 配置锁需要 Linux");
+            var handle = File.Open(Path.Combine(_lockDirectory, LockKey(path)), FileMode.OpenOrCreate,
+                FileAccess.ReadWrite, FileShare.ReadWrite);
+            try
+            {
+                handle.Lock(0, 1);
+                return handle;
+            }
+            catch (IOException ex)
+            {
+                handle.Dispose();
+                throw new IOException("同一配置正在被另一个 LanChat 进程使用：" + path, ex);
+            }
+        }
+
+        private static void Backup(string source, string backup)
+        {
+            if (File.Exists(backup)) return;
+            CopyAtomic(source, backup);
+        }
+
+        private static void CopyAtomic(string source, string destination)
+        {
+            WriteAtomic(destination, stream =>
+            {
+                using var original = File.OpenRead(source);
+                original.CopyTo(stream);
+            }, overwrite: false);
+        }
+
+        private static void WriteJson(Stream stream, JsonObject settings)
+        {
+            using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
+            settings.WriteTo(writer);
+            writer.Flush();
+        }
+
+        private static void WriteAtomic(string path, Action<FileStream> write, bool overwrite = true)
+        {
+            string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
                 var options = new FileStreamOptions
                 {
                     Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None
                 };
                 if (OperatingSystem.IsLinux()) options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
                 using (var stream = new FileStream(temporary, options))
-                using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
                 {
-                    next.WriteTo(writer);
-                    writer.Flush();
+                    write(stream);
                     stream.Flush(flushToDisk: true);
                 }
-                File.Move(temporary, SettingsPath, overwrite: true);
-                _settings = next;
+                File.Move(temporary, path, overwrite);
             }
             finally
             {
@@ -170,6 +321,10 @@ namespace LanChat.Linux
         }
 
         /// <summary>结束进程对所选数据配置的独占访问。</summary>
-        public void Dispose() => _lock.Dispose();
+        public void Dispose()
+        {
+            _overrideLock?.Dispose();
+            _lock.Dispose();
+        }
     }
 }

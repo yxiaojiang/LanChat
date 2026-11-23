@@ -18,17 +18,19 @@ namespace LanChat.Linux
     {
         private const int Version = 2;
         private readonly NetworkService _network;
+        private readonly LinuxProfile _profile;
         private readonly Channel<Func<JsonObject>> _output = Channel.CreateUnbounded<Func<JsonObject>>(
             new UnboundedChannelOptions { SingleReader = true });
         private readonly object _gate = new object();
-        private readonly Dictionary<(bool Sending, string Id), JsonObject> _progress = new();
+        private readonly Dictionary<(bool Sending, string Id, string Chat), JsonObject> _progress = new();
         private readonly SessionManager _sessions = new();
         private long _sequence;
         private bool _stopping;
 
-        private DesktopService(NetworkService network)
+        private DesktopService(NetworkService network, LinuxProfile profile)
         {
             _network = network;
+            _profile = profile;
             network.OnLogMessage += Console.Error.WriteLine;
             network.OnPeerJoined += OnPeer;
             network.OnPeerUpdated += OnPeer;
@@ -45,7 +47,7 @@ namespace LanChat.Linux
                 using var profile = new LinuxProfile();
                 using var network = profile.CreateNetwork();
                 ChatHistoryService.ProfileStorageDirectory = profile.HistoryDirectory;
-                return new DesktopService(network).RunPipes().GetAwaiter().GetResult();
+                return new DesktopService(network, profile).RunPipes().GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
@@ -139,6 +141,12 @@ namespace LanChat.Linux
                     case "peers":
                         Reply(id, PeerList());
                         break;
+                    case "settings":
+                        Reply(id, SettingsFrame());
+                        break;
+                    case "save-settings":
+                        Reply(id, SaveSettings(request));
+                        break;
                     case "refresh":
                         _network.BroadcastPresence("HELLO");
                         Reply(id, PeerList());
@@ -159,7 +167,8 @@ namespace LanChat.Linux
                         throw new InvalidOperationException("未知桌面操作");
                 }
             }
-            catch (Exception ex) when (ex is InvalidOperationException or IOException or JsonException or ArgumentException)
+            catch (Exception ex) when (ex is InvalidOperationException or IOException or JsonException or
+                ArgumentException or UnauthorizedAccessException)
             {
                 if (id != null) Fail(id, ex.Message);
                 else Console.Error.WriteLine(ex.Message);
@@ -172,6 +181,42 @@ namespace LanChat.Linux
             if (request[name] is JsonValue value && value.TryGetValue(out string text) &&
                 !string.IsNullOrWhiteSpace(text) && text.Length <= limit) return text;
             throw new ArgumentException("无效的 " + name);
+        }
+
+        private JsonObject SettingsFrame() => new()
+        {
+            ["nickname"] = _network.NickName,
+            ["autoAcceptFiles"] = _network.AutoAcceptFiles,
+            ["downloadDirectory"] = _profile.DownloadDirectory,
+            ["historyDirectory"] = _profile.HistoryDirectory,
+            ["settingsPath"] = _profile.SettingsPath
+        };
+
+        private JsonObject SaveSettings(JsonObject request)
+        {
+            string nickname = Required(request, "nickname", 80).Trim();
+            bool autoAccept = request["autoAcceptFiles"]?.GetValue<bool>() ??
+                throw new ArgumentException("缺少文件自动接收选项");
+            bool confirm = request["confirmOverride"]?.GetValue<bool>() ?? false;
+            string directory = request["downloadDirectory"] == null ? null : Required(request, "downloadDirectory", 4096);
+            string historyDirectory = request["historyDirectory"] == null ? null : Required(request, "historyDirectory", 4096);
+            // 复制历史与切换写入位置期间，接收线程等待同一把锁。
+            lock (_gate)
+            {
+                if (!_profile.SaveSettings(nickname, autoAccept, directory, confirm, historyDirectory))
+                    return new JsonObject
+                    {
+                        ["backupPath"] = _profile.BackupPath,
+                        ["overridePath"] = _profile.OverridePath
+                    };
+                ChatHistoryService.ProfileStorageDirectory = _profile.HistoryDirectory;
+            }
+            bool changedNick = _network.NickName != nickname;
+            _network.NickName = nickname;
+            _network.AutoAcceptFiles = _profile.AutoAcceptFiles;
+            _network.SaveDirectory = _profile.DownloadDirectory;
+            if (changedNick) _network.BroadcastPresence("HELLO");
+            return SettingsFrame();
         }
 
         private JsonArray PeerList() => new JsonArray(_network.GetActivePeers().OrderBy(peer => peer.LastSeen).Select(peer => new JsonObject
@@ -279,16 +324,19 @@ namespace LanChat.Linux
 
         private void OnProgress(FileTransferProgress value, string operation)
         {
-            var frame = new JsonObject
-            {
-                ["event"] = "progress", ["operation"] = operation, ["transfer"] = value.TransferId,
-                ["name"] = value.FileName, ["sending"] = value.IsSending, ["received"] = value.TransferredBytes,
-                ["total"] = value.TotalBytes, ["completed"] = value.IsCompleted, ["failed"] = value.IsFailed,
-                ["error"] = value.ErrorMessage
-            };
-            var key = (value.IsSending, value.TransferId);
             lock (_gate)
             {
+                if (_stopping) return;
+                string chat = _sessions.ResolveKey(SessionManager.GetLanKey(value.TransferPeerId, value.TransferPeerAddress));
+                var key = (value.IsSending, value.TransferId, chat);
+                var frame = new JsonObject
+                {
+                    ["event"] = "progress", ["operation"] = operation, ["transfer"] = value.TransferId,
+                    ["chat"] = chat, ["peerNick"] = value.PeerNick,
+                    ["name"] = value.FileName, ["sending"] = value.IsSending, ["received"] = value.TransferredBytes,
+                    ["total"] = value.TotalBytes, ["completed"] = value.IsCompleted, ["failed"] = value.IsFailed,
+                    ["error"] = value.ErrorMessage
+                };
                 if (value.IsCompleted || value.IsFailed)
                 {
                     Enqueue(frame);

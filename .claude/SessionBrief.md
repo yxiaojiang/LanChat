@@ -1,26 +1,28 @@
 # SessionBrief.md — 当前接手摘要
 
-> 2026-11-20 · 工作目录 `D:\TEmp\LanChat`，开发分支 `main`。公开联测基线 Windows `v2.0.16`（`a0e49c1`）。
+> 2026-11-23 · 工作目录 `D:\TEmp\LanChat`，开发分支 `main`。公开基线 Windows `v2.0.16`（`a0e49c1`）。LC-LINUX-002 第 0 至第 2 步已归档，当前从第 3 步继续。
 
 ## 当前状态
 
-唯一活跃事项为 LC-LINUX-002。第 0 步已固定当前 WinForms 原生构建、采用 125% 缩放的 18 张运行截图和功能清单，并冻结 Ubuntu 22.04／24.04 的架构与桌面后端矩阵。第 1 步在 Ubuntu 24.04.5 amd64 QEMU 的 Xorg／Openbox 中通过首包集成，验证从已安装的桌面入口启动、刷新、双向私聊与群聊、双向文件 SHA-256、渲染器沙盒、无头入口、退出和端口释放。第 0、1 步已归档。
+第 0 步冻结 WinForms 原生基线、125% 下的 18 张运行截图、Windows 功能清单及 Linux 支持矩阵。第 1 步在 Ubuntu 24.04.5 amd64 QEMU 的 Xorg/Openbox 中通过安装入口启动 Electron 和真实 ELF，完成刷新、双向私聊/群聊、双向文件 SHA-256、沙盒、CLI、退出和端口释放。阶段证据见 [LC-LINUX-002 集成记录](../PlanDocs/LC-LINUX-002/INTEGRATION.md)。
 
-新客户端由 Electron 45.4.1 加本地 HTML、CSS、JavaScript 构成，同架构 .NET 10 自包含 ELF 通过 stdin/stdout 提供桌面服务，也可作为独立 CLI。Windows 与 Linux 继续复用 NetworkService 和 Models，沿用 LANC、64 KiB 流式传输和最终 ACK。新版只打包 amd64 和 arm64，运行无需 Python。旧 Python 发布版及 LC-LINUX-001 候选用于升级、回退和兼容性对照。
+新版 Linux 客户端由 Electron 45.4.1、本地 HTML/CSS/JavaScript 和同架构 .NET 10 自包含 ELF 组成。桌面与独立 CLI 共用 ELF；Windows/Linux 共用 NetworkService、Models 及现有 LANC 封包。新版 deb 只交付 amd64、arm64，无需 Python。旧 Python 公开版和 LC-LINUX-001 候选作为升级、回退与互通样本。
 
-第 2 步已接入共享会话、离线历史和 CLI 昵称写回。设置沿用旧顺序，已有同级设置优先。可写便携目录优先新建同级设置，其余使用 `~/.config/lanchat`，仅配置目录创建失败时回退到 `~/.local/share/lanchat`。首次写入保留备份和未知键。旧 pyz 已读回原有及新版追加的 JSONL，原接收文件逐字节一致。只读位置目前报告写入错误，选择可写位置的确认流程仍待实现。共享接收核心已修复并发同名覆盖，Windows 原生回环的两份异内容文件分别匹配源 SHA-256，最终 ACK 和完成事件各两个。
+第 2 步已接入共享会话、离线历史、草稿、文件进度/终态、设置和 CLI 昵称写回。旧版设置选择顺序与数据路径得到保留；只读配置经备份和用户确认后才切换。旧 pyz 能读新版追加的 JSONL，原收件文件逐字节一致。双架构 ELF 隔离回归覆盖配置锁、历史迁移、非默认端口、短读、中断、拒收、最终 ACK 异常、64 MiB 传输、并发同名双哈希、重连和崩溃恢复；Ubuntu 24.04/22.04 的双架构升级、回退与重装矩阵也通过。可复跑脚本为 `tests/linux_desktop_regression.py`，日志和 VM harness 位于本地忽略目录 `bin/lc-linux-002/vm/step2-current/`。
 
-当前试验版本为 `2.0.17~experiment.2`。两种架构的 deb、便携包、独立 ELF、公开旧版和回退样本在 `bin/lc-linux-002/handoff-experiment.2/`，25 件文件通过摘要检查。第 1 步原产物在 `bin/lc-linux-002/experiment/`，旧样本在 `bin/lc-linux-002/baseline/`，构建缓存和原始日志也在本地 `bin/`。这些产物属于本地忽略目录，仓库内的构建和验证文档记录了来源与路径。
+设置路径优先同级旧配置；便携目录可写时在同级创建，其余优先 `~/.config/lanchat`，仅该配置目录创建失败才回退至 `~/.local/share/lanchat`。原设置只读时，备份后须经用户确认才切换备用文件。历史目录主动迁移逐个复制 JSONL，目标含 LanChat 历史时拒绝覆盖；旧目录及附件路径继续保留供回退版读取。包回归覆盖 `amd64 → amd64 → amd64`、`all → amd64 → all` 和 `all → arm64 → all`，均有公开版与候选版样本。
+
+当前试验版 `2.0.17~experiment.5`。银河麒麟 V10 国防版（020）ARM64 的旧包因 glibc 2.31 和 OpenSSL 1.1 环境而被依赖阻塞；新包下限为 glibc 2.31，并允许 `libssl1.1 (>= 1.1.1)`。用户已确认第五轮实机安装无报错，桌面可刷新并收发文字，并验收第 2 步通过。该回报未含 `dpkg -l`、独立 CLI、回退或库映射输出，不登记为本次已观察。物理双架构升级/回退、无头 CLI 和 Windows LAN 互通仍是第 4 步必验项。第五轮交接为 `bin/lc-linux-002/handoff-experiment.5/`，旧 `.2` 至 `.4` 目录均保留。
 
 ## 下一步
 
-先定位 ARM64 安装失败。用户报告第二轮 ARM64 桌面可启动、收发文字及刷新好友，截图显示 `dpkg` 缺依赖并保留未配置状态，画面可见 `libssl3`。包内控制字段为 `libssl3t64 | libssl3`，.NET 10 可使用 OpenSSL 1.1.1 及以上，现场实际加载版本尚不明确。先核对发行版、完整依赖报错、包状态、仓库可用的库和 `lanchat-bin` 的实际动态库。结合已冻结的发行版矩阵和复现结果处理打包依赖，再产出递增版本的试验包。
+从第 3 步开始，按 Windows 清单实现双栏主界面、会话与聊天、文件卡片、弹层、八个设置页、维护入口及托盘/通知。逐项保存运行截图和操作证据，并回归缩放、窄窗、中文 IME、焦点、长历史、浮动滑块和性能。记录 Xorg、原生 Wayland、XWayland 的实际后端；托盘/通知不可用时保留窗口恢复和应用内未读，Wayland 自绘窗框无法完成规定操作时改用系统边框。
 
-继续完成第 2 步剩余文件与配置流程、实际旧包升级和回退、旧 GUI 恢复。第 2 步通过后进入第 3 步。用户自行执行实机验收，开发侧负责准备可核验的安装包并按证据更新 Plan。物理 x86_64 和 ARM64 各自完成升级与回退，并各自和物理 Windows 公开版完成真实 LAN 互通。已确认的安装失败及缺证据的必验项保持未通过。Windows Electron 留到 Linux 验收后另议，正式发布另等用户授权。
+第 3 步按模块逐项交付，优先复用现有 Electron 主进程、预加载桥接和渲染器结构；动手前读取 Windows 基线及 GrokBot 设计规范，并遵守 Linux 手写源码行数上限。虚拟桌面只能作为回归证据，不能替代用户计划中的物理机验收。截图应能对应具体清单项和运行环境。
 
-剩余文件回归覆盖非默认端口、定长短读、拒收、中断、缺最终回执及大文件流式传输。旧包升级回退就地保留历史目录、附件路径和接收件，用户主动切换历史目录作为单独用例。原生 Wayland 仍需验证窗口恢复、系统托盘和中文输入。
+实机由用户验收，开发侧负责实现、可复现回归、打包和按证据更新 Plan。证据缺失的必验项保持未通过。Windows Electron 在 Linux 验收后另议；正式发布需另行授权。
 
 ## 入口
 
-- [执行计划](Plan.md) · [阶段归档](Plan-archive.md) · [采纳定稿](../PlanDocs/LC-LINUX-002/FINAL.md) · [首包集成](../PlanDocs/LC-LINUX-002/INTEGRATION.md)
-- [Linux 模块](contexts/Linux.md) · [Windows 基线](contexts/Windows.md) · [共享协议](contexts/Protocol.md)
+- [执行计划](Plan.md) · [阶段归档](Plan-archive.md) · [采纳定稿](../PlanDocs/LC-LINUX-002/FINAL.md)
+- [Linux 模块](contexts/Linux.md) · [共享协议](contexts/Protocol.md) · [Windows 基线](contexts/Windows.md)

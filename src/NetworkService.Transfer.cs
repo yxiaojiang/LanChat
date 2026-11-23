@@ -146,6 +146,8 @@ namespace LanChat
                             TransferredBytes = 0,
                             IsSending = false,
                             PeerNick = senderNick,
+                            TransferPeerId = senderId,
+                            TransferPeerAddress = remoteIp,
                             LocalPath = Path.Combine(folder, safeFileName)
                         };
 
@@ -161,6 +163,7 @@ namespace LanChat
                             {
                                 writer.Write((byte)1);
                                 writer.Flush();
+                                if (OnFileProgress != null) OnFileProgress(progress);
                                 while (receivedBytes < fileSize)
                                 {
                                     int toRead = (int)Math.Min(chunk.Length, fileSize - receivedBytes);
@@ -312,13 +315,23 @@ namespace LanChat
                     TransferredBytes = 0,
                     IsSending = true,
                     PeerNick = peer.NickName,
+                    TransferPeerId = peer.Id,
+                    TransferPeerAddress = peer.IP,
                     LocalPath = filePath
+                };
+                Action<string> fail = reason =>
+                {
+                    progress.IsFailed = true;
+                    progress.ErrorMessage = reason;
+                    if (progressCallback != null) progressCallback(progress);
+                    if (completionCallback != null) completionCallback(false, reason);
                 };
 
                 try
                 {
                     long fileSize = new FileInfo(filePath).Length;
                     progress.TotalBytes = fileSize;
+                    if (progressCallback != null) progressCallback(progress);
                     IPEndPoint localEp = GetLocalEndpointForTarget(peer.IP);
                     using (TcpClient client = new TcpClient(localEp))
                     {
@@ -327,7 +340,7 @@ namespace LanChat
                         bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(4));
                         if (!success)
                         {
-                            if (completionCallback != null) completionCallback(false, "连接对方超时");
+                            fail("连接对方超时");
                             return;
                         }
                         client.EndConnect(result);
@@ -349,7 +362,7 @@ namespace LanChat
                             byte accept = reader.ReadByte();
                             if (accept != 1)
                             {
-                                if (completionCallback != null) completionCallback(false, "对方拒绝或未自动接收文件");
+                                fail("对方拒绝或未自动接收文件");
                                 return;
                             }
 
@@ -365,6 +378,7 @@ namespace LanChat
                                 {
                                     stream.Write(buffer, 0, read);
                                     sentBytes += read;
+                                    progress.TransferredBytes = sentBytes;
 
                                     DateTime now = DateTime.Now;
                                     double elapsed = (now - lastTime).TotalSeconds;
@@ -374,7 +388,6 @@ namespace LanChat
                                         lastTime = now;
                                         lastBytes = sentBytes;
 
-                                        progress.TransferredBytes = sentBytes;
                                         progress.SpeedMBps = speed;
                                         if (progressCallback != null) progressCallback(progress);
                                     }
@@ -392,17 +405,14 @@ namespace LanChat
                             }
                             else
                             {
-                                if (completionCallback != null) completionCallback(false, "接收方保存失败");
+                                fail("接收方保存失败");
                             }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    progress.IsFailed = true;
-                    progress.ErrorMessage = ex.Message;
-                    if (progressCallback != null) progressCallback(progress);
-                    if (completionCallback != null) completionCallback(false, "发送失败: " + ex.Message);
+                    if (!progress.IsFailed && !progress.IsCompleted) fail("发送失败: " + ex.Message);
                 }
             }) { IsBackground = true }.Start();
         }

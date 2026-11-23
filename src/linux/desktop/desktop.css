@@ -57,6 +57,8 @@ h1 { margin: 0; font-size: 30px; color: #fff; }
 .bubble { max-width: min(86%, 580px); background: var(--capsule); border-radius: 16px; padding: 10px 14px; overflow-wrap: anywhere; white-space: pre-wrap; }
 .self .bubble { background: var(--selection); }
 .bubble.file { min-width: 180px; padding: 14px 20px; }
+#transfers { margin: 0 28px 6px; max-height: 96px; overflow: auto; scrollbar-color: #383840 transparent; scrollbar-width: thin; }
+#transfers div { padding: 4px 8px; overflow-wrap: anywhere; }
 .status { margin: 0 28px 6px; color: var(--muted); font-size: 13px; min-height: 20px; }
 .status.error { color: #fc4455; }
 .compose { min-height: 64px; margin: 0 28px 22px; padding: 8px 10px 8px 14px; border-radius: 32px; border: 1px solid var(--border); background: var(--capsule); display: flex; align-items: center; gap: 14px; }
@@ -72,6 +74,11 @@ h2 { margin: 0 0 12px; font-size: 24px; }
 .pill:hover { background: var(--hover); }
 #recipients { display: grid; gap: 6px; margin-bottom: 16px; max-height: 45vh; overflow: auto; }
 #recipients button { text-align: start; }
+#settings-title { font-size: 14px; }
+#settings-form { display: grid; gap: 12px; }
+#settings-nickname { background: var(--capsule); border: 1px solid var(--border); border-radius: 16px; padding: 6px 12px; }
+.settings-path { margin: 6px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+.settings-actions { display: flex; justify-content: end; gap: 8px; }
 @media (max-width: 849px) {
   body { grid-template-columns: minmax(260px, 35vw) minmax(0, 1fr); }
 }

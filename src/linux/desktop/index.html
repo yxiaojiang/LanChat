@@ -18,6 +18,7 @@
     <div class="profile">
       <img src="assets/avatar.png" alt="">
       <strong id="nickname">LanChat</strong>
+      <button id="open-settings" class="pill" type="button" disabled>设置</button>
     </div>
     <nav id="chats" aria-label="会话列表"></nav>
     <button id="quit" class="quit" type="button"><img src="assets/Logout.png" alt="">退出 LanChat</button>
@@ -31,6 +32,7 @@
         <div id="connection" class="secondary">正在连接通信服务…</div>
     </header>
     <section id="messages" tabindex="0" aria-label="聊天记录"></section>
+    <div id="transfers" class="secondary" aria-label="本会话文件传输" aria-live="polite" hidden></div>
     <div id="status" class="status" role="status"></div>
     <form id="compose" class="compose">
       <button id="attach" class="icon attach" type="button" title="发送文件" aria-label="发送文件" disabled><img src="assets/Add.png" alt=""></button>
@@ -43,6 +45,26 @@
       <h2>选择接收节点</h2>
       <div id="recipients"></div>
       <button value="" class="pill">取消</button>
+    </form>
+  </dialog>
+  <dialog id="settings" aria-labelledby="settings-title">
+    <form id="settings-form" method="dialog">
+      <h2 id="settings-title">设置</h2>
+      <label>昵称 <input id="settings-nickname" maxlength="80" required></label>
+      <label><input id="settings-auto-accept" type="checkbox"> 自动接收文件</label>
+      <div>
+        <button id="settings-pick-directory" class="pill" type="button">更改接收目录</button>
+        <p class="settings-path secondary" id="settings-directory"></p>
+      </div>
+      <div>
+        <button id="settings-pick-history" class="pill" type="button">迁移聊天记录</button>
+        <p class="settings-path secondary" id="settings-history"></p>
+      </div>
+      <p class="settings-path secondary" id="settings-message" role="status" hidden></p>
+      <div class="settings-actions">
+        <button id="settings-cancel" class="pill" type="button">取消</button>
+        <button id="settings-save" class="pill" type="submit">保存</button>
+      </div>
     </form>
   </dialog>
 </body>

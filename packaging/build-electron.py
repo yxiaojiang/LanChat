@@ -15,7 +15,7 @@ from build_linux import ROOT, check_elf
 
 
 ELECTRON = "45.4.1"
-VERSION = "2.0.17~experiment.2"
+VERSION = "2.0.17~experiment.5"
 ARCHITECTURES = {
     "amd64": ("x64", "e1d077c7a087d7e344350ea0c5cd2b7dc5af3d9bf7979474f38e0fc1a560b875"),
     "arm64": ("arm64", "3da04c450fa682e3b80961e92a918a1c2a1a10796527a7e63dec7b8e466b6334"),
@@ -31,7 +31,8 @@ Terminal=false
 Categories=Network;InstantMessaging;
 """
 DEPENDENCIES = (
-    "libc6 (>= 2.35), libgcc-s1, libstdc++6, zlib1g, libssl3t64 | libssl3, "
+    # 两种 ELF 的 GLIBC 符号版本均低于 2.31。自包含 .NET 动态加载 OpenSSL 3 或 1.1.1。
+    "libc6 (>= 2.31), libgcc-s1, libstdc++6, zlib1g, libssl3t64 | libssl3 | libssl1.1 (>= 1.1.1), "
     "libasound2t64 | libasound2, libatk1.0-0t64 | libatk1.0-0, libatk-bridge2.0-0t64 | libatk-bridge2.0-0, "
     "libatspi2.0-0t64 | libatspi2.0-0, libglib2.0-0t64 | libglib2.0-0, "
     "libgtk-3-0t64 | libgtk-3-0, libdbus-1-3, libcairo2, libcups2t64 | libcups2, libdrm2, libexpat1, "

@@ -8,6 +8,7 @@ const page = join(__dirname, 'index.html');
 const pageUrl = pathToFileURL(page).href;
 let window;
 let service;
+let restarting;
 let exiting = false;
 let stopped = false;
 
@@ -124,6 +125,35 @@ if (!app.requestSingleInstanceLock()) {
     handle('history', chat => service.request('history', { chat: text(chat, 256) }));
     handle('peers', () => service.request('peers'));
     handle('refresh', () => service.request('refresh'));
+    handle('reconnect', async () => {
+      if (!restarting && service.disconnected) {
+        restarting = (async () => {
+          await service.stop();
+          if (exiting) return;
+          startService();
+          await service.ready;
+        })().finally(() => { restarting = null; });
+      }
+      await restarting;
+    });
+    handle('settings', () => service.request('settings'));
+    handle('save-settings', (nickname, autoAcceptFiles, downloadDirectory, confirmOverride, historyDirectory) => {
+      if (typeof autoAcceptFiles !== 'boolean' || typeof confirmOverride !== 'boolean')
+        throw new Error('设置值无效');
+      if (downloadDirectory !== null && !isAbsolute(text(downloadDirectory, 4096)))
+        throw new Error('文件接收目录无效');
+      if (historyDirectory !== null && !isAbsolute(text(historyDirectory, 4096)))
+        throw new Error('聊天记录目录无效');
+      return service.request('save-settings', {
+        nickname: text(nickname, 80), autoAcceptFiles, downloadDirectory, confirmOverride, historyDirectory
+      });
+    });
+    handle('select-settings-directory', async kind => {
+      if (kind !== 'downloads' && kind !== 'history') throw new Error('目录类型无效');
+      const title = kind === 'downloads' ? '选择文件接收目录' : '选择聊天记录目录';
+      const selection = await dialog.showOpenDialog(window, { title, properties: ['openDirectory'] });
+      return selection.canceled ? null : selection.filePaths[0];
+    });
     handle('send-text', (chat, message) => service.request('text', { chat: text(chat, 256), text: text(message, 32768) }));
     handle('select-files', async chat => {
       fileRecipient(chat);

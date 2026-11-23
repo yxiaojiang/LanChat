@@ -317,7 +317,22 @@ namespace LanChat.Linux
                     string nickname = cmdLine.Substring(parts[0].Length).Trim();
                     try
                     {
-                        profile.SaveNickname(nickname);
+                        if (!profile.SaveSettings(nickname))
+                        {
+                            PrintColored(ConsoleColor.Yellow, "原设置只读，备份位于 " + profile.BackupPath);
+                            if (Console.IsInputRedirected)
+                            {
+                                PrintColored(ConsoleColor.Yellow, "请在交互终端使用 /nick 确认备用位置，昵称保持原样。");
+                                break;
+                            }
+                            PrintColored(ConsoleColor.Yellow, "使用备用设置 " + profile.OverridePath + "？输入 y 确认：");
+                            if (!string.Equals(Console.ReadLine()?.Trim(), "y", StringComparison.OrdinalIgnoreCase))
+                            {
+                                PrintColored(ConsoleColor.Yellow, "已取消，昵称保持原样。");
+                                break;
+                            }
+                            profile.SaveSettings(nickname, confirmOverride: true);
+                        }
                         _netService.NickName = nickname;
                         _netService.BroadcastPresence("HELLO");
                         PrintColored(ConsoleColor.Green, "昵称已修改为: " + nickname);

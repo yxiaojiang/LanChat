@@ -9,6 +9,8 @@ class Service extends EventEmitter {
   #pending = new Map();
   #failure;
 
+  get disconnected() { return Boolean(this.#failure); }
+
   constructor(binary) {
     super();
     this.#child = spawn(binary, ['--desktop-service'], { stdio: ['pipe', 'pipe', 'pipe'] });

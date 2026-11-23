@@ -149,6 +149,12 @@ namespace LanChat
         /// <summary>本地保存或读取的目标物理路径</summary>
         public string LocalPath { get; set; }
 
+        /// <summary>对端节点标识，用于将传输事件归入发起会话。</summary>
+        internal string TransferPeerId { get; set; }
+
+        /// <summary>已确认的对端连接地址，用于将传输事件归入对应历史。</summary>
+        internal IPAddress TransferPeerAddress { get; set; }
+
         /// <summary>传输是否已经顺利完毕</summary>
         public bool IsCompleted { get; set; }
 
