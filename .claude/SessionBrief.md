@@ -1,6 +1,6 @@
 # SessionBrief.md — 当前接手摘要
 
-> 2026-11-23 · 工作目录 `D:\TEmp\LanChat`，分支 `main`。LanChat v2.0.18 已发布，commit `6a11ea04b2c71ba89e9042e25b80955a1741506e`。此前公开版为 v2.0.16；远端另有无 Release 的 v2.1.0 标签。
+> 2026-11-23 · 工作目录 `D:\TEmp\LanChat`，`main` 已推至 `e0ca679`。v2.0.18 Release commit `6a11ea0`；此前公开版 v2.0.16，另有无 Release 的远端 v2.1.0 标签。
 
 ## 当前状态
 
