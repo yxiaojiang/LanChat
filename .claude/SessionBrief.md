@@ -1,10 +1,10 @@
 # SessionBrief.md — 当前接手摘要
 
-> 2026-11-23 · 工作目录 `D:\TEmp\LanChat`，分支 `main`。Windows 与 Linux Electron 同步至 v2.0.18，发布流程正在执行。公开基线为 v2.0.16；远端已有一个无 Release 的 v2.1.0 标签，v2.0.18 标签原先不存在。
+> 2026-11-23 · 工作目录 `D:\TEmp\LanChat`，分支 `main`。LanChat v2.0.18 已发布，commit `6a11ea04b2c71ba89e9042e25b80955a1741506e`。此前公开版为 v2.0.16；远端另有无 Release 的 v2.1.0 标签。
 
 ## 当前状态
 
-Windows 原生 WinForms 与 Linux Electron 均已实现文件收发进度显示在各自聊天气泡中，多文件逐项显示百分比；系统剪贴板复制的文件可粘贴为待发送附件，点击发送或按 Enter 后发送，普通文本粘贴不变。接收进度使用既有文件传输标识，未改变 LANC 封包。Windows 支持独立收发终态气泡，Linux 复用服务操作 ID；聊天历史只保留成功传输记录。ARM64 Debian 解包时的文件/目录冲突已在打包器中修复并加入冲突检查。
+Windows 原生 WinForms 与 Linux Electron 均已实现文件收发进度显示在各自聊天气泡中，多文件逐项显示百分比；系统剪贴板复制的文件可粘贴为待发送附件，点击发送或按 Enter 后发送，普通文本粘贴不变。接收进度使用既有文件传输标识，未改变 LANC 封包。Windows 支持独立收发终态气泡，Linux 复用服务操作 ID；聊天历史只保留成功传输记录。ARM64 Debian 解包时的文件/目录冲突已在打包器中修复并加入冲突检查。正式 Release：[v2.0.18](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.18)。
 
 Windows 原生编译、WinForms 输入/视图回归、同名文件并发收发和 MSI 内容核验均通过；用户仍需自己进行实际覆盖安装与剪贴板操作。Linux Electron 设置已拆为独立八页设置窗；剪贴板、每文件进度及页面回归通过，x64/ARM64 ELF 可构建，Linux Electron deb、便携包、独立 CLI 和摘要已在 `release/linux-electron/`。Linux Electron 桌面尚未实机验收；用户明确要求不启动虚拟机并自行安装测试。正式发布说明应保留 ARM64 实机、Xorg/Wayland、输入法、托盘与长历史矩阵未验收状态。
 
@@ -12,7 +12,7 @@ Windows 原生编译、WinForms 输入/视图回归、同名文件并发收发�
 
 ## 下一步
 
-确认 v2.0.18 Windows MSI/EXE 与 Linux 双架构安装包上传完成后，将链接与摘要回报用户。等待用户在 ARM64 Linux 和 Windows 实机安装、验证文件收发气泡和剪贴板粘贴，并按反馈修复。随后继续 LC-LINUX-002 第 3 步其余运行验收（Xorg/Wayland、输入法、托盘/通知、长历史性能等），再完成物理双架构升级回退及 Windows 局域网互通；证据不足时不标记候选验收通过。
+等待用户在 ARM64 Linux 和 Windows 实机安装，验证文件收发气泡和剪贴板粘贴，并按反馈修复。随后继续 LC-LINUX-002 第 3 步其余运行验收（Xorg/Wayland、输入法、托盘/通知、长历史性能等），再完成物理双架构升级回退及 Windows 局域网互通；证据不足时不标记候选验收通过。
 
 ## 入口
 

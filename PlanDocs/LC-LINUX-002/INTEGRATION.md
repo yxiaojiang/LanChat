@@ -136,6 +136,12 @@ QEMU 10.2.0 TCG，Ubuntu Minimal 24.04.5 amd64；基于旧实验 VM 的独立写
 
 尚无 Linux 桌面／ELF 运行证据（仍未通过）：
 
+## v2.0.18 发布（2026-11-23）
+
+Windows WinForms 与 Linux Electron 的每文件传输气泡、系统剪贴板文件粘贴及 Linux 设置八页纳入 `v2.0.18`。Linux amd64/arm64 ELF、deb、portable tar.gz、独立 CLI 和摘要由 `Tools/Scripts/BuildLinuxDeb.py` 生成；Windows `LanChat.exe` 与 MSI 由 `Tools/Scripts/Publish.bat` 原生编译并打包。正式 Release 包含 Windows EXE/MSI 与 Linux 双架构 deb、便携包、CLI、`SHA256SUMS.json`，共 9 个资产；逐项核对 GitHub 状态、文件大小和 SHA-256。Release 与代码提交：[`v2.0.18`](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.18)，`6a11ea04b2c71ba89e9042e25b80955a1741506e`。
+
+`lanchat_2.0.18_arm64.deb` SHA-256 为 `92874c84da1032f78160f87015c312c65aedb21faefb8df736ac71fecaaba8cd`。本轮未启动虚拟机；ARM64 实机安装、剪贴板和 Windows 覆盖安装由用户验收。此前记录的 Xorg/Wayland、输入法、托盘与通知、长历史性能、物理双架构升级回退及互通验收仍未通过。
+
 - Linux Electron 实机运行下点击左下角芯片拉起独立设置 `BrowserWindow`、模态居中与工作区适配、关闭回焦主窗，以及与 `DesktopService` 联动的真实保存、只读备用确认、历史迁移冲突提示、`clear-all-histories`、系统 GTK 目录选择器和打开目录动作。
 - Xorg、原生 Wayland、XWayland 三种后端表现，fcitx5 / ibus 输入法在昵称与反馈输入中的预编辑行为，以及 100% / 125% / 150% 同尺寸叠图核对。
 - `tests/linux_desktop_regression.py` 的 `delete`、`history` 及本切片新增 `clear-all-histories` 在 Linux 网络命名空间对最新 ELF 的实跑（宿主机无 QEMU）。

@@ -13,6 +13,8 @@ import sys
 import re
 import time
 import subprocess
+import tempfile
+import shutil
 import urllib.request
 import urllib.error
 import json
@@ -101,6 +103,50 @@ def get_git_token():
     except Exception:
         pass
     return None
+
+def release_asset_is_uploaded(version: str, filename: str, file_size: int, headers: dict) -> bool:
+    """上传请求超时后查询 Release，确认服务端是否已经收齐文件。"""
+    url = f"https://api.github.com/repos/{REPO}/releases/tags/v{version}"
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=30) as response:
+            release = json.loads(response.read().decode("utf-8"))
+        return any(
+            asset.get("name") == filename
+            and asset.get("size") == file_size
+            and asset.get("state") == "uploaded"
+            for asset in release.get("assets", [])
+        )
+    except Exception:
+        return False
+
+def upload_asset_streaming(upload_target: str, asset_path: str, token: str, version: str):
+    """用 curl 从文件流式上传 Release 资产，避免把大型 Electron 包整份读入内存。"""
+    curl = shutil.which("curl.exe") or shutil.which("curl")
+    if not curl:
+        raise RuntimeError("未找到 curl；请安装 curl 后重试 Release 资产上传。")
+
+    config_path = None
+    escaped_token = token.replace("\\", "\\\\").replace('"', '\\"')
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, suffix=".curl") as config:
+            config.write(f'header = "Authorization: Bearer {escaped_token}"\n')
+            config_path = config.name
+
+        command = [
+            curl, "--config", config_path, "--silent", "--show-error", "--fail",
+            "--connect-timeout", "30", "--max-time", "1800", "--request", "POST",
+            "--header", "Accept: application/vnd.github+json",
+            "--header", "Content-Type: application/octet-stream",
+            "--data-binary", "@" + asset_path,
+            "--url", upload_target,
+        ]
+        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if result.returncode:
+            raise RuntimeError(result.stderr.strip() or result.stdout.strip() or f"curl 退出码 {result.returncode}")
+    finally:
+        if config_path and os.path.exists(config_path):
+            os.unlink(config_path)
 
 def extract_release_notes(version: str) -> str:
     changelog_path = os.path.join(ROOT_DIR, "CHANGELOG.md")
@@ -263,38 +309,23 @@ def publish():
             except Exception as del_ex:
                 print(f"    删除旧资产警告: {del_ex}")
 
-        # 读取文件二进制流并上传 (增加自动退避重试与全量异常捕获)
-        with open(asset_path, "rb") as f:
-            file_data = f.read()
-
         upload_target = f"{upload_url}?name={filename}"
-        up_headers = {
-            "User-Agent": f"LanChat-Publisher/{version}",
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/octet-stream",
-            "Content-Length": str(len(file_data))
-        }
+        up_headers = dict(headers)
 
         max_retries = 3
         upload_success = False
         for attempt in range(1, max_retries + 1):
-            up_req = urllib.request.Request(upload_target, data=file_data, headers=up_headers, method="POST")
             try:
-                with urllib.request.urlopen(up_req, timeout=180) as resp:
-                    print(f"    [SUCCESS] 上传成功: {filename}")
+                upload_asset_streaming(upload_target, asset_path, token, version)
+                print(f"    [SUCCESS] 上传成功: {filename}")
+                upload_success = True
+                break
+            except Exception as ex:
+                if release_asset_is_uploaded(version, filename, file_size, up_headers):
+                    print(f"    [SUCCESS] 请求虽超时，GitHub 已完整收到: {filename}")
                     upload_success = True
                     break
-            except urllib.error.HTTPError as e:
-                err_detail = e.read().decode('utf-8', errors='ignore')
-                print(f"    [!] 上传 {filename} 失败 (HTTP {e.code} {e.reason}) [重试 {attempt}/{max_retries}]: {err_detail[:120]}")
-            except urllib.error.URLError as e:
-                reason_str = str(e.reason)
-                if "11001" in reason_str or "getaddrinfo failed" in reason_str:
-                    print(f"    [!] 上传 {filename} 网络解析超时/DNS 失败 (uploads.github.com) [重试 {attempt}/{max_retries}]")
-                else:
-                    print(f"    [!] 上传 {filename} 网络连接异常 ({e.reason}) [重试 {attempt}/{max_retries}]")
-            except Exception as ex:
-                print(f"    [!] 上传 {filename} 发生未知异常 ({ex}) [重试 {attempt}/{max_retries}]")
+                print(f"    [!] 上传 {filename} 失败 ({ex}) [重试 {attempt}/{max_retries}]")
 
             if attempt < max_retries:
                 time.sleep(2)
