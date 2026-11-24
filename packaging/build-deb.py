@@ -14,7 +14,7 @@ import zipapp
 
 from build_linux import RID_MACHINES, check_elf
 
-VERSION = "2.0.19"
+VERSION = "2.0.20"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 RELEASE_DIR = os.path.join(ROOT_DIR, "release")
