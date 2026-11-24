@@ -15,20 +15,33 @@ namespace LanChat
         {
             if (_listSessions == null || _sessionPresenter == null) return;
 
+            int previousTop = _listSessions.TopIndex;
+            object topItem = previousTop >= 0 && previousTop < _listSessions.Items.Count
+                ? _listSessions.Items[previousTop] : null;
             _listSessions.BeginUpdate();
-            _listSessions.Items.Clear();
-
-            var items = _sessionPresenter.FilteredSessionItems;
-            for (int i = 0; i < items.Count; i++)
+            try
             {
-                _listSessions.Items.Add(items[i]);
+                _listSessions.ClearSessionItems();
+                _hoverSessionIndex = -1;
+
+                var items = _sessionPresenter.FilteredSessionItems;
+                for (int i = 0; i < items.Count; i++)
+                    _listSessions.Items.Add(items[i]);
+
+                int index = _sessionPresenter.FindSessionIndex(_activeChatKey);
+                if (index >= 0 && index < _listSessions.Items.Count) _listSessions.SelectedIndex = index;
+
+                // 先恢复选中会话，再恢复视口。当前聊天可以位于视口之外。
+                var topPeer = topItem as PeerInfo;
+                int top = topPeer == null
+                    ? (topItem == null ? -1 : _listSessions.Items.IndexOf(topItem))
+                    : _sessionPresenter.FindSessionIndex(_sessionPresenter.GetSessionKey(topPeer));
+                _listSessions.RestoreScrollAnchor(top);
             }
-
-            int index = _sessionPresenter.FindSessionIndex(_activeChatKey);
-            if (index >= 0) _listSessions.SelectedIndex = index;
-            else if (_listSessions.Items.Count > 0) _listSessions.SelectedIndex = 0;
-
-            _listSessions.EndUpdate();
+            finally
+            {
+                _listSessions.EndUpdate();
+            }
         }
 
         private void TxtSearch_TextChanged(object sender, EventArgs e)
@@ -132,7 +145,7 @@ namespace LanChat
         {
             if (_listSessions == null) return;
             int index = _listSessions.IndexFromPoint(e.Location);
-            if (index < 0 || index >= _listSessions.Items.Count)
+            if (index < 0 || index >= _listSessions.Items.Count || _listSessions.IsHeading(index))
                 index = -1;
             if (index == _hoverSessionIndex) return;
 
@@ -178,6 +191,15 @@ namespace LanChat
             using (SolidBrush bgBrush = new SolidBrush(GrokTheme.Level0))
             {
                 g.FillRectangle(bgBrush, r);
+            }
+
+            if (item is SessionPresenter.GroupHeading)
+            {
+                string label = (SessionPresenter.GroupHeading)item == SessionPresenter.GroupHeading.Online ? "在线" : "离线";
+                using (Font font = GrokTheme.UiFont(10.5f, FontStyle.Bold))
+                    GrokTheme.DrawUiTextLeft(g, label, font, GrokTheme.TextSecondary,
+                        r.Left + GrokTheme.SessionCardMarginX, r.Top, r.Width - GrokTheme.SessionCardMarginX * 2, r.Height);
+                return;
             }
 
             int cardMarginX = GrokTheme.SessionCardMarginX;
@@ -283,7 +305,7 @@ namespace LanChat
 
                 using (Font titleFont = GrokTheme.UiFont(11.0f, FontStyle.Bold))
                 {
-                    string name = peer.NickName ?? "未知节点";
+                    string name = _sessionPresenter.GetPeerDisplayName(peer);
                     if (name.Length > 13) name = name.Substring(0, 12) + "...";
                     GrokTheme.DrawUiTextLeft(g, name, titleFont, GrokTheme.TextTitle,
                         textX, titleY - 3, textW, 27);
@@ -557,7 +579,7 @@ namespace LanChat
             if (e.Button == MouseButtons.Right)
             {
                 int index = _listSessions.IndexFromPoint(e.Location);
-                if (index >= 0)
+                if (index >= 0 && !_listSessions.IsHeading(index))
                 {
                     _listSessions.SelectedIndex = index;
                     object item = _listSessions.Items[index];

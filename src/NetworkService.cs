@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -41,13 +42,16 @@ namespace LanChat
         /// <summary>是否免确认自动接收来自局域网对端的文件</summary>
         public bool AutoAcceptFiles { get; set; }
 
-        private readonly List<NetworkInterfaceDetail> _activeInterfaces = new List<NetworkInterfaceDetail>();
-        private readonly List<Socket> _udpSockets = new List<Socket>();
+        // 监听线程和出站请求共享已绑定的网卡快照，切网时整体替换。
+        private volatile NetworkInterfaceDetail[] _activeInterfaces = new NetworkInterfaceDetail[0];
+        private Socket _udpAnySocket;
+        private readonly object _discoveryLock = new object();
+        private Timer _networkChangeTimer;
+        private Timer _presenceCheckTimer;
         private TcpListener _tcpListener;
         private Thread _tcpListenThread;
         private Thread _heartbeatThread;
         private volatile bool _isRunning;
-        private volatile bool _isSweeping;
 
         private readonly Dictionary<string, PeerInfo> _peers = new Dictionary<string, PeerInfo>();
         private readonly object _peerLock = new object();
@@ -158,23 +162,31 @@ namespace LanChat
         /// </summary>
         public void Start()
         {
-            _isRunning = true;
+            Start(null);
+        }
 
-            // 1. Discover active network adapters (prioritize physical over TUN/VPN)
-            DiscoverInterfaces();
+        internal void Start(IEnumerable<IPAddress> knownAddresses)
+        {
+            lock (_discoveryLock)
+            {
+                _isRunning = true;
+                InitTcpListener();
+                _presenceCheckTimer = new Timer(CheckRefreshedPeers);
+                try
+                {
+                    _networkChangeTimer = new Timer(RebindAfterNetworkChange);
+                    NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
+                }
+                catch (Exception ex)
+                {
+                    Log("监听网卡变化失败: " + ex.Message);
+                }
+            }
 
-            // 2. Initialize TCP Listener
-            InitTcpListener();
-
-            // 3. Initialize Multi-Interface UDP Listeners
-            InitUdpListeners();
-
-            // 4. Start Heartbeat thread
             _heartbeatThread = new Thread(HeartbeatLoop) { IsBackground = true };
             _heartbeatThread.Start();
 
-            // 5. Initial broadcast & fast subnet sweep
-            BroadcastPresence("HELLO");
+            RefreshPeers(knownAddresses);
         }
 
         private static string CommitReceivedFile(string temporary, string folder, string fileName)
@@ -214,21 +226,22 @@ namespace LanChat
         /// </summary>
         public void Dispose()
         {
-            _isRunning = false;
-
-            try
+            lock (_discoveryLock)
             {
-                BroadcastPresence("BYE");
-            }
-            catch { }
-
-            foreach (var sock in _udpSockets)
-            {
-                try
+                if (!_isRunning) return;
+                _isRunning = false;
+                if (_networkChangeTimer != null)
                 {
-                    sock.Close();
+                    // 网卡事件注销失败时仍须释放计时器和通信套接字。
+                    try { NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged; }
+                    catch { }
+                    _networkChangeTimer.Dispose();
                 }
-                catch { }
+                if (_presenceCheckTimer != null) _presenceCheckTimer.Dispose();
+                SendPresence("BYE", _activeInterfaces, null);
+                foreach (var adapter in _activeInterfaces)
+                    if (adapter.UdpSocket != null) adapter.UdpSocket.Close();
+                if (_udpAnySocket != null) _udpAnySocket.Close();
             }
 
             try

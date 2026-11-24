@@ -56,7 +56,12 @@ function paintNick(nick) {
 
 function setPeers(list) {
   for (const peer of peers.values()) peer.online = false;
-  for (const peer of list) peers.set(peer.key, { ...peers.get(peer.key), ...peer, online: true });
+  for (const peer of list) {
+    const previous = peers.get(peer.key);
+    // 旧版 TCP 确认只能得到地址，占位名不得覆盖已知或归档昵称。
+    const nick = peer.id === peer.ip && previous?.nick ? previous.nick : peer.nick;
+    peers.set(peer.key, { ...previous, ...peer, nick, online: true });
+  }
   drawChats();
   updateHeader();
 }
@@ -66,13 +71,35 @@ function focusSession(id) {
   button?.focus();
 }
 
+function appendSessionHeading(nav, online) {
+  const heading = document.createElement('h2');
+  heading.className = 'session-heading';
+  heading.textContent = online ? '在线' : '离线';
+  nav.append(heading);
+}
+
 function drawChats() {
   const restoreKey = document.activeElement?.classList?.contains('chat') ? document.activeElement.dataset.key : '';
   const nav = byId('chats');
   const previousScrollTop = nav.scrollTop;
   nav.replaceChildren();
-  const rows = presentation.sessionRows({ peers, messages, filter: byId('search').value });
+  const filter = byId('search').value;
+  const rows = presentation.sessionRows({ peers, messages, filter });
+  let onlineHeading = false;
+  let offlineHeading = false;
   for (const entry of rows) {
+    if (!entry.pinned && entry.online && !onlineHeading) {
+      appendSessionHeading(nav, true);
+      onlineHeading = true;
+    }
+    if (!entry.pinned && !entry.online && !offlineHeading) {
+      if (!onlineHeading && !filter.trim()) {
+        appendSessionHeading(nav, true);
+        onlineHeading = true;
+      }
+      appendSessionHeading(nav, false);
+      offlineHeading = true;
+    }
     const button = document.createElement('button');
     button.type = 'button';
     button.className = entry.pinned ? 'chat pinned' : 'chat';
@@ -122,6 +149,10 @@ function drawChats() {
     });
     nav.append(button);
   }
+  if (!filter.trim() && !offlineHeading) {
+    if (!onlineHeading) appendSessionHeading(nav, true);
+    appendSessionHeading(nav, false);
+  }
   nav.scrollTop = previousScrollTop;
   if (restoreKey) focusSession(restoreKey);
 }
@@ -146,7 +177,7 @@ function updateHeader() {
   byId('conversation').dataset.fileChat = !online ? '' : active === group ? group : peer?.online ? peer.id : 'OFFLINE';
   byId('attach').disabled = !online;
   byId('refresh').disabled = !api || connecting;
-  byId('refresh').title = byId('refresh').ariaLabel = online ? '刷新节点' : '重连通信服务';
+  byId('refresh').title = byId('refresh').ariaLabel = online ? '刷新好友列表' : '重连通信服务';
   byId('open-settings').disabled = !online;
   compose.disabled = !online;
   compose.placeholder = presentation.composePlaceholder(active, peer);

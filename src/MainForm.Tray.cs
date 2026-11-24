@@ -27,7 +27,7 @@ namespace LanChat
                     _netService.SaveDirectory = AppSettings.SaveDirectory;
                 }
                 InitializeControllers();
-                _netService.Start();
+                _netService.Start(_sessionPresenter.GetKnownAddresses());
 
                 IPAddress primaryIp = _netService.GetPrimaryPhysicalIp();
                 _btnAvatar.Invalidate();
@@ -136,7 +136,7 @@ namespace LanChat
                         _netService.NickName = newNick;
                         AppSettings.NickName = newNick;
                         AppSettings.Save();
-                        _netService.BroadcastPresence("HELLO");
+                        RefreshFriends();
                         _btnAvatar.Invalidate();
                         if (_btnBottomUser != null) _btnBottomUser.Invalidate();
                         AppendChatSystem("您的昵称已更改为: " + newNick);
@@ -160,13 +160,11 @@ namespace LanChat
             }
         }
 
-        private void RefreshPeersWithNotice()
+        private void RefreshFriends()
         {
-            if (_netService != null)
-            {
-                _netService.BroadcastPresence("HELLO");
-                AppendChatSystem("已向局域网广播并扫描同网段好友...");
-            }
+            if (_netService == null || _sessionPresenter == null) return;
+            _netService.RefreshPeers(_sessionPresenter.GetKnownAddresses());
+            RefreshPeerListUI();
         }
 
         private void OpenReceivedFolder()

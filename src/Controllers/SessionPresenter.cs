@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Net;
 using System.Windows.Forms;
 
 namespace LanChat
@@ -13,6 +14,9 @@ namespace LanChat
     /// </summary>
     public class SessionPresenter
     {
+        // 分组标题是列表中的说明行，不能作为会话选中。
+        internal enum GroupHeading { Online, Offline }
+
         /// <summary>全员广播会话显示标识常量</summary>
         public const string BROADCAST_TARGET = "📢 局域网全员群聊";
 
@@ -22,6 +26,8 @@ namespace LanChat
 
         private readonly List<object> _allSessionItems = new List<object>();
         private readonly List<object> _filteredSessionItems = new List<object>();
+        // 保留本次运行中见过的好友。旧会话仍从持久化聊天记录恢复。
+        private readonly Dictionary<string, PeerInfo> _knownPeers = new Dictionary<string, PeerInfo>(StringComparer.OrdinalIgnoreCase);
         private string _searchFilter = "";
 
         private string _activeChatKey = SessionManager.BROADCAST_KEY;
@@ -97,10 +103,14 @@ namespace LanChat
             if (_netService != null)
             {
                 _netService.OnPeerJoined += (peer) => SafeInvoke(() => {
+                    RememberPeer(peer);
                     RefreshSessions();
                     if (PeerJoinedNotice != null) PeerJoinedNotice(peer);
                 });
-                _netService.OnPeerUpdated += (peer) => SafeInvoke(() => RefreshSessions());
+                _netService.OnPeerUpdated += (peer) => SafeInvoke(() => {
+                    RememberPeer(peer);
+                    RefreshSessions();
+                });
                 _netService.OnPeerLeft += (peerId) => SafeInvoke(() => RefreshSessions());
             }
         }
@@ -130,6 +140,7 @@ namespace LanChat
 
             _allSessionItems.Clear();
             _allSessionItems.Add(BROADCAST_TARGET);
+            _allSessionItems.Add(GroupHeading.Online);
             HashSet<string> addedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             bool activeHistoryMerged = false;
@@ -144,17 +155,19 @@ namespace LanChat
             foreach (var group in peers.GroupBy(GetSessionKey, StringComparer.OrdinalIgnoreCase))
             {
                 addedIds.Add(group.Key);
-                _allSessionItems.Add(group.OrderByDescending(peer => peer.LastSeen).First());
+                var peer = group.OrderByDescending(item => item.LastSeen).First();
+                _allSessionItems.Add(peer);
+                RememberPeer(peer);
             }
 
-            // 恢复历史聊天记录中的好友会话 (对标微信/QQ，重启或离线仍保留会话条目与历史查阅)
+            _allSessionItems.Add(GroupHeading.Offline);
             if (_sessionManager != null)
             {
                 var keys = _sessionManager.GetAllSessionKeys();
                 foreach (var k in keys)
                 {
                     if (string.IsNullOrEmpty(k) || k.Equals(SessionManager.BROADCAST_KEY, StringComparison.OrdinalIgnoreCase)) continue;
-                    if (!addedIds.Contains(k))
+                    if (!addedIds.Contains(k) && !_knownPeers.ContainsKey(k))
                     {
                         var lastMsg = _sessionManager.GetLastMessage(k);
                         var address = SessionManager.GetArchivedAddress(k);
@@ -174,9 +187,43 @@ namespace LanChat
                 }
             }
 
+            foreach (var item in _knownPeers)
+                if (!addedIds.Contains(item.Key)) _allSessionItems.Add(item.Value);
+
+            var activePeer = _allSessionItems.OfType<PeerInfo>().FirstOrDefault(peer =>
+                string.Equals(GetSessionKey(peer), _activeChatKey, StringComparison.OrdinalIgnoreCase));
+            if (activePeer != null) SelectSession(activePeer, activeHistoryMerged);
+
             ApplyFilter();
             if (SessionsUpdated != null) SessionsUpdated();
-            if (activeHistoryMerged && _selectedPeer != null) SelectSession(_selectedPeer, true);
+        }
+
+        internal IEnumerable<IPAddress> GetKnownAddresses()
+        {
+            return _knownPeers.Values.Select(peer => peer.IP)
+                .Concat(_sessionManager.GetAllSessionKeys().Select(SessionManager.GetArchivedAddress))
+                .Where(ip => ip != null);
+        }
+
+        private void RememberPeer(PeerInfo peer)
+        {
+            string key = GetSessionKey(peer);
+            // TCP 占位名不能覆盖已获得的好友昵称。
+            if (peer.IP != null && peer.Id == peer.IP.ToString() && _knownPeers.ContainsKey(key)) return;
+            _knownPeers[key] = new PeerInfo { Id = key, IP = peer.IP, NickName = GetPeerDisplayName(peer), HostName = "离线" };
+        }
+
+        internal string GetPeerDisplayName(PeerInfo peer)
+        {
+            if (peer.IP != null && peer.Id == peer.IP.ToString())
+            {
+                string key = GetSessionKey(peer);
+                PeerInfo known;
+                if (_knownPeers.TryGetValue(key, out known)) return known.NickName;
+                string archivedNick = _sessionManager == null ? null : _sessionManager.GetArchivedNick(key);
+                if (archivedNick != null) return archivedNick;
+            }
+            return peer.NickName ?? "未知好友";
         }
 
         internal string GetSessionKey(PeerInfo peer)
@@ -192,6 +239,7 @@ namespace LanChat
         {
             string filter = _searchFilter.Trim().ToLowerInvariant();
             _filteredSessionItems.Clear();
+            GroupHeading? heading = null;
 
             foreach (var item in _allSessionItems)
             {
@@ -199,23 +247,29 @@ namespace LanChat
                 {
                     _filteredSessionItems.Add(item);
                 }
-                else
+                else if (item is GroupHeading)
                 {
-                    if (item is string)
+                    heading = (GroupHeading)item;
+                }
+                else if (item is string)
+                {
+                    if (((string)item).ToLowerInvariant().Contains(filter))
+                        _filteredSessionItems.Add(item);
+                }
+                else if (item is PeerInfo)
+                {
+                    PeerInfo p = (PeerInfo)item;
+                    string nick = GetPeerDisplayName(p).ToLowerInvariant();
+                    string ip = (p.IP != null ? p.IP.ToString() : "").ToLowerInvariant();
+                    string host = (p.HostName ?? "").ToLowerInvariant();
+                    if (nick.Contains(filter) || ip.Contains(filter) || host.Contains(filter))
                     {
-                        if (((string)item).ToLowerInvariant().Contains(filter))
-                            _filteredSessionItems.Add(item);
-                    }
-                    else if (item is PeerInfo)
-                    {
-                        PeerInfo p = (PeerInfo)item;
-                        string nick = (p.NickName ?? "").ToLowerInvariant();
-                        string ip = (p.IP != null ? p.IP.ToString() : "").ToLowerInvariant();
-                        string host = (p.HostName ?? "").ToLowerInvariant();
-                        if (nick.Contains(filter) || ip.Contains(filter) || host.Contains(filter))
+                        if (heading.HasValue)
                         {
-                            _filteredSessionItems.Add(p);
+                            _filteredSessionItems.Add(heading.Value);
+                            heading = null;
                         }
+                        _filteredSessionItems.Add(p);
                     }
                 }
             }
@@ -255,8 +309,9 @@ namespace LanChat
             {
                 newPeer = (PeerInfo)item;
                 newKey = GetSessionKey(newPeer);
-                titleText = GrokTheme.SanitizeUiText(newPeer.NickName ?? "在线节点");
-                placeholder = GrokTheme.SanitizeUiText(string.Format("给 {0} 发消息", newPeer.NickName ?? "好友"));
+                string nick = GetPeerDisplayName(newPeer);
+                titleText = GrokTheme.SanitizeUiText(nick);
+                placeholder = GrokTheme.SanitizeUiText(string.Format("给 {0} 发消息", nick));
                 showGroupSender = false;
             }
             else
@@ -303,6 +358,7 @@ namespace LanChat
             {
                 _sessionManager.DeleteSession(GetSessionKey(peer));
             }
+            _knownPeers.Remove(GetSessionKey(peer));
 
             if (_netService != null)
             {
@@ -382,7 +438,9 @@ namespace LanChat
             if (_sessionManager != null) key = _sessionManager.ResolveKey(key);
             for (int i = 0; i < _filteredSessionItems.Count; i++)
             {
-                if (string.Equals(GetSessionKey(_filteredSessionItems[i] as PeerInfo), key, StringComparison.OrdinalIgnoreCase))
+                object item = _filteredSessionItems[i];
+                if (!(item is GroupHeading) &&
+                    string.Equals(GetSessionKey(item as PeerInfo), key, StringComparison.OrdinalIgnoreCase))
                     return i;
             }
             return -1;

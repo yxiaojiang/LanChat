@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -10,45 +11,33 @@ namespace LanChat
 {
     public partial class NetworkService : IDisposable
     {
-        #region UDP Multi-Interface Listeners
+        // 每次显式刷新优先询问已有地址，等待短暂应答窗口后再确认原在线节点是否掉线。
+        private IPAddress[] _knownAddresses = new IPAddress[0];
+        private PeerInfo[] _peersToCheck = new PeerInfo[0];
+        private DateTime _refreshStarted;
+        private int _refreshVersion;
+        private bool _checkingPresence;
+        private NetworkInterfaceDetail[] _sweepingInterfaces;
 
-        private void InitUdpListeners()
+        #region UDP 多网卡监听
+
+        private Socket BindUdpListener(IPAddress address)
         {
-            // 1. Bind to IPAddress.Any
+            Socket socket = null;
             try
             {
-                Socket anySock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-                anySock.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                anySock.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, true);
-                anySock.Bind(new IPEndPoint(IPAddress.Any, UDP_PORT));
-
-                _udpSockets.Add(anySock);
-                new Thread(() => UdpListenLoop(anySock)) { IsBackground = true }.Start();
+                socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, true);
+                socket.Bind(new IPEndPoint(address, UDP_PORT));
+                new Thread(() => UdpListenLoop(socket)) { IsBackground = true }.Start();
+                return socket;
             }
             catch (Exception ex)
             {
-                Log("UDP Any 绑定异常: " + ex.Message);
-            }
-
-            // 2. Bind dedicated sockets to physical interfaces
-            foreach (var iface in _activeInterfaces)
-            {
-                try
-                {
-                    Socket ifaceSock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-                    ifaceSock.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                    ifaceSock.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, true);
-                    ifaceSock.Bind(new IPEndPoint(iface.IP, UDP_PORT));
-
-                    iface.UdpSocket = ifaceSock;
-                    _udpSockets.Add(ifaceSock);
-
-                    new Thread(() => UdpListenLoop(ifaceSock)) { IsBackground = true }.Start();
-                }
-                catch (Exception ex)
-                {
-                    Log(string.Format("UDP 绑定到网卡 {0}({1}) 异常: {2}", iface.Name, iface.IP, ex.Message));
-                }
+                if (socket != null) socket.Close();
+                Log("UDP 绑定到 " + address + " 失败: " + ex.Message);
+                return null;
             }
         }
 
@@ -63,11 +52,12 @@ namespace LanChat
                 try
                 {
                     int received = sock.ReceiveFrom(buffer, ref remoteEp);
-                    if (received <= 0) continue;
+                    if (received <= 0 || !_isRunning) continue;
 
                     string msg = Encoding.UTF8.GetString(buffer, 0, received);
                     ProcessUdpPacket(msg, (IPEndPoint)remoteEp);
                 }
+                catch (ObjectDisposedException) { break; }
                 catch (SocketException)
                 {
                     if (!_isRunning) break;
@@ -133,7 +123,7 @@ namespace LanChat
                     PeerInfo peer;
                     if (_peers.TryGetValue(peerId, out peer))
                     {
-                        peer.LastSeen = DateTime.Now;
+                        peer.LastSeen = DateTime.UtcNow;
                     }
                 }
             }
@@ -141,18 +131,33 @@ namespace LanChat
 
         private void SendAckTo(IPAddress ip, int port)
         {
-            try
-            {
-                IPAddress primaryIp = GetPrimaryPhysicalIp();
-                string payload = string.Format("ACK|{0}|{1}|{2}|{3}|{4}", LocalId, NickName, HostName, LocalTcpPort, primaryIp);
-                byte[] data = Encoding.UTF8.GetBytes(payload);
+            var interfaces = _activeInterfaces;
+            SendDatagram(GetDiscoverySocket(ip, interfaces), CreatePresence("ACK", interfaces), ip, port);
+        }
 
-                foreach (var sock in _udpSockets)
+        private Socket GetDiscoverySocket(IPAddress ip, NetworkInterfaceDetail[] interfaces)
+        {
+            if (!IPAddress.IsLoopback(ip))
+            {
+                Socket virtualSocket = null;
+                foreach (var adapter in interfaces)
                 {
-                    try { sock.SendTo(data, new IPEndPoint(ip, port)); } catch { }
+                    if (adapter.UdpSocket == null || !IsInSameSubnet(adapter.IP, ip, adapter.Mask)) continue;
+                    if (!adapter.IsVirtualOrTun) return adapter.UdpSocket;
+                    virtualSocket = adapter.UdpSocket;
                 }
+                if (virtualSocket != null) return virtualSocket;
             }
-            catch { }
+
+            return _udpAnySocket;
+        }
+
+        private static void SendDatagram(Socket socket, byte[] data, IPAddress ip, int port)
+        {
+            if (socket == null) return;
+            try { socket.SendTo(data, new IPEndPoint(ip, port)); }
+            catch (SocketException) { }
+            catch (ObjectDisposedException) { }
         }
 
         #endregion
@@ -192,9 +197,17 @@ namespace LanChat
             bool isNew = false;
             bool isUpdated = false;
             PeerInfo peer;
+            List<string> removed = null;
 
             lock (_peerLock)
             {
+                string addressId = ip.ToString();
+                if (peerId == addressId)
+                {
+                    // 匿名确认不能替该地址已有的真实身份更新时间，也不需要再加入地址占位。
+                    if (_peers.Values.Any(known => known.Id != addressId && ip.Equals(known.IP))) return;
+                }
+
                 if (!_peers.TryGetValue(peerId, out peer))
                 {
                     peer = new PeerInfo
@@ -204,7 +217,7 @@ namespace LanChat
                         HostName = string.IsNullOrEmpty(host) ? "LAN-PC" : host,
                         IP = ip,
                         TcpPort = announcedPort ?? TCP_BASE_PORT,
-                        LastSeen = DateTime.Now
+                        LastSeen = DateTime.UtcNow
                     };
                     _peers[peerId] = peer;
                     isNew = true;
@@ -225,8 +238,30 @@ namespace LanChat
                         peer.IP = ip;
                         isUpdated = true;
                     }
-                    peer.LastSeen = DateTime.Now;
+                    peer.LastSeen = DateTime.UtcNow;
                 }
+
+                if (peerId != addressId)
+                {
+                    // 公告端口确认同一监听端点已换身份。文字帧未携带端口，只能归并地址占位。
+                    foreach (var old in _peers.Values)
+                    {
+                        if (old == peer || !ip.Equals(old.IP)) continue;
+                        if (announcedPort.HasValue ? old.TcpPort != announcedPort.Value : old.Id != addressId) continue;
+                        if (removed == null) removed = new List<string>();
+                        removed.Add(old.Id);
+                        peer.UnreadCount += old.UnreadCount;
+                    }
+                    if (removed != null)
+                        foreach (var id in removed) _peers.Remove(id);
+                }
+            }
+
+            if (removed != null)
+            {
+                NotifyPeersLeft(removed);
+                isNew = false;
+                isUpdated = true;
             }
 
             if (isNew && OnPeerJoined != null)
@@ -239,106 +274,193 @@ namespace LanChat
             }
         }
 
-        /// <summary>
-        /// 向所有物理网卡广播本机的在线/离线存活状态（HELLO/BYE）并执行子网探测
-        /// </summary>
-        /// <param name="command">广播动作指令（HELLO/BYE）</param>
+        /// <summary>广播本机状态。HELLO 同时发起好友刷新和后台子网探测。</summary>
+        /// <param name="command">现有 UDP 状态指令，如 HELLO、PING 或 BYE。</param>
         public void BroadcastPresence(string command)
         {
-            IPAddress primaryIp = GetPrimaryPhysicalIp();
-            string payload = string.Format("{0}|{1}|{2}|{3}|{4}|{5}", command, LocalId, NickName, HostName, LocalTcpPort, primaryIp);
-            byte[] data = Encoding.UTF8.GetBytes(payload);
-
-            // 1. Traditional Broadcast on each physical interface
-            foreach (var iface in _activeInterfaces)
+            if (command == "HELLO")
             {
-                Socket sock = iface.UdpSocket ?? (_udpSockets.Count > 0 ? _udpSockets[0] : null);
-                if (sock == null) continue;
-
-                try { sock.SendTo(data, new IPEndPoint(iface.BroadcastAddress, UDP_PORT)); } catch { }
-                try { sock.SendTo(data, new IPEndPoint(IPAddress.Broadcast, UDP_PORT)); } catch { }
+                RefreshPeers(null);
+                return;
             }
 
-            // 2. Loopback
-            if (_udpSockets.Count > 0)
+            lock (_discoveryLock)
             {
-                try { _udpSockets[0].SendTo(data, new IPEndPoint(IPAddress.Loopback, UDP_PORT)); } catch { }
-            }
-
-            // 3. Fast Subnet Sweep ONLY on HELLO (Startup or manual refresh), NEVER during 8-second heartbeat!
-            if (command == "HELLO" && !_isSweeping)
-            {
-                _isSweeping = true;
-                new Thread(() =>
-                {
-                    try
-                    {
-                        DoSubnetSweep(primaryIp, data);
-                    }
-                    finally
-                    {
-                        _isSweeping = false;
-                    }
-                }) { IsBackground = true }.Start();
+                if (_isRunning) SendPresence(command, _activeInterfaces, null);
             }
         }
 
-        private void DoSubnetSweep(IPAddress primaryIp, byte[] udpData)
+        internal void RefreshPeers(IEnumerable<IPAddress> knownAddresses)
         {
-            foreach (var iface in _activeInterfaces)
+            lock (_discoveryLock)
             {
-                if (iface.IsVirtualOrTun) continue;
+                if (!_isRunning) return;
+                // 手动刷新也重试发现和绑定，以覆盖地址通知漏报、延迟和瞬时绑定失败。
+                RebindInterfaces();
+                if (knownAddresses != null) _knownAddresses = knownAddresses.Distinct().ToArray();
 
-                byte[] ipBytes = iface.IP.GetAddressBytes();
-                byte[] maskBytes = iface.Mask.GetAddressBytes();
+                var interfaces = _activeInterfaces;
+                _refreshVersion++;
+                _refreshStarted = DateTime.UtcNow;
+                _peersToCheck = GetActivePeers().ToArray();
+                var targets = _peersToCheck.Select(peer => peer.IP)
+                    .Concat(_knownAddresses.Where(ip => IPAddress.IsLoopback(ip) || IsInAnyLocalSubnet(ip)))
+                    .Distinct();
+                SendPresence("HELLO", interfaces, targets);
 
-                // Standard /24 subnet (e.g. 192.168.x.x)
-                if (maskBytes[0] == 255 && maskBytes[1] == 255 && maskBytes[2] == 255)
+                if (_peersToCheck.Length > 0 && !_checkingPresence)
+                    _presenceCheckTimer.Change(300, Timeout.Infinite);
+
+                // 快速刷新总会立即发包。重复刷新同一网段时，后台兜底扫描共用一轮。
+                if (_sweepingInterfaces == interfaces) return;
+                _sweepingInterfaces = interfaces;
+                new Thread(() => SweepInterfaces(interfaces)) { IsBackground = true }.Start();
+            }
+        }
+
+        private byte[] CreatePresence(string command, NetworkInterfaceDetail[] interfaces)
+        {
+            return Encoding.UTF8.GetBytes(string.Format("{0}|{1}|{2}|{3}|{4}|{5}",
+                command, LocalId, NickName, HostName, LocalTcpPort, GetPrimaryPhysicalIp(interfaces)));
+        }
+
+        private void SendPresence(string command, NetworkInterfaceDetail[] interfaces, IEnumerable<IPAddress> targets)
+        {
+            byte[] data = CreatePresence(command, interfaces);
+            if (targets != null)
+            {
+                foreach (var target in targets)
+                    SendDatagram(GetDiscoverySocket(target, interfaces), data, target, UDP_PORT);
+            }
+
+            foreach (var adapter in interfaces)
+            {
+                var socket = adapter.UdpSocket ?? _udpAnySocket;
+                SendDatagram(socket, data, adapter.BroadcastAddress, UDP_PORT);
+                SendDatagram(socket, data, IPAddress.Broadcast, UDP_PORT);
+            }
+            SendDatagram(_udpAnySocket, data, IPAddress.Loopback, UDP_PORT);
+        }
+
+        private void CheckRefreshedPeers(object state)
+        {
+            DateTime started;
+            int version;
+            PeerInfo[] peers;
+            NetworkInterfaceDetail[] interfaces;
+            lock (_discoveryLock)
+            {
+                if (!_isRunning || _checkingPresence) return;
+                _checkingPresence = true;
+                started = _refreshStarted;
+                version = _refreshVersion;
+                interfaces = _activeInterfaces;
+                lock (_peerLock)
+                    peers = _peersToCheck.Where(peer => peer.LastSeen < started).ToArray();
+            }
+
+            try
+            {
+                if (peers.Length == 0) return;
+
+                byte[] retry = CreatePresence("HELLO", interfaces);
+                foreach (var peer in peers)
+                    SendDatagram(GetDiscoverySocket(peer.IP, interfaces), retry, peer.IP, UDP_PORT);
+
+                // 使用已公告的端口复核未回应的好友。给第二轮 UDP 回包留出独立的应答窗口。
+                var wait = System.Diagnostics.Stopwatch.StartNew();
+                RunTcpProbes(peers.Length, 16, interfaces,
+                    index => TryTcpHandshake(peers[index].IP, peers[index].TcpPort, interfaces, peers[index]));
+                int remaining = 650 - (int)wait.ElapsedMilliseconds;
+                if (remaining > 0) Thread.Sleep(remaining);
+
+                List<string> removed;
+                lock (_discoveryLock)
                 {
-                    byte b0 = ipBytes[0];
-                    byte b1 = ipBytes[1];
-                    byte b2 = ipBytes[2];
-                    byte myLast = ipBytes[3];
-                    Socket sock = iface.UdpSocket ?? (_udpSockets.Count > 0 ? _udpSockets[0] : null);
-
-                    // Step A: Fast Unicast UDP sweep (Takes ~15ms total!)
-                    if (sock != null)
-                    {
-                        for (int i = 1; i <= 254; i++)
-                        {
-                            if (i == myLast) continue;
-                            IPAddress target = new IPAddress(new byte[] { b0, b1, b2, (byte)i });
-                            try { sock.SendTo(udpData, new IPEndPoint(target, UDP_PORT)); } catch { }
-                        }
-                    }
-
-                    // Step B: Controlled TCP Handshake Sweep (Max 15 concurrent sockets to avoid thread starvation)
-                    using (Semaphore throttle = new Semaphore(15, 15))
-                    {
-                        for (int i = 1; i <= 254; i++)
-                        {
-                            if (i == myLast) continue;
-                            IPAddress target = new IPAddress(new byte[] { b0, b1, b2, (byte)i });
-
-                            throttle.WaitOne();
-                            new Thread(() =>
-                            {
-                                try
-                                {
-                                    TryTcpHandshake(target);
-                                }
-                                finally
-                                {
-                                    try { throttle.Release(); } catch { }
-                                }
-                            }) { IsBackground = true }.Start();
-                        }
-
-                        // Wait up to 1.5s for probes to complete
-                        Thread.Sleep(1500);
-                    }
+                    if (!_isRunning || version != _refreshVersion || interfaces != _activeInterfaces) return;
+                    removed = RemoveExpiredPeers(peers, started);
+                }
+                NotifyPeersLeft(removed);
+            }
+            finally
+            {
+                lock (_discoveryLock)
+                {
+                    _checkingPresence = false;
+                    if (_isRunning && version != _refreshVersion)
+                        _presenceCheckTimer.Change(300, Timeout.Infinite);
                 }
             }
+        }
+
+        private void SweepInterfaces(NetworkInterfaceDetail[] interfaces)
+        {
+            try
+            {
+                var targets = new HashSet<IPAddress>();
+                var localAddresses = new HashSet<IPAddress>(interfaces.Select(adapter => adapter.IP));
+                byte[] data = CreatePresence("HELLO", interfaces);
+                foreach (var adapter in interfaces)
+                {
+                    if (adapter.IsVirtualOrTun) continue;
+                    byte[] ip = adapter.IP.GetAddressBytes();
+                    byte[] mask = adapter.Mask.GetAddressBytes();
+                    if (mask[0] != 255 || mask[1] != 255 || mask[2] != 255) continue;
+
+                    // 只探测当前接口实际覆盖的 /24 或更小子网，跳过网络地址、广播地址和本机。
+                    int first = (ip[3] & mask[3]) + 1;
+                    int last = (ip[3] | (255 ^ mask[3])) - 1;
+                    var socket = adapter.UdpSocket ?? _udpAnySocket;
+                    for (int i = first; i <= last; i++)
+                    {
+                        if (!_isRunning || interfaces != _activeInterfaces) return;
+                        var target = new IPAddress(new byte[] { ip[0], ip[1], ip[2], (byte)i });
+                        if (localAddresses.Contains(target)) continue;
+                        targets.Add(target);
+                        SendDatagram(socket, data, target, UDP_PORT);
+                    }
+                }
+
+                // 优先让单播 UDP 返回完整身份，TCP 只补探尚未发现的地址。
+                if (targets.Count == 0) return;
+                Thread.Sleep(300);
+                if (!_isRunning || interfaces != _activeInterfaces) return;
+                lock (_peerLock)
+                {
+                    foreach (var peer in _peers.Values) targets.Remove(peer.IP);
+                }
+                var missing = targets.ToArray();
+                RunTcpProbes(missing.Length, 32, interfaces,
+                    index => TryTcpHandshake(missing[index], TCP_BASE_PORT, interfaces, null));
+            }
+            finally
+            {
+                lock (_discoveryLock)
+                {
+                    if (_sweepingInterfaces == interfaces) _sweepingInterfaces = null;
+                }
+            }
+        }
+
+        private void RunTcpProbes(int count, int concurrency, NetworkInterfaceDetail[] interfaces, Action<int> probe)
+        {
+            // 固定数量的后台线程消费探测目标，避免每个 IP 新建线程或等待固定的扫描收尾时间。
+            int next = -1;
+            var workers = new Thread[Math.Min(count, concurrency)];
+            for (int i = 0; i < workers.Length; i++)
+            {
+                workers[i] = new Thread(() =>
+                {
+                    while (_isRunning && interfaces == _activeInterfaces)
+                    {
+                        int index = Interlocked.Increment(ref next);
+                        if (index >= count) return;
+                        probe(index);
+                    }
+                }) { IsBackground = true };
+                workers[i].Start();
+            }
+            foreach (var worker in workers) worker.Join();
         }
 
         /// <summary>
@@ -348,25 +470,30 @@ namespace LanChat
         /// <returns>握手是否成功</returns>
         public bool TryTcpHandshake(IPAddress targetIp)
         {
+            return TryTcpHandshake(targetIp, TCP_BASE_PORT, _activeInterfaces, null);
+        }
+
+        private bool TryTcpHandshake(IPAddress targetIp, int port, NetworkInterfaceDetail[] interfaces, PeerInfo expected)
+        {
             try
             {
                 using (TcpClient client = new TcpClient(GetLocalEndpointForTarget(targetIp)))
                 {
                     client.NoDelay = true;
-                    var ar = client.BeginConnect(targetIp, TCP_BASE_PORT, null, null);
-                    if (!ar.AsyncWaitHandle.WaitOne(TimeSpan.FromMilliseconds(250)))
+                    var ar = client.BeginConnect(targetIp, port, null, null);
+                    using (var connectWait = ar.AsyncWaitHandle)
                     {
-                        return false;
+                        if (!connectWait.WaitOne(250)) return false;
+                        client.EndConnect(ar);
                     }
-                    client.EndConnect(ar);
 
                     using (NetworkStream ns = client.GetStream())
                     using (BinaryWriter bw = new BinaryWriter(ns, Encoding.UTF8))
                     using (BinaryReader br = new BinaryReader(ns, Encoding.UTF8))
                     {
                         bw.Write(MAGIC);
-                        bw.Write((byte)1); // PacketType Text
-                        bw.Write(true);    // isBroadcast
+                        bw.Write((byte)1); // 文字帧
+                        bw.Write(true);    // 广播标记
                         bw.Write(LocalId);
                         bw.Write(NickName);
                         bw.Write("");
@@ -377,7 +504,27 @@ namespace LanChat
                         byte ack = br.ReadByte();
                         if (ack == 1)
                         {
-                            AddOrUpdatePeer(targetIp.ToString(), "好友 (" + targetIp + ")", "LAN-PC", targetIp, TCP_BASE_PORT);
+                            lock (_discoveryLock)
+                            {
+                                if (!_isRunning || interfaces != _activeInterfaces) return false;
+                                if (expected == null)
+                                {
+                                    AddOrUpdatePeer(targetIp.ToString(), "好友 (" + targetIp + ")", "LAN-PC", targetIp, port);
+                                }
+                                else
+                                {
+                                    lock (_peerLock)
+                                    {
+                                        PeerInfo current;
+                                        // 确认字节不含身份。旧快照或已有其他身份的端点不能据此续期。
+                                        if (!_peers.TryGetValue(expected.Id, out current) || current != expected ||
+                                            !targetIp.Equals(current.IP) || current.TcpPort != port ||
+                                            _peers.Values.Any(other => other != current &&
+                                                other.TcpPort == port && targetIp.Equals(other.IP))) return false;
+                                        current.LastSeen = DateTime.UtcNow;
+                                    }
+                                }
+                            }
                             return true;
                         }
                     }
@@ -405,17 +552,10 @@ namespace LanChat
                         return;
                     }
 
-                    IPAddress primaryIp = GetPrimaryPhysicalIp();
-                    string payload = string.Format("HELLO|{0}|{1}|{2}|{3}|{4}", LocalId, NickName, HostName, LocalTcpPort, primaryIp);
-                    byte[] data = Encoding.UTF8.GetBytes(payload);
+                    var interfaces = _activeInterfaces;
+                    SendDatagram(GetDiscoverySocket(ip, interfaces), CreatePresence("HELLO", interfaces), ip, UDP_PORT);
 
-                    // Send UDP probe
-                    foreach (var sock in _udpSockets)
-                    {
-                        try { sock.SendTo(data, new IPEndPoint(ip, UDP_PORT)); } catch { }
-                    }
-
-                    // Send TCP handshake
+                    // TCP 握手保留现有的手动连通性判断。
                     bool ok = TryTcpHandshake(ip);
                     if (ok)
                     {
@@ -463,27 +603,35 @@ namespace LanChat
                     // Send lightweight UDP PING only (no TCP sweep)
                     BroadcastPresence("PING");
 
-                    List<string> expiredPeers = new List<string>();
-                    DateTime now = DateTime.Now;
-
-                    lock (_peerLock)
-                    {
-                        foreach (var kvp in _peers)
-                        {
-                            if ((now - kvp.Value.LastSeen).TotalSeconds > 25)
-                            {
-                                expiredPeers.Add(kvp.Key);
-                            }
-                        }
-                    }
-
-                    foreach (var pid in expiredPeers)
-                    {
-                        RemovePeer(pid);
-                    }
+                    NotifyPeersLeft(RemoveExpiredPeers(GetActivePeers(), DateTime.UtcNow.AddSeconds(-25)));
                 }
                 catch { }
             }
+        }
+
+        private List<string> RemoveExpiredPeers(IEnumerable<PeerInfo> candidates, DateTime cutoff)
+        {
+            var removed = new List<string>();
+            lock (_peerLock)
+            {
+                foreach (var candidate in candidates)
+                {
+                    PeerInfo current;
+                    if (_peers.TryGetValue(candidate.Id, out current) && current == candidate && current.LastSeen < cutoff)
+                    {
+                        _peers.Remove(candidate.Id);
+                        removed.Add(candidate.Id);
+                    }
+                }
+            }
+            return removed;
+        }
+
+        private void NotifyPeersLeft(List<string> removed)
+        {
+            var notify = OnPeerLeft;
+            if (notify == null) return;
+            foreach (string id in removed) notify(id);
         }
 
         #endregion

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Threading;
 
 namespace LanChat
 {
@@ -24,48 +25,90 @@ namespace LanChat
     {
         #region Interface Discovery
 
-        private void DiscoverInterfaces()
+        private static List<NetworkInterfaceDetail> DiscoverInterfaces()
         {
-            _activeInterfaces.Clear();
+            var interfaces = new List<NetworkInterfaceDetail>();
 
-            try
+            foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
             {
-                foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+                if (ni.OperationalStatus != OperationalStatus.Up) continue;
+                if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+
+                bool isVirt = IsVirtualOrTun(ni);
+                var ipProps = ni.GetIPProperties();
+
+                foreach (var u in ipProps.UnicastAddresses)
                 {
-                    if (ni.OperationalStatus != OperationalStatus.Up) continue;
-                    if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
-
-                    bool isVirt = IsVirtualOrTun(ni);
-                    var ipProps = ni.GetIPProperties();
-
-                    foreach (var u in ipProps.UnicastAddresses)
+                    if (u.Address.AddressFamily == AddressFamily.InterNetwork && u.IPv4Mask != null)
                     {
-                        if (u.Address.AddressFamily == AddressFamily.InterNetwork && u.IPv4Mask != null)
+                        byte[] ipBytes = u.Address.GetAddressBytes();
+                        byte[] maskBytes = u.IPv4Mask.GetAddressBytes();
+                        byte[] bcastBytes = new byte[4];
+                        for (int i = 0; i < 4; i++)
                         {
-                            byte[] ipBytes = u.Address.GetAddressBytes();
-                            byte[] maskBytes = u.IPv4Mask.GetAddressBytes();
-                            byte[] bcastBytes = new byte[4];
-                            for (int i = 0; i < 4; i++)
-                            {
-                                bcastBytes[i] = (byte)(ipBytes[i] | ~maskBytes[i]);
-                            }
-
-                            _activeInterfaces.Add(new NetworkInterfaceDetail
-                            {
-                                Name = ni.Name,
-                                Description = ni.Description,
-                                IP = u.Address,
-                                Mask = u.IPv4Mask,
-                                BroadcastAddress = new IPAddress(bcastBytes),
-                                IsVirtualOrTun = isVirt
-                            });
+                            bcastBytes[i] = (byte)(ipBytes[i] | ~maskBytes[i]);
                         }
+
+                        interfaces.Add(new NetworkInterfaceDetail
+                        {
+                            Name = ni.Name,
+                            Description = ni.Description,
+                            IP = u.Address,
+                            Mask = u.IPv4Mask,
+                            BroadcastAddress = new IPAddress(bcastBytes),
+                            IsVirtualOrTun = isVirt
+                        });
                     }
                 }
             }
+            return interfaces;
+        }
+
+        private void OnNetworkAddressChanged(object sender, EventArgs e)
+        {
+            lock (_discoveryLock)
+            {
+                // Windows 切网时可能连续发出多次地址事件，等待最后一次后统一重新绑定。
+                if (_isRunning && _networkChangeTimer != null) _networkChangeTimer.Change(250, Timeout.Infinite);
+            }
+        }
+
+        private void RebindAfterNetworkChange(object state)
+        {
+            RefreshPeers(null);
+        }
+
+        private void RebindInterfaces()
+        {
+            if (_udpAnySocket == null) _udpAnySocket = BindUdpListener(IPAddress.Any);
+
+            List<NetworkInterfaceDetail> current;
+            try { current = DiscoverInterfaces(); }
             catch (Exception ex)
             {
                 Log("网卡探测异常: " + ex.Message);
+                return;
+            }
+
+            var previous = _activeInterfaces;
+            bool changed = current.Count != previous.Length;
+            foreach (var adapter in current)
+            {
+                var old = Array.Find(previous, item => item.IP.Equals(adapter.IP));
+                if (old != null)
+                    adapter.UdpSocket = old.UdpSocket;
+                if (adapter.UdpSocket == null)
+                    adapter.UdpSocket = BindUdpListener(adapter.IP);
+                changed |= old == null || !old.Mask.Equals(adapter.Mask) ||
+                    old.IsVirtualOrTun != adapter.IsVirtualOrTun || old.UdpSocket != adapter.UdpSocket;
+            }
+            if (!changed) return;
+
+            _activeInterfaces = current.ToArray();
+            foreach (var old in previous)
+            {
+                if (old.UdpSocket != null && !current.Exists(adapter => adapter.IP.Equals(old.IP)))
+                    old.UdpSocket.Close();
             }
         }
 
@@ -108,7 +151,12 @@ namespace LanChat
         /// <returns>物理 IPv4 地址</returns>
         public IPAddress GetPrimaryPhysicalIp()
         {
-            foreach (var iface in _activeInterfaces)
+            return GetPrimaryPhysicalIp(_activeInterfaces);
+        }
+
+        private static IPAddress GetPrimaryPhysicalIp(NetworkInterfaceDetail[] interfaces)
+        {
+            foreach (var iface in interfaces)
             {
                 if (!iface.IsVirtualOrTun)
                 {
@@ -116,9 +164,9 @@ namespace LanChat
                 }
             }
 
-            if (_activeInterfaces.Count > 0)
+            if (interfaces.Length > 0)
             {
-                return _activeInterfaces[0].IP;
+                return interfaces[0].IP;
             }
 
             return IPAddress.Loopback;
@@ -136,8 +184,9 @@ namespace LanChat
                 return new IPEndPoint(IPAddress.Any, 0);
             }
 
-            // 1. Check if target is on the same subnet as any of our physical interfaces
-            foreach (var iface in _activeInterfaces)
+            var interfaces = _activeInterfaces;
+            // 优先选择与对端同网段的物理网卡。
+            foreach (var iface in interfaces)
             {
                 if (!iface.IsVirtualOrTun && IsInSameSubnet(iface.IP, targetIp, iface.Mask))
                 {
@@ -145,8 +194,7 @@ namespace LanChat
                 }
             }
 
-            // 2. Try any physical interface
-            foreach (var iface in _activeInterfaces)
+            foreach (var iface in interfaces)
             {
                 if (!iface.IsVirtualOrTun)
                 {

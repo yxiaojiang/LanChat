@@ -17,6 +17,7 @@ namespace LanChat
         private Panel _heroProfilePanel;
         private Panel _leftBottomBar;
         private Button _btnBottomUser;
+        private WeChatIconButton _btnRefreshFriends;
         private WeChatNavButton _btnNavChat;
         private WeChatNavButton _btnNavContacts;
         private WeChatNavButton _btnNavFolder;
@@ -268,6 +269,22 @@ namespace LanChat
             };
 
             _leftBottomBar.Controls.Add(_btnBottomUser);
+            // 对齐底栏头像中心与搜索栏右边距，复用 Grok 的圆形矢量按钮。
+            _btnRefreshFriends = new WeChatIconButton(WeChatIconType.Refresh, "刷新好友列表", 36)
+            {
+                IsCircle = true,
+                AccessibleName = "刷新好友列表"
+            };
+            _btnRefreshFriends.Click += (s, e) => RefreshFriends();
+            _btnRefreshFriends.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
+                {
+                    e.SuppressKeyPress = true;
+                    RefreshFriends();
+                }
+            };
+            _leftBottomBar.Controls.Add(_btnRefreshFriends);
 
             // 1.4 Sessions ListBox (Height: 72px denser Grok rows, OwnerDrawn double-buffered)
             _listSessions = new SessionListBox
@@ -278,8 +295,13 @@ namespace LanChat
                 ForeColor = Color.White,
                 Font = new Font("Microsoft YaHei UI", 11.0f),
                 ItemHeight = GrokTheme.SessionItemHeight,
-                DrawMode = DrawMode.OwnerDrawFixed,
+                DrawMode = DrawMode.OwnerDrawVariable,
                 IntegralHeight = false
+            };
+            _listSessions.IsSectionHeading = item => item is SessionPresenter.GroupHeading;
+            _listSessions.MeasureItem += (s, e) =>
+            {
+                e.ItemHeight = _listSessions.IsHeading(e.Index) ? 32 : _listSessions.ItemHeight;
             };
             _listSessions.DrawItem += ListSessions_DrawItem;
             _listSessions.SelectedIndexChanged += ListSessions_SelectedIndexChanged;
@@ -630,11 +652,13 @@ namespace LanChat
                 }
             }
 
-            // 3. 底部控制按钮定位 (54px 用户头像圆钮，移除蓝色向上箭头)
+            // 底栏两侧圆钮保持垂直居中，并与右侧搜索按钮对齐。
             if (_leftBottomBar != null && _btnBottomUser != null)
             {
                 _btnBottomUser.Location = new Point(24, 6);
                 _btnBottomUser.Size = new Size(54, 54);
+                _btnRefreshFriends.Location = new Point(_leftBottomBar.ClientSize.Width - 16 - _btnRefreshFriends.Width,
+                    _btnBottomUser.Top + (_btnBottomUser.Height - _btnRefreshFriends.Height) / 2);
             }
 
             // 4. 右侧 GrokBot 浮动输入胶囊（高 64 / 左右 28 / 底 22，对齐 Docs §4.2）

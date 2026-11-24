@@ -96,6 +96,8 @@ namespace LanChat
                         // If it's just an internal handshake ping, don't show in chat log
                         if (content == HANDSHAKE_MSG)
                         {
+                            // TCP 确认字节保持兼容。通过现有 UDP ACK 返回完整身份供发起方更新昵称。
+                            SendAckTo(remoteIp, UDP_PORT);
                             return;
                         }
 

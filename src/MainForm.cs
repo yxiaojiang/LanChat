@@ -96,7 +96,7 @@ namespace LanChat
         // 全局核心常量
         // ==========================================
         /// <summary>当前应用程序版本号</summary>
-        public const string APP_VERSION = "2.0.18";
+        public const string APP_VERSION = "2.0.19";
         /// <summary>GitHub 开源仓库标识</summary>
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
         private const string BROADCAST_TARGET = "📢 局域网全员群聊";
@@ -516,6 +516,8 @@ namespace LanChat
                 _bottomSendPanel.BackColor = _inputPanel.BackColor = GrokTheme.Level05;
             _sessionsPanel.BackColor = _searchHeaderPanel.BackColor = _heroProfilePanel.BackColor =
                 _leftBottomBar.BackColor = _listSessions.BackColor = GrokTheme.Level0;
+            _btnRefreshFriends.FillColor = GrokTheme.Level2;
+            _btnRefreshFriends.HoverFillColor = GrokTheme.Level3;
             _searchBoxContainer.BackColor = _txtSearch.BackColor = _txtInput.BackColor = GrokTheme.Level2;
             _attachmentList.BackColor = GrokTheme.Level05;
             _btnSearchToggle.FillColor = GrokTheme.Level2;

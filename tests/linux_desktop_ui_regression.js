@@ -98,6 +98,9 @@ for (const id of ['id="chats"', 'id="messages"', 'id="menu"', 'id="emoji"', 'id=
   assert.equal(html.includes(id), true, id);
 }
 assert.equal(html.includes('<label class="search">'), false);
+const sidebarBottom = html.match(/<div class="sidebar-bottom">([\s\S]*?)<\/div>/)?.[1];
+assert.equal((sidebarBottom?.match(/<button\b[^>]*\bid="([^"]+)"/g) || []).at(-1)?.includes('id="refresh"'), true);
+assert.match(css, /\.session-heading\s*\{[^}]*\bfont-weight:\s*700\s*;/);
 assert.equal(css.includes('scrollbar-width: thin'), false);
 assert.equal(renderer.includes('lastIndexOf(message)'), false);
 assert.equal(renderer.includes('createDocumentFragment'), true);
@@ -747,13 +750,15 @@ async function testMainRendererRaceAndAppearance() {
     const appearance = require('../src/linux/desktop/appearance.js');
     const scrollbar = require('../src/linux/desktop/scrollbar.js');
     const overlayStub = { openMenu() {}, closeMenu() {}, openEmoji() {}, consumeAttachToggle: () => false, confirmAction: async () => false };
+    win.LanChatOverlay = overlayStub;
 
     let resolveLateHistory;
     let historyCalls = 0;
     let onEventHandler = null;
+    const archived = { key: 'archive-address', ip: '10.0.0.3', nick: '归档昵称' };
     const fakeApi = {
       state: async () => ({
-        id: 'self-1', nick: '本机', ip: '10.0.0.1', tcpPort: 38889, sequence: 10, peers: [], sessions: []
+        id: 'self-1', nick: '本机', ip: '10.0.0.1', tcpPort: 38889, sequence: 10, peers: [], sessions: [archived]
       }),
       settings: async () => ({
         nickname: '本机', autoAcceptFiles: true, themeMode: 1, accentPreset: 2,
@@ -780,6 +785,9 @@ async function testMainRendererRaceAndAppearance() {
     assert.equal(doc.documentElement.style.getPropertyValue('--ui-font-delta'), '2.0pt');
     assert.equal(doc.documentElement.style.getPropertyValue('--chat-font-size'), '11.5pt');
     assert.equal(ctrl.messages.get('BROADCAST').length, 1);
+    const nav = nodes.get('chats');
+    const rows = () => nav.children.map(row => row.dataset.key || row.textContent);
+    assert.deepEqual(rows(), ['BROADCAST', '在线', '离线', archived.key]);
 
     // 2. settings-updated 即时刷新主窗外观与昵称。
     onEventHandler({
@@ -872,6 +880,37 @@ async function testMainRendererRaceAndAppearance() {
     await new Promise(resolve => setImmediate(resolve));
     assert.deepEqual(sent, { recipient: peer.id, ids: ['clipboard-file'] });
     assert.equal(nodes.get('attachments-host').hidden, true);
+
+    // 分组标题不参与键盘导航，搜索只渲染命中的分组。
+    assert.deepEqual(rows(), ['BROADCAST', '在线', chat, '离线', archived.key]);
+    const selected = () => nav.children.find(row => row.getAttribute('aria-current') === 'true')?.dataset.key;
+    nav.dispatch('keydown', { key: 'ArrowDown' });
+    assert.equal(selected(), archived.key);
+    nav.dispatch('keydown', { key: 'ArrowUp' });
+    assert.equal(selected(), chat);
+    const search = nodes.get('search');
+    search.value = archived.nick;
+    search.dispatch('input');
+    assert.deepEqual(rows(), ['离线', archived.key]);
+    search.value = peer.nick;
+    search.dispatch('input');
+    assert.deepEqual(rows(), ['在线', chat]);
+    search.value = '无匹配';
+    search.dispatch('input');
+    assert.deepEqual(rows(), []);
+    nodes.get('search-clear').dispatch('click');
+
+    // 点击刷新后，地址占位须保留运行期昵称和启动时加载的归档昵称。
+    fakeApi.refresh = async () => [peer, archived].map(item => ({
+      ...item, id: item.ip, nick: `好友 (${item.ip})`, port: 38889
+    }));
+    nodes.get('refresh').dispatch('click');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(nodes.get('status').textContent, '已请求刷新局域网节点');
+    for (const item of [peer, archived]) {
+      const row = nav.children.find(button => button.dataset.key === item.key);
+      assert.equal(row.getAttribute('aria-label'), item.nick);
+    }
   } finally {
     delete process.env.LANCHAT_TEST_MODE;
     if (originalDocument === undefined) delete global.document;

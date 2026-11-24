@@ -1,3 +1,98 @@
+# LC-FRIEND-REFRESH-001 — Round 2 返修
+
+> Codex 执行 · 2026-11-24 · `READY_FOR_REVIEW` · 工作区交付
+
+## 本轮修改
+
+| 编号 | 实现 |
+| --- | --- |
+| `LC-FR-001` | 带监听端口的身份公告在 `_peerLock` 内按 `(IPv4, TcpPort)` 归并旧节点并累加到当前节点的未读，完成归并后在锁外派发 `OnPeerLeft`。收到 TCP `0x01` 时复核网卡快照、候选对象及端点归属。同端点存在其他身份或候选已被移除时拒绝续期。无指定身份的握手只用于连通性和地址占位。 |
+| `LC-FR-002` | 手动刷新、启动和网卡事件回调统一走 `RefreshPeers()`。刷新先重绑，再取快照发包，重试缺失的网卡或通配 UDP 监听。正常套接字和未变化的接口快照可复用。 |
+| `LC-FR-003` / `LC-FR-008` | 重建时同步清空旧索引，键盘跳过标题时校验旧索引并在主方向无会话时反向查找。选中会话恢复后，以会话键或标题恢复视口锚点，再按当前行高和客户区夹紧。 |
+| `LC-FR-004` | 用 `LParam` 低 32 位解析两个有符号坐标。右侧 12px 有溢出时进入 `OnMouseDown` 和 `OnMouseUp`，绕过原生 ListBox 会改变当前选择的左键流程。普通标题点击继续被拦截。 |
+| `LC-FR-005` / `LC-FR-009` | Linux renderer 合并地址占位时保留运行期或归档昵称。分组标题声明 700 字重并同步记录在线标题状态。Node 模拟覆盖底栏刷新入口、标题、筛选、键盘导航和刷新后的昵称。 |
+| `LC-FR-006` | 保护网卡事件反订阅，扫描睡眠后检查服务及快照，及时释放 TCP 异步连接等待句柄。 |
+
+LANC 握手帧、TCP `0x01` 及 UDP 六段公告兼容。旧客户端只回 `0x01` 时，仍可复核唯一且端点未发生可观察变更的已知身份。单个确认字节无法区分同端点新旧实例，识别换 ID 依赖收到新身份公告或已有端点冲突证据。`LC-FR-007` 已登记延期，涉及跨子网 TUN 路由及无历史离线地址保留。
+
+## 验证命令与结果
+
+1. `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1`，退出码 0。系统 `csc.exe` 先编译生产 Windows 应用，再编译隔离夹具。夹具用本机回环和临时端口，注入可控网卡枚举并关闭实际网卡事件和外部广播。下列检查全部通过。
+   - `LC-FR-001` 的对端不发 `BYE`，关闭并以同 IP 同端口换 ID 重开。刷新复核已经连上新实例时收到 UDP 公告，验证旧未读迁移、锁外通知、新昵称和同 IP 异端口保留。之后放行迟到的 TCP `0x01`，验证候选旧记录和新记录的时间戳均未被误写。额外验证同端点冲突、无指定身份的探测及旧版单一端点复核。
+   - `LC-FR-002` 在无网卡事件时点击刷新，验证 UDP 实际绑定新接口、关闭旧监听并使用新 IPv4 发六段公告。模拟上次绑定留下空套接字，验证下一次刷新重绑，而继续刷新复用健康快照。
+   - `LC-FR-003` 和 `LC-FR-008` 在主窗缩表后发送 `Home` 和 `Down`，覆盖旧索引越界与被标题占用。另测末尾标题 `End`、仅有标题、缩表夹紧，以及选中群聊时向下浏览后重建仍保留视口锚点。
+   - `LC-FR-004` 发送原生 `WM_LBUTTONDOWN`、`WM_MOUSEMOVE`、`WM_LBUTTONUP`，验证标题高度上的滑块热区可拖动视口并保留当前会话。无溢出或标题正文区按下时保持拦截，同时覆盖 x64 负 Y 坐标。
+2. 令 `$out` 指向该轮夹具在 `bin/friend-refresh-round2/` 下的输出目录，执行 `$fixture = (Resolve-Path tests/ConcurrentReceive.cs).Path`，随后执行 `& "$env:windir\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /codepage:65001 /target:exe "/r:$out\LanChat.exe" "/out:$out\ConcurrentReceive.exe" $fixture` 和 `& "$out\ConcurrentReceive.exe" "$out\ConcurrentReceive"`。退出码 0，`Final ACK: 1, 1; Complete events: 2`，两个同名文件均通过 SHA-256 校验。
+3. `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false`，退出码 0，0 警告、0 错误。此命令在 Windows 构建共享后端。
+4. 以 `C:/Program Files/nodejs/node.exe` 执行 `--check src/linux/desktop/renderer.js`、`--check tests/linux_desktop_ui_regression.js` 和 `tests/linux_desktop_ui_regression.js`，均退出码 0，回归输出 `linux desktop ui regression: ok`。测试使用模拟 DOM 与桩 IPC。
+5. `git diff --check` 通过，复核 `CRDocs/REVIEW.md` 文件散列与本轮改动前相同。
+
+## 行数门禁
+
+| 本轮源码或测试文件 | 行数 |
+| --- | ---: |
+| `src/NetworkService.Discovery.cs` | 639 |
+| `src/NetworkService.Interface.cs` | 247 |
+| `src/NetworkService.cs` | 254 |
+| `src/MainForm.Chat.cs` | 645 |
+| `src/UI/Controls/SessionListBox.cs` | 363 |
+| `src/linux/desktop/renderer.js` | 953 |
+| `src/linux/desktop/desktop.css` | 182 |
+| `tests/FriendRefreshRegression.cs` | 351 |
+| `tests/friend_refresh_regression.ps1` | 61 |
+| `tests/linux_desktop_ui_regression.js` | 935 |
+
+按编辑器行号口径，Round 1 与 Round 2 工作区内全部改动文件低于 1000 行。本轮新增和调整的代码注释均使用中文。
+
+## 未验证边界
+
+- `LC-FR-ENV-001` 的真实多机 LAN、Wi-Fi/有线切网、DHCP、休眠唤醒、物理多网卡/TUN 及公开旧版跨机互通仍待验收。本轮在 Windows 上完成编译、回环和原生 WinForms 消息级验证。
+- `LC-FR-ENV-002` 的最新 Linux ELF 网络命名空间回归（`tests/linux_desktop_regression.py`）以及 Linux Electron 实机侧栏与交互仍待验收。
+
+---
+
+# LC-FRIEND-REFRESH-001 — Round 1：好友刷新延迟、网卡切换与在线/离线分组
+
+> 执行者：Codex；审核者：Gemini（待审核）
+> 日期：2026-11-24；状态：READY_FOR_REVIEW
+> 工程：D:/TEmp/LanChat
+> 交付形态：工作区未提交；未改写审核者维护的 `CRDocs/REVIEW.md`；编译产物与 GUI 测试夹具放在忽略的 `bin/` 中。
+
+## 本轮范围
+
+修复 Windows 启动、改昵称和换网后的好友刷新延迟，在截图左下栏头像右侧增加手动刷新按钮，将联系人明确分为「在线」「离线」，且在刷新时同步昵称和分组。同步维护当前共享 NetworkService 的 Linux Electron 启动、改昵称和刷新入口，避免共享核心改动后 Linux 继续调用旧入口。LANC 封包、TCP 握手字节和现有 UDP 命令字段均保持原样。
+
+## 执行记录
+
+1. `NetworkService.Discovery.cs` 不再为每个地址创建一个线程，也不再对每个地址串行等待连接超时。手动刷新优先单播询问存档和运行期已知地址，随后并发复核在线好友。全网段 UDP 扫描在后台发出，缺少 UDP 身份回应的地址由有界工作线程补充 TCP 握手；已公告的好友复核使用其公布的 TCP 端口。
+2. TCP 握手仍使用既有 LANC 帧和确认字节。对端收到握手后通过既有 UDP ACK 返回完整节点 ID、昵称、监听端口与地址，供刷新方更新头像列表。旧客户端仍以 TCP 确认兼容，地址占位记录不覆盖已知昵称。
+3. `NetworkService.Interface.cs` 监听本机 IPv4 地址变化，对短时间连续通知合并处理并重绑 UDP 网卡套接字；发送时选择与目标同子网的物理网卡。刷新探测期间不依赖旧地址快照。
+4. `SessionPresenter.cs` 保存已见好友快照，按在线状态与离线历史会话建立两个标题分组，继续用既有历史存储恢复离线好友和昵称。列表重绘时恢复滚动锚点、当前会话和过滤条件。标题不可选，鼠标与键盘切换会话时跳过标题。
+5. `MainForm.Designer.cs` 在左栏底部用户头像右侧加入 36px GDI+ 圆形刷新按钮。Linux Electron 将既有刷新按钮移到侧栏底部头像右侧，列表增添相同的在线、离线标题。
+6. 修改文件共 14 个：`src/Controllers/SessionPresenter.cs`、`src/MainForm.Chat.cs`、`src/MainForm.Designer.cs`、`src/MainForm.Tray.cs`、`src/MainForm.cs`、`src/NetworkService.Discovery.cs`、`src/NetworkService.Interface.cs`、`src/NetworkService.Transfer.cs`、`src/NetworkService.cs`、`src/UI/Controls/SessionListBox.cs`、`src/linux/LanChat.Linux/DesktopService.cs`、`src/linux/desktop/desktop.css`、`src/linux/desktop/index.html`、`src/linux/desktop/renderer.js`。
+
+## 验证记录
+
+1. Windows 原生编译：`cmd.exe /d /c 'Tools\Scripts\Compile.bat < nul'`，退出码 0，生成 `release/LanChat.exe`。编译产物复制到忽略目录 `bin/friend-refresh/LanChat.exe` 供审核试用，跟踪中的 `release/` 文件已还原。
+2. Windows 隔离 GUI 和网络回环夹具：使用隔离 UDP/TCP 端口、回环地址和夹具历史目录，对启动识别昵称、手动刷新昵称、昵称广播、网卡地址变更重绑、已知非默认 TCP 端口复核、无 BYE 下线分组、昵称保留、重新上线、标题行鼠标/键盘不可选、当前会话/搜索保留及按钮位置进行实测。记录耗时分别为启动 455ms、按钮刷新 4ms、昵称广播 0ms、模拟切网 269ms、已知端口复核 321ms、无 BYE 下线确认 1673ms、重新上线 0ms。GUI 截图位于忽略目录 `bin/friend-refresh-check/friend-refresh.png`。此回环夹具只在隔离源码副本改用 48888/48889 端口与可控回环接口，不改项目源码端口。
+3. Windows 同名并发文件接收回归：通过独立夹具程序集和临时目录运行 `tests/ConcurrentReceive.cs`，两个 ACK 均为 1，两个接收完成事件均出现，两个最终文件 SHA-256 校验通过。
+4. Linux 共享后端宿主机构建：`bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false`，0 警告、0 错误。
+5. Linux Electron 界面：`node --check src/linux/desktop/renderer.js` 与 `node tests/linux_desktop_ui_regression.js` 均退出码 0。
+6. `git diff --check` 通过。所有修改源码均少于 1000 行；本轮最高的 `src/linux/desktop/renderer.js` 为 945 行，低于 CRDocs 的 1000 行软门禁和 1500 行硬门禁。
+
+## 未验证边界
+
+- 没有 Linux 系统可执行文件运行时，未运行 `tests/linux_desktop_regression.py`，未在 Linux 网络命名空间运行 Linux ELF。
+- 未在真实双机、多台 Windows 客户端和用户实际 Wi-Fi/有线换网环境验收延迟、广播限制、多网卡及防火墙影响。回环测得时间不能作为实际局域网性能保证。
+- 未在 Linux Electron 桌面实机验收侧栏视觉或点击刷新时昵称分组实时更新。
+- 本轮没有编译 MSI、覆盖安装目录、提交或推送。
+
+## 审核关注
+
+请重点独立核对 UDP ACK 与 TCP 握手并发时的好友身份归并和存活时间、刷新版本与计时器并发、网卡重绑时正在运行的工作线程、动态行高列表滚动/键盘/右键选择，以及 Linux 前端改动与现有布局规则。按 `CRDocs/README.md` 将分级结论写入 `CRDocs/REVIEW.md` 并更新 `CRDocs/STATUS.md`；有 P0/P1 时记录具体复现条件并转为 `CHANGES_REQUESTED`。不要将宿主机回环和构建证据描述成 Linux 或真实 LAN 实机验收。
+
+---
+
 # LC-LINUX-002-STEP-3-SLICE-2 — Round 2：P1 与 P2 整改交付
 
 > 执行者：Gemini；审核者：Grok（本文件仅记录执行者实施与验证）

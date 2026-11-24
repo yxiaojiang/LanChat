@@ -24,7 +24,33 @@ namespace LanChat
         private bool _isThumbDragging = false;
         private int _dragStartY = 0;
         private int _dragStartTop = 0;
+
+        // 最近有效选中行，用于判断跨标题方向和局部重绘。
         private int _previousSelectedIndex = -1;
+
+        // 主侧栏可提供不可选的分组标题；复用此控件的附件列表仍使用等高行。
+        internal Func<object, bool> IsSectionHeading { get; set; }
+
+        internal bool IsHeading(int index)
+        {
+            return IsSectionHeading != null && index >= 0 && index < Items.Count && IsSectionHeading(Items[index]);
+        }
+
+        internal void ClearSessionItems()
+        {
+            // 原生列表清空时可能不派发选中事件，同步丢弃指向旧列表的索引。
+            _previousSelectedIndex = -1;
+            Items.Clear();
+        }
+
+        internal void RestoreScrollAnchor(int index)
+        {
+            if (index < 0 || index >= Items.Count) return;
+            int maxTop;
+            int thumbHeight;
+            GetScrollMetrics(out maxTop, out thumbHeight);
+            TopIndex = Math.Min(index, maxTop);
+        }
 
         /// <summary>
         /// 初始化暗黑会话列表控件，配置双缓冲与自绘样式
@@ -55,11 +81,32 @@ namespace LanChat
         }
 
         /// <summary>
-        /// 消息泵分发：拦截背景擦除与原生非缓冲单项反射绘制，压制非客户区系统滚动条
+        /// 消息泵分发：处理标题和滑块点击，拦截原生直绘与系统滚动条。
         /// </summary>
         /// <param name="m">Windows 消息结构</param>
         protected override void WndProc(ref Message m)
         {
+            if (m.Msg == 0x0201 || (m.Msg == 0x0202 && _isThumbDragging)) // 左键按下或结束滑块拖拽
+            {
+                // 消息只用低 32 位，两段坐标各为有符号 16 位。
+                int position = unchecked((int)m.LParam.ToInt64());
+                int x = unchecked((short)position);
+                int y = position >> 16;
+
+                // 原生 ListBox 会先选中鼠标下方的行。滑块直接走托管鼠标事件，保留当前会话。
+                if (m.Msg == 0x0202)
+                {
+                    OnMouseUp(new MouseEventArgs(MouseButtons.Left, 1, x, y, 0));
+                    return;
+                }
+                if (y >= 0 && y < ClientSize.Height && IsScrollHotZone(x))
+                {
+                    OnMouseDown(new MouseEventArgs(MouseButtons.Left, 1, x, y, 0));
+                    return;
+                }
+                if (IsSectionHeading != null && IsHeading(IndexFromPoint(x, y))) return;
+            }
+
             // 彻底拦截系统背景擦除，避免白色/灰色重绘闪烁
             if (m.Msg == 0x0014) // WM_ERASEBKGND
             {
@@ -141,13 +188,12 @@ namespace LanChat
             }
 
             // 3. 自绘极简暗灰浮动滑块 (Zero White Scrollbar 契约)
-            int visibleCount = Math.Max(1, this.ClientSize.Height / Math.Max(1, this.ItemHeight));
-            if (count > visibleCount && this.ClientSize.Height > 0)
+            int maxTop;
+            int thumbH;
+            GetScrollMetrics(out maxTop, out thumbH);
+            if (maxTop > 0 && this.ClientSize.Height > 0)
             {
-                int viewH = this.ClientSize.Height;
-                int maxTop = count - visibleCount;
-                int thumbH = Math.Max(28, (int)((float)visibleCount / count * viewH));
-                int thumbY = (int)((float)this.TopIndex / maxTop * (viewH - thumbH));
+                int thumbY = Math.Min(TopIndex, maxTop) * (ClientSize.Height - thumbH) / maxTop;
 
                 // 静止 4px，悬停/拖拽提亮并加宽至 5px
                 int barW = (_isThumbHover || _isThumbDragging) ? 5 : 4;
@@ -163,11 +209,35 @@ namespace LanChat
             }
         }
 
+        private void GetScrollMetrics(out int maxTop, out int thumbHeight)
+        {
+            int viewHeight = ClientSize.Height;
+            int contentHeight = 0;
+            maxTop = Math.Max(0, Items.Count - 1);
+            for (int i = Items.Count - 1; i >= 0; i--)
+            {
+                contentHeight += DrawMode == DrawMode.OwnerDrawVariable ? GetItemHeight(i) : ItemHeight;
+                if (contentHeight <= viewHeight) maxTop = i;
+            }
+            thumbHeight = contentHeight == 0 ? 0 :
+                Math.Min(viewHeight, Math.Max(28, (int)((double)viewHeight * viewHeight / contentHeight)));
+        }
+
+        private bool IsScrollHotZone(int x)
+        {
+            if (x < ClientSize.Width - 12 || x >= ClientSize.Width) return false;
+            int maxTop;
+            int thumbHeight;
+            GetScrollMetrics(out maxTop, out thumbHeight);
+            return maxTop > 0;
+        }
+
         /// <summary>鼠标滚轮事件：平滑滚动会话列表视口</summary>
         protected override void OnMouseWheel(MouseEventArgs e)
         {
-            int visibleCount = Math.Max(1, this.ClientSize.Height / Math.Max(1, this.ItemHeight));
-            int maxTop = Math.Max(0, this.Items.Count - visibleCount);
+            int maxTop;
+            int thumbHeight;
+            GetScrollMetrics(out maxTop, out thumbHeight);
             if (maxTop <= 0) return;
 
             int change = (e.Delta > 0) ? -1 : 1;
@@ -184,13 +254,12 @@ namespace LanChat
         /// <summary>鼠标按下事件：判定是否点击滑块启动拖拽</summary>
         protected override void OnMouseDown(MouseEventArgs e)
         {
-            int visibleCount = Math.Max(1, this.ClientSize.Height / Math.Max(1, this.ItemHeight));
-            int maxTop = Math.Max(0, this.Items.Count - visibleCount);
-            if (maxTop > 0 && e.X >= this.ClientSize.Width - 12)
+            if (e.Button == MouseButtons.Left && IsScrollHotZone(e.X))
             {
                 _isThumbDragging = true;
                 _dragStartY = e.Y;
                 _dragStartTop = this.TopIndex;
+                Capture = true;
                 this.Invalidate();
                 return;
             }
@@ -200,8 +269,9 @@ namespace LanChat
         /// <summary>鼠标移动事件：处理滑块悬停提亮与鼠标按住拖拽滚动</summary>
         protected override void OnMouseMove(MouseEventArgs e)
         {
-            int visibleCount = Math.Max(1, this.ClientSize.Height / Math.Max(1, this.ItemHeight));
-            int maxTop = Math.Max(0, this.Items.Count - visibleCount);
+            int maxTop;
+            int thumbH;
+            GetScrollMetrics(out maxTop, out thumbH);
             bool hover = (maxTop > 0 && e.X >= this.ClientSize.Width - 12);
             if (hover != _isThumbHover)
             {
@@ -212,7 +282,6 @@ namespace LanChat
             if (_isThumbDragging && maxTop > 0)
             {
                 int viewH = this.ClientSize.Height;
-                int thumbH = Math.Max(28, (int)((float)visibleCount / this.Items.Count * viewH));
                 int availTrack = Math.Max(1, viewH - thumbH);
                 int dy = e.Y - _dragStartY;
                 int deltaTop = (int)((float)dy / availTrack * maxTop);
@@ -235,6 +304,7 @@ namespace LanChat
             if (_isThumbDragging)
             {
                 _isThumbDragging = false;
+                Capture = false;
                 this.Invalidate();
             }
             base.OnMouseUp(e);
@@ -256,19 +326,38 @@ namespace LanChat
         /// </summary>
         protected override void OnSelectedIndexChanged(EventArgs e)
         {
-            base.OnSelectedIndexChanged(e);
+            int current = SelectedIndex;
+            if (IsHeading(current))
+            {
+                // 键盘越过分组标题，只有选中实际会话时才向主窗口发送事件。
+                int previous = _previousSelectedIndex;
+                int direction = previous >= 0 && previous < Items.Count && !IsHeading(previous) && current < previous ? -1 : 1;
+                int next = FindSessionIndex(current, direction);
+                SelectedIndex = next >= 0 ? next : FindSessionIndex(current, -direction);
+                return;
+            }
+
             int prev = _previousSelectedIndex;
-            int curr = this.SelectedIndex;
-            _previousSelectedIndex = curr;
+            _previousSelectedIndex = current;
 
             if (prev >= 0 && prev < this.Items.Count)
             {
                 try { this.Invalidate(this.GetItemRectangle(prev)); } catch { }
             }
-            if (curr >= 0 && curr < this.Items.Count)
+            if (current >= 0 && current < this.Items.Count)
             {
-                try { this.Invalidate(this.GetItemRectangle(curr)); } catch { }
+                try { this.Invalidate(this.GetItemRectangle(current)); } catch { }
             }
+            base.OnSelectedIndexChanged(e);
+        }
+
+        private int FindSessionIndex(int heading, int direction)
+        {
+            for (int index = heading + direction; index >= 0 && index < Items.Count; index += direction)
+            {
+                if (!IsHeading(index)) return index;
+            }
+            return -1;
         }
     }
 }

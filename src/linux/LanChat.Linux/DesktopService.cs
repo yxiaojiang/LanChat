@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -62,7 +63,7 @@ namespace LanChat.Linux
             using var input = new StreamReader(Console.OpenStandardInput(), Encoding.UTF8);
             using var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
             _sessions.LoadPersistedHistories();
-            _network.Start();
+            _network.Start(KnownAddresses());
 
             // 启动时网络回调可能已入队，就绪帧必须先写。
             await output.WriteLineAsync(new JsonObject
@@ -149,7 +150,7 @@ namespace LanChat.Linux
                         Reply(id, SaveSettings(request));
                         break;
                     case "refresh":
-                        _network.BroadcastPresence("HELLO");
+                        _network.RefreshPeers(KnownAddresses());
                         Reply(id, PeerList());
                         break;
                     case "text":
@@ -304,9 +305,12 @@ namespace LanChat.Linux
             _network.NickName = nickname;
             _network.AutoAcceptFiles = _profile.AutoAcceptFiles;
             _network.SaveDirectory = _profile.DownloadDirectory;
-            if (changedNick) _network.BroadcastPresence("HELLO");
+            if (changedNick) _network.RefreshPeers(KnownAddresses());
             return SettingsFrame();
         }
+
+        private IEnumerable<IPAddress> KnownAddresses() => _sessions.GetAllSessionKeys()
+            .Select(SessionManager.GetArchivedAddress).Where(ip => ip != null);
 
         private JsonArray PeerList() => new JsonArray(_network.GetActivePeers().OrderBy(peer => peer.LastSeen).Select(peer => new JsonObject
         {
