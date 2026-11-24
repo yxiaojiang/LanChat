@@ -1,6 +1,6 @@
 # Linux.md — Linux 客户端模块上下文
 
-> 2026-11-23 · v2.0.18 已发布（[Release](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.18)）。此前公开版 v2.0.16（a0e49c1）。LC-LINUX-002 第 2 步已通过；第 3 步主窗与设置八页源码已实现并完成隔离回归，Linux 桌面实机验收仍待用户执行。旧版状态见 [LC-LINUX-001](../../PlanDocs/LC-LINUX-001/STATUS.md)。
+> 2026-11-24 · v2.0.19 已发布（[Release](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.19)），含 Linux amd64/arm64 deb、便携包和 CLI。LC-FRIEND-REFRESH-001 Round 2 独立审核通过。Windows 宿主 Node 回归和后端编译通过，Linux ELF 实跑及 Electron 实机验收仍待用户环境。旧版状态见 [LC-LINUX-001](../../PlanDocs/LC-LINUX-001/STATUS.md)。
 
 ## 当前源码和升级样本
 

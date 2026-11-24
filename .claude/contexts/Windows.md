@@ -1,5 +1,7 @@
 # Windows.md — Windows 客户端模块上下文
 
+> 2026-11-24 · v2.0.19 已发布（[Release](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.19)）。好友刷新返修已独立审核通过。原生构建和回环 Win32 交互隔离回归通过；真实多机 LAN、实际换网和 TUN 路由仍待现场验收。
+
 ## 模块定位与职责
 Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装、无外部依赖、支持 MSI 标准向导安装与绿色单文件执行**的现代化桌面应用。
 `feature/wechat-ui` 已合入 `main`，稳定标签 `Lanchat-v1.5` 对应 `69b5310`。当前在 `main` 打磨局域网客户端，互联网方向由独立分支承接。界面遵循 `.claude/Rules.md` 第 9 条及 `Docs/GrokBot_UI_Design_System.md`。

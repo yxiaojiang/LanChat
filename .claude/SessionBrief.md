@@ -1,6 +1,6 @@
 # SessionBrief.md — 当前接手摘要
 
-> 2026-11-24 · 工作目录 `D:\TEmp\LanChat` · 分支 `main`。LC-FRIEND-REFRESH-001 Round 2 已独立审核通过，准备发布好友刷新及会话列表返修。当前记忆须随发布结果更新提交。
+> 2026-11-24 · 工作目录 `D:\TEmp\LanChat` · 分支 `main` 已推至 v2.0.19 发布提交。LC-FRIEND-REFRESH-001 Round 2 审核通过并完成正式发布。
 
 ## 当前状态
 
@@ -8,11 +8,13 @@
 
 Round 2 独立复审为 `APPROVED`。审核者复跑 Windows 原生 `csc.exe` 与回环/原生消息夹具、同名文件并发接收、Linux 共享后端 Windows 宿主机构建、Node UI 模拟及行数检查。LANC 帧、TCP 确认字节和 UDP 字段兼容，全部改动文件低于 1000 行。以上均为 Windows 宿主机与隔离测试证据，不是实际 LAN 或 Linux 实机验收。跨子网 TUN 和 Linux 无历史离线地址探测列入 `LC-FR-007` 延期项。真实多机和切网验收见 `LC-FR-ENV-001`，Linux ELF 与 Electron 实机见 `LC-FR-ENV-002`。
 
+v2.0.19 已于 2026-11-24 正式发布，发布提交为 `490fcbb`，之前的返修和审核记录提交为 `1f7b1ee`。GitHub Release `v2.0.19` 已含 Windows EXE/MSI、Linux amd64/arm64 deb、便携包及独立 CLI，以及 `SHA256SUMS.json`。发布时发现新版 Electron 打包器版本未被版本脚本同步，已在 `packaging/bump-version.py` 增加同步目标、重建 Linux 套件并更新同一 Release，所有资产现显示上传成功。
+
 此前 v2.0.18 文件传输进度、剪贴板文件粘贴和 Linux 独立设置窗已完成源码实施及宿主机回归。Linux Electron 使用同架构 .NET 10 自包含 ELF，发布包仅提供 amd64 与 arm64。用户仍需在 Linux 桌面环境检验 Xorg、Wayland、输入法、托盘、缩放和长历史性能。Windows/LINUX 历史流程和协议的基线继续参考项目上下文与 LC-LINUX-002 集成记录。
 
 ## 下一步
 
-本轮得到用户明确授权：递增发布版本，完善 `CHANGELOG.md`，提交并推送审核通过的工作区，运行正式发布流程构建 Windows EXE/MSI 和 Linux Electron 套件并上传 GitHub Release。发布成功后核对标签、资产和校验摘要，再更新本简报和计划。若构建、推送或上传失败，记录实际边界，不把部分成功记作发布完成。发布后继续等待真实多机 LAN、Wi-Fi/有线切网、TUN 和 Linux 实机验收，不宣称宿主机结果替代实机。
+发布和提交推送已完成。下一步等待真实多机 LAN、Wi-Fi/有线切网、TUN 和 Linux 实机验收，不宣称宿主机结果替代实机。若发布包版本或资产需调整，复核 `packaging/bump-version.py`、`packaging/build-electron.py` 与 `src/linux/desktop/package.json` 的同步关系。
 
 ## 入口
 

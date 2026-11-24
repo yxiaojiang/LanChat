@@ -1,11 +1,11 @@
 # Plan.md — 当前活跃计划
 
-> 2026-11-24 · LC-FRIEND-REFRESH-001 Round 2 独立审核已通过。当前执行发布收口，版本和 GitHub 资产状态以本轮脚本输出为准。
+> 2026-11-24 · LC-FRIEND-REFRESH-001 Round 2 已审核通过；v2.0.19 已提交推送并完成 GitHub Release。
 
 ## LC-FRIEND-REFRESH-001 · 发布收口与真实环境验收
 
 - [x] Round 2 四项 P1 修复和指定 P2 修复完成，审核者独立复核通过，交接证据及隔离回归已记录至 `CRDocs/`。
-- [ ] 递增发布版本，更新 `CHANGELOG.md`，运行正式构建，提交并推送工作区，发布 Windows 与 Linux 资产；核验 Release 标签、资产及 SHA-256 清单。
+- [x] 递增至 v2.0.19，更新 `CHANGELOG.md`，构建 Windows 和 Linux 双架构资产，提交并推送工作区；GitHub Release 的八项资产与 SHA-256 清单已上传。
 - [ ] 真实 Windows 多机 LAN、无 BYE 重启、Wi-Fi/有线切网、TUN 与 Linux/QEMU ELF、Electron 实机测试仍待环境执行。参见 `CRDocs/DEFERRED.md` 的 `LC-FR-ENV-001`、`LC-FR-ENV-002`、`LC-FR-007`。
 
 ## LC-LINUX-002 · Linux Electron 桌面重构
