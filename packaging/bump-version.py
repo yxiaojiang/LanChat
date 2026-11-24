@@ -22,6 +22,8 @@ UPDATE_CS = os.path.join(ROOT_DIR, "src", "Services", "UpdateService.cs")
 PACKAGE_WXS = os.path.join(ROOT_DIR, "packaging", "Package.wxs")
 LINUX_PY = os.path.join(ROOT_DIR, "src", "linux", "lanchat_app", "__init__.py")
 BUILD_DEB_PY = os.path.join(ROOT_DIR, "packaging", "build-deb.py")
+BUILD_ELECTRON_PY = os.path.join(ROOT_DIR, "packaging", "build-electron.py")
+DESKTOP_PACKAGE_JSON = os.path.join(ROOT_DIR, "src", "linux", "desktop", "package.json")
 
 def get_current_version() -> str:
     if os.path.exists(MAIN_CS):
@@ -81,6 +83,14 @@ def sync_all(new_version: str):
     # 5. packaging/build-deb.py
     update_file_regex(BUILD_DEB_PY,
                       r'(VERSION\s*=\s*")[^"]+(")',
+                      rf'\g<1>{new_version}\g<2>')
+
+    # 6. 新版 Linux Electron 包和桌面运行时版本
+    update_file_regex(BUILD_ELECTRON_PY,
+                      r'(VERSION\s*=\s*")[^"]+(")',
+                      rf'\g<1>{new_version}\g<2>')
+    update_file_regex(DESKTOP_PACKAGE_JSON,
+                      r'("version"\s*:\s*")[^"]+(")',
                       rf'\g<1>{new_version}\g<2>')
 
 def main():
