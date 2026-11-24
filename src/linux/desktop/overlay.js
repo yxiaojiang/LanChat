@@ -7,6 +7,7 @@
   const presentation = root.LanChatPresentation || (typeof require === 'function' ? require('./presentation.js') : null);
   const menu = document.getElementById('menu');
   const emoji = document.getElementById('emoji');
+  const emojiGrid = document.getElementById('emoji-grid');
   const confirmDialog = document.getElementById('confirm');
   let restore = null;
   let restoreKey = '';
@@ -16,6 +17,7 @@
   let attachResetTimer = 0;
   let releaseArmed = false;
   let pickEmoji = null;
+  const emojiScroll = root.LanChatScroll?.bind(emojiGrid, { keyboard: false });
 
   function clearAttachToggle() {
     if (attachResetTimer) {
@@ -148,6 +150,7 @@
     restore = focusBack || anchor;
     emojiTrigger = anchor || null;
     pickEmoji = onPick;
+    drawEmojiGrid();
     emoji.hidden = false;
     const rect = anchor.getBoundingClientRect();
     const box = emoji.getBoundingClientRect();
@@ -155,6 +158,7 @@
       x: rect.left,
       y: rect.top - box.height - 6
     });
+    emojiScroll?.refresh();
     emoji.querySelector('button')?.focus();
   }
 
@@ -243,17 +247,29 @@
     closeEmoji();
   });
 
-  for (const symbol of presentation.EMOJIS) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'emoji';
-    button.textContent = symbol;
-    button.addEventListener('click', () => {
-      const choose = pickEmoji;
-      closeEmoji();
-      if (choose) choose(symbol);
-    });
-    emoji.append(button);
+  function drawEmojiGrid() {
+    emojiGrid.replaceChildren();
+    for (const [symbol, imageUrl] of presentation.emojiEntries()) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'emoji';
+      button.title = symbol;
+      button.setAttribute('aria-label', symbol);
+      if (imageUrl) {
+        const image = document.createElement('img');
+        image.src = imageUrl;
+        image.alt = '';
+        button.append(image);
+      } else {
+        button.textContent = symbol;
+      }
+      button.addEventListener('click', () => {
+        const choose = pickEmoji;
+        closeEmoji();
+        if (choose) choose(symbol);
+      });
+      emojiGrid.append(button);
+    }
   }
 
   function consumeAttachToggle() {

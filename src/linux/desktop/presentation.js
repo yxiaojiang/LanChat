@@ -5,7 +5,7 @@
   root.LanChatPresentation = api;
 })(typeof globalThis === 'undefined' ? this : globalThis, function () {
   const GROUP = 'BROADCAST';
-  // 与 MainForm.Chat.cs 的表情表保持同一顺序和数量。
+  // 未导入本地表情时继续使用两端原有的 Unicode 表情。
   const EMOJIS = [
     '😊', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😇', '😉',
     '😋', '😍', '🥰', '😘', '😜', '🤔', '🤫', '🤐', '😴', '😷',
@@ -18,6 +18,39 @@
     group: ['发送文件给所有人...', '清空群聊记录'],
     attach: ['选择并发送文件...', '插入 Emoji 表情...', '打开接收文件夹', '清空当前对话记录']
   };
+  let emojiImages = new Map();
+
+  function setEmojiPack(entries) {
+    emojiImages = new Map(entries);
+  }
+
+  function emojiEntries() {
+    return emojiImages.size ? emojiImages : EMOJIS.map(symbol => [symbol, '']);
+  }
+
+  function drawMessageText(element, text, document) {
+    if (!emojiImages.size || !text.includes('[')) {
+      element.textContent = text;
+      return;
+    }
+    let start = 0;
+    for (const match of text.matchAll(/\[[^\[\]\s]{1,24}\]/g)) {
+      const imageUrl = emojiImages.get(match[0]);
+      if (!imageUrl) continue;
+      element.append(text.slice(start, match.index));
+      const token = document.createElement('span');
+      token.className = 'message-emoji';
+      token.textContent = match[0];
+      token.title = match[0];
+      const image = document.createElement('img');
+      image.src = imageUrl;
+      image.alt = '';
+      token.append(image);
+      element.append(token);
+      start = match.index + match[0].length;
+    }
+    element.append(text.slice(start));
+  }
 
   function clip(text, limit) {
     const value = text || '';
@@ -128,7 +161,7 @@
   }
 
   return {
-    GROUP, EMOJIS, MENUS, clip, formatFileSize, unreadText, groupTitle, displayName, chipText,
+    GROUP, EMOJIS, MENUS, setEmojiPack, emojiEntries, drawMessageText, clip, formatFileSize, unreadText, groupTitle, displayName, chipText,
     snippet, sessionRows, showTime, formatTimestamp, decorate, shouldSendOnEnter,
     shouldNewlineOnCtrlEnter, composePlaceholder
   };

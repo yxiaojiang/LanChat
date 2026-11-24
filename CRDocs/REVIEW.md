@@ -1,3 +1,168 @@
+# LC-CHAT-COMPOSER-001 — Round 2 独立复审
+
+- **任务编号**：`LC-CHAT-COMPOSER-001`
+- **任务主题**：微信表情导入与无资源回退、Unicode 组合表情排版与划选复制、在线/离线分组 8px 间距与圆点、截图粘贴草稿与发送（Round 2 返修复审）
+- **审核方**：Gemini 独立审核方
+- **审核日期**：2026-11-24
+- **审核状态**：**APPROVED**（当前开发与宿主机回归范围放行）
+- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`（Round 2）、`CRDocs/REVIEW.md`（Round 1）、`CRDocs/DEFERRED.md`，以及工作区实际 diff、完整调用链与 20 个改动/新增源码及测试文件。
+
+## 独立复跑与验证边界
+
+### 1. 宿主机回归（本次复审在 Windows 宿主机独立复跑，均退出码 0）
+
+1. `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1`：通过。原生 `csc.exe` 生产编译通过；`LC-FR-001` ~ `LC-FR-004` / `LC-FR-008` 与 `LC-CHAT-COMPOSER-001`（真实 WinForms 列表 32/40px 分组间距、单组 32px、翠绿 `#1FD67E` / 珊瑚红 `#FC4455` 圆点、截图草稿暂存/缩略图比例与移除清理）全部通过。
+2. `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack`：通过。输出 `BMP 肤色、ZWJ 和独立表情的 Segoe UI Emoji 整段测量及 GDI+ 像素对照通过` 与 `聊天表情布局、PNG 与位图粘贴数据、LANC 文本和图片回环及历史回读通过`，验证了 `✋🏽`、`✌🏽`、`❤‍🔥`、`✋`、`✨`、`☕` 的单段测量宽度、混合文本绘制宽度及 240×60 逐像素一致，以及 `[敲打]` 本地 64×64 加载、LANC 回环与历史回读。
+3. 使用 `C:\Program Files\nodejs\node.exe` 对全部 7 个改动/新增 JS/CJS 文件（`src/linux/desktop/{main.cjs,overlay.js,preload.cjs,presentation.js,renderer.js}`、`tests/{linux_desktop_ui_regression.js,linux_desktop_ipc_regression.js}`）执行 `--check`，并运行 `tests/linux_desktop_ui_regression.js`（内联调用拆出的 `tests/linux_desktop_ipc_regression.js`）：全部退出码 0，输出 `linux desktop ui regression: ok`。
+4. `python -m py_compile Tools/Scripts/import-wechat-emoji.py` 退出码 0；`bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false` 退出码 0（0 警告、0 错误）。
+5. `git diff --check` 退出码 0；全量 20 个改动/新增手写源码与测试文件行数复核全部 `< 1000` 行软门禁：
+   - 本轮变更文件：`src/UI/Renderers/ChatTextLayout.cs`（209）、`tests/ChatComposerRegression.cs`（188）、`src/linux/desktop/preload.cjs`（96）、`src/linux/desktop/main.cjs`（575）、`tests/linux_desktop_ui_regression.js`（869）、`tests/linux_desktop_ipc_regression.js`（220）；
+   - 全工作区最高为 `src/linux/desktop/renderer.js`（961 行，本轮未触碰，已登记 `LC-CC-006` 要求下次扩展前先拆分）。
+
+### 2. 真实双机验证（未验证）
+
+- 尚未在两台物理/虚拟机间实测：双端同包微信表情逐条收发、复制与历史重开；新版与未导入资源端或公开旧版跨机互通（可读 `[名称]`、Unicode 组合表情、截图 PNG 文件卡片打开）；以及真实 Windows 桌面截图工具（Win+Shift+S / 微信截图 / 图像应用）的 `Ctrl+V`、`Shift+Insert`、右键粘贴链路。继续保留在 `CRDocs/DEFERRED.md`（`LC-CC-ENV-001`）。
+
+### 3. Linux 实机验收（未验证）
+
+- 宿主机为 Windows，本轮仅完成 Node 桩 IPC/模拟 DOM 回归与共享后端宿主机构建；**尚未验证** Linux/QEMU 最新 ELF 实跑（`tests/linux_desktop_regression.py`）、Linux Electron 45 在 Xorg/Wayland/XWayland 下的真实 `clipboard.read()`、截图工具/文件管理器/浏览器复制图像时的 PNG/JPEG 兼容回退、表情网格暗色滑块与实机分组视觉对齐。继续保留在 `CRDocs/DEFERRED.md`（`LC-CC-ENV-001`、`LC-LINUX-002-ENV-001`、`LC-LINUX-002-GUI-001`）。
+
+## 结论
+
+**APPROVED（当前范围放行）**。无 P0、无 P1 遗留。Round 1 阻断放行的全部 2 项 P1（`LC-CC-001`、`LC-CC-002`）均已按要求落地且经源码调用链审查与独立复跑验证闭环；Node IPC 专项用例已按职责拆至 `tests/linux_desktop_ipc_regression.js`（220 行），原入口 `tests/linux_desktop_ui_regression.js` 回落至 869 行；4 项 P2（`LC-CC-003` ~ `LC-CC-006`）与跨环境验收项（`LC-CC-ENV-001`）均已带触发阶段与验收条件登记至 `CRDocs/DEFERRED.md`。LANC 协议封包、网络层、历史存储与旧客户端兼容零破坏；全量 20 个改动/新增文件 `< 1000` 行，新增注释均为中文。
+
+## Round 1 问题逐项复审结论
+
+| 问题 ID | 严重度 | 结论 | 复核依据 |
+| --- | :---: | :---: | --- |
+| `LC-CC-001` | P1 | **RESOLVED** | `src/UI/Renderers/ChatTextLayout.cs:150-200`：`PaintText` 改为 `for (int i = 0, end; i < text.Length; i = end)` 按 `NextBoundary(text, i)` 推进，结合 `IsEmojiElement(text, i, end)` 覆盖 `0x1F000..0x1FAFF`、`0x2600..0x27BF`、常用 BMP 计时/星标符号及 `\uFE0F`/`\u20E3`/`\u200D`，整段交给 `Segoe UI Emoji` 一次测量与绘制，普通文字保持连续排版；`tests/ChatComposerRegression.cs:76-118` 新增 `VerifyEmojiPaint` 对 `✋🏽`、`✌🏽`、`❤‍🔥`、`✋`、`✨`、`☕` 完成整段宽度、混排宽度与 240×60 逐像素对照并独立复跑通过 |
+| `LC-CC-002` | P1 | **RESOLVED** | `src/linux/desktop/preload.cjs:38-52` 仅对 `image/png`、`image/jpeg` 内存图像走 `ArrayBuffer` 直传，非直传格式（WebP/BMP/GIF）有 `plain` 时走原生文本粘贴、无 `plain` 时交由主进程读系统剪贴板；`src/linux/desktop/main.cjs:229-272` 仅解码 `['image/png', 'image/jpeg']`，`decodeClipboardImage` 返回空图时继续尝试下一候选（内存空图亦回退 `clipboard.read()`），全部尝试失败才抛 `无法读取剪贴板图片`，仅有非兼容格式时静默返回空草稿且不建文件；`tests/linux_desktop_ipc_regression.js:9-165` 通过 `vm.runInNewContext` 实测 `preload.cjs` 与 `main.cjs` 全部路径并独立复跑通过 |
+| `LC-CC-003` | P2 | **DEFERRED** | 已登记至 `CRDocs/DEFERRED.md`，随 `renderer.js` 拆分与 Linux 侧栏摘要专项处理 |
+| `LC-CC-004` | P2 | **DEFERRED** | 已登记至 `CRDocs/DEFERRED.md`，归入双端附件生命周期专项处理异步失败清理与退出竞态 |
+| `LC-CC-005` | P2 | **DEFERRED** | 已登记至 `CRDocs/DEFERRED.md`，归入 Windows 输入区交互整改与真实剪贴板验收 |
+| `LC-CC-006` | P2 | **DEFERRED** | Node IPC 测试已完成职责拆分（`linux_desktop_ui_regression.js` 降至 869 行）；剩余 `renderer.js` 拆分与 Windows 选区/草稿补齐用例已登记至 `CRDocs/DEFERRED.md` |
+| `LC-CC-ENV-001` | — | **DEFERRED** | 保留在 `CRDocs/DEFERRED.md`，待真实双机 LAN、Windows 真实截图工具与 Linux ELF / Electron 实机验收 |
+
+---
+
+# LC-CHAT-COMPOSER-001 — Round 1 独立审核
+
+- **任务编号**：`LC-CHAT-COMPOSER-001`
+- **任务主题**：微信表情导入与无资源回退、Unicode 组合表情排版与划选复制、在线/离线分组 8px 间距与圆点、截图粘贴草稿与发送
+- **审核方**：Gemini 独立审核方
+- **审核日期**：2026-11-24
+- **审核状态**：**REJECTED**（按 `CRDocs/RULES.md` 打回整改；对应 `CRDocs/README.md` 的 `CHANGES_REQUESTED`）
+- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`、`Docs/GrokBot_UI_Design_System.md`，以及工作区全部 18 个已修改文件与 5 个未跟踪新文件（`Tools/Scripts/import-wechat-emoji.py`、`src/UI/Controls/ChatEmojiPicker.cs`、`src/UI/Renderers/ChatTextLayout.cs`、`tests/ChatComposerRegression.cs`、`tests/chat_composer_regression.ps1`）。
+
+## 独立复跑与验证边界
+
+### 1. 宿主机回归（本次审核在 Windows 宿主机独立复跑，均退出码 0）
+
+1. `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1`：通过。原生 `csc.exe` 生产编译成功；`LC-FR-001` ~ `LC-FR-004` / `LC-FR-008` 及 `LC-CHAT-COMPOSER-001`（真实 WinForms 列表 32/40px 标题行高、单组筛选 32px、`#1FD67E`/`#FC4455` 6px 状态圆点、200×100 截图保存 PNG 及 24×12 缩略图与移除清理）通过。
+2. `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack`：通过（已确认本机 `%LOCALAPPDATA%\LanChat\WeChatEmoji` 存在 109 行 `manifest.tsv` 与 109 个 `<= 64×64` PNG）。包含 `ChatTextLayout` 窄行折行与 CRLF 索引、`[敲打]` 64×64 加载与彩色绘制、PNG 透明度/Bitmap/FileDrop/文本区分、LANC 隔离回环文本与 PNG 字节一致及 JSONL 历史回读。
+3. `"C:\Program Files\nodejs\node.exe"` 逐一 `--check` 检查 `src/linux/desktop/{main.cjs,preload.cjs,presentation.js,overlay.js,renderer.js}` 与 `tests/linux_desktop_ui_regression.js`，并运行 `tests/linux_desktop_ui_regression.js`：全部退出码 0，输出 `linux desktop ui regression: ok`（注：本机 `C:\WINDOWS\system32\node` 为无效占位，须使用 `C:\Program Files\nodejs\node.exe`）。
+4. `python -m py_compile Tools/Scripts/import-wechat-emoji.py` 通过；`bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false` 在 Windows 宿主机通过（0 警告、0 错误）。
+5. 审核者只读反射验证：对 `WeChatChatView.GetCharIndexAtPoint` 全行逐像素扫描确认 `"甲👨‍👩‍👧‍👦👍🏽🇨🇳❤️1️⃣\r\n[敲打]乙"` 命中 0 次可见元素内拆点；同时在编译产物上**实测复现**了 `LC-CC-001`（`✋🏽` 与 `❤‍🔥` 被 `ChatTextLayout.PaintText` 拆为两段字体绘制与测量）。
+6. `git diff --check` 通过；全部 19 个改动/新增源码与测试文件编辑器行数均 `< 1000` 行软门禁（最高为 `tests/linux_desktop_ui_regression.js` 964 行与 `src/linux/desktop/renderer.js` 961 行）。
+
+### 2. 真实双机验证（未验证）
+
+- 尚未在两台物理/虚拟机之间执行：双方导入同包微信表情逐条收发、复制与历史重开；新版与未导入资源端或公开旧版（v2.0.19 及更早 Windows/Linux/Python 客户端）跨机互通验收 `[敲打]` 可读文本、Unicode 组合表情与截图 PNG 文件卡片打开；以及真实 Windows 桌面截图工具（Win+Shift+S / 微信截图 / 图像应用）的 `Ctrl+V`、`Shift+Insert`、右键粘贴链路。见 `CRDocs/DEFERRED.md` 的 `LC-CC-ENV-001`。
+
+### 3. Linux 实机验收（未验证）
+
+- 宿主机为 Windows，本轮仅完成 Node 桩 IPC/模拟 DOM 回归与 C# 后端 Windows 宿主机构建；**尚未验证** Linux/QEMU 最新 ELF 实跑（`tests/linux_desktop_regression.py`）、Linux Electron 45 真实 Xorg/Wayland/XWayland 系统剪贴板（`clipboard.read()`、截图工具、文件管理器、浏览器图片复制）、表情网格暗色滑块交互及实机分组视觉对齐。见 `CRDocs/DEFERRED.md` 的 `LC-CC-ENV-001`、`LC-LINUX-002-ENV-001`、`LC-LINUX-002-GUI-001`。
+
+## 结论
+
+**REJECTED（打回整改）**。无 P0。微信 4.2.0.13 本地导入脚本哈希校验与 Qt 资源解包逻辑清晰，无资源时双端均安全回退为 Unicode 面板与可读 `[名称]` 文本；LANC 封包魔数、文本帧、文件帧与 JSONL 历史格式零破坏，完全兼容旧客户端；双端在线/离线分组 8px 间距与 6px `#1FD67E`/`#FC4455` 状态圆点度量一致；Windows 截图预览、切会话隔离、移除删图、确认发送保图与退出清理闭环基本成立。
+
+但存在 **2 项 P1 阻断放行问题**（另登记 **4 项 P2**）：
+
+1. `LC-CC-001`：Windows `ChatTextLayout.PaintText` 未按可见元素步进，实测会将 BMP 基底组合表情（如 `✋🏽`、`✊🏽`、`✌🏽`、`❤‍🔥`）拆成 UI 字体 + Emoji 字体两段分别绘制与测量，且自带回退面板中的 `✋`/`✨`/`☕` 未路由至 Emoji 字体；
+2. `LC-CC-002`：Linux `preload.cjs` 与 `main.cjs` 将 `image/webp`、`image/bmp`、`image/gif` 等非 PNG/JPEG 原始字节直接交给仅支持 PNG/JPEG 解码的 `nativeImage.createFromBuffer`，必然抛出 `无法读取剪贴板图片`，且 `preload.cjs` 抢占 `data.files` 中的非 PNG/JPEG 图像后会跳过系统剪贴板原本可用的 `image/png`。
+
+## 六维核对摘要
+
+| 维度 | 结论 | 说明 |
+| --- | :---: | --- |
+| 1. 微信表情导入与无资源可读回退 | PASS | `Tools/Scripts/import-wechat-emoji.py` 强校验微信 4.2.0.13 `Weixin.dll` SHA-256、Qt 目录结构与 PNG 头，原子写入 `manifest.tsv`；Windows `%LOCALAPPDATA%\LanChat\WeChatEmoji` 与 Linux `app.getPath('userData')/WeChatEmoji`（`package.json` `productName: "LanChat"`）路径一致；无包时双端回退 50 个 Unicode 表情且对端保留 `[名称]` 原文 |
+| 2. Unicode 组合表情换行/划选/复制/历史回读 | FAIL | `BreakLines` 保留 CRLF 索引、`WeChatChatView.GetCharIndexAtPoint` 逐像素验证不拆元素、`CopySelectedText` 与 `ChatHistoryService` 完整保留原文；但存在 `LC-CC-001`（P1，`PaintText` 拆分 BMP 基底组合表情）与 `LC-CC-003`（P2，Linux 侧栏 `clip()` 按 UTF-16 截断） |
+| 3. 在线/离线分组 8px 间距与 6px 圆点 | PASS | Windows `MeasureItem` 与 `ListSessions_DrawItem` 共用 `SessionHeadingGap`（双组同显离线 40px、单组 32px），`AccentGreen` (`#1FD67E`) / `TextDestructive` (`#FC4455`) 6px 圆点距标题右侧 6px 垂直居中；Linux `desktop.css:75-78` 以 `[data-online="true"] ~ [data-online="false"]` 加 `margin-top: 8px` 及同色同尺寸 `::after` 圆点对齐 |
+| 4. 截图粘贴预览/切会话/移除/确认发送/清理 | FAIL | Windows 预览按 24px 等比缩放、按会话隔离、移除/删好友/退出清理未提交 PNG、确认发送保留本地副本且不误删用户文件；但 Linux 端存在 `LC-CC-002`（P1，非 PNG/JPEG 图像必败且屏蔽 `image/png` 回退）；另有 `LC-CC-004`（P2，异步失败传图残留与退出竞态）和 `LC-CC-005`（P2，Windows 文本+位图优先级与首次右键） |
+| 5. LANC 协议与旧客户端兼容性 | PASS | `src/Models.cs`、`src/NetworkService*.cs`、`src/Services/ChatHistoryService.cs` 与 `src/linux/LanChat.Linux/` 零改动；微信表情按普通 UTF-8 文本 `[名称]` 传输，截图复用既有 PNG 文件流，旧客户端零兼容破坏 |
+| 6. 行数门禁与中文注释规范 | PASS | 全部 19 个改动/新增源码与测试文件 `< 1000` 行软门禁，新增类与公开/内部成员具备全中文注释与 XML 文档；`renderer.js`（961 行）与 `linux_desktop_ui_regression.js`（964 行）逼近 1000 行预警线（见 `LC-CC-006`） |
+
+## P0（阻断级）
+
+无。
+
+## P1（本轮必须修复）
+
+### LC-CC-001 [P1 / OPEN] Windows `ChatTextLayout.PaintText` 按 UTF-16 单码元扫描，拆分 BMP 基底组合表情并遗漏自带回退 BMP 表情
+
+- **位置**：`src/UI/Renderers/ChatTextLayout.cs:150-182`、`src/UI/Controls/ChatEmojiPicker.cs:22-23`
+- **复现步骤与实测证据**：
+  1. 构造含 BMP 基底肤色或无 `\uFE0F` ZWJ 组合表情的消息：`"✋🏽"`（`U+270B + U+1F3FD`，UTF-16 长度 3）或 `"❤‍🔥"`（`U+2764 + U+200D + U+1F525`，UTF-16 长度 4）；
+  2. `ChatTextLayout.NextBoundary(text, 0)` 正确返回 `3` 与 `4`，但在 `PaintText` 中循环为 `for (int i = 0; i < text.Length; i++)`，第 153-154 行仅检查 `(code >= 0x1F000 && code <= 0x1FAFF) || (i + 1 < text.Length && (text[i + 1] == '\uFE0F' || text[i + 1] == '\u20E3'))`；
+  3. `i = 0` 时 `0x270B` / `0x2764` 不命中，循环推进至 `i = 1` 命中肤色修饰符 `0x1F3FD` 或后段 `0x1F525`，导致 `PaintText` 先用主 UI 字体绘制 `"✋"` / `"❤"`，再用 `Segoe UI Emoji` 单独绘制 `"🏽"` / `"\u200D🔥"`；
+  4. 在本轮编译产物 `ChatComposerRegression.exe` 上反射调用 `ChatTextLayout.Measure` 实测结果：
+     - `✋🏽`：`NextBoundary(0) == 3`，`ChatTextLayout.Measure == 33.781` == `Measure(YaHei, "✋") + Measure(SegoeEmoji, "🏽") == 33.781`（整段 `Segoe UI Emoji` 应为 `35.650`）；
+     - `❤‍🔥`：`NextBoundary(0) == 4`，`ChatTextLayout.Measure == 32.155` == `Measure(YaHei, "❤") + Measure(SegoeEmoji, "\u200D🔥") == 32.155`（整段 `Segoe UI Emoji` 应为 `36.158`）；
+  5. 此外，`ChatEmojiPicker.UnicodeEntries` 自带的无资源回退表情 `✋`（`U+270B`）、`✨`（`U+2728`）、`☕`（`U+2615`）均不在 `0x1F000..0x1FAFF` 且无 `\uFE0F`，同样不会切入 `Segoe UI Emoji` 绘制。
+- **影响**：标准 Unicode 肤色组合手势（`✋🏽`、`✊🏽`、`✌🏽`、`☝🏽`、`✍🏽`）及无 `\uFE0F` 的 ZWJ 表情在气泡与侧栏预览中被拆成两段不同字体，出现手势与肤色色块分离且测量宽度失真。
+- **修复要求**：
+  1. `PaintText` 改为按 `int end = NextBoundary(text, i)` 逐可见元素步进（避免拆进元素内部或落到低代理码元）；
+  2. 对整个元素 `[i, end)` 判定本地微信表情或 Unicode 表情（覆盖 `0x1F000..0x1FAFF`、BMP 常用 Emoji 区段如 `0x2600..0x27BF`/`0x2300..0x23FF`/`0x2B50`，或元素内含 `\uFE0F`/`\u20E3`/`\u200D`/肤色修饰符 `0x1F3FB..0x1F3FF`），将整个元素一次性交给 `Segoe UI Emoji` 测量与绘制；
+  3. 在 `tests/ChatComposerRegression.cs` 补充 `✋🏽`、`❤‍🔥`、`✋`/`✨`/`☕` 的整段测量与绘制回归断言。
+
+### LC-CC-002 [P1 / OPEN] Linux 剪贴板图像将 WebP/BMP/GIF 直接交由 `nativeImage.createFromBuffer` 导致必然解码失败，且抢占系统剪贴板的 `image/png`
+
+- **位置**：`src/linux/desktop/preload.cjs:37, 45-49`、`src/linux/desktop/main.cjs:230-265`
+- **复现链路与依据**：
+  1. Electron 官方文档明确 `nativeImage.createFromBuffer(buffer)` 仅原生解码 **PNG** 与 **JPEG**，不支持 WebP、BMP 或 GIF（传入这些编码的原始字节时 `nativeImage.createFromBuffer` 返回空图像，`image.isEmpty() === true`）；
+  2. `main.cjs:249` 的 `readClipboardImage` 将 `['image/png', 'image/jpeg', 'image/webp', 'image/bmp']` 直接交由 `stageClipboardImage` -> `nativeImage.createFromBuffer(Buffer.from(bytes))`。当系统剪贴板仅含 `image/bmp` 或 `image/webp` 时必然抛出 `无法读取剪贴板图片`；
+  3. 更严重的是 `preload.cjs:37` 使用 `file.type.startsWith('image/')` 匹配 `event.clipboardData.files` 中的首个内存图像，并在第 48 行直接传递 `await image.arrayBuffer()` 给 `lanchat:stage-paste`，致使 `main.cjs:230` 跳过 `clipboard.read()`。当用户在 Linux 浏览器或桌面应用中复制 WebP/GIF 图片时，`clipboardData.files` 往往暴露原始 `image/webp` / `image/gif`，即便系统剪贴板同时提供了转换后的 `image/png`，该路径也会直接把 WebP/GIF 原始字节送进 `nativeImage.createFromBuffer` 导致粘贴报错；
+  4. `tests/linux_desktop_ui_regression.js` 中 `nativeImage.createFromBuffer` 为固定返回非空对象的桩实现，未暴露此格式不匹配问题。
+- **修复要求**：
+  1. `preload.cjs` 仅对 `image/png` 与 `image/jpeg` 直接走内存 `ArrayBuffer` 快路径；遇到其他 `image/*`（如 `image/webp`、`image/gif`、`image/bmp`）时，优先在渲染进程通过 `createImageBitmap` / Canvas 转码为 PNG 字节，或回退交由主进程读取 `clipboard.read()` 中可用的 `image/png` / `image/jpeg`（并注意避免 `plain` 非空时误拦截纯文本）；
+  2. `main.cjs` 的 `readClipboardImage` 与 `stageClipboardImage` 对齐 `nativeImage.createFromBuffer` 实际支持的 PNG/JPEG 格式（若保留多 MIME 遍历，应在 `createFromBuffer` 返回空图时继续尝试下一可用 MIME，而非首次命中非支持格式即整体抛错）；
+  3. 在 `tests/linux_desktop_ui_regression.js` 补充非 PNG/JPEG 剪贴板图像回退与空图跳过断言。
+
+## P2（可延期或返修顺手处理）
+
+### LC-CC-003 [P2 / OPEN] Linux 侧栏摘要 `clip()` 按 UTF-16 码元截断且未复用表情渲染
+
+- **位置**：`src/linux/desktop/presentation.js:55-58, 91`、`src/linux/desktop/renderer.js:138-139`
+- **说明**：Windows 侧栏摘要已改用 `ChatTextLayout.DrawSnippet` 按可见元素截断并显示表情图；Linux 侧栏仍通过 `value.slice(0, limit - 1)` 按 UTF-16 码元硬截断，遇到多码元组合表情（如 `👨‍👩‍👧‍👦`、`👍🏽`、`🇨🇳`）或 `[敲打]` 时可能截断代理对产生孤立替代符或半截令牌（如 `[敲...`）。建议改为按可见字符/表情令牌边界截断。
+
+### LC-CC-004 [P2 / OPEN] 双端异步发送失败的截图 PNG 不会自动清理，且 Linux `send-paste` 与 `before-quit` 存在并发退出残留窗口
+
+- **位置**：`src/MainForm.Chat.cs:419`、`src/Controllers/FileTransferController.cs:127-136`、`src/linux/desktop/main.cjs:399, 520-526`
+- **说明**：
+  1. 双端在点击确认发送启动异步传输时即解除草稿托管，若后续 TCP 发送失败（如对端拒收或断连），失败消息不写入历史，而 `PastedImages/截图-*.png` 仍留在用户目录；
+  2. Linux `send-paste` 在 `await dispatchFiles` 前先从 `pendingPastes` 删除 `id`，若期间触发 `before-quit` 执行 `discardPastedFiles([...pendingPastes.keys()])`，随后 `dispatchFiles` 抛错在 `catch` 中又将 `id` 写回 `pendingPastes`，导致退出时漏删未提交截图。建议在 `catch` 中判断 `if (exiting)` 立即 `unlink` 临时图片。
+
+### LC-CC-005 [P2 / OPEN] Windows 剪贴板同时含文本与位图时的优先级与 Linux 不一致，且空输入栏首次右键未弹出粘贴菜单
+
+- **位置**：`src/UI/Controls/ChatInputBox.cs:50-79`、`src/MainForm.Designer.cs:471-475`
+- **说明**：
+  1. Linux `preload.cjs:46` 在系统剪贴板路径传入 `allowImage = !plain`，避免同时含文本与位图的富文本/表格复制被误当图片；Windows `ChatInputBox` 未检查 `DataFormats.UnicodeText`，从 Excel/WPS 复制单元格时会按截图粘贴，且剪贴板残留截图时右键输入框会以单一“粘贴附件”菜单替代原生复制/剪切菜单；
+  2. Windows `_txtInput` 空态隐藏时首次右键 `_inputPanel` 仅触发 `MouseDown` 显示输入框，需二次右键才弹出暗色粘贴菜单。
+
+### LC-CC-006 [P2 / OPEN] `renderer.js` 与 `linux_desktop_ui_regression.js` 逼近 1000 行软门禁，且 Windows 回归可补齐选区与会话切换用例
+
+- **位置**：`src/linux/desktop/renderer.js`（961 行）、`tests/linux_desktop_ui_regression.js`（964 行）、`tests/ChatComposerRegression.cs`、`tests/FriendRefreshRegression.cs`
+- **说明**：两份 JS 文件距 `.claude/Rules.md` 第 10 条 1000 行预警线分别仅余 39 行与 36 行，后续继续加功能/测试前须先按职责拆分；另建议在返修回归中补充 Windows `WeChatChatView` 像素级划选不拆表情、跨 CRLF 复制及截图草稿切换会话保留/退出清理的自动化断言。
+
+## 跨环境验收项（保留在 `CRDocs/DEFERRED.md`）
+
+| 问题 ID | 状态 | 说明 |
+| --- | :---: | --- |
+| `LC-CC-ENV-001` | OPEN | 真实 Windows 桌面截图粘贴键盘链路、真实双机新旧客户端联测、Linux Xorg/Wayland Electron 剪贴板与最新 ELF 实跑 |
+
+---
+
 # LC-FRIEND-REFRESH-001 — Round 2 独立复审
 
 - **任务编号**：`LC-FRIEND-REFRESH-001`

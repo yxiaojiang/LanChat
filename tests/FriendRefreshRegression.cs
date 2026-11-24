@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -68,6 +69,7 @@ namespace LanChat
                     CheckNetwork(form);
                     CheckListRebuild(form);
                     CheckScrollDrag(form);
+                    CheckComposerUi(form);
                 }
                 catch (Exception error)
                 {
@@ -269,6 +271,46 @@ namespace LanChat
             Mouse(list, 0x0202, 0, edgeX, -2);
             search.Clear();
             Console.WriteLine("LC-FR-004: 标题行热区拖拽、无溢出拦截和 x64 负坐标通过");
+        }
+
+        private static void CheckComposerUi(MainForm form)
+        {
+            var list = Field<SessionListBox>(form, "_listSessions");
+            int online = list.Items.IndexOf(SessionPresenter.GroupHeading.Online);
+            int offline = list.Items.IndexOf(SessionPresenter.GroupHeading.Offline);
+            Require(online >= 0 && offline > online, "在线和离线标题均出现");
+            Require(list.GetItemHeight(online) == 32 && list.GetItemHeight(offline) == 40, "真实列表的离线标题间距为 8 像素");
+            var draw = typeof(MainForm).GetMethod("ListSessions_DrawItem", Private);
+            foreach (int index in new[] { online, offline })
+            {
+                var color = index == online ? GrokTheme.AccentGreen : GrokTheme.TextDestructive;
+                using (var bitmap = new Bitmap(168, list.GetItemHeight(index)))
+                using (Graphics graphics = Graphics.FromImage(bitmap))
+                {
+                    var bounds = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
+                    draw.Invoke(form, new object[] { list, new DrawItemEventArgs(graphics, list.Font, bounds, index, DrawItemState.None) });
+                    int y = index == online ? 16 : 24;
+                    Require(Enumerable.Range(40, 40).Any(x => bitmap.GetPixel(x, y).ToArgb() == color.ToArgb()), "标题右侧状态圆点颜色正确");
+                }
+            }
+
+            var search = Field<TextBox>(form, "_txtSearch");
+            search.Text = list.Items.OfType<PeerInfo>().First(peer => peer.TcpPort == 0).NickName;
+            Require(list.GetItemHeight(0) == 32, "筛选后只剩离线标题时没有多余间距");
+            search.Clear();
+
+            var stageImage = typeof(MainForm).GetMethod("StageClipboardImage", Private);
+            var remove = typeof(MainForm).GetMethod("RemoveAttachment", Private);
+            var attachments = Field<SessionListBox>(form, "_attachmentList");
+            using (var image = new Bitmap(200, 100))
+                stageImage.Invoke(form, new object[] { image });
+            Require(attachments.Visible && attachments.Items.Count == 1, "粘贴的图片出现在当前会话草稿");
+            string file = (string)attachments.Items[0];
+            var previews = Field<Dictionary<string, Image>>(form, "_draftImagePreviews");
+            Require(File.Exists(file) && previews[file].Size == new Size(24, 12), "截图保存为 PNG 并按比例预览");
+            remove.Invoke(form, new object[] { 0 });
+            Require(!attachments.Visible && !File.Exists(file) && previews.Count == 0, "移除图片草稿后清理临时图片");
+            Console.WriteLine("LC-CHAT-COMPOSER-001: 联合标题间距、圆点颜色、图像草稿暂存与移除通过");
         }
 
         private static void SendIdentity(UdpClient udp, string id, string nick, int port)

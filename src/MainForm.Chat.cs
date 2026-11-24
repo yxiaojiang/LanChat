@@ -172,6 +172,13 @@ namespace LanChat
             }
         }
 
+        // 两组同时显示时，仅在离线标题前留出 8 像素。
+        private int SessionHeadingGap(int index)
+        {
+            return index > 0 && (SessionPresenter.GroupHeading)_listSessions.Items[index] == SessionPresenter.GroupHeading.Offline
+                && _listSessions.Items.Contains(SessionPresenter.GroupHeading.Online) ? 8 : 0;
+        }
+
         private void ListSessions_DrawItem(object sender, DrawItemEventArgs e)
         {
             if (e.Index < 0 || e.Index >= _listSessions.Items.Count) return;
@@ -195,10 +202,19 @@ namespace LanChat
 
             if (item is SessionPresenter.GroupHeading)
             {
-                string label = (SessionPresenter.GroupHeading)item == SessionPresenter.GroupHeading.Online ? "在线" : "离线";
+                bool online = (SessionPresenter.GroupHeading)item == SessionPresenter.GroupHeading.Online;
+                string label = online ? "在线" : "离线";
+                int left = r.Left + GrokTheme.SessionCardMarginX;
+                int gap = SessionHeadingGap(e.Index);
+                int height = r.Height - gap;
                 using (Font font = GrokTheme.UiFont(10.5f, FontStyle.Bold))
+                using (var status = new SolidBrush(online ? GrokTheme.AccentGreen : GrokTheme.TextDestructive))
+                {
                     GrokTheme.DrawUiTextLeft(g, label, font, GrokTheme.TextSecondary,
-                        r.Left + GrokTheme.SessionCardMarginX, r.Top, r.Width - GrokTheme.SessionCardMarginX * 2, r.Height);
+                        left, r.Top + gap, r.Width - GrokTheme.SessionCardMarginX * 2, height);
+                    int dotX = left + GrokTheme.MeasureUiText(g, label, font).Width + 6;
+                    g.FillEllipse(status, dotX, r.Top + gap + (height - 6) / 2, 6, 6);
+                }
                 return;
             }
 
@@ -282,14 +298,12 @@ namespace LanChat
                     }
                 }
 
-                string snippet = _sessionManager != null ? _sessionManager.GetLastMessageSnippet(SessionManager.BROADCAST_KEY, 24) : null;
+                string snippet = _sessionManager != null ? _sessionManager.GetLastMessageSnippet(SessionManager.BROADCAST_KEY, int.MaxValue) : null;
                 if (string.IsNullOrEmpty(snippet)) snippet = "已按 Rules 刷新本机记忆 (刷新...";
 
                 using (Font subFont = GrokTheme.UiFont(9.5f))
                 {
-                    if (snippet.Length > 20) snippet = snippet.Substring(0, 19) + "...";
-                    GrokTheme.DrawUiTextLeft(g, snippet, subFont, subTextColor,
-                        textX, subY, textW, 20);
+                    ChatTextLayout.DrawSnippet(g, snippet, subFont, subTextColor, new Rectangle(textX, subY, textW, 20));
                 }
 
                 DrawUnreadBadge(g, avatarRect, _broadcastUnreadCount);
@@ -311,16 +325,14 @@ namespace LanChat
                         textX, titleY - 3, textW, 27);
                 }
 
-                string snippet = _sessionManager.GetLastMessageSnippet(_sessionPresenter.GetSessionKey(peer), 24);
+                string snippet = _sessionManager.GetLastMessageSnippet(_sessionPresenter.GetSessionKey(peer), int.MaxValue);
                 if (string.IsNullOrEmpty(snippet))
                 {
                     snippet = peer.IP == null ? peer.HostName : string.Format("{0} ({1})", peer.HostName, peer.IP);
                 }
                 using (Font subFont = GrokTheme.UiFont(9.5f))
                 {
-                    if (snippet.Length > 16) snippet = snippet.Substring(0, 15) + "...";
-                    GrokTheme.DrawUiTextLeft(g, snippet, subFont, subTextColor,
-                        textX, subY, textW, 20);
+                    ChatTextLayout.DrawSnippet(g, snippet, subFont, subTextColor, new Rectangle(textX, subY, textW, 20));
                 }
 
                 DrawUnreadBadge(g, avatarRect, peer.UnreadCount);
@@ -404,7 +416,7 @@ namespace LanChat
             {
                 PeerInfo recipient = _selectedPeer ?? PickFileRecipient();
                 if (recipient == null || !SendFilesToPeer(recipient, attachments.ToArray())) return;
-                _attachmentDrafts.Remove(chat);
+                ClearAttachmentDraft(chat, false);
                 RefreshAttachmentDraft();
             }
 
@@ -425,83 +437,14 @@ namespace LanChat
 
         private void ShowEmojiPopup()
         {
-            Form popup = new Form
-            {
-                FormBorderStyle = FormBorderStyle.None,
-                StartPosition = FormStartPosition.Manual,
-                ShowInTaskbar = false,
-                Size = new Size(300, 210),
-                BackColor = Color.FromArgb(28, 28, 30)
-            };
-
-            popup.Paint += (s, e) =>
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                using (Pen p = new Pen(Color.FromArgb(50, 50, 56), 1f))
-                {
-                    MainForm.DrawRoundedRectangle(e.Graphics, p, new Rectangle(0, 0, popup.Width - 1, popup.Height - 1), 14);
-                }
-            };
-
-            popup.HandleCreated += (s, e) =>
-            {
-                try
-                {
-                    IntPtr rgn = CreateRoundRectRgn(0, 0, popup.Width + 1, popup.Height + 1, 14, 14);
-                    if (rgn != IntPtr.Zero) popup.Region = Region.FromHrgn(rgn);
-                }
-                catch { }
-            };
-
             Control anchor = _btnToolEmoji ?? _btnToolSendFile ?? (Control)this;
-            Point screenPoint = anchor.PointToScreen(new Point(0, -popup.Height - 6));
-            popup.Location = screenPoint;
-
-            FlowLayoutPanel flow = new FlowLayoutPanel
+            ChatEmojiPicker.Open(this, anchor, token =>
             {
-                Dock = DockStyle.Fill,
-                AutoScroll = true,
-                Padding = new Padding(8),
-                BackColor = Color.FromArgb(28, 28, 30)
-            };
-
-            string[] emojis = new string[]
-            {
-                "😊", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😇", "😉",
-                "😋", "😍", "🥰", "😘", "😜", "🤔", "🤫", "🤐", "😴", "😷",
-                "🥳", "🤩", "🥺", "😭", "😱", "😨", "😰", "😡", "🤬", "🤡",
-                "👍", "👎", "👏", "🙏", "🤝", "🎉", "🔥", "❤️", "💯", "✨",
-                "💪", "✌️", "🖐️", "✋", "👊", "☕", "💻", "📱", "🍺", "🎁"
-            };
-
-            foreach (string em in emojis)
-            {
-                Button btn = new Button
-                {
-                    Text = em,
-                    Size = new Size(32, 32),
-                    FlatStyle = FlatStyle.Flat,
-                    BackColor = Color.Transparent,
-                    ForeColor = Color.White,
-                    Font = new Font("Segoe UI Emoji", 11f),
-                    Margin = new Padding(2),
-                    Cursor = Cursors.Hand
-                };
-                btn.FlatAppearance.BorderSize = 0;
-                btn.MouseEnter += (s, e) => btn.BackColor = Color.FromArgb(52, 52, 56);
-                btn.MouseLeave += (s, e) => btn.BackColor = Color.Transparent;
-                btn.Click += (s, e) => {
-                    _txtInput.Visible = true;
-                    _txtInput.Paste(em);
-                    popup.Close();
-                    _txtInput.Focus();
-                };
-                flow.Controls.Add(btn);
-            }
-
-            popup.Controls.Add(flow);
-            popup.Deactivate += (s, e) => popup.Close();
-            popup.Show(this);
+                _txtInput.Visible = true;
+                if (_txtInput.TextLength - _txtInput.SelectionLength + token.Length <= _txtInput.MaxLength)
+                    _txtInput.SelectedText = token;
+                _txtInput.Focus();
+            });
         }
 
         #endregion
@@ -620,7 +563,7 @@ namespace LanChat
 
             if (dr == DialogResult.OK && _sessionPresenter != null)
             {
-                _attachmentDrafts.Remove(SessionManager.GetLanKey(peer.Id, peer.IP));
+                ClearAttachmentDraft(SessionManager.GetLanKey(peer.Id, peer.IP), true);
                 _sessionPresenter.DeletePeerSession(peer);
             }
         }

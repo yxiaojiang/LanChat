@@ -73,6 +73,9 @@ aside { display: flex; flex-direction: column; min-height: 0; background: var(--
 .scroll-view { flex: 1; min-height: 0; overflow: auto; scrollbar-width: none; }
 .scroll-view::-webkit-scrollbar { width: 0; height: 0; }
 .session-heading { display: flex; align-items: center; height: 32px; margin: 0; padding: 0 17px; color: var(--muted); font-size: calc(10.5pt + var(--ui-font-delta)); font-weight: 700; }
+.session-heading::after { content: ""; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: #1FD67E; }
+.session-heading[data-online="false"]::after { background: #FC4455; }
+.session-heading[data-online="true"] ~ .session-heading[data-online="false"] { margin-top: 8px; }
 .float-thumb { position: absolute; top: 0; right: 0; width: 12px; z-index: 2; touch-action: none; background: transparent; }
 .float-thumb::after { content: ""; position: absolute; inset: 0 2px 0 auto; width: 4px; border-radius: 999px; background: var(--thumb); }
 .scroll-host:hover .float-thumb::after, .float-thumb.dragging::after { width: 5px; background: var(--thumb-hot); }
@@ -135,6 +138,7 @@ h1 { margin: 0; font-size: calc(20pt + var(--ui-font-delta)); font-weight: 700; 
 #attachments { display: flex; flex-wrap: wrap; gap: 6px; max-height: 96px; padding-right: 8px; }
 .attachment { display: inline-flex; min-width: 0; max-width: 100%; height: 32px; gap: 8px; align-items: center; padding: 0 4px 0 12px; border: 1px solid var(--border); border-radius: 16px; background: var(--capsule); }
 .attachment img { width: 16px; height: 16px; }
+.attachment img.attachment-preview { width: 24px; height: 24px; object-fit: contain; border-radius: 4px; }
 .attachment span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(9.5pt + var(--ui-font-delta)); }
 .attachment button { flex: none; width: 24px; height: 24px; padding: 0; border-radius: 50%; color: var(--muted); }
 .attachment button:hover { background: var(--hover); color: var(--text); }
@@ -160,10 +164,14 @@ dialog::backdrop { background: #0009; }
 #menu button.danger { color: var(--danger); }
 #menu button.danger:hover:not(:disabled), #menu button.danger:focus-visible { background: var(--danger-bg); color: var(--danger-hot); }
 #menu hr { border: 0; border-top: 1px solid var(--separator); margin: 4px 8px; }
-#emoji { width: 300px; padding: 8px; display: flex; flex-wrap: wrap; align-content: start; }
+#emoji { width: min(384px, calc(100vw - 16px)); }
+#emoji-grid { max-height: min(396px, calc(100vh - 28px)); padding: 8px; display: flex; flex-wrap: wrap; align-content: start; }
 #emoji[hidden], #menu[hidden] { display: none; }
 .emoji { width: 32px; height: 32px; margin: 2px; border-radius: 8px; font: 11pt/32px "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
-.emoji:hover { background: #343438; }
+.emoji:hover, .emoji:focus-visible { background: var(--hover); }
+.emoji img { width: 26px; height: 26px; vertical-align: middle; }
+.message-emoji { display: inline-block; position: relative; width: 1.25em; height: 1.25em; color: transparent; vertical-align: -.24em; overflow: hidden; white-space: nowrap; }
+.message-emoji img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
 h2 { margin: 0 0 12px; font-size: 18pt; font-weight: 700; color: #fff; }
 #confirm-body { margin: 0 0 18px; white-space: pre-line; }
 .pill { min-height: 32px; border-radius: 16px; padding: 0 14px; background: var(--capsule); }

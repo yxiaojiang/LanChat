@@ -301,7 +301,7 @@ namespace LanChat
             _listSessions.IsSectionHeading = item => item is SessionPresenter.GroupHeading;
             _listSessions.MeasureItem += (s, e) =>
             {
-                e.ItemHeight = _listSessions.IsHeading(e.Index) ? 32 : _listSessions.ItemHeight;
+                e.ItemHeight = _listSessions.IsHeading(e.Index) ? 32 + SessionHeadingGap(e.Index) : _listSessions.ItemHeight;
             };
             _listSessions.DrawItem += ListSessions_DrawItem;
             _listSessions.SelectedIndexChanged += ListSessions_SelectedIndexChanged;
@@ -511,6 +511,7 @@ namespace LanChat
             _txtInput.KeyDown += TxtInput_KeyDown;
             _txtInput.TextChanged += TxtInput_TextChanged;
             _txtInput.FilesPasted += StageClipboardFiles;
+            _txtInput.ImagePasted += StageClipboardImage;
             _txtInput.LostFocus += (s, e) => {
                 if (string.IsNullOrEmpty(_txtInput.Text)) _txtInput.Visible = false;
                 _inputPanel.Invalidate();

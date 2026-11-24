@@ -1,3 +1,29 @@
+## 当前任务 — LC-CHAT-COMPOSER-001（Round 2：独立复审通过）
+
+- **状态**：**APPROVED**（当前开发与宿主机回归范围放行）。
+- **日期**：2026-11-24。
+- **执行者**：Codex（Round 2 整改）；**独立审核方**：Gemini（Round 2 独立复审）。
+- **范围**：Windows WinForms 与 Linux Electron 的微信静态表情导入与回显、Unicode 组合表情排版与划选复制（含 `LC-CC-001` 整段 BMP Emoji 排版）、在线/离线分组 8px 间距与 6px 圆点、截图粘贴草稿与发送（含 `LC-CC-002` Linux PNG/JPEG 直传与空图回退）。
+- **一句话结论**：Round 1 全部 2 项 P1（`LC-CC-001`、`LC-CC-002`）已复核 `RESOLVED`，Node IPC 回归已拆至 `tests/linux_desktop_ipc_regression.js`（220 行），全量 20 个改动/新增文件 `< 1000` 行，LANC 旧版兼容零破坏，其余 4 项 P2（`LC-CC-003` ~ `LC-CC-006`）与跨环境项（`LC-CC-ENV-001`）已登记至 `CRDocs/DEFERRED.md`。
+- **验证边界**：独立复跑 `tests/friend_refresh_regression.ps1`、`tests/chat_composer_regression.ps1 -ExpectLocalPack`、`C:\Program Files\nodejs\node.exe`（7 文件 `--check` + `tests/linux_desktop_ui_regression.js`）、`py_compile`、`dotnet build` 共享后端及 `git diff --check` 全部退出码 0。**未验证**真实双机新旧版互通、Windows 真实截图工具键盘链路、Linux/QEMU 最新 ELF 实跑（`tests/linux_desktop_regression.py`）与 Linux Xorg/Wayland/XWayland Electron 实机剪贴板及界面（见 `CRDocs/DEFERRED.md` `LC-CC-ENV-001`）。
+- **记录**：[Round 2 独立复审](REVIEW.md) · [Round 2 实施详情](IMPLEMENTATION.md) · [延期及跨环境验收](DEFERRED.md#lc-cc-env-001-open-剪贴板与新旧客户端的桌面验收)。
+- **下一步**：`LC-CHAT-COMPOSER-001` 当前开发与宿主机回归范围已闭环；由用户决定进入提交/打包发布，或安排 `CRDocs/DEFERRED.md` 中的真实双机与 Linux 实机验收（`LC-CC-ENV-001`）及后续 P2 专项（`LC-CC-003` ~ `LC-CC-006`）。
+
+---
+
+## 历史状态 — LC-CHAT-COMPOSER-001（Round 1：独立审核打回）
+
+- **状态**：**REJECTED**（按 `CRDocs/RULES.md` 打回整改；对应 `CRDocs/README.md` 中的 `CHANGES_REQUESTED`）。
+- **日期**：2026-11-24。
+- **执行者**：Codex；**独立审核方**：Gemini。
+- **范围**：Windows WinForms 与 Linux Electron 的微信静态表情导入与回显、Unicode 组合表情排版与划选复制、在线/离线分组 8px 间距与 6px 圆点、截图粘贴草稿与发送。
+- **一句话结论**：微信 4.2.0.13 本机 109 表情导入、无资源可读回退、LANC 旧版兼容与双端分组间距圆点均成立，但存在 2 项 P1 阻断（`LC-CC-001` Windows `ChatTextLayout.PaintText` 拆分 BMP 基底组合表情、`LC-CC-002` Linux 剪贴板非 PNG/JPEG 图像直接交 `nativeImage.createFromBuffer` 必败并屏蔽 `image/png` 回退）及 4 项 P2，打回整改。
+- **验证边界**：Windows 宿主机回归（`friend_refresh_regression.ps1`、`chat_composer_regression.ps1 -ExpectLocalPack`、`node --check` + `linux_desktop_ui_regression.js`、`py_compile`、`dotnet build` 共享后端及只读反射检查）全部独立复跑并取得实证；**未验证**真实双机新旧版互通、真实 Windows 桌面截图工具键盘链路、Linux ELF 实跑与 Linux Xorg/Wayland Electron 桌面实机（见 `CRDocs/DEFERRED.md` `LC-CC-ENV-001`）。
+- **记录**：[Round 1 独立审核](REVIEW.md) · [Round 1 实现细节](IMPLEMENTATION.md) · [跨环境验收](DEFERRED.md#lc-cc-env-001-open-剪贴板与新旧客户端的桌面验收)。
+- **下一步**：Codex 按 `CRDocs/REVIEW.md` 修复 `LC-CC-001` 与 `LC-CC-002`（建议评估顺手关闭 `LC-CC-003`、`LC-CC-004` 并注意 `renderer.js` / `linux_desktop_ui_regression.js` 1000 行预警线），补充针对性自动化断言并复跑三套回归后，更新 `CRDocs/IMPLEMENTATION.md`（追加 Round 2）、按 `CRDocs/RULES.md` 更新 `CRDocs/REVIEW.md` 与 `CRDocs/STATUS.md` 为 `WAITING_FOR_GROK` 交回复审。
+
+---
+
 ## 当前任务 — LC-FRIEND-REFRESH-001（Round 2：独立复审通过）
 
 - **Task ID**：`LC-FRIEND-REFRESH-001`

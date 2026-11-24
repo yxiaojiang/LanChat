@@ -1,9 +1,7 @@
 const assert = require('node:assert/strict');
-const { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
-const Module = require('node:module');
-const { tmpdir } = require('node:os');
-const { join, resolve } = require('node:path');
-const { pathToFileURL } = require('node:url');
+const { readFileSync } = require('node:fs');
+const { join } = require('node:path');
+const testDesktopIpc = require('./linux_desktop_ipc_regression.js');
 const presentation = require('../src/linux/desktop/presentation.js');
 const settingsModel = require('../src/linux/desktop/settings-model.js');
 
@@ -228,88 +226,6 @@ function testSettingsModelAndMarkup() {
   assert.equal(service.includes('ClearAllHistories'), true);
 }
 
-async function testMainPathPolicy() {
-  const opened = [];
-  const originalLoad = Module._load;
-  process.env.LANCHAT_TEST_MODE = '1';
-  Module._load = function (request, parent, isMain) {
-    if (request === 'electron') {
-      return {
-        app: {}, BrowserWindow: function () {}, dialog: {}, ipcMain: {}, session: {},
-        shell: { openPath: async target => { opened.push(target); return ''; } }
-      };
-    }
-    return originalLoad.apply(this, arguments);
-  };
-  let mainApi;
-  try {
-    mainApi = require('../src/linux/desktop/main.cjs');
-  } finally {
-    Module._load = originalLoad;
-    delete process.env.LANCHAT_TEST_MODE;
-  }
-
-  const sandboxDir = mkdtempSync(join(tmpdir(), 'lanchat-open-path-'));
-  try {
-    const existing = join(sandboxDir, 'received.txt');
-    const unrecorded = join(sandboxDir, 'other.txt');
-    writeFileSync(existing, 'ok');
-    writeFileSync(unrecorded, 'nope');
-
-    const rawGnome = 'electron application/osclipboard;format="x-special/gnome-copied-files"';
-    const firstFile = join(sandboxDir, '中文 #1.txt');
-    const fileUri = pathToFileURL(firstFile).href;
-    const clipboardItem = (type, data) => ({ types: [type], getType: async () => new Blob([data]) });
-    const readClipboard = items => mainApi.readClipboardPaths({ read: async () => items });
-    assert.deepEqual(await readClipboard([clipboardItem(rawGnome, `copy\n${fileUri}\n${fileUri}\0`)]), [firstFile]);
-    assert.deepEqual(await readClipboard([clipboardItem('text/uri-list', `# 文件\r\n${fileUri}\r\nhttps://example.com/`)]), [firstFile]);
-    assert.deepEqual(await readClipboard([clipboardItem('text/plain', firstFile)]), []);
-
-    await assert.rejects(() => mainApi.openPath(unrecorded, 'file'), /未在通信记录中登记/);
-    mainApi.recordMessagePaths({ file: true, path: existing });
-    await mainApi.openPath(existing, 'file');
-    assert.equal(opened.at(-1), resolve(existing));
-
-    rmSync(existing);
-    await assert.rejects(() => mainApi.openPath(existing, 'file'));
-    await mainApi.openPath(existing, 'directory');
-    assert.equal(opened.at(-1), resolve(sandboxDir));
-
-    const missingParentFile = join(sandboxDir, 'gone-dir', 'lost.txt');
-    mainApi.recordMessagePaths({ file: true, path: missingParentFile });
-    await assert.rejects(() => mainApi.openPath(missingParentFile, 'directory'), /所在目录不可用/);
-
-    assert.deepEqual(
-      mainApi.computeSettingsBounds({ x: 0, y: 0, width: 1920, height: 1080 }, { x: 440, y: 180, width: 1040, height: 720 }),
-      { width: 1260, height: 820, x: 330, y: 130 }
-    );
-    assert.deepEqual(
-      mainApi.computeSettingsBounds({ x: 0, y: 0, width: 1280, height: 800 }, { x: 100, y: 40, width: 1040, height: 720 }),
-      { width: 1240, height: 760, x: 0, y: 20 }
-    );
-    const clamped = mainApi.computeSettingsBounds({ x: 100, y: 50, width: 1024, height: 768 }, { x: 900, y: 600, width: 880, height: 560 });
-    assert.equal(clamped.width, 984);
-    assert.equal(clamped.height, 728);
-    assert.equal(clamped.x >= 100 && clamped.x + clamped.width <= 1124, true);
-    assert.equal(clamped.y >= 50 && clamped.y + clamped.height <= 818, true);
-
-    for (const small of [
-      { x: 0, y: 0, width: 640, height: 480 },
-      { x: 0, y: 0, width: 500, height: 420 },
-      { x: 0, y: 0, width: 420, height: 360 }
-    ]) {
-      const smallBounds = mainApi.computeSettingsBounds(small, null);
-      const minSize = mainApi.computeSettingsMinSize(smallBounds);
-      assert.equal(smallBounds.width <= small.width, true);
-      assert.equal(smallBounds.height <= small.height, true);
-      assert.equal(minSize.minWidth <= smallBounds.width, true);
-      assert.equal(minSize.minHeight <= smallBounds.height, true);
-    }
-  } finally {
-    rmSync(sandboxDir, { recursive: true, force: true });
-  }
-}
-
 function makeNode(tagName, id = '') {
   const listeners = new Map();
   const attrs = new Map();
@@ -484,13 +400,15 @@ async function testOverlayAttachToggle() {
   win.innerHeight = 720;
   const menu = makeNode('DIV', 'menu');
   const emoji = makeNode('DIV', 'emoji');
+  const emojiGrid = makeNode('DIV', 'emoji-grid');
+  emoji.append(emojiGrid);
   const confirm = makeNode('DIALOG', 'confirm');
   const attach = makeNode('BUTTON', 'attach');
   const attachImg = makeNode('IMG');
   attach.append(attachImg);
   menu.hidden = true;
   emoji.hidden = true;
-  const nodes = new Map([['menu', menu], ['emoji', emoji], ['confirm', confirm], ['attach', attach]]);
+  const nodes = new Map([['menu', menu], ['emoji', emoji], ['emoji-grid', emojiGrid], ['confirm', confirm], ['attach', attach]]);
   doc.createElement = tag => makeNode(tag.toUpperCase());
   doc.getElementById = id => nodes.get(id) || null;
   doc.querySelectorAll = () => [];
@@ -516,7 +434,19 @@ async function testOverlayAttachToggle() {
     doc.dispatch('pointerup', { target: menu });
     await new Promise(resolve => setTimeout(resolve, 10));
     assert.equal(overlay.consumeAttachToggle(), false);
+    presentation.setEmojiPack([['[敲打]', 'data:image/png;base64,AAAA']]);
+    let picked;
+    overlay.openEmoji(attach, token => { picked = token; }, attach);
+    assert.equal(emojiGrid.children.length, 1);
+    assert.equal(emojiGrid.children[0].children[0].src, 'data:image/png;base64,AAAA');
+    emojiGrid.children[0].dispatch('click');
+    assert.equal(picked, '[敲打]');
+    const bubble = makeNode('DIV');
+    presentation.drawMessageText(bubble, '[敲打]', doc);
+    assert.equal(bubble.children[0].textContent, '[敲打]');
+    assert.equal(bubble.children[0].children[0].src, 'data:image/png;base64,AAAA');
   } finally {
+    presentation.setEmojiPack([]);
     if (originalDocument === undefined) delete global.document;
     else global.document = originalDocument;
     if (originalWindow === undefined) delete global.window;
@@ -862,15 +792,18 @@ async function testMainRendererRaceAndAppearance() {
     assert.equal(feed.querySelectorAll('.file-actions').length, 2);
     assert.equal(progressViews()[0].children[1].textContent, '发送失败 · 文件不可用');
 
-    // 5. 粘贴文件只加入当前会话的输入草稿，提交时发送文件引用而非文本。
+    // 粘贴的截图显示缩略图，只在提交时发送文件引用。
     let sent;
     fakeApi.sendPastedFiles = async (recipient, ids) => { sent = { recipient, ids }; };
     fakeApi.sendText = async () => { assert.fail('只有附件时不应发送文字'); };
     const input = nodes.get('message');
-    input.dispatch('files-pasted', { detail: JSON.stringify({ chat, files: [{ id: 'clipboard-file', name: '粘贴.txt', size: 3 }] }) });
+    input.dispatch('files-pasted', { detail: JSON.stringify({ chat, files: [
+      { id: 'clipboard-file', name: '截图.png', size: 3, preview: 'data:image/png;base64,AAAA' }
+    ] }) });
     assert.equal(input.value, '');
     assert.equal(nodes.get('send').disabled, false);
     assert.equal(nodes.get('attachments-host').hidden, false);
+    assert.equal(nodes.get('attachments').children[0].children[0].className, 'attachment-preview');
     assert.equal(sent, undefined);
     ctrl.switchChat('BROADCAST');
     assert.equal(nodes.get('attachments-host').hidden, true);
@@ -883,6 +816,7 @@ async function testMainRendererRaceAndAppearance() {
 
     // 分组标题不参与键盘导航，搜索只渲染命中的分组。
     assert.deepEqual(rows(), ['BROADCAST', '在线', chat, '离线', archived.key]);
+    assert.deepEqual(nav.children.filter(row => row.className === 'session-heading').map(row => row.dataset.online), ['true', 'false']);
     const selected = () => nav.children.find(row => row.getAttribute('aria-current') === 'true')?.dataset.key;
     nav.dispatch('keydown', { key: 'ArrowDown' });
     assert.equal(selected(), archived.key);
@@ -924,7 +858,7 @@ Promise.resolve()
   .then(() => { testSettingsModelAndMarkup(); })
   .then(() => { testScrollbarBehavior(); })
   .then(() => testOverlayAttachToggle())
-  .then(() => testMainPathPolicy())
+  .then(() => testDesktopIpc())
   .then(() => testSettingsController())
   .then(() => testMainRendererRaceAndAppearance())
   .then(() => {

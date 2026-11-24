@@ -1,6 +1,6 @@
-const { app, BrowserWindow, clipboard, dialog, ipcMain, screen, session, shell } = require('electron');
+const { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, screen, session, shell } = require('electron');
 const { randomUUID } = require('node:crypto');
-const { mkdir, realpath, stat } = require('node:fs/promises');
+const { mkdir, open, readFile, realpath, stat, unlink } = require('node:fs/promises');
 const os = require('node:os');
 const { basename, dirname, isAbsolute, join, resolve } = require('node:path');
 const { fileURLToPath, pathToFileURL } = require('node:url');
@@ -15,6 +15,7 @@ const allowedFilePaths = new Set();
 const pendingDrops = new Map();
 const pendingPastes = new Map();
 const maxFiles = 32;
+const maxPastedImageBytes = 64 * 1024 * 1024;
 let window;
 let settingsWindow;
 let service;
@@ -208,8 +209,7 @@ async function validateLocalFiles(paths) {
 }
 
 // 优先读取桌面文件管理器的文件格式，普通文本中的路径仍按文本粘贴。
-async function readClipboardPaths(source = clipboard) {
-  const items = await source.read();
+async function readClipboardPaths(items) {
   const formats = ['electron application/osclipboard;format="x-special/gnome-copied-files"', 'text/uri-list'];
   for (const format of formats) {
     const paths = new Set();
@@ -226,15 +226,99 @@ async function readClipboardPaths(source = clipboard) {
   return [];
 }
 
-async function stagePastedFiles(paths) {
-  const localPaths = paths.length ? paths : await readClipboardPaths();
-  if (!localPaths.length) return [];
-  const files = await validateLocalFiles([...new Set(localPaths)]);
+async function stagePastedFiles(paths, imageBytes, allowImage) {
+  const items = paths.length || imageBytes != null ? null : await clipboard.read();
+  const localPaths = paths.length ? paths : await readClipboardPaths(items ?? []);
+  const files = localPaths.length ? await validateLocalFiles([...new Set(localPaths)]) : [];
+  if (!files.length && allowImage === true) {
+    const direct = imageBytes == null ? null : decodeClipboardImage(imageBytes);
+    // 内存图像解码为空时，再读系统剪贴板提供的 PNG/JPEG 表示。
+    const image = direct ?? await readClipboardImage(items ?? await clipboard.read());
+    if (image) files.push(await stageClipboardImage(image));
+    else if (imageBytes != null) throw new Error('无法读取剪贴板图片');
+  }
+  if (exiting) {
+    await Promise.all(files.filter(file => file.preview).map(file => unlink(file.path).catch(() => {})));
+    return [];
+  }
   return files.map(file => {
     const id = randomUUID();
     pendingPastes.set(id, file);
-    return { id, name: file.name, size: file.size };
+    return { id, name: file.name, size: file.size, preview: file.preview };
   });
+}
+
+async function readClipboardImage(items) {
+  let attempted = false;
+  for (const type of ['image/png', 'image/jpeg']) {
+    for (const item of items) {
+      if (!item.types.includes(type)) continue;
+      attempted = true;
+      const blob = await item.getType(type);
+      if (blob.size > maxPastedImageBytes) throw new Error('剪贴板图片超过 64 MiB');
+      const image = decodeClipboardImage(await blob.arrayBuffer());
+      if (image) return image;
+    }
+  }
+  if (attempted) throw new Error('无法读取剪贴板图片');
+  return null;
+}
+
+function decodeClipboardImage(bytes) {
+  if (!(bytes instanceof ArrayBuffer) || bytes.byteLength > maxPastedImageBytes)
+    throw new Error('剪贴板图片格式无效或超过 64 MiB');
+  const image = nativeImage.createFromBuffer(Buffer.from(bytes));
+  return image.isEmpty() ? null : image;
+}
+
+async function stageClipboardImage(image) {
+  const png = image.toPNG();
+  if (png.length > maxPastedImageBytes) throw new Error('剪贴板图片超过 64 MiB');
+  const { width, height } = image.getSize();
+  const preview = image.resize(width >= height ? { width: 48 } : { height: 48 }).toDataURL();
+  // 已提交的 PNG 保留本机副本，草稿取消时只删除应用自己创建的图片。
+  const directory = join(app.getPath('userData'), 'PastedImages');
+  const name = '截图-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '-' + randomUUID().slice(0, 12) + '.png';
+  const path = join(directory, name);
+  await mkdir(directory, { recursive: true });
+  const file = await open(path, 'wx', 0o600);
+  try {
+    try { await file.writeFile(png); } finally { await file.close(); }
+  } catch (error) {
+    await unlink(path).catch(() => {});
+    throw error;
+  }
+  return { path, name, size: png.length, preview };
+}
+
+async function discardPastedFiles(ids) {
+  await Promise.all(ids.map(async id => {
+    const file = pendingPastes.get(id);
+    pendingPastes.delete(id);
+    if (file?.preview) await unlink(file.path).catch(() => {});
+  }));
+}
+
+// 只读取本地导入目录的清单与指定 PNG，渲染进程不接触文件路径。
+async function readEmojiPack(directory = join(app.getPath('userData'), 'WeChatEmoji')) {
+  try {
+    const manifest = join(directory, 'manifest.tsv');
+    if ((await stat(manifest)).size > 16 * 1024) return [];
+    const lines = (await readFile(manifest, 'utf8')).split(/\r?\n/).slice(0, 128);
+    const entries = await Promise.all(lines.map(async line => {
+      const [token, name, extra] = line.split('\t');
+      if (extra !== undefined || !/^\[[^\[\]\s]{1,24}\]$/.test(token) || !/^[0-9]{3}\.png$/.test(name)) return null;
+      const file = join(directory, name);
+      try {
+        if ((await stat(file)).size > 128 * 1024) return null;
+        const bytes = await readFile(file);
+        if (bytes.length < 24 || bytes.readBigUInt64BE() !== 0x89504e470d0a1a0an ||
+            bytes.readUInt32BE(16) > 64 || bytes.readUInt32BE(20) > 64) return null;
+        return [token, 'data:image/png;base64,' + bytes.toString('base64')];
+      } catch { return null; }
+    }));
+    return entries.filter(Boolean);
+  } catch { return []; }
 }
 
 async function dispatchFiles(chat, files, waitForResult = true) {
@@ -310,7 +394,8 @@ async function openPath(target, kind) {
 }
 
 if (process.env.LANCHAT_TEST_MODE === '1') {
-  module.exports = { openPath, recordMessagePaths, allowedFilePaths, computeSettingsBounds, computeSettingsMinSize, readClipboardPaths };
+  module.exports = { openPath, recordMessagePaths, allowedFilePaths, computeSettingsBounds, computeSettingsMinSize,
+    readClipboardPaths, stagePastedFiles, discardPastedFiles, readEmojiPack };
 } else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -321,7 +406,7 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
     event.preventDefault();
     if (exiting) return;
     exiting = true;
-    service.stop().finally(() => {
+    Promise.allSettled([service.stop(), discardPastedFiles([...pendingPastes.keys()])]).finally(() => {
       stopped = true;
       app.quit();
     });
@@ -431,18 +516,24 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       return selection.canceled ? [] : sendFiles(chat, selection.filePaths);
     });
     handle('drop-files', sendFiles);
+    handle('emoji-pack', () => readEmojiPack());
     handle('stage-paste', stagePastedFiles);
     handle('discard-paste', ids => {
       if (!Array.isArray(ids)) throw new Error('附件列表无效');
-      for (const id of ids) pendingPastes.delete(id);
+      return discardPastedFiles(ids);
     });
     handle('send-paste', async (chat, ids) => {
       if (!Array.isArray(ids) || !ids.length || ids.length > maxFiles || new Set(ids).size !== ids.length)
         throw new Error(`一次最多发送 ${maxFiles} 个文件`);
       const files = ids.map(id => pendingPastes.get(id));
       if (files.some(file => !file)) throw new Error('粘贴的文件已不可用，请重新粘贴');
-      await dispatchFiles(chat, files, false);
       for (const id of ids) pendingPastes.delete(id);
+      try {
+        await dispatchFiles(chat, files, false);
+      } catch (error) {
+        ids.forEach((id, i) => pendingPastes.set(id, files[i]));
+        throw error;
+      }
     });
     handle('stage-drop', async paths => {
       const files = await validateLocalFiles(paths);

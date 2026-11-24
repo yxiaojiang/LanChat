@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('lanchat', {
   saveSettings: (...args) => ipcRenderer.invoke('lanchat:save-settings', ...args),
   selectSettingsDirectory: kind => ipcRenderer.invoke('lanchat:select-settings-directory', kind),
   sendText: (chat, text) => ipcRenderer.invoke('lanchat:send-text', chat, text),
+  emojiPack: () => ipcRenderer.invoke('lanchat:emoji-pack'),
   sendPastedFiles: (chat, ids) => ipcRenderer.invoke('lanchat:send-paste', chat, ids),
   discardPastedFiles: ids => ipcRenderer.invoke('lanchat:discard-paste', ids),
   selectFiles: chat => ipcRenderer.invoke('lanchat:select-files', chat),
@@ -33,14 +34,23 @@ window.addEventListener('paste', event => {
   const chat = target.dataset?.draftChat;
   if (!event.isTrusted || target.id !== 'message' || !chat || !data || target.disabled) return;
   const paths = Array.from(data.files, file => webUtils.getPathForFile(file)).filter(Boolean);
+  // 只有 PNG/JPEG 能走内存直传。其他图像由主进程查找系统剪贴板提供的兼容格式。
+  const image = Array.from(data.files).find(file =>
+    (file.type === 'image/png' || file.type === 'image/jpeg') && !webUtils.getPathForFile(file)
+  );
   const plain = data.getData('text/plain');
   const fileFormat = data.types.includes('text/uri-list') || data.types.includes('x-special/gnome-copied-files');
-  if (!paths.length && !fileFormat && plain && !/^\s*(?:file:\/|\/)/m.test(plain)) return;
+  if (!paths.length && !image && !fileFormat && plain && !/^\s*(?:file:\/|\/)/m.test(plain)) return;
   event.preventDefault();
   const initialValue = target.value;
   const start = target.selectionStart;
   const end = target.selectionEnd;
-  ipcRenderer.invoke('lanchat:stage-paste', paths).then(files => {
+  const stage = async () => {
+    if (paths.length || fileFormat || !image) return ipcRenderer.invoke('lanchat:stage-paste', paths, null, !plain);
+    if (image.size > 64 * 1024 * 1024) throw new Error('剪贴板图片超过 64 MiB');
+    return ipcRenderer.invoke('lanchat:stage-paste', paths, await image.arrayBuffer(), true);
+  };
+  stage().then(files => {
     if (files.length) {
       target.dispatchEvent(new CustomEvent('files-pasted', { detail: JSON.stringify({ chat, files }) }));
       return;

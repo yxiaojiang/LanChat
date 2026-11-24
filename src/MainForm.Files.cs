@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace LanChat
@@ -10,6 +12,8 @@ namespace LanChat
     {
         // 附件草稿依附会话，切换聊天时不发送或丢弃草稿。
         private readonly Dictionary<string, List<string>> _attachmentDrafts = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        // 只记录从剪贴板生成的图片，删除草稿时不能误删用户复制的原始文件。
+        private readonly Dictionary<string, Image> _draftImagePreviews = new Dictionary<string, Image>(StringComparer.OrdinalIgnoreCase);
         private SessionListBox _attachmentList;
 
         private void InitializeFileAttachments()
@@ -34,6 +38,10 @@ namespace LanChat
                 RemoveAttachment(_attachmentList.SelectedIndex);
             };
             _bottomSendPanel.Controls.Add(_attachmentList);
+            Disposed += (sender, e) =>
+            {
+                foreach (string path in new List<string>(_draftImagePreviews.Keys)) ReleaseDraftImage(path, true);
+            };
         }
 
         private static Rectangle AttachmentRemoveBounds(Rectangle row)
@@ -52,8 +60,13 @@ namespace LanChat
             {
                 DrawRoundedRectangle(e.Graphics, bg, row, 16);
                 DrawRoundedRectangle(e.Graphics, border, row, 16);
-                WeChatIcon.Draw(e.Graphics, WeChatIconType.Box, new Rectangle(row.X + 11, row.Y + 7, 18, 18), false, GrokTheme.AccentHot);
-                GrokTheme.DrawUiTextLeft(e.Graphics, Path.GetFileName((string)_attachmentList.Items[e.Index]), font, GrokTheme.TextPrimary,
+                string path = (string)_attachmentList.Items[e.Index];
+                Image preview;
+                if (_draftImagePreviews.TryGetValue(path, out preview))
+                    e.Graphics.DrawImage(preview, row.X + 20 - preview.Width / 2, row.Y + 16 - preview.Height / 2, preview.Width, preview.Height);
+                else
+                    WeChatIcon.Draw(e.Graphics, WeChatIconType.Box, new Rectangle(row.X + 11, row.Y + 7, 18, 18), false, GrokTheme.AccentHot);
+                GrokTheme.DrawUiTextLeft(e.Graphics, Path.GetFileName(path), font, GrokTheme.TextPrimary,
                     row.X + 38, row.Y, Math.Max(1, row.Width - 74), row.Height);
                 var remove = AttachmentRemoveBounds(e.Bounds);
                 WeChatIcon.Draw(e.Graphics, WeChatIconType.Dismiss, remove, false, GrokTheme.TextSecondary);
@@ -89,11 +102,81 @@ namespace LanChat
             string key = _activeChatKey;
             var paths = GetAttachmentDraft(key);
             if (paths == null || index < 0 || index >= paths.Count) return;
+            ReleaseDraftImage(paths[index], true);
             paths.RemoveAt(index);
             if (paths.Count == 0) _attachmentDrafts.Remove(key);
             RefreshAttachmentDraft();
             _txtInput.Visible = true;
             _txtInput.Focus();
+        }
+
+        private void StageClipboardImage(Image image)
+        {
+            string key = _activeChatKey;
+            var paths = GetAttachmentDraft(key) ?? new List<string>();
+            if (paths.Count >= 32)
+            {
+                GrokMessageBox.Show(this, "一次最多发送 32 个附件。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // 已提交的图片保留本机副本，发送线程与聊天历史可以继续打开原图。
+            string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LanChat", "PastedImages");
+            string path = Path.Combine(directory, "截图-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N").Substring(0, 12) + ".png");
+            Bitmap preview = null;
+            bool created = false;
+            try
+            {
+                float scale = 24f / Math.Max(image.Width, image.Height);
+                preview = new Bitmap(Math.Max(1, (int)(image.Width * scale)), Math.Max(1, (int)(image.Height * scale)));
+                using (Graphics graphics = Graphics.FromImage(preview))
+                {
+                    graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                    graphics.DrawImage(image, 0, 0, preview.Width, preview.Height);
+                }
+                Directory.CreateDirectory(directory);
+                using (var file = new FileStream(path, FileMode.CreateNew, FileAccess.Write))
+                {
+                    created = true;
+                    image.Save(file, ImageFormat.Png);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (preview != null) preview.Dispose();
+                if (created) DeleteDraftImage(path);
+                if (!(ex is IOException || ex is UnauthorizedAccessException || ex is ExternalException || ex is ArgumentException)) throw;
+                GrokMessageBox.Show(this, "无法保存剪贴板图片。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            _draftImagePreviews.Add(path, preview);
+            paths.Add(path);
+            _attachmentDrafts[key] = paths;
+            RefreshAttachmentDraft();
+        }
+
+        private void ClearAttachmentDraft(string key, bool deleteImage)
+        {
+            var paths = GetAttachmentDraft(key);
+            if (paths == null) return;
+            foreach (string path in paths) ReleaseDraftImage(path, deleteImage);
+            _attachmentDrafts.Remove(key);
+        }
+
+        private void ReleaseDraftImage(string path, bool deleteImage)
+        {
+            Image preview;
+            if (!_draftImagePreviews.TryGetValue(path, out preview)) return;
+            _draftImagePreviews.Remove(path);
+            preview.Dispose();
+            if (deleteImage) DeleteDraftImage(path);
+        }
+
+        private static void DeleteDraftImage(string path)
+        {
+            try { File.Delete(path); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
         }
 
         private void RefreshAttachmentDraft()

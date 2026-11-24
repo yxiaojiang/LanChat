@@ -1,6 +1,6 @@
 # Windows.md — Windows 客户端模块上下文
 
-> 2026-11-24 · v2.0.19 已发布（[Release](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.19)）。好友刷新返修已独立审核通过。原生构建和回环 Win32 交互隔离回归通过；真实多机 LAN、实际换网和 TUN 路由仍待现场验收。
+> 2026-11-24 · LC-CHAT-COMPOSER-001 Round 2 与好友刷新返修均已独立审核通过，当前准备提交并发布下一版。组合 Emoji 的整段 GDI+ 测量/绘制和截图草稿回归已通过；原生构建和回环 Win32 交互隔离回归通过。真实多机 LAN、实际换网、系统截图粘贴和 TUN 路由仍待现场验收。
 
 ## 模块定位与职责
 Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装、无外部依赖、支持 MSI 标准向导安装与绿色单文件执行**的现代化桌面应用。

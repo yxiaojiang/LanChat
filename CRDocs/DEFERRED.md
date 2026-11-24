@@ -4,6 +4,39 @@
 
 ---
 
+## LC-CC-ENV-001 [OPEN] 剪贴板与新旧客户端的桌面验收
+
+- **来源** LC-CHAT-COMPOSER-001 Round 1，2026-11-24。
+- **触发阶段** 本轮独立审核后，在 Windows 与 Linux 可用桌面环境验证。
+- **验收** Windows 截图工具和图像应用的 Ctrl+V、Shift+Insert、右键粘贴，Linux Xorg/Wayland 截图与文件管理器的 Ctrl+V。确认只在当前会话出现缩略图，移除和取消选择接收者的行为正确。两个新版且导入同包的端点逐次发送微信表情、Unicode 与 PNG，核对显示、复制、重新打开历史和图片字节。与未导入资源或旧版对端联测可读名称、文字和图片文件卡片。运行 Linux ELF 回归，核对两端分组间距和状态圆点。
+- **当前证据** Windows 原生编译和隔离回环、GDI+ 绘制以及 Linux 源码检查和 Windows 宿主机上的 Node 桩测试通过。真实多机与 Linux 桌面、实际系统剪贴板键盘操作仍待取证。
+
+## LC-CC-003 [DEFERRED] Linux 侧栏摘要的可见元素截断与表情回显
+
+- **来源** LC-CHAT-COMPOSER-001 Round 1 P2，Round 2 评估。
+- **触发阶段** Linux 侧栏渲染改动前，按职责拆分 961 行的 `renderer.js`，同步核对 `presentation.js`。
+- **验收** 确认 👨‍👩‍👧‍👦、👍🏽、🇨🇳 和本地表情令牌在省略位置保持完整，已导入表情可回显，无资源时保留可读文字。
+
+## LC-CC-004 [DEFERRED] 异步截图发送失败和退出中的临时文件清理
+
+- **来源** LC-CHAT-COMPOSER-001 Round 1 P2，Round 2 评估。
+- **触发阶段** 双端附件生命周期专项。梳理 Windows 传输完成回调、Linux 文件队列和退出前在途请求。
+- **验收** 拒收、断连与退出交叠时清理无历史引用的应用截图。保留发送成功且由历史引用的 PNG 和用户原始文件。
+
+## LC-CC-005 [DEFERRED] Windows 图文混合粘贴优先级与空输入框右键
+
+- **来源** LC-CHAT-COMPOSER-001 Round 1 P2。
+- **触发阶段** Windows 输入区交互整改与真实剪贴板验收。
+- **验收** 验证 Excel/WPS 单元格的文字与位图并存行为、空输入栏首次右键的暗色粘贴菜单及输入框原有复制和剪切操作。
+
+## LC-CC-006 [DEFERRED] Renderer 拆分与 Windows 选区、草稿用例补齐
+
+- **来源** LC-CHAT-COMPOSER-001 Round 1 P2。Round 2 已将 Node IPC 用例拆到独立测试模块，原测试入口为 869 行。
+- **触发阶段** 下次扩展 `renderer.js` 行为前，以及 Windows 聊天选区或草稿流程有后续改动时。
+- **验收** 按职责拆分 `renderer.js` 并维持软门禁，补足 Windows 像素命中不拆表情、跨 CRLF 复制、切换会话保留草稿和关闭清理的自动化断言。
+
+---
+
 ## LC-LINUX-002-ENV-001 [OPEN] Linux 网络命名空间对最新 ELF 实跑后端回归
 
 - **来源轮次**：`LC-LINUX-002-STEP-3-SLICE-2` Round 1 / Round 2（2026-11-23）。

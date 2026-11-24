@@ -1,13 +1,14 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace LanChat
 {
     /// <summary>
-    /// 聊天输入框，依赖 Windows 原生编辑控件和资源管理器剪贴板。
-    /// 文件粘贴交给宿主暂存，文字仍走原生编辑流程，随输入框一起释放。
+    /// 聊天输入框，依赖 Windows 原生编辑控件及系统剪贴板。
+    /// 将文件和图片交给宿主暂存，文字沿用原生编辑流程，随输入框释放。
     /// </summary>
     internal sealed class ChatInputBox : TextBox
     {
@@ -16,57 +17,109 @@ namespace LanChat
 
         /// <summary>用户明确粘贴资源管理器文件列表时通知宿主。</summary>
         internal event Action<string[]> FilesPasted;
+        /// <summary>用户粘贴位图时同步通知宿主，回调返回后输入框释放图片。</summary>
+        internal event Action<Image> ImagePasted;
 
-        /// <summary>在系统只提供文件列表时也接收 Ctrl+V 和 Shift+Insert。</summary>
+        /// <summary>系统剪贴板提供图片或文件时接收 Ctrl+V 和 Shift+Insert。</summary>
         /// <param name="msg">当前键盘消息。</param>
         /// <param name="keyData">按键和修饰键。</param>
-        /// <returns>文件粘贴已处理时返回 true，其他按键沿用原生处理。</returns>
+        /// <returns>附件粘贴已处理时返回 true，其他按键沿用原生处理。</returns>
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            if ((keyData == (Keys.Control | Keys.V) || keyData == (Keys.Shift | Keys.Insert)) && TryPasteFiles()) return true;
+            if ((keyData == (Keys.Control | Keys.V) || keyData == (Keys.Shift | Keys.Insert)) && TryPasteAttachment()) return true;
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
-        /// <summary>接收原生粘贴消息，并在文件剪贴板上提供右键粘贴附件入口。</summary>
+        /// <summary>接收原生粘贴消息，并为附件提供暗色右键粘贴入口。</summary>
         /// <param name="m">Windows 编辑控件消息。</param>
         protected override void WndProc(ref Message m)
         {
-            if (m.Msg == PasteMessage && TryPasteFiles()) return;
-            // 原生右键菜单可能对纯 CF_HDROP 禁用粘贴，文件剪贴板使用已有的暗色菜单。
-            if (m.Msg == ContextMenuMessage && ReadClipboardFiles() != null)
+            if (m.Msg == PasteMessage && TryPasteAttachment()) return;
+            // 原生右键菜单会对纯附件禁用粘贴，通过暗色菜单补足入口。
+            if (m.Msg == ContextMenuMessage && HasClipboardAttachment())
             {
                 Point location = m.LParam == new IntPtr(-1) ? new Point(0, Height) : PointToClient(Cursor.Position);
                 var menu = new GrokPopupMenu();
-                menu.AddItem("粘贴附件", WeChatIconType.Folder, () => TryPasteFiles(), "Ctrl+V");
+                menu.AddItem("粘贴附件", WeChatIconType.Folder, () => TryPasteAttachment(), "Ctrl+V");
                 menu.Show(this, location);
                 return;
             }
             base.WndProc(ref m);
         }
 
-        private bool TryPasteFiles()
+        private bool TryPasteAttachment()
         {
-            string[] paths = ReadClipboardFiles();
-            if (paths == null) return false;
-            FilesPasted(paths);
-            return true;
+            IDataObject data = ReadClipboard();
+            if (data == null) return false;
+            string[] paths = FilesPasted == null ? null : ReadFileDrop(data);
+            if (paths != null)
+            {
+                FilesPasted(paths);
+                return true;
+            }
+            if (ImagePasted == null) return false;
+            using (Image image = ReadClipboardImage(data))
+            {
+                if (image == null) return false;
+                ImagePasted(image);
+                return true;
+            }
         }
 
-        private string[] ReadClipboardFiles()
+        private bool HasClipboardAttachment()
         {
-            if (FilesPasted == null || ReadOnly) return null;
+            IDataObject data = ReadClipboard();
+            if (data == null) return false;
             try
             {
-                return ReadFileDrop(Clipboard.GetDataObject());
+                return (FilesPasted != null && data.GetDataPresent(DataFormats.FileDrop, false)) ||
+                    (ImagePasted != null && (data.GetDataPresent("PNG", false) || data.GetDataPresent(DataFormats.Bitmap)));
             }
+            catch (ExternalException) { return false; }
+        }
+
+        private IDataObject ReadClipboard()
+        {
+            if (ReadOnly) return null;
+            try
+            {
+                return Clipboard.GetDataObject();
+            }
+            catch (ExternalException) { return null; }
+        }
+
+        /// <summary>优先读取保留透明度的 PNG，再尝试系统位图。调用方负责释放返回值。</summary>
+        internal static Image ReadClipboardImage(IDataObject data)
+        {
+            if (data == null) return null;
+            try
+            {
+                object png = data.GetData("PNG", false);
+                using (var stream = png as Stream ?? (png is byte[] ? new MemoryStream((byte[])png, false) : null))
+                {
+                    if (stream != null)
+                    {
+                        if (stream.CanSeek) stream.Position = 0;
+                        using (var image = Image.FromStream(stream)) return new Bitmap(image);
+                    }
+                }
+            }
+            catch (ArgumentException) { }
+            catch (IOException) { }
+            catch (ExternalException) { }
+            try { return data.GetData(DataFormats.Bitmap) as Image; }
             catch (ExternalException) { return null; }
         }
 
         /// <summary>仅识别剪贴板原生文件列表格式，文字路径保留其文本含义。</summary>
         internal static string[] ReadFileDrop(IDataObject data)
         {
-            var paths = data != null ? data.GetData(DataFormats.FileDrop, false) as string[] : null;
-            return paths != null && paths.Length > 0 ? paths : null;
+            try
+            {
+                var paths = data != null ? data.GetData(DataFormats.FileDrop, false) as string[] : null;
+                return paths != null && paths.Length > 0 ? paths : null;
+            }
+            catch (ExternalException) { return null; }
         }
     }
 }

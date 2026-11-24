@@ -4,6 +4,8 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 
+using VisualLine = LanChat.ChatTextLayout.VisualLine;
+
 namespace LanChat
 {
     #region Custom WeChat Chat View Control
@@ -48,14 +50,6 @@ namespace LanChat
                 if (_showGroupSenderName == value) return;
                 _showGroupSenderName = value;
             }
-        }
-
-        private class VisualLine
-        {
-            public string Text;
-            public int StartChar;
-            public int Length;
-            public RectangleF Bounds;
         }
 
         private class MessageRenderItem
@@ -498,108 +492,19 @@ namespace LanChat
 
             int bestChar = 0;
             float minDiff = float.MaxValue;
-            for (int c = 0; c <= targetLine.Length; c++)
+            for (int c = 0;; c = ChatTextLayout.NextBoundary(targetLine.Text, c))
             {
                 string sub = targetLine.Text.Substring(0, c);
-                float w = g.MeasureString(sub, font, 10000, StringFormat.GenericTypographic).Width;
+                float w = ChatTextLayout.Measure(g, sub, font);
                 float diff = Math.Abs(w - relX);
                 if (diff < minDiff)
                 {
                     minDiff = diff;
                     bestChar = c;
                 }
+                if (c == targetLine.Length) break;
             }
             return targetLine.StartChar + bestChar;
-        }
-
-        /// <summary>
-        /// 文本折行核心算法：考虑字符边界、英文空白词断行及中文字符自适应拆解，并累加 GrokTheme.ChatLineSpacingExtra 呼吸行距
-        /// </summary>
-        private static List<VisualLine> BreakTextIntoVisualLines(Graphics g, string content, Font font, float maxWidth, float startX, float startY)
-        {
-            List<VisualLine> lines = new List<VisualLine>();
-            if (string.IsNullOrEmpty(content))
-            {
-                return lines;
-            }
-
-            float lineHeight = font.GetHeight(g) + GrokTheme.ChatLineSpacingExtra;
-            float curY = startY;
-            int globalIndex = 0;
-
-            string[] paragraphs = content.Replace("\r\n", "\n").Split('\n');
-            for (int p = 0; p < paragraphs.Length; p++)
-            {
-                string para = paragraphs[p];
-                if (para.Length == 0)
-                {
-                    lines.Add(new VisualLine
-                    {
-                        Text = "",
-                        StartChar = globalIndex,
-                        Length = 0,
-                        Bounds = new RectangleF(startX, curY, 0, lineHeight)
-                    });
-                    curY += lineHeight;
-                    globalIndex += 1;
-                    continue;
-                }
-
-                int pOffset = 0;
-                while (pOffset < para.Length)
-                {
-                    int count = 1;
-                    int bestBreak = -1;
-
-                    while (pOffset + count <= para.Length)
-                    {
-                        string sub = para.Substring(pOffset, count);
-                        SizeF sz = g.MeasureString(sub, font, 10000, StringFormat.GenericTypographic);
-                        if (sz.Width > maxWidth && count > 1)
-                        {
-                            if (bestBreak > 0)
-                            {
-                                count = bestBreak;
-                            }
-                            else
-                            {
-                                count = count - 1;
-                            }
-                            break;
-                        }
-
-                        if (pOffset + count < para.Length && char.IsWhiteSpace(para[pOffset + count]))
-                        {
-                            bestBreak = count + 1;
-                        }
-
-                        count++;
-                    }
-
-                    if (pOffset + count > para.Length)
-                    {
-                        count = para.Length - pOffset;
-                    }
-
-                    string lineStr = para.Substring(pOffset, count);
-                    SizeF lineSz = g.MeasureString(lineStr, font, 10000, StringFormat.GenericTypographic);
-
-                    lines.Add(new VisualLine
-                    {
-                        Text = lineStr,
-                        StartChar = globalIndex + pOffset,
-                        Length = count,
-                        Bounds = new RectangleF(startX, curY, (float)Math.Ceiling(lineSz.Width), lineHeight)
-                    });
-
-                    pOffset += count;
-                    curY += lineHeight;
-                }
-
-                globalIndex += para.Length + 1;
-            }
-
-            return lines;
         }
 
         private void RecalculateLayout(bool scrollToBottom)
@@ -691,7 +596,7 @@ namespace LanChat
                         int padV = padTop + padBottom;
                         float availTextW = maxBubbleW - padH;
 
-                        List<VisualLine> lines = BreakTextIntoVisualLines(g, raw, msgFont, availTextW, 0, 0);
+                        List<VisualLine> lines = ChatTextLayout.BreakLines(g, raw, msgFont, availTextW);
 
                         float maxLineWidth = 0;
                         foreach (var l in lines)
@@ -872,8 +777,8 @@ namespace LanChat
                                         string preText = line.Text.Substring(0, overStart - lineStart);
                                         string selPart = line.Text.Substring(overStart - lineStart, overEnd - overStart);
 
-                                        float preW = preText.Length > 0 ? g.MeasureString(preText, msgFont, 10000, StringFormat.GenericTypographic).Width : 0f;
-                                        float selW = g.MeasureString(selPart, msgFont, 10000, StringFormat.GenericTypographic).Width;
+                                        float preW = ChatTextLayout.Measure(g, preText, msgFont);
+                                        float selW = ChatTextLayout.Measure(g, selPart, msgFont);
 
                                         RectangleF selRect = new RectangleF(lx + preW, ly, selW, line.Bounds.Height);
                                         g.FillRectangle(selHighlightBrush, selRect);
@@ -896,7 +801,7 @@ namespace LanChat
             // 无反引号代码胶囊直接高性能绘制
             if (lineText.IndexOf('`') < 0)
             {
-                g.DrawString(lineText, msgFont, mainBrush, new PointF(curX, curY), StringFormat.GenericTypographic);
+                ChatTextLayout.Draw(g, lineText, msgFont, mainBrush, curX, curY);
                 return;
             }
 
@@ -917,9 +822,7 @@ namespace LanChat
                             if (tickStart > idx)
                             {
                                 string pre = lineText.Substring(idx, tickStart - idx);
-                                SizeF preSz = g.MeasureString(pre, msgFont, 10000, StringFormat.GenericTypographic);
-                                g.DrawString(pre, msgFont, mainBrush, new PointF(curX, curY), StringFormat.GenericTypographic);
-                                curX += preSz.Width;
+                                curX += ChatTextLayout.Draw(g, pre, msgFont, mainBrush, curX, curY);
                             }
 
                             string codeText = lineText.Substring(tickStart + 1, tickEnd - tickStart - 1);
@@ -938,7 +841,7 @@ namespace LanChat
                     }
 
                     string rest = lineText.Substring(idx);
-                    g.DrawString(rest, msgFont, mainBrush, new PointF(curX, curY), StringFormat.GenericTypographic);
+                    ChatTextLayout.Draw(g, rest, msgFont, mainBrush, curX, curY);
                     break;
                 }
             }

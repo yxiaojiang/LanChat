@@ -74,6 +74,7 @@ function focusSession(id) {
 function appendSessionHeading(nav, online) {
   const heading = document.createElement('h2');
   heading.className = 'session-heading';
+  heading.dataset.online = String(online);
   heading.textContent = online ? '在线' : '离线';
   nav.append(heading);
 }
@@ -213,7 +214,7 @@ function appendRendered(message, previous, target = feed) {
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     bubble.tabIndex = -1;
-    bubble.textContent = message.text || '';
+    presentation.drawMessageText(bubble, message.text || '', document);
     row.append(bubble);
   }
   target.append(row);
@@ -424,7 +425,8 @@ function drawAttachments() {
     item.className = 'attachment';
     item.title = `${file.name} · ${presentation.formatFileSize(file.size)}`;
     const icon = document.createElement('img');
-    icon.src = 'assets/BoxWhite.png';
+    icon.src = file.preview || 'assets/BoxWhite.png';
+    if (file.preview) icon.className = 'attachment-preview';
     icon.alt = '';
     const name = document.createElement('span');
     name.textContent = file.name;
@@ -540,6 +542,10 @@ async function sendFilesFor(chatKey) {
 function insertEmoji(symbol) {
   const start = compose.selectionStart ?? compose.value.length;
   const end = compose.selectionEnd ?? start;
+  if (compose.value.length - (end - start) + symbol.length > compose.maxLength) {
+    compose.focus();
+    return;
+  }
   compose.setRangeText(symbol, start, end, 'end');
   syncComposeHeight();
   compose.focus();
@@ -809,10 +815,12 @@ async function initialize(reconnect = false) {
   updateHeader();
   try {
     if (reconnect) await api.reconnect();
-    const [state, settingsData] = await Promise.all([
+    const [state, settingsData, emojiPack] = await Promise.all([
       api.state(),
-      api.settings ? api.settings() : Promise.resolve(null)
+      api.settings ? api.settings() : Promise.resolve(null),
+      api.emojiPack ? api.emojiPack().catch(() => []) : []
     ]);
+    presentation.setEmojiPack(emojiPack);
     if (settingsData) applyAppearance(settingsData);
     address = state.ip + ':' + state.tcpPort;
     paintNick(state.nick);
