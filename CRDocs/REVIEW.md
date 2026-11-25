@@ -1,3 +1,139 @@
+# LC-UI-INPUT-008 — Round 2 独立复审（通过：P1-1 ~ P1-4 与 P2-1 已全部闭环）
+
+- **任务编号**：`LC-UI-INPUT-008`
+- **任务主题**：微信式高输入区、表情文字纵向稳定、快捷工具展开、设置页统一间距与关于页文案
+- **审核轮次**：Round 2 独立复审
+- **审核基线**：工作区未提交整改（基于 `ba0dd8f` / `2b6d510`，改动 `src/MainForm.cs`、`src/MainForm.Designer.cs`、`src/MainForm.Files.cs`、`src/UI/Controls/ChatInputBox.cs`、`src/UI/Controls/GrokAboutForm.cs`、`src/UI/Controls/SettingsPanels/AppearanceSettingsPanel.cs`、`tests/ChatComposerRegression.cs`）
+- **独立审核方**：Gemini
+- **审核日期**：2026-11-25
+- **审核结论**：**APPROVED**（当前开发与 Windows 宿主机回归范围放行；实机与跨环境验证边界继续保留于 `CRDocs/DEFERRED.md`）
+- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`、`Docs/GrokBot_UI_Design_System.md`，以及工作区实际 diff 与宿主机独立复跑证据。
+
+## 一、Round 1 问题逐项复核结果
+
+| 问题 ID | 原级别 | Round 2 复核 | 复核依据与实测证据 |
+| --- | :---: | :---: | --- |
+| `LC-UI-INPUT-008-P1-1` | **P1** | **RESOLVED** | `MainForm.cs:126` 抽出共享常量 `BottomSendPanelBaseHeight = 154`，`MainForm.Designer.cs:437, 700` 与 `MainForm.Files.cs:208`（`RefreshAttachmentDraft`）全部统一为 `BottomSendPanelBaseHeight + height`；`tests/ChatComposerRegression.cs:VerifyMainFormInputLayout` 已覆盖初始态、广播附件草稿、切会话与私聊附件草稿，断言 `bottom.Height == 154 + 34`、`panel.Height == 128` 与 `input.Bottom <= emoji.Top` 全部通过。 |
+| `LC-UI-INPUT-008-P1-2` | **P1** | **RESOLVED** | `MainForm.cs:556-580` 抽出 `LayoutInputPanel()` 供 `_inputPanel.Resize`（`MainForm.Designer.cs:585`）与 `ApplyAppearanceSettings()`（`MainForm.cs:542`）共用，已彻底移除旧的 `_txtInput.Top = (_inputPanel.Height - _txtInput.Height) / 2` 居中残留；外观刷新后 `_txtInput` 保持 `Location=(60,10)`、`Height=70`（`Bottom=80 <= 83`），回归断言通过。 |
+| `LC-UI-INPUT-008-P1-3` | **P1** | **RESOLVED** | `MainForm.Designer.cs:452` 将 128px 多行输入区圆角收敛为 `18px`，几何核验左下 `+` 圆钮（`(13,80)` 直径 `38`）与右下 `↑` 发送圆钮（`(w-54,77)` 直径 `44`，距右下圆角圆心仅 `4.82px <= 18px`）均严格位于边框内；`MainForm.Designer.cs:466` 空输入占位符改为 `y=16, height=20`，与 `_txtInput.Top (10) + TextPaddingTop (6) = 16` 首行基线对齐。 |
+| `LC-UI-INPUT-008-P1-4` | **P1** | **RESOLVED** | `ChatInputBox.cs:63-65` 默认统一为 `Multiline = true; WordWrap = true;`；`DrawEmojiPaint`（第 160-189 行）已将裁剪区收敛至 `EM_SETRECTNP` 格式矩形 `(0, TextPaddingTop, ClientSize.Width, ClientSize.Height - TextPaddingTop - 4)`，并在 `finish.Y != start.Y || finish.X <= start.X` 时改用 `Math.Max(lineHeight, ClientSize.Width - start.X)` 避免行尾表情负宽消失；`tests/ChatComposerRegression.cs` 已覆盖创建/滚动/Resize/FontChanged/RecreateHandle 后的 `EM_SETRECTNP` 边界、自动折行行尾表情像素绘制、多行垂直滚动与 `Shift+Enter` 换行。 |
+| `LC-UI-INPUT-008-P2-1` | **P2** | **RESOLVED** | `AppearanceSettingsPanel.cs:61, 65` 已改用 `SettingTitleOffset` / `SettingDescriptionOffset`；`GrokAboutForm.cs:28, 139` 署名已同步为 `2026 yangjiang`；`MainForm.cs:529-533` 切换外观时同步刷新 5 个快捷按钮的 `HoverFillColor`。 |
+| 协议/历史兼容与行数门禁 | — | **PASS** | 未修改 `Models.cs`、`NetworkService*.cs`、`ChatHistoryService.cs`、`SessionManager.cs`，LANC 魔数、Type 1/Type 2 字段顺序、确认字节与 JSONL 历史格式零改动；全部 18 个本任务涉及的手写源码与测试文件均低于 1000 行软门禁（最高：`gui.py` 951、`settings.css` 742、`MainForm.Designer.cs` 720、`ChatComposerRegression.cs` 690、`MainForm.cs` 655、`MainForm.Chat.cs` 599、`MainForm.Files.cs` 503、`settings-pages.js` 499、`SettingsPanelBase.cs` 492、`ChatInputBox.cs` 442），新增注释为中文。 |
+
+## 二、Round 2 独立验证证据与边界区分
+
+### 1. 已在 Windows 宿主机独立复跑通过的内容
+
+| 验证命令 | 退出码 | 实测结果 |
+| --- | :---: | --- |
+| `cmd /c "Tools\Scripts\Compile.bat < NUL"`（验证后已还原 `release/LanChat.exe`、`release/uninstall.exe`） | 0 | 原生 `csc.exe` 编译成功 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 全部 8 组回归通过（含多行 `PrintWindow` / `EM_SETRECTNP` / 折行行尾表情 / 多行滚动 / `切会话、附件草稿、外观刷新后的输入区布局与 Shift+Enter 断言通过` 及既有剪贴板/外观/竞态/LANC/JSONL 回归） |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 0 | `Native Windows compile: ok` 及全部好友刷新/侧栏/组合表情/草稿回归通过 |
+| `"C:\Program Files\nodejs\node.exe" --check src/linux/desktop/settings-pages.js` | 0 | 语法检查通过 |
+| `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ui_regression.js` | 0 | 输出 `linux desktop ui regression: ok` |
+| `git diff --check` | 0 | 无空白错误（仅有 Git LF→CRLF 提示） |
+
+### 2. 仍未验证的实机与跨环境边界（不得视为通过，继续保留于 `CRDocs/DEFERRED.md`）
+
+- 真实 Windows 窗口 100% / 125% / 150% DPI 下的视觉目测、表情基线对齐与鼠标点击命中；
+- 真实中文输入法（微软拼音/搜狗/fcitx5/ibus 等）在多行 RichEdit 中的预编辑组合态；
+- Linux Xorg / 原生 Wayland / XWayland 下的 Electron 实机运行（含 `settings.css` 58px 行高与关于页验收）；
+- Linux ARM64 / x86_64 ELF 实机运行（含 `tests/linux_desktop_regression.py`）与真实双机局域网互通。
+
+---
+
+# LC-UI-INPUT-008 — Round 1 独立审核整改执行记录（Codex）
+
+- **任务编号**：`LC-UI-INPUT-008`
+- **整改轮次**：Round 1 独立审核打回后的整改交接
+- **执行日期**：2026-11-25
+- **执行者**：Codex
+- **状态**：`WAITING_FOR_GROK`；以下为执行者记录，不能视为独立审核结论
+
+## 改动与证据摘要
+
+- 以 `BottomSendPanelBaseHeight = 154` 统一底部输入区初始化、附件草稿刷新和布局重算，避免切会话或附件操作后胶囊坍塌。
+- 以 `LayoutInputPanel()` 统一 Resize 与外观刷新后的输入框、5 个快捷按钮和发送按钮布局，删除旧的 `_txtInput.Top` 居中赋值。
+- 将 128px 输入区圆角改为 `18px`，占位符改为面板坐标 `y=16、height=20`；`ChatInputBox` 默认多行换行，表情绘制使用 `EM_SETRECTNP` 格式矩形裁剪，并处理自动折行行尾的跨行坐标。
+- `ChatComposerRegression` 已覆盖多行格式矩形在创建/Resize/FontChanged/RecreateHandle 后的边界、多行滚动、折行行尾表情、选区、Shift+Enter，以及切会话/附件草稿/外观刷新后的 `128px` 与不重叠断言。
+- 顺手完成 `AppearanceSettingsPanel` 偏移量复用、`GrokAboutForm` 的 `2026 yangjiang` 署名和 5 个快捷按钮 HoverFillColor 同步。
+
+## 验证结果
+
+| 命令 | 退出码 | 结果 |
+| --- | :---: | --- |
+| `Tools/Scripts/Compile.bat` | 0 | Windows 原生编译成功；`release` 二进制验证后已还原。 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 多行输入、表情绘制、布局断言、附件/LANC/JSONL 回归通过。 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 0 | 好友刷新及联合聊天回归通过。 |
+| `node --check src/linux/desktop/settings-pages.js` | 0 | 语法检查通过。 |
+| `node tests/linux_desktop_ui_regression.js` | 0 | Linux UI 模拟回归通过。 |
+| `git diff --check` | 0 | 无空白错误；仅有换行转换提示。 |
+
+## 未验证边界
+
+本轮未宣称真实 DPI 窗口目测/鼠标命中、真实中文输入法预编辑、Linux Xorg/Wayland/XWayland 实机、Linux/ELF 实跑或真实双机 LAN 通过；这些仍按 `CRDocs/DEFERRED.md` 的 `LC-UI-INPUT-008-ENV-001` 等条目保留。
+
+## 交给 Gemini 的复审要求
+
+请按 `CRDocs/RULES.md` 独立读取 `CRDocs/STATUS.md`、`CRDocs/REVIEW.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`，直接核对当前代码与本轮回归证据，重点审查 `LC-UI-INPUT-008-P1-1` ~ `P1-4`、`P2-1`、LANC/JSONL 兼容、行数门禁及未验证边界。审核结束后必须保留历史并回写 `CRDocs/REVIEW.md` 与 `CRDocs/STATUS.md`，再交出下一份提示词。
+
+---
+
+# LC-UI-INPUT-008 — 独立审核结论（打回：存在 4 项 P1 布局与多行渲染回归）
+
+- **任务编号**：`LC-UI-INPUT-008`
+- **任务主题**：微信式高输入区、表情文字纵向稳定、快捷工具展开、设置页统一间距与关于页文案
+- **审核轮次**：Round 1 独立审核
+- **审核基线**：提交 `2b6d510`（`feat: 优化微信式输入区与设置排版`）及交接提交 `ba0dd8f`
+- **独立审核方**：Gemini
+- **审核日期**：2026-11-25
+- **审核结论**：**REJECTED**（无 P0，但核查出 **4 项 P1 阻断问题** `LC-UI-INPUT-008-P1-1` ~ `LC-UI-INPUT-008-P1-4` 与 2 项 P2，打回 Codex 整改）
+- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`、`Docs/GrokBot_UI_Design_System.md`，以及 `2b6d510` 完整 diff、调用链与宿主机独立实测。
+
+## 一、五维审核重点核对结论
+
+| 核对维度 | 结论 | 核对依据与实测发现 |
+| --- | :---: | --- |
+| 1. Windows 输入区 | **FAIL (P1)** | `MainForm.Designer.cs` 已将 `_bottomSendPanel.Height` 扩为 `154`（胶囊 `128px`）、`_txtInput` 改为多行 `RichEdit`；`EM_SETRECTNP` 在 `OnHandleCreated` / `Resize` / `FontChanged` / `RecreateHandle` 探针中均保持 `0,6,W,66`；普通 `Enter` 发送、`Shift+Enter` 换行（实测 `.NET 4.x RichTextBox` 写入 `U+000A` 而非 `\v`）符合快捷键契约。但存在严重回归：**切会话/附件草稿将输入区压回 `64px`（`P1-1`）**、**切换外观重置 `_txtInput.Top=29` 压住工具栏（`P1-2`）**、**`radius=64` 致按钮突出边框且占位符与首行错位 `20px`（`P1-3`）**、**自动折行行尾表情因 `finish.X - start.X < 0` 消失且回归测试仍只测单行（`P1-4`）**。 |
+| 2. 快捷工具栏 | **FAIL (P1)** | 表情（`ShowEmojiPopup`）、接收目录（`OpenReceivedFolder`）、发文件（`BtnSendFile_Click`）、截图（`TriggerScreenshot`）、清空会话（`ClearCurrentChat`）均已真实接线；`_inputPanel.Resize` 在全部按钮实例化后绑定，无空引用，最小窗宽 `880px` 下横向无挤压；隐藏 `_btnToolMic`（语音协议未实现）**判断合理**。但在 `P1-1` / `P1-2` / `P1-3` 触发时，快捷按钮会与输入框重叠或超出胶囊边界。 |
+| 3. 设置页面 | **PASS (含 P2)** | `SettingsPanelBase` 新增 `SettingTitleOffset = 7`、`SettingDescriptionOffset = 32`；General、Profile、FileTransfer、ChatHistory、NetworkDevice、About 均已接入；100% DPI 探针实测 `10pt` 标题占 `7..23.93`、`8.5pt` 说明占 `32..46.39`，在 `54px` 行高内无裁切（底部留白 `7.61px`）；Linux `settings.css` 已同步 `min-height: 58px`、`margin-top: 6px`。仅 `AppearanceSettingsPanel.cs:60-63` 仍硬编码 `7`/`29` 未共用常量（`P2-1`）。 |
+| 4. 关于页 | **PASS (含 P2)** | `git grep "LanChat Team" src/` 返回 0 匹配；Windows `AboutSettingsPanel.cs`、Linux Electron `settings-pages.js` 与旧版 Linux `gui.py` 均已更新为新描述及 `2026 yangjiang`。仅托盘入口的 `src/UI/Controls/GrokAboutForm.cs:28, 139` 仍残留旧署名 `© 2026 ChaseFraser`（`P2-1`）。 |
+| 5. 兼容性与代码质量 | **PASS** | 未修改 LANC 魔数、Type 1/Type 2 字段顺序、确认字节或 JSONL 历史格式；全部 13 个改动源码文件低于 1000 行软门禁（最高 `gui.py` 951、`MainForm.Designer.cs` 745、`settings.css` 742、`MainForm.Chat.cs` 599、`settings-pages.js` 499、`SettingsPanelBase.cs` 492、`ChatInputBox.cs` 438）；宿主机编译与既有回归全部退出码 `0`。 |
+
+## 二、问题分级清单（P0 / P1 / P2）
+
+| 问题 ID | 严重度 | 位置 | 问题描述与复现证据 | 整改要求 |
+| --- | :---: | --- | --- | --- |
+| `LC-UI-INPUT-008-P1-1` | **P1** | `src/MainForm.Files.cs:208`（调用方：`MainForm.Chat.cs:88, 431`、`MainForm.Files.cs:112, 123, 170`） | `RefreshAttachmentDraft()` 仍硬编码 `_bottomSendPanel.Height = 90 + height;`（旧 64px 胶囊高度）。只要用户切换任意会话或粘贴/发送/移除一次附件草稿，`_inputPanel.Height` 即从 `128px` 坍塌回 `64px`；`_inputPanel.Resize` 随后将快捷按钮排布到 `y = 19..51`，而 `_txtInput` 占 `y = 10..52`，**输入框与 5 个快捷按钮完全重叠碰撞**。 | 抽出底部输入区基准高度常量（`154`），统一 `MainForm.Files.cs:208` 与 `MainForm.Designer.cs:437, 726` 为 `154 + height`，并补充切会话与附件草稿切换不坍塌的自动化断言。 |
+| `LC-UI-INPUT-008-P1-2` | **P1** | `src/MainForm.cs:533`（`ApplyAppearanceSettings()`） | `ApplyAppearanceSettings()` 仍残留单行居中逻辑 `_txtInput.Top = (_inputPanel.Height - _txtInput.Height) / 2;`。用户更改主题、强调色或字体后，`_txtInput.Top` 被改写为 `29`（`Bottom = 99`），与底部快捷按钮（`y = 83..115`）重叠 **`16px`**；而 `UpdateResponsiveLayout()` 不改变 `_inputPanel.Size`，不会触发 `_inputPanel.Resize` 复原。 | 将输入区内部布局抽为独立方法供 `_inputPanel.Resize` 与 `ApplyAppearanceSettings()` 共用，移除第 533 行居中残留，并补充调用 `ApplyAppearanceSettings()` 后 `_txtInput.Bottom <= _btnToolEmoji.Top` 的断言。 |
+| `LC-UI-INPUT-008-P1-3` | **P1** | `src/MainForm.Designer.cs:452, 465-466, 594-608` | 128px 高输入区仍沿用 `radius = _inputPanel.Height / 2 = 64` 半圆胶囊，几何实测左下 `+` 圆钮（`(13,80)` 直径 `38`）外沿距左半圆心 `(64,64)` 为 **`66.42px`（超出边框 `2.42px`）**，右下 `↑` 发送圆钮（`(w-54,77)` 直径 `44`）外沿距右半圆心为 **`69.42px`（超出边框 `5.42px`）**；同时空输入占位符 `DrawUiTextLeft(..., 64, 10, ..., 70)` 垂直居中在 `y ≈ 35.7`，与多行 `RichEdit` 首行 `y = 16` 错位约 `20px`。 | 将 128px 多行输入区圆角调整为适配矩形多行容器的半径（如 `16px ~ 22px`），确保所有按钮完全位于边框内；将占位符改为与多行首行顶端对齐。 |
+| `LC-UI-INPUT-008-P1-4` | **P1** | `src/UI/Controls/ChatInputBox.cs:63, 65, 160-199`；`tests/ChatComposerRegression.cs` | 1) 独立 WinForms 探针实测：多行自动折行时，位于行尾的 `[敲打]` 后紧接下一行字符，导致 `start={X=96,Y=6}, end={X=0,Y=32}, tokenWidth = -96`，因 `tokenWidth <= 2f` 被静默跳过绘制、裸露原文；2) `DrawEmojiPaint` 裁剪区为 `ClientRectangle` 而非 `EM_SETRECTNP` 格式矩形 `(0, TextPaddingTop, W, H-4)`，多行滚动时边缘半行表情会侵入上下内边距；3) 构造器仍默认 `Multiline = false; WordWrap = false;`，导致既有 `ChatComposerRegression` 未覆盖本轮多行模式与 `EM_SETRECTNP`。 | 修复 `DrawEmojiPaint` 在 `finish.Y != start.Y` 时的行尾表情宽度计算，并将绘制裁剪收敛到 `EM_SETRECTNP` 格式矩形；统一默认配置并在 `ChatComposerRegression.cs` 增加多行 `EM_SETRECTNP`、折行行尾表情、多行垂直滚动与 `Shift+Enter` 回归断言。 |
+| `LC-UI-INPUT-008-P2-1` | **P2** | `src/UI/Controls/SettingsPanels/AppearanceSettingsPanel.cs:60-63`、`src/UI/Controls/GrokAboutForm.cs:28, 139`、`src/MainForm.cs:525-526` | 1) `AppearanceSettingsPanel` 双行项仍硬编码 `7`/`29` 未复用共享常量；2) 托盘入口的 `GrokAboutForm` 仍保留旧署名 `© 2026 ChaseFraser`；3) `ApplyAppearanceSettings` 未同步刷新 5 个新增快捷按钮的 `HoverFillColor`。 | 返修 P1 时可顺手统一，非阻断。 |
+| `LC-UI-INPUT-008-P2-2` | **P2** | `CRDocs/DEFERRED.md` (`LC-UI-INPUT-008-ENV-001`) | 100%/125%/150% DPI 实机基线对齐、鼠标命中、中文输入法预编辑、Linux Xorg/Wayland/XWayland Electron 实机与真实双机互通仍待现场验收。 | 继续保留于 `CRDocs/DEFERRED.md`，不得凭宿主机编译/探针宣称实机通过。 |
+
+## 三、独立验证证据与边界区分
+
+### 1. 已在 Windows 宿主机独立执行的验证
+
+| 验证命令 / 探针 | 退出码 | 实测结果 |
+| --- | :---: | --- |
+| `cmd /c "Tools\Scripts\Compile.bat < NUL"`（验证后已还原跟踪二进制 `release/LanChat.exe`、`release/uninstall.exe`） | 0 | 原生 `csc.exe` 编译成功 |
+| `"C:\Program Files\nodejs\node.exe" --check src/linux/desktop/settings-pages.js` | 0 | 语法检查通过 |
+| `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ui_regression.js` | 0 | `linux desktop ui regression: ok` |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 既有 7 组回归通过（注：未覆盖本轮多行 `ChatInputBox`） |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 0 | 原生编译及全部既有回归通过 |
+| `git diff --check` | 0 | 无空白错误 |
+| 独立 WinForms 探针（`InputAuditProbe` / `ShiftEnterProbe` / `MainFormAuditProbe`） | 0 | 证实 `EM_SETRECTNP` 在创建/Resize/FontChanged/RecreateHandle 保持 `0,6,W,66`、`Shift+Enter` 写入 `U+000A`、`54px` 设置行 `7..23.93 / 32..46.39` 无裁切；同时**实证复现 `P1-1`、`P1-2`、`P1-3`、`P1-4`** |
+
+### 2. 尚未验证的实机与跨环境边界（不得视为通过）
+
+- 真实 Windows 窗口 100% / 125% / 150% DPI 目测与鼠标点击命中；
+- 真实中文输入法（微软拼音/搜狗等）在多行 RichEdit 中的预编辑组合态；
+- Linux Xorg / 原生 Wayland / XWayland 下的 Electron 实机运行（含 `settings.css` 与关于页视觉验收）；
+- 真实双机局域网互通。
+
+---
+
 # LC-UI-INPUT-008 — 执行者送审记录
 
 - **任务编号**：`LC-UI-INPUT-008`

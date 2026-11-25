@@ -96,10 +96,12 @@ namespace LanChat
         // 全局核心常量
         // ==========================================
         /// <summary>当前应用程序版本号</summary>
-        public const string APP_VERSION = "2.0.24";
+        public const string APP_VERSION = "2.0.25";
         /// <summary>GitHub 开源仓库标识</summary>
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
         private const string BROADCAST_TARGET = "📢 局域网全员群聊";
+        // 底部输入区包含 128px 多行胶囊、上方留白和底部工具栏留白。
+        private const int BottomSendPanelBaseHeight = 154;
 
         // ==========================================
         // 核心服务与业务控制器依赖
@@ -524,16 +526,51 @@ namespace LanChat
             _btnSearchToggle.HoverFillColor = GrokTheme.Level3Hot;
             _btnToolSendFile.FillColor = GrokTheme.InputPlus;
             _btnToolSendFile.HoverFillColor = GrokTheme.Surface(56, 56, 62);
+            _btnToolEmoji.HoverFillColor = GrokTheme.Surface(56, 56, 62);
+            _btnToolBox.HoverFillColor = GrokTheme.Surface(56, 56, 62);
+            _btnToolFolder.HoverFillColor = GrokTheme.Surface(56, 56, 62);
+            _btnToolScissors.HoverFillColor = GrokTheme.Surface(56, 56, 62);
+            _btnToolClear.HoverFillColor = GrokTheme.Surface(56, 56, 62);
             _btnSendWave.FillColor = AppSettings.AccentPreset == 0 ? GrokTheme.Accent : GrokTheme.AccentDeep;
             _btnSendWave.HoverFillColor = AppSettings.AccentPreset == 0 ? GrokTheme.AccentHot : GrokTheme.ButtonPrimaryHover;
 
             ApplyControlFont(this, GrokTheme.UiFont(10f));
             ApplyControlFont(_txtSearch, GrokTheme.UiFont(10f));
             ApplyControlFont(_txtInput, GrokTheme.UiFont(11f));
-            _txtInput.Top = (_inputPanel.Height - _txtInput.Height) / 2;
+            LayoutInputPanel();
             UpdateResponsiveLayout();
             _chatView.ApplyFontSettings();
             Invalidate(true);
+        }
+
+        /// <summary>
+        /// 统一排布多行输入框、底部快捷工具栏和发送按钮。
+        /// 外观字体变化不会改变输入区的上下分区，避免输入框重新居中后压住工具栏。
+        /// </summary>
+        private void LayoutInputPanel()
+        {
+            if (_inputPanel == null || _txtInput == null || _btnSendWave == null || _btnToolSendFile == null) return;
+
+            int w = _inputPanel.Width;
+            int h = _inputPanel.Height;
+            int sendSize = 44;
+            int plusSize = 38;
+            int toolbarY = h - plusSize - 10;
+
+            _btnToolSendFile.Size = new Size(plusSize, plusSize);
+            _btnToolSendFile.Location = new Point(13, toolbarY);
+            if (_btnToolEmoji != null) _btnToolEmoji.Location = new Point(58, toolbarY + 3);
+            if (_btnToolBox != null) _btnToolBox.Location = new Point(94, toolbarY + 3);
+            if (_btnToolFolder != null) _btnToolFolder.Location = new Point(130, toolbarY + 3);
+            if (_btnToolScissors != null) _btnToolScissors.Location = new Point(166, toolbarY + 3);
+            if (_btnToolClear != null) _btnToolClear.Location = new Point(202, toolbarY + 3);
+
+            _txtInput.Location = new Point(60, 10);
+            _txtInput.Height = Math.Max(42, h - 58);
+            _btnSendWave.Size = new Size(sendSize, sendSize);
+            _btnSendWave.Location = new Point(w - sendSize - 10, toolbarY - 3);
+            _txtInput.Width = Math.Max(60, _btnSendWave.Left - _txtInput.Left - 16);
+            _inputPanel.Invalidate();
         }
 
         // 这些控件在初始化时各自创建字体，因此替换时可以释放原实例。

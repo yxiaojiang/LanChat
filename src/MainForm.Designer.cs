@@ -434,7 +434,7 @@ namespace LanChat
             _bottomSendPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 154, // 上 4 + 胶囊 128 + 底 22
+                Height = BottomSendPanelBaseHeight, // 上 4 + 胶囊 128 + 底 22
                 BackColor = Color.FromArgb(18, 18, 18), // #121212 与聊天视口同色，呈浮动感
                 Padding = new Padding(28, 4, 28, 22)
             };
@@ -449,7 +449,7 @@ namespace LanChat
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 GrokTheme.PrepareSoftText(g);
                 Rectangle pillRect = new Rectangle(0, 0, _inputPanel.Width - 1, _inputPanel.Height - 1);
-                int radius = Math.Max(8, _inputPanel.Height / 2); // 128→64 全圆角胶囊
+                int radius = 18; // 多行输入区使用矩形圆角，避免底部按钮切出边框。
                 using (SolidBrush bg = new SolidBrush(GrokTheme.Level2))
                 using (Pen border = new Pen(GrokTheme.Border, 1f))
                 {
@@ -463,7 +463,7 @@ namespace LanChat
                     using (Font pf = GrokTheme.UiFont(11.0f))
                     {
                         GrokTheme.DrawUiTextLeft(g, _inputPlaceholder, pf, GrokTheme.TextPlaceholder,
-                            64, 10, Math.Max(40, _inputPanel.Width - 64 - 56), Math.Max(32, _inputPanel.Height - 58));
+                            64, 16, Math.Max(40, _inputPanel.Width - 64 - 56), 20);
                     }
                 }
             };
@@ -582,32 +582,7 @@ namespace LanChat
             };
             _btnSendWave.Click += BtnSend_Click;
 
-            _inputPanel.Resize += (s, e) => {
-                int w = _inputPanel.Width;
-                int h = _inputPanel.Height;
-
-                int sendSize = 44;
-                _btnSendWave.Size = new Size(sendSize, sendSize);
-                _btnSendWave.Location = new Point(w - sendSize - 10, (h - sendSize) / 2);
-
-                // 底部快捷工具栏：加号及常用功能按微信输入区节奏横向排列。
-                int plusSize = 38;
-                _btnToolSendFile.Size = new Size(plusSize, plusSize);
-                int toolbarY = h - plusSize - 10;
-                _btnToolSendFile.Location = new Point(13, toolbarY);
-                if (_btnToolEmoji != null) _btnToolEmoji.Location = new Point(58, toolbarY + 3);
-                if (_btnToolBox != null) _btnToolBox.Location = new Point(94, toolbarY + 3);
-                if (_btnToolFolder != null) _btnToolFolder.Location = new Point(130, toolbarY + 3);
-                if (_btnToolScissors != null) _btnToolScissors.Location = new Point(166, toolbarY + 3);
-                if (_btnToolClear != null) _btnToolClear.Location = new Point(202, toolbarY + 3);
-
-                // 编辑区占据胶囊上方，底部留出稳定工具栏高度。
-                _txtInput.Location = new Point(60, 10);
-                _txtInput.Height = Math.Max(42, h - 58);
-                _txtInput.Width = Math.Max(60, _btnSendWave.Left - _txtInput.Left - 16);
-                _btnSendWave.Location = new Point(w - sendSize - 10, toolbarY - 3);
-                _inputPanel.Invalidate();
-            };
+            _inputPanel.Resize += (s, e) => LayoutInputPanel();
 
             _inputPanel.Controls.Add(_btnToolSendFile);
             _inputPanel.Controls.Add(_btnToolEmoji);
@@ -723,7 +698,7 @@ namespace LanChat
             if (_bottomSendPanel != null)
             {
                 _bottomSendPanel.Padding = new Padding(28, 4, 28, 22);
-                _bottomSendPanel.Height = 154 + (_attachmentList == null ? 0 : _attachmentList.Height);
+                _bottomSendPanel.Height = BottomSendPanelBaseHeight + (_attachmentList == null ? 0 : _attachmentList.Height);
                 if (_inputPanel != null) _inputPanel.Invalidate();
                 _bottomSendPanel.Invalidate();
             }

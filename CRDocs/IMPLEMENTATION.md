@@ -1,3 +1,36 @@
+# LC-UI-INPUT-008 — Round 1 独立审核整改执行记录
+
+> 2026-11-25 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 本记录是整改交接，不是独立审核结论
+
+## 本轮整改
+
+1. `LC-UI-INPUT-008-P1-1`：新增底部输入区基准高度常量 `BottomSendPanelBaseHeight = 154`，统一 `MainForm.Designer.cs` 初始化/重算与 `MainForm.Files.cs:RefreshAttachmentDraft()`，附件草稿和切会话不会再把 128px 输入胶囊压回 64px。
+2. `LC-UI-INPUT-008-P1-2`：抽出 `LayoutInputPanel()`，由 `_inputPanel.Resize` 与 `ApplyAppearanceSettings()` 共用，移除旧的 `_txtInput.Top = (_inputPanel.Height - _txtInput.Height) / 2`，外观刷新后输入框仍停留在工具栏上方。
+3. `LC-UI-INPUT-008-P1-3`：输入区圆角改为 `18px`；空态占位符改为面板坐标 `y=16、height=20`（输入框 `Top=10` 加 `EM_SETRECTNP Top=6`），与多行首行格式区对齐，底部 `+`/`↑` 按钮保留在边框内。
+4. `LC-UI-INPUT-008-P1-4`：`ChatInputBox` 默认启用 `Multiline=true、WordWrap=true`；表情绘制裁剪收敛到 `EM_SETRECTNP` 格式矩形；自动折行行尾或跨行坐标不再使用负宽度，改用当前行可绘制宽度；补充创建、Resize、FontChanged、RecreateHandle、多行滚动、行尾表情、选区和 Shift+Enter 回归。
+5. 顺手收口 `P2-1`：`AppearanceSettingsPanel` 复用共享偏移量，`GrokAboutForm` 署名统一为 `2026 yangjiang`，外观刷新同步更新 5 个快捷按钮的悬停色。
+
+## 指定验证
+
+| 命令 | 结果 |
+| --- | --- |
+| `Tools/Scripts/Compile.bat` | 退出码 0；原生编译成功，验证后已还原 `release/LanChat.exe` 与 `release/uninstall.exe`。 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 退出码 0；多行 `EM_SETRECTNP` 生命周期、折行行尾表情、多行滚动、Shift+Enter、切会话/附件/外观布局断言及既有聊天/附件/LANC/JSONL 回归通过。 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 退出码 0；好友刷新及联合聊天草稿回归通过。 |
+| `node --check src/linux/desktop/settings-pages.js` | 退出码 0。 |
+| `node tests/linux_desktop_ui_regression.js` | 退出码 0。 |
+| `git diff --check` | 退出码 0；仅有 Git 换行转换提示，无空白错误。 |
+
+## 未验证边界
+
+真实 Windows 100%/125%/150% DPI 目测与鼠标命中、中文输入法预编辑、Linux Xorg/Wayland/XWayland 实机、最新 Linux/ELF 实跑及真实双机 LAN 仍未验证，继续保留于 `CRDocs/DEFERRED.md`，本记录不将宿主机回归扩展为现场通过。
+
+## 交接
+
+请 Gemini 按 `CRDocs/RULES.md` 独立读取 `CRDocs/STATUS.md`、`CRDocs/REVIEW.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`，核对本轮代码与验证证据，重点复审 4 项 `LC-UI-INPUT-008-P1-1` ~ `P1-4` 及 `P2-1`。审核完成后必须保留历史并回写 `CRDocs/REVIEW.md` 与 `CRDocs/STATUS.md`，再交出下一份提示词。
+
+---
+
 # LC-UI-INPUT-008 — 微信式输入区与设置页排版执行记录
 
 > 2026-11-25 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 本记录是执行者交接，不是独立审核结论

@@ -58,9 +58,10 @@ namespace LanChat
                         if (i > 0) e.Graphics.DrawLine(divider, 20, y, card.Width - 20, y);
                         int textWidth = Math.Max(20, card.Width - (description == null ? PickerWidth : 280) - 60);
                         GrokTheme.DrawUiTextLeft(e.Graphics, titles[i], titleFont, ColTextPrimary,
-                            22, y + (description == null ? 0 : 7), textWidth, description == null ? RowHeight : 24);
+                            22, y + (description == null ? 0 : SettingTitleOffset), textWidth, description == null ? RowHeight : 24);
                         if (description != null)
-                            GrokTheme.DrawUiTextLeft(e.Graphics, description, descriptionFont, ColTextSecondary, 22, y + 29, textWidth, 20);
+                            GrokTheme.DrawUiTextLeft(e.Graphics, description, descriptionFont, ColTextSecondary,
+                                22, y + SettingDescriptionOffset, textWidth, 20);
                     }
                 }
             };

@@ -1,39 +1,21 @@
 # SessionBrief.md — 当前接手摘要
 
-> 2026-11-25 · 工作目录 `D:\TEmp\LanChat` · `v2.0.24` 已发布，LC-CC-007 已获 Gemini Round 3 独立审核通过
+> 2026-11-25 · 工作目录 `D:\TEmp\LanChat` · `v2.0.25` 发布候选打包中，`LC-UI-INPUT-008` 已获 Gemini Round 2 独立审核通过
 
 ## 当前状态
 
-本轮新增 UI-INPUT-008：Windows 主聊天输入区改为 128px 高微信式多行胶囊，RichEdit 通过固定格式区域上、下内边距稳定文字与内置表情的纵向坐标，Shift+Enter 可换行、普通 Enter 仍发送。加号菜单中的表情、接收目录、发送文件、屏幕截图、清空会话已展开为输入区底部快捷工具栏；语音入口因协议尚未支持而继续隐藏。设置中心各页面使用 `SettingsPanelBase` 的共享标题/说明偏移量，双行条目增加纵向留白；Windows、Linux 桌面和旧版 Linux 关于文案统一改为新的产品描述，并以 `2026 yangjiang` 收尾。
+`LC-UI-INPUT-008` 的 4 项 P1 与 P2-1 已由 Gemini Round 2 复核为 RESOLVED。底部输入区使用 `BottomSendPanelBaseHeight = 154`，切会话和附件草稿刷新不会压缩 128px 多行胶囊；`LayoutInputPanel()` 由 Resize 与外观刷新共用，输入框不会下移覆盖快捷工具栏。输入区圆角为 18px，占位符对齐 `_txtInput.Top + EM_SETRECTNP.Top = 16`；`ChatInputBox` 默认多行换行，表情绘制裁剪到格式矩形并处理自动折行行尾的跨行坐标。
 
-本轮 `LC-CC-007` 已获 Gemini Round 3 独立审核通过，范围为 Windows 宿主机回归与 Linux `net10.0` 构建：表情选择器为微信比例的 496×548 暗色浮层，Windows 输入框按 RichEdit 真实坐标叠绘彩色 PNG，表情令牌仍保存在原始文本中，输入预览、发送协议、复制与历史不互相污染。Round 2 唯一 P1 阻断项 `LC-CC-007-R2-P1-1` 已关闭：`CapturePrintWindow` 使用 `PrintWindow(..., 2)`，仅在失败时以同一离屏 HDC 走 `WM_PRINT` 回退，并移除 `CopyFromScreen`；可选 P3 `caretInside` 边界也已修正。
+回归夹具覆盖多行 `EM_SETRECTNP` 的创建、Resize、FontChanged、RecreateHandle 生命周期、多行滚动、行尾表情像素绘制、选区、Shift+Enter，以及切会话/附件/外观后的 128px 布局不重叠断言。Windows 原生编译、聊天和好友回归、Node 语法/UI 模拟回归、`git diff --check` 均通过。未改变 LANC 魔数、Type 1/Type 2 字段顺序、确认字节或 JSONL 历史格式；相关源码与测试文件均低于 1000 行。
 
-新增 `assets/WeChatEmoji.pack` 与共享 `src/Services/EmojiPack.cs`。109 个微信静态表情以受校验的轻量二进制资源包编译进 Windows `LanChat.exe`，并通过 Linux `LanChat.Linux` 的 `LanChat.WeChatEmoji.pack` EmbeddedResource 进入 `lanchat.dll`/ELF。Linux DesktopService 增加 `emoji-pack` IPC，Electron 优先从通信服务获取 data URL，旧版外部目录仍保留回退。LANC 文字帧仍只传 `[表情名]`，旧版本对端收到后仍可读文本，新版本对端从自身程序集资源渲染图片。
+`LC-CC-007` 与 `LC-FILE-TRANSFER-STABILITY-001` 保持已审核通过状态。内置微信表情资源、RichEdit 坐标叠绘、PrintWindow 截图回归和文件传输并发/竞态修复已进入 v2.0.24 基线。本轮 v2.0.25 收录 UI-INPUT-008 整改与审核记录，候选包包含 Windows EXE/MSI、Linux amd64/arm64 Electron deb、便携包、CLI 与校验摘要。
 
-Windows 聊天表情、输入覆盖层、LANC 回环、历史回读、剪贴板、好友刷新回归均通过；在隔离 `LOCALAPPDATA`、不依赖旧外部表情目录时，内置资源仍可加载。Linux net10.0 `lanchat.dll` 构建 0 警告、0 错误，DLL 中已核验资源名和 `LCEMOJI1` 资源头；Electron `main.cjs` 语法及 Linux UI/IPC 回归通过。尚未做真实双机新旧版本现场验收，仍需确认两端安装包均使用新构建并观察实际 DPI 下浮层位置与输入图片覆盖层。
+## 兼容性与验证边界
 
-本轮 `LC-FILE-TRANSFER-STABILITY-001` 已完成 P0/P1/P2 实施并获 Gemini 独立审核 `APPROVED`，无 P0/P1/P2 阻断。LANC 帧、TCP 文件确认字节、UDP 字段和 JSONL 历史格式保持兼容；全中文注释与单文件小于 1000 行约束已检查。
+项目保持纯局域网边界。真实 Windows 100%/125%/150% DPI 目测和鼠标命中、中文输入法预编辑、Linux Xorg/Wayland/XWayland Electron 实机、Linux/ELF 实跑、真实双机 LAN 与新旧版本互通仍未验证，全部保留在 `CRDocs/DEFERRED.md`，不得由宿主机回归替代。
 
-用户实测最新版发现对端只发送一次文件时，本机偶发出现完成文件卡片和第二个“接收完成 · 100%”进度卡片。根因是 `FileTransferController` 的 50ms 进度合并队列与 `OnFileReceived` 完成回调存在先后竞态：完成回调先到时追加完整消息，延迟进度随后因找不到 `_incoming` 又新建消息。修复已在完成回调接管同一 `FileTransferId` 前移除尚未刷新的待处理进度，未改变 LANC 封包或历史格式。
+## 提交与下一步
 
-共享 `NetworkService` 使用 `Stopwatch` 单调计时并拒绝非有限速率；发送流先锁定文件长度，严格按报价长度发送，`BinaryReader/Writer` 保留底层流；握手、发送、收尾确认分别使用 10 秒、30 秒、至少 60 秒动态超时，文件 Socket 缓冲为 256KB。出站文件采用按目标轮询的有界队列，单目标最多 2 路、全局最多 6 路；Windows 入口限制单批 32 文件和群聊 16 人，进度 50ms 合批，托管截图使用引用计数清理。Linux IPC 对非有限速率和单帧序列化异常兜底，并与 Windows 对齐托管粘贴参数。
+版本元数据与 `CHANGELOG.md` 已更新；下一步完成 `v2.0.25` 打包、提交、push 和 GitHub Release。之后仅保留延期现场验收：真实多 DPI/输入法、Linux 三类桌面会话、Linux ELF、双机 LAN、截图工具/Excel/WPS 粘贴及长时间稳定性。
 
-新增边界夹具覆盖 0 字节、64KB、约 1MB、32/16 入口边界、6/2 并发限流和并发接收。Windows 原生编译、好友刷新、聊天编辑器、文件传输稳定性、并发接收、Node IPC/UI 回归及 `git diff --check` 均通过。发布时使用缓存的 .NET SDK 10.0.404 完成 Linux net10.0 双架构构建和打包；宿主系统默认 SDK 仍为 9.0.304。
-
-本轮实现保持外科式修改，没有改变既有魔数、封包字段、确认字节、历史字段或跨端入口。发送端在打开文件后重新确认长度，接收端继续按报价长度写入并等待最终确认；流包装器不关闭底层网络流，避免复用连接被提前释放。超时使用单调时钟和有限范围，进度计算在异常样本下回退为零，避免界面显示无穷或非数字。队列调度按目标轮询，拒绝超出容量的新增任务，并在服务退出时释放排队项。
-
-Windows 侧将大批量文件与群聊收件人限制在明确边界内，进度通知合并后再刷新界面，降低高吞吐传输时的跨线程调用压力。托管截图副本按引用计数管理，最后一个引用完成或失败后才删除临时文件；原始用户文件不纳入自动清理。Linux 桌面侧同步处理有限速率、序列化失败和托管粘贴参数，保证异常不会破坏 JSONL IPC 管道。
-
-审核结论确认本次修复没有发现新的 P0、P1 或 P2 问题，延后项属于真实环境证据而非当前宿主机代码阻断。后续若补做现场验收，应优先覆盖新旧版本互传、发送中断、0 字节文件、多个目标公平性、重启后历史记录，以及 Wayland/XWayland 剪贴板权限和窗口焦点恢复。
-
-## 发布与文档
-
-`Publish.bat 2.0.24` 已生成 Windows EXE/MSI、Linux amd64/arm64 deb、便携包、CLI 和 `SHA256SUMS.json`，并创建 GitHub Release：[v2.0.24](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.24)。准备提交为 `15dd985`，发布提交为 `debd9ef`；`CHANGELOG.md` 已写入 LC-CC-007 收口说明与验证边界。
-
-本轮新增重复气泡回归已通过；`Compile.bat`、文件传输稳定性回归、好友刷新回归和缓存 .NET 10 SDK 的 Linux `dotnet build` 均通过。Gemini 已将 `LC-CC-007` 与 `4e8bbc4` 标记为 `APPROVED`，v2.0.24 Release 资产已全部上传。
-
-## 未关闭边界与下一步
-
-仅剩现场验收：真实双机新旧版本互通、Windows 截图工具/Excel/WPS 粘贴、Linux Xorg/Wayland/XWayland 剪贴板、Linux/ELF 实机运行与长时间桌面回归。按 `CRDocs/DEFERRED.md` 保留，不影响本次发布闭环。
-
-入口：`Plan.md`、`ProjectMemory.md`、`contexts/Windows.md`、`contexts/Linux.md`、`contexts/Protocol.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`。
+入口：`Plan.md`、`contexts/Windows.md`、`contexts/Linux.md`、`contexts/Protocol.md`、`CRDocs/STATUS.md`、`CRDocs/REVIEW.md`、`CRDocs/DEFERRED.md`。

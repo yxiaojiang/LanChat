@@ -26,7 +26,17 @@ namespace LanChat
         private const int WmLButtonUp = 0x0202;
         private const int WmRButtonDown = 0x0204;
         private const int EmScrollCaret = 0x00B7;
+        private const int EmGetRect = 0x00B2;
         private const int WmPrint = 0x0317;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeRect
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
 
         [DllImport("user32.dll")]
         private static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
@@ -36,6 +46,9 @@ namespace LanChat
 
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wParam, ref NativeRect lParam);
 
         /// <summary>运行显示、剪贴板和 TCP 图文及历史回归。</summary>
         /// <param name="args">输出目录与是否要求已导入本机微信表情。</param>
@@ -49,6 +62,7 @@ namespace LanChat
                 VerifyLayout(bool.Parse(args[1]));
                 VerifyEmojiPaint();
                 VerifyRichEmojiInput();
+                VerifyMainFormInputLayout();
                 VerifyClipboardPriority();
                 VerifyAppearancePaletteAndTransferRate();
                 VerifyIncomingCompletionRace(args[0]);
@@ -157,10 +171,12 @@ namespace LanChat
                 host.FormBorderStyle = FormBorderStyle.FixedToolWindow;
                 host.StartPosition = FormStartPosition.Manual;
                 host.Location = new Point(40, 40);
-                host.ClientSize = new Size(420, 80);
+                host.ClientSize = new Size(420, 140);
                 input.Location = new Point(8, 8);
-                input.Size = new Size(380, 32);
+                input.Size = new Size(380, 112);
                 input.Font = new Font("Microsoft YaHei UI", 11f, FontStyle.Regular);
+                input.Multiline = true;
+                input.WordWrap = true;
                 input.BackColor = Color.FromArgb(32, 32, 36);
                 input.ForeColor = Color.FromArgb(242, 242, 246);
                 host.Controls.Add(input);
@@ -171,7 +187,8 @@ namespace LanChat
                 Application.DoEvents();
 
                 Require(input.Controls.Count == 0, "输入框不应创建覆盖子控件");
-                Require(input.MaxLength == 32767 && !input.Multiline, "输入框单行或长度契约错误");
+                Require(input.MaxLength == 32767 && input.Multiline && input.WordWrap, "输入框多行或长度契约错误");
+                RequireNativeTextRect(input, "创建后");
                 Require(input.GetMessageText() == "Hello [敲打] World", "输入框未保持原始令牌");
                 using (var canvas = CapturePrintWindow(input))
                 {
@@ -196,24 +213,54 @@ namespace LanChat
                 Require(input.Handle == ChildWindowFromPoint(host.Handle, new Point(input.Left + worldPosition.X, input.Top + worldPosition.Y + 8)),
                     "右键命中未落在输入框");
 
-                string longText = new string('A', 70) + " [敲打] World";
-                input.Text = longText;
-                int longTokenStart = longText.IndexOf("[", StringComparison.Ordinal);
-                input.SelectionStart = 0;
+                input.Size = new Size(180, 96);
+                string wrappedText = null;
+                Point wrappedStart = Point.Empty;
+                Point wrappedEnd = Point.Empty;
+                for (int prefixLength = 1; prefixLength < 80 && wrappedText == null; prefixLength++)
+                {
+                    string candidate = new string('A', prefixLength) + "[敲打]乙";
+                    input.Text = candidate;
+                    input.SelectionStart = input.TextLength;
+                    Application.DoEvents();
+                    int candidateStart = candidate.IndexOf('[');
+                    Point candidateBegin = input.GetPositionFromCharIndex(candidateStart);
+                    Point candidateEnd = input.GetPositionFromCharIndex(candidateStart + "[敲打]".Length);
+                    if (candidateEnd.Y != candidateBegin.Y || candidateEnd.X <= candidateBegin.X)
+                    {
+                        wrappedText = candidate;
+                        wrappedStart = candidateBegin;
+                        wrappedEnd = candidateEnd;
+                    }
+                }
+                Require(wrappedText != null, "未构造出自动折行行尾表情场景");
+                Require(wrappedEnd.Y != wrappedStart.Y || wrappedEnd.X <= wrappedStart.X, "行尾表情未落在折行边界");
+                input.Refresh();
                 Application.DoEvents();
-                Point beforeScroll = input.GetPositionFromCharIndex(longTokenStart);
+                using (var wrappedCanvas = CapturePrintWindow(input))
+                    Require(HasEmojiPixel(wrappedCanvas, wrappedStart.X, wrappedCanvas.Width),
+                        "自动折行行尾表情未绘制");
+
+                string multilineText = string.Join("\n", new[] {
+                    "第一行文字", "第二行文字", "第三行文字", "第四行文字", "第五行文字", "第六行 [敲打]尾"
+                });
+                input.Text = multilineText;
+                int scrolledTokenStart = multilineText.IndexOf("[敲打]", StringComparison.Ordinal);
                 input.SelectionStart = input.TextLength;
                 input.ScrollToCaret();
                 SendMessage(input.Handle, EmScrollCaret, IntPtr.Zero, IntPtr.Zero);
                 Application.DoEvents();
                 input.Refresh();
                 Application.DoEvents();
-                int tokenStart = longTokenStart;
+                Point scrolledStart = input.GetPositionFromCharIndex(scrolledTokenStart);
+                Point scrolledEnd = input.GetPositionFromCharIndex(scrolledTokenStart + "[敲打]".Length);
+                Require(scrolledStart.Y >= 0 && scrolledStart.Y < input.ClientSize.Height &&
+                    (scrolledEnd.Y != scrolledStart.Y || scrolledEnd.X > scrolledStart.X),
+                    string.Format("多行滚动后表情坐标无效 start=({0},{1}) end=({2},{3})", scrolledStart.X, scrolledStart.Y, scrolledEnd.X, scrolledEnd.Y));
+                RequireNativeTextRect(input, "滚动后");
+
+                int tokenStart = scrolledTokenStart;
                 int tokenEnd = tokenStart + "[敲打]".Length;
-                Point scrolledStart = input.GetPositionFromCharIndex(tokenStart);
-                Point scrolledEnd = input.GetPositionFromCharIndex(tokenEnd);
-                Require(scrolledStart.X < input.ClientSize.Width && scrolledEnd.X > 0, "水平滚动后表情不在可见区");
-                Require(beforeScroll.X != scrolledStart.X, "水平滚动未改变 RichEdit 字符坐标");
 
                 input.Select(tokenStart, tokenEnd - tokenStart);
                 Application.DoEvents();
@@ -221,6 +268,19 @@ namespace LanChat
                 input.Select(tokenStart + 2, 0);
                 Application.DoEvents();
                 Require(input.SelectionLength == 0 && input.SelectionStart == tokenStart + 2, "表情令牌内插入符定位失败");
+
+                input.Height = 104;
+                RequireNativeTextRect(input, "Resize 后");
+                input.Font = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Regular);
+                Application.DoEvents();
+                RequireNativeTextRect(input, "FontChanged 后");
+                MethodInfo recreateHandle = typeof(Control).GetMethod("RecreateHandle", BindingFlags.Instance | BindingFlags.NonPublic);
+                Require(recreateHandle != null, "找不到 RecreateHandle 测试入口");
+                recreateHandle.Invoke(input, null);
+                Application.DoEvents();
+                RequireNativeTextRect(input, "RecreateHandle 后");
+                input.Font = new Font("Microsoft YaHei UI", 11f, FontStyle.Regular);
+                Application.DoEvents();
 
                 input.Clear();
                 var richText = new DataObject();
@@ -329,6 +389,78 @@ namespace LanChat
         private static IntPtr MakeLParam(int x, int y)
         {
             return (IntPtr)((y << 16) | (x & 0xFFFF));
+        }
+
+        private static void RequireNativeTextRect(ChatInputBox input, string phase)
+        {
+            NativeRect rect = new NativeRect();
+            SendMessage(input.Handle, EmGetRect, IntPtr.Zero, ref rect);
+            Require(rect.Left == 0 && rect.Top == 6 && rect.Right == input.ClientSize.Width &&
+                rect.Bottom == Math.Max(7, input.ClientSize.Height - 4),
+                phase + " 未保持 EM_SETRECTNP 格式矩形");
+        }
+
+        private static void VerifyMainFormInputLayout()
+        {
+            using (var form = new MainForm())
+            {
+                form.ShowInTaskbar = false;
+                form.Show();
+                form.Activate();
+                Application.DoEvents();
+
+                FieldInfo bottomField = typeof(MainForm).GetField("_bottomSendPanel", BindingFlags.Instance | BindingFlags.NonPublic);
+                FieldInfo panelField = typeof(MainForm).GetField("_inputPanel", BindingFlags.Instance | BindingFlags.NonPublic);
+                FieldInfo inputField = typeof(MainForm).GetField("_txtInput", BindingFlags.Instance | BindingFlags.NonPublic);
+                FieldInfo emojiField = typeof(MainForm).GetField("_btnToolEmoji", BindingFlags.Instance | BindingFlags.NonPublic);
+                FieldInfo draftsField = typeof(MainForm).GetField("_attachmentDrafts", BindingFlags.Instance | BindingFlags.NonPublic);
+                var bottom = (Panel)bottomField.GetValue(form);
+                var panel = (Panel)panelField.GetValue(form);
+                var input = (ChatInputBox)inputField.GetValue(form);
+                var emoji = (Control)emojiField.GetValue(form);
+                var drafts = (System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<string>>)draftsField.GetValue(form);
+
+                Action assertLayout = () =>
+                {
+                    Require(bottom.Height >= 154, "输入区底部基准高度被压缩");
+                    Require(panel.Height == 128, "输入胶囊高度未保持 128px");
+                    Require(input.Bottom <= emoji.Top, "输入框与快捷工具栏发生重叠");
+                };
+
+                assertLayout();
+                form.ApplyAppearanceSettings();
+                Application.DoEvents();
+                assertLayout();
+
+                drafts[SessionManager.BROADCAST_KEY] = new System.Collections.Generic.List<string> { "附件-广播.txt" };
+                InvokePrivate(form, "RefreshAttachmentDraft");
+                Application.DoEvents();
+                Require(bottom.Height == 154 + 34, "附件草稿刷新未保留输入区基准高度");
+                assertLayout();
+
+                PropertyInfo activeKey = typeof(MainForm).GetProperty("_activeChatKey", BindingFlags.Instance | BindingFlags.NonPublic);
+                activeKey.SetValue(form, "layout-peer", null);
+                InvokePrivate(form, "OnActiveSessionChanged", "layout-peer", null, "布局会话", "给布局会话发消息", false);
+                Application.DoEvents();
+                assertLayout();
+                drafts["layout-peer"] = new System.Collections.Generic.List<string> { "附件-私聊.txt" };
+                InvokePrivate(form, "RefreshAttachmentDraft");
+                Application.DoEvents();
+                Require(bottom.Height == 154 + 34, "切换会话后附件草稿刷新压缩了输入区");
+                form.ApplyAppearanceSettings();
+                Application.DoEvents();
+                assertLayout();
+
+                input.Text = "换行前";
+                input.SelectionStart = input.TextLength;
+                input.Focus();
+                var shiftEnter = new KeyEventArgs(Keys.Shift | Keys.Enter);
+                InvokePrivate(form, "TxtInput_KeyDown", input, shiftEnter);
+                Require(!shiftEnter.SuppressKeyPress, "Shift+Enter 被输入区处理器抑制");
+                input.SelectedText = "\n";
+                Require(input.Text.IndexOf('\n') >= 0 || input.Text.IndexOf('\r') >= 0, "多行输入框未接受 Shift+Enter 换行");
+            }
+            Console.WriteLine("切会话、附件草稿、外观刷新后的输入区布局与 Shift+Enter 断言通过");
         }
 
         private static void VerifyClipboardPriority()

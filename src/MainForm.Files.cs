@@ -205,7 +205,7 @@ namespace LanChat
             int height = Math.Min(3, _attachmentList.Items.Count) * _attachmentList.ItemHeight;
             _attachmentList.Visible = height > 0;
             _attachmentList.Height = height;
-            _bottomSendPanel.Height = 90 + height;
+            _bottomSendPanel.Height = BottomSendPanelBaseHeight + height;
             TxtInput_TextChanged(_txtInput, EventArgs.Empty);
         }
 

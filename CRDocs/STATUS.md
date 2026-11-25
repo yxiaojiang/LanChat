@@ -1,12 +1,12 @@
 # 当前任务 — LC-UI-INPUT-008
 
-- **状态**：`WAITING_FOR_GROK`（执行者已完成实现与宿主机验证，等待 Gemini 独立审核）
+- **状态**：`APPROVED`（当前开发与 Windows 宿主机回归范围放行）
 - **主题**：微信式高输入区、表情文字纵向稳定、快捷工具展开、设置页统一间距与关于页文案
-- **日期**：2026-11-25；**执行者**：Codex；**独立审核者**：待 Gemini
-- **报告**：[执行者送审记录](REVIEW.md) · [实施记录](IMPLEMENTATION.md) · [待现场验收](DEFERRED.md)
-- **一句话结论**：Windows 输入区已扩大为 128px 高多行胶囊并固定 RichEdit 格式区域，常用加号功能展开为底部快捷工具栏；设置双行条目统一增加垂直留白，关于页落款改为 `2026 yangjiang`；原生编译、Node 语法检查与空白检查通过，尚未完成真实 DPI/运行窗口目测。
-- **未验证边界**：100%/125%/150% DPI 下实际输入框与表情坐标、快捷按钮命中、真实窗口长文本换行，以及 Linux Electron 实机视觉效果仍待审核/现场验收。
-- **下一步**：Gemini 必须读取 `CRDocs/RULES.md`、`STATUS.md`、`REVIEW.md`、`IMPLEMENTATION.md`、`DEFERRED.md`，核对实际 diff 和验证命令；审核后回写 `REVIEW.md` 与本文件，只有 Gemini 可以改为 `APPROVED` 或 `REJECTED`。
+- **日期**：2026-11-25；**执行者**：Codex（Round 1 整改）；**独立审核者**：Gemini（Round 2 独立复审通过）
+- **报告**：[Round 2 独立复审（通过）](REVIEW.md#lc-ui-input-008--round-2-独立复审通过p1-1--p1-4-与-p2-1-已全部闭环) · [Round 1 整改执行记录](REVIEW.md#lc-ui-input-008--round-1-独立审核整改执行记录-codex) · [实施记录](IMPLEMENTATION.md) · [待现场验收](DEFERRED.md)
+- **一句话结论**：Round 1 全部 4 项 P1（`LC-UI-INPUT-008-P1-1` ~ `P1-4`）与 `P2-1` 已复核 `RESOLVED`：`BottomSendPanelBaseHeight = 154` 与 `LayoutInputPanel()` 统一输入区高度和布局、`18px` 圆角与 `y=16` 占位符消除按钮越界和基线错位、`ChatInputBox` 多行默认配置/格式矩形裁剪/折行行尾表情与回归断言均闭环；LANC/JSONL 零破坏，全部改动文件 `< 1000` 行，6 项宿主机编译/回归/语法/空白检查独立复跑全部退出码 `0`。
+- **未验证边界**：100%/125%/150% DPI 真实窗口与鼠标命中、真实中文输入法预编辑、Linux Xorg/Wayland/XWayland 实机、Linux/ELF 实跑及真实双机互通仍未验证，继续保留于 [DEFERRED.md](DEFERRED.md)。
+- **下一步**：`LC-UI-INPUT-008` 当前开发与宿主机回归范围已闭环；由用户决定提交整改变更/安排打包发布，或进入 [DEFERRED.md](DEFERRED.md) 中的真实 Windows 多 DPI/中文输入法、Linux Xorg/Wayland/XWayland 与双机现场验收。
 
 ---
 

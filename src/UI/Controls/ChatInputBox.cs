@@ -55,14 +55,14 @@ namespace LanChat
         /// <summary>用户粘贴位图时同步通知宿主，回调返回后输入框释放图片。</summary>
         internal event Action<Image> ImagePasted;
 
-        /// <summary>初始化单行暗色富文本编辑器，保留纯文本输入契约和长度上限。</summary>
+        /// <summary>初始化多行暗色富文本编辑器，保留纯文本输入契约和长度上限。</summary>
         public ChatInputBox()
         {
             BorderStyle = BorderStyle.None;
             DetectUrls = false;
-            Multiline = false;
+            Multiline = true;
             MaxLength = MaxInputLength;
-            WordWrap = false;
+            WordWrap = true;
             ScrollBars = RichTextBoxScrollBars.None;
             AcceptsTab = false;
             AutoWordSelection = false;
@@ -157,7 +157,9 @@ namespace LanChat
             int selectionEnd = SelectionLength > 0
                 ? Math.Min(TextLength, selectionStart + SelectionLength)
                 : selectionStart;
-            Rectangle visible = ClientRectangle;
+            Rectangle visible = new Rectangle(0, TextPaddingTop, ClientSize.Width,
+                Math.Max(0, ClientSize.Height - TextPaddingTop - 4));
+            if (visible.Width <= 0 || visible.Height <= 0) return;
             graphics.ResetClip();
             graphics.SetClip(visible);
 
@@ -180,8 +182,10 @@ namespace LanChat
                             {
                                 Point start = GetPositionFromCharIndex(index);
                                 Point finish = GetPositionFromCharIndex(end);
-                                float tokenWidth = finish.X - start.X;
                                 float lineHeight = Math.Max(1f, Font.GetHeight(graphics));
+                                float tokenWidth = finish.Y != start.Y || finish.X <= start.X
+                                    ? Math.Max(lineHeight, ClientSize.Width - start.X)
+                                    : finish.X - start.X;
                                 float imageSize = Math.Min(Math.Max(16f, lineHeight - 1f),
                                     Math.Min(tokenWidth - 2f, ClientSize.Height - 2f));
                                 if (tokenWidth > 2f && imageSize >= 8f)

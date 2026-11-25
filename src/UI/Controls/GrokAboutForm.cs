@@ -25,7 +25,7 @@ namespace LanChat
         {
             _version = version;
             _buildDate = "2026年10月25日";
-            _copyright = "版权所有 © 2026 ChaseFraser LanChat";
+            _copyright = "版权所有 © 2026 yangjiang LanChat";
 
             this.Size = GrokTheme.SizeAbout; // 440 x 560
             this.ShowCloseButton = true;
@@ -136,7 +136,7 @@ namespace LanChat
             DrawDetailRow(g, "客户端版本", "v" + _version, cardX + 20, lineY, cardW - 40);
             DrawDetailRow(g, "系统架构", ".NET 4.0 / C# 5.0 (零外部依赖)", cardX + 20, lineY + lineH, cardW - 40);
             DrawDetailRow(g, "构建时间", _buildDate, cardX + 20, lineY + lineH * 2, cardW - 40);
-            DrawDetailRow(g, "版权所有", "© 2026 ChaseFraser", cardX + 20, lineY + lineH * 3, cardW - 40);
+            DrawDetailRow(g, "版权所有", "© 2026 yangjiang", cardX + 20, lineY + lineH * 3, cardW - 40);
         }
 
         private void DrawDetailRow(Graphics g, string label, string value, int x, int y, int w)

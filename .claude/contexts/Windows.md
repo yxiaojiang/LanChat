@@ -1,6 +1,6 @@
 # Windows.md — Windows 客户端模块上下文
 
-> 2026-11-25 · LC-CC-007 Round 3 已独立审核通过，`v2.0.24` 已发布。组合 Emoji 的整段 GDI+ 测量/绘制、`PrintWindow(..., 2)` 截图回归、原生构建和回环 Win32 交互隔离回归均通过；真实多机 LAN、实际换网、系统截图粘贴和 TUN 路由仍待现场验收。
+> 2026-11-25 · LC-UI-INPUT-008 Round 2 已独立审核通过，`v2.0.25` 发布候选包准备中。组合 Emoji 的整段 GDI+ 测量/绘制、128px 多行输入区、`EM_SETRECTNP` 生命周期、PrintWindow 截图回归、原生构建和回环 Win32 交互隔离回归均通过；真实多机 LAN、实际 DPI、中文输入法、系统截图粘贴和 TUN 路由仍待现场验收。
 
 ## 模块定位与职责
 Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装、无外部依赖、支持 MSI 标准向导安装与绿色单文件执行**的现代化桌面应用。
@@ -48,7 +48,7 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `MainForm.Designer.cs` 将底部输入胶囊扩大为 128px 高，多行 `ChatInputBox` 上方编辑、下方快捷工具栏；表情、接收目录、发文件、截图、清空会话按钮均为真实 GDI+ 图标动作，语音按钮继续隐藏。
 - `ChatInputBox` 使用 RichEdit `EM_SETRECTNP` 固定格式区域内边距，避免插入表情令牌后原生文本行纵向漂移；普通 Enter 发送，Shift+Enter 换行。
 - `SettingsPanelBase` 提供统一 `SettingTitleOffset=7` 与 `SettingDescriptionOffset=32`，各 Windows 设置页的双行条目统一增加上下留白；关于页文案收敛为局域网即时通讯/文件协作描述，落款为 `2026 yangjiang`。Linux 桌面设置 CSS 与关于页同步文案/间距。
-- Windows 原生 `Compile.bat`、Linux `settings-pages.js` `node --check` 与 `git diff --check` 已通过；仍需在实际 DPI 和真实桌面窗口中目测输入框、表情坐标与工具栏命中区域。
+- Gemini Round 2 已确认 4 项 P1 与 P2-1 RESOLVED；Windows 原生 `Compile.bat`、聊天/好友回归、Linux `settings-pages.js` `node --check`、Linux UI 模拟回归与 `git diff --check` 均通过。仍需在实际 DPI 和真实桌面窗口中目测输入框、表情坐标与工具栏命中区域。
 
 ### LC-CC-007 内置表情包与微信比例选择器（2026-11-25）
 
