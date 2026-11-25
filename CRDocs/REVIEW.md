@@ -1,11 +1,11 @@
-# 本轮交付 — Windows 缩放稳定性、11 色外观、传输速率与群聊文件多选（独立审核）
+# 本轮交付 — Windows 缩放稳定性、11 色外观、传输速率与群聊文件多选（独立复审）
 
 - **日期**：2026-11-25
-- **执行者**：Codex（基线提交 `e3e9a58`）
+- **执行者**：Codex（基线提交 `e3e9a58`、返修提交 `a056460`）
 - **审核方**：独立审核方
-- **审核状态**：**WAITING_FOR_GROK**（`LC-RV-001` 已返修，等待独立审核者复跑）
-- **范围**：头像缩放防闪烁、附件图 11 色外观预设、Windows/Linux 文件气泡当前速率、群聊在线收件人多选与托管截图副本清理，以及无在线好友空列表返修。
-- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`，以及 `e3e9a58` 实际 diff 与相关调用链。
+- **审核状态**：**APPROVED**（当前开发与 Windows 宿主机回归范围放行）
+- **范围**：头像缩放防闪烁、附件图 11 色外观预设、Windows/Linux 文件气泡当前速率、群聊在线收件人多选与托管截图副本清理，以及 `LC-RV-001` 无在线好友空列表返修。
+- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`，以及 `e3e9a58`、`a056460` 实际 diff 与相关调用链。
 
 ## 独立复跑与验证边界
 
@@ -24,22 +24,22 @@
 
 ## 审核结论与维度核对
 
-**WAITING_FOR_GROK**。`LC-RV-001` 已修复：无在线好友时 `PickFileRecipients` 返回 `new List<PeerInfo>()`，入口统一归一化 `null` 快照，调用方继续通过 `Count` 判空；自动化断言和全部宿主机回归已通过，等待独立审核者确认关闭。
+**APPROVED（当前范围放行）**。无 P0、无 P1 遗留；`LC-RV-001` 已复核 **RESOLVED**：无在线好友时 `PickFileRecipients` 返回 `new List<PeerInfo>()`，`NormalizeRecipientList` 将 `null` 快照归一化，关闭警告框后 `PromptPeerAndSendFiles` 与 `PickFileRecipient` 访问 `peers.Count` 不再触发 `NullReferenceException`；0 在线好友与 `null` 快照自动化断言及全部宿主机回归复跑通过。
 
 | 核对维度 | 结论 | 说明 |
 | --- | :---: | --- |
 | 1. 头像缩放防闪烁 | PASS | `src/MainForm.Designer.cs:210` 将 `_heroProfilePanel` 改为 `DoubleBufferedPanel`，`FriendRefreshRegression.cs:281` 已覆盖类型断言 |
 | 2. 11 色配色与索引兼容 | PASS | `GrokTheme.cs`、`AppearanceSettingsPanel.cs`、`AppSettings.cs`（上限 11）、`LinuxProfile.cs`（上限 11）与 `appearance.js` 均严格对齐 11 色 RGB 与索引顺序，越界均做夹紧 |
 | 3. 双向传输速率显示 | PASS | `NetworkService.Transfer.cs` 收发均写入 `SpeedMBps`；`FileTransferController.FormatTransferRate` 与 `conversation-view.js` 统一格式化 `KB/s` / `MB/s`；`ChatFileCardRenderer.cs` 与 `DesktopService.cs` 透传/渲染正常 |
-| 4. 群聊多选与托管截图清理 | **PASS（返修）** | `PickFileRecipients` 多选与 `SendFilesToPeers` 为 `i > 0` 生成 `"群发-<guid>.png"` 托管副本及失败清理逻辑成立；无在线好友分支返回空列表，`NormalizeRecipientList` 将 `null` 快照归一化，`PromptPeerAndSendFiles` 与 `PickFileRecipient` 的 `Count` 访问不再崩溃 |
+| 4. 群聊多选与托管截图清理 | PASS | `PickFileRecipients` 多选与 `SendFilesToPeers` 为 `i > 0` 生成 `"群发-<guid>.png"` 托管副本及失败清理逻辑成立；`PickFileRecipients` 全路径返回非空 `List<PeerInfo>`，`NormalizeRecipientList` 归一化 `null` 快照，`PromptPeerAndSendFiles` 与 `PickFileRecipient` 不再触发 `NullReferenceException` |
 | 5. LANC 协议与 JSONL 兼容 | PASS | 未改动 `Models.cs`、`NetworkService*.cs`、`ChatHistoryService.cs`、`SessionManager.cs`，LANC 封包与 JSONL 历史格式完全兼容 |
-| 6. 行数门禁与注释规范 | PASS | 全部改动文件 `< 1000` 行软门禁，无空白错误 |
+| 6. 行数门禁与注释规范 | PASS | 全部改动文件 `< 1000` 行软门禁，无空白错误，新增 XML 注释为中文 |
 
 ### 问题清单
 
 | 问题 ID | 严重度 | 状态 | 位置与说明 |
 | --- | :---: | :---: | --- |
-| `LC-RV-001` | **P1** | **RESOLVED，待独立复审** | `src/MainForm.Files.cs` 无在线好友分支已返回 `new List<PeerInfo>()`，并通过 `NormalizeRecipientList` 防御 `null` 快照；`FriendRefreshRegression` 新增 0 在线好友和 `null` 归一化断言，关闭警告后不会再触发 `NullReferenceException`。 |
+| `LC-RV-001` | P1 | **RESOLVED** | `src/MainForm.Files.cs:264-287` 无在线好友分支已返回 `new List<PeerInfo>()`，并通过 `NormalizeRecipientList` 防御 `null` 快照；`FriendRefreshRegression.cs:283-285` 新增 0 在线好友和 `null` 归一化断言并复跑通过。 |
 
 ---
 

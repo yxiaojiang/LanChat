@@ -12,7 +12,7 @@ LC-CC-003、LC-CC-004、LC-CC-005、LC-CC-006 的既有范围已通过独立审�
 
 ## 下一步
 
-本轮记录已写入 `CRDocs/IMPLEMENTATION.md`、`CRDocs/REVIEW.md`、`CRDocs/STATUS.md`，`LC-RV-001` 已返修，状态为 `WAITING_FOR_GROK`，等待独立审核者复跑。真实 Windows 截图工具/Excel/WPS、长时间拖拽缩放录屏、Linux Xorg/Wayland/XWayland 与最新 ELF、双机局域网联测仍未验证，按 `CRDocs/DEFERRED.md` 保留。
+本轮记录已写入 `CRDocs/IMPLEMENTATION.md`、`CRDocs/REVIEW.md`、`CRDocs/STATUS.md`，`LC-RV-001` 已返修并通过独立审核。当前准备按发布脚本递增到 v2.0.21，提交并上传 Windows/Linux 发布产物。真实 Windows 截图工具/Excel/WPS、长时间拖拽缩放录屏、Linux Xorg/Wayland/XWayland 与最新 ELF、双机局域网联测仍未验证，按 `CRDocs/DEFERRED.md` 保留。
 
 ## 入口
 
