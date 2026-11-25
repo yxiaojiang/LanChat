@@ -31,6 +31,7 @@ namespace LanChat
             VerifyEmojiPaint();
             VerifyClipboardPriority();
             VerifyAppearancePaletteAndTransferRate();
+            VerifyIncomingCompletionRace(args[0]);
             string source = SaveClipboardImage(args[0]);
             VerifyLoopback(args[0], source);
             Console.WriteLine("聊天表情布局、PNG 与位图粘贴数据、LANC 文本和图片回环及历史回读通过");
@@ -150,6 +151,53 @@ namespace LanChat
             Require(FileTransferController.FormatTransferRate(0.5) == "512 KB/s", "低速传输速率格式化错误");
             Require(FileTransferController.FormatTransferRate(12.345) == "12.3 MB/s", "高速传输速率格式化错误");
             Console.WriteLine("外观 11 色调色盘与发送/接收速率格式化断言通过");
+        }
+
+        private static void VerifyIncomingCompletionRace(string directory)
+        {
+            ChatHistoryService.ProfileStorageDirectory = Path.Combine(directory, "incoming-race-history");
+            using (var network = new NetworkService("竞态接收端", directory))
+            {
+                var sessions = new SessionManager();
+                var controller = new FileTransferController(network, sessions, null);
+                var changes = new System.Collections.Generic.List<Tuple<ChatMessage, string, bool>>();
+                controller.TransferMessageChanged += (message, sessionKey, added) =>
+                    changes.Add(Tuple.Create(message, sessionKey, added));
+
+                string transferId = "incoming-race";
+                IPAddress address = IPAddress.Loopback;
+                var progress = new FileTransferProgress
+                {
+                    TransferId = transferId, FileName = "peizhi", TotalBytes = 14336,
+                    TransferredBytes = 14336, IsCompleted = true, SpeedMBps = 0.044,
+                    TransferPeerId = "竞态发送端", TransferPeerAddress = address, PeerNick = "竞态发送端"
+                };
+                var completed = new ChatMessage
+                {
+                    SenderId = "竞态发送端", SenderNick = "竞态发送端", RemoteAddress = address,
+                    Content = "[接收文件] peizhi", Timestamp = DateTime.Now, IsFile = true,
+                    FileTransferId = transferId, FileName = "peizhi", FilePath = Path.Combine(directory, "peizhi"),
+                    FileSize = 14336
+                };
+
+                // 模拟最终进度已经排队，但完成回调先抵达 UI 的实际时序。
+                InvokePrivate(controller, "QueueProgress", progress);
+                InvokePrivate(controller, "HandleFileReceived", completed);
+                Thread.Sleep(150);
+
+                string conversationKey = SessionManager.GetLanKey("竞态发送端", address);
+                Require(sessions.GetMessages(conversationKey).Count == 1, "文件完成先到时产生了重复接收气泡");
+                Require(changes.Count == 1 && changes[0].Item3, "完成消息未作为唯一接收气泡追加");
+                Require(ChatHistoryService.LoadHistory(conversationKey).Count == 1, "重复接收气泡污染了历史记录");
+            }
+            Console.WriteLine("文件接收完成先于延迟进度刷新时不会重复追加气泡");
+        }
+
+        private static void InvokePrivate(object target, string method, params object[] arguments)
+        {
+            MethodInfo info = target.GetType().GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic);
+            Require(info != null, "回归找不到私有测试入口：" + method);
+            info.Invoke(target, arguments);
         }
 
         private static string SaveClipboardImage(string directory)

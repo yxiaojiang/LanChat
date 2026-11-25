@@ -1,8 +1,25 @@
 # LC-FILE-TRANSFER-STABILITY-001 — 执行摘要
 
-> 2026-11-25 · 执行者 Codex · 状态 `APPROVED` · Gemini 独立审核通过；详细记录见 `CRDocs/REVIEW.md` 同名记录
+> 2026-11-25 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 新增重复接收气泡修复，等待 Gemini 复核；详细记录见 `CRDocs/REVIEW.md` 同名记录
 
-P0/P1/P2 已完成，Windows 回归、新增边界夹具、Linux net10.0 打包与发布资产均通过；真实 Linux/ELF、双机 LAN 和桌面剪贴板仍未验证。
+P0/P1/P2 已完成；本轮补修快速接收时的重复气泡竞态，Windows 回归、新增边界夹具、Linux net10.0 构建均通过；真实 Linux/ELF、双机 LAN 和桌面剪贴板仍未验证。
+
+## 重复接收气泡修复
+
+- **现象**：对端只发送一次文件时，接收端偶发同时出现一个完成文件卡片和一个“接收完成 · 100%”进度卡片。
+- **根因**：`FileTransferController` 将进度合并延迟 50ms；快速传输的 `OnFileReceived` 可能先于延迟进度执行，完成回调先追加完整卡片，随后延迟进度因找不到 `_incoming` 又追加一条卡片。
+- **修复**：`HandleFileReceived` 在接管完成消息前，按 `FileTransferId` 从 `_pendingProgress` 移除尚未刷新的进度，保留既有完成消息复用逻辑；未修改 LANC 封包、文件确认字节和历史格式。
+- **新增回归**：`ChatComposerRegression` 模拟“最终进度已排队、完成回调先到”的时序，断言会话内存、UI 追加事件和 JSONL 历史均只保留一条文件消息。
+
+## 本轮验证
+
+| 实际命令 | 结果 |
+| --- | --- |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 返回 0；新增重复接收气泡回归与既有聊天、剪贴板、LANC 回环、截图清理用例通过。 |
+| `cmd /c "Tools\\Scripts\\Compile.bat < NUL"` | 返回 0；Windows 原生 `LanChat.exe` 编译成功。 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/file_transfer_stability_regression.ps1` | 返回 0；0 字节、64KB、全局 6、单目标 2 边界通过。 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 返回 0；好友刷新及既有 Windows 入口边界通过。 |
+| `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false` | 返回 0；Linux net10.0，0 警告、0 错误。 |
 
 ## v2.0.22 发布收口
 

@@ -4,6 +4,7 @@
 
 ## 当前活跃事项
 
+- [ ] 请 Gemini 复核快速接收时重复文件气泡修复；审核通过后决定是否随下一版正式发布。
 - [ ] 完成真实双机新旧版本互通、Windows 截图工具/Excel/WPS 粘贴及 Linux Xorg/Wayland/XWayland 联测。
 - [ ] 在目标 Linux 环境补跑最新 ELF 实机运行、升级/回退、CLI、桌面收发及长时间稳定性证据。
 

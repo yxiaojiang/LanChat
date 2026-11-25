@@ -1,11 +1,11 @@
 # 当前任务 — LC-FILE-TRANSFER-STABILITY-001
 
-- **状态**：`APPROVED`（当前开发与 Windows 宿主机回归范围放行）
-- **主题**：文件传输稳定性与并发限流加固（P0 / P1 / P2）
+- **状态**：`WAITING_FOR_GROK`（新增重复接收气泡修复待独立审核）
+- **主题**：文件传输稳定性、并发限流与接收气泡去重
 - **日期**：2026-11-25；**执行者**：Codex；**独立审核者**：Gemini
-- **报告**：[独立审核结论](REVIEW.md#lc-file-transfer-stability-001--独立审核) · [执行记录](REVIEW.md#lc-file-transfer-stability-001--文件传输稳定性与并发限流加固执行记录)
-- **一句话结论**：LANC 兼容的传输稳定性（Stopwatch 单调计时/有限速率、先开流取长度、截断/0 字节/超时、leaveOpen）、6/2 有界公平出站队列、32/16 入口限制、托管截图引用计数、50ms 进度合批、Linux IPC 兜底与边界回归均已核对并通过；Windows 编译、边界回归、并发接收、Linux net10.0 打包与 Release 资产均已完成。
-- **下一步**：`LC-FILE-TRANSFER-STABILITY-001` 当前开发、审核、打包与发布范围已闭环。Linux 实机/ELF 双端运行、真实双机 LAN、Windows 截图工具/Excel/WPS 粘贴及 Linux Xorg/Wayland/XWayland 剪贴板仍按 [DEFERRED.md](DEFERRED.md) 保留现场验收。
+- **报告**：[本轮执行记录](REVIEW.md#lc-file-transfer-stability-001--本轮重复接收气泡修复执行记录) · [上一轮独立审核](REVIEW.md#lc-file-transfer-stability-001--独立审核)
+- **一句话结论**：修复完成消息先于 50ms 延迟进度刷新时产生两个接收气泡的竞态；完成回调现在会撤销同一传输号的待刷进度，新增回归确认内存、UI 与历史均只保留一条，LANC 协议未改动。
+- **下一步**：请 Gemini 按本轮执行记录复核重复接收气泡修复及全部既有回归；审核通过后再决定是否合入下一个正式发布版本。Linux 实机/ELF、真实双机 LAN、Windows 截图工具/Excel/WPS 粘贴及 Linux Xorg/Wayland/XWayland 剪贴板仍按 [DEFERRED.md](DEFERRED.md) 保留现场验收。
 
 ---
 

@@ -1,3 +1,33 @@
+# LC-FILE-TRANSFER-STABILITY-001 — 本轮重复接收气泡修复执行记录
+
+- **任务编号**：`LC-FILE-TRANSFER-STABILITY-001`
+- **任务主题**：快速接收时重复文件气泡修复
+- **执行方**：Codex
+- **执行日期**：2026-11-25
+- **审核状态**：`WAITING_FOR_GROK`
+- **关联记录**：[上一轮独立审核](#lc-file-transfer-stability-001--独立审核)
+
+## 改动
+
+1. 在 `src/Controllers/FileTransferController.cs` 增加待处理进度撤销逻辑。`HandleFileReceived` 处理完成消息前，按 `FileTransferId` 移除 `_pendingProgress` 中尚未由 50ms 定时器刷新的一条进度，避免完成卡片先追加后又被迟到进度创建第二条气泡。
+2. 保持既有 `_incoming` 会话/传输号关联、完成消息复用、历史持久化和 LANC 二进制封包不变。
+3. 在 `tests/ChatComposerRegression.cs` 增加完成先于延迟进度刷新时序回归，验证内存消息数量、UI 追加事件数量和 JSONL 历史数量均为 1。
+
+## Windows 与 Linux 验证
+
+1. `tests/chat_composer_regression.ps1 -ExpectLocalPack`：返回 0；输出“文件接收完成先于延迟进度刷新时不会重复追加气泡”。
+2. `cmd /c "Tools\\Scripts\\Compile.bat < NUL"`：返回 0，Windows 原生编译成功。
+3. `tests/file_transfer_stability_regression.ps1`：返回 0，0 字节、64KB、全局 6、单目标 2 通过。
+4. `tests/friend_refresh_regression.ps1`：返回 0，原有 Windows 好友刷新与入口边界通过。
+5. `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false`：返回 0，Linux `net10.0` 构建 0 警告、0 错误。
+6. `git diff --check`：待提交前执行，必须无空白错误。
+
+## 未验证边界
+
+真实双机新旧版本互通、Linux ARM64/x86_64 ELF 实机、Linux Xorg/Wayland/XWayland 剪贴板、Windows 截图工具/Excel/WPS 实际粘贴及长时间吞吐仍未验证，继续遵循 `CRDocs/DEFERRED.md`。本轮尚未重新打包或替换已发布的 v2.0.22 资产，待独立审核通过后再决定版本发布策略。
+
+---
+
 # LC-FILE-TRANSFER-STABILITY-001 — 独立审核
 
 - **任务编号**：`LC-FILE-TRANSFER-STABILITY-001`

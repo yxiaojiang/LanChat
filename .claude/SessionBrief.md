@@ -1,10 +1,12 @@
 # SessionBrief.md — 当前接手摘要
 
-> 2026-11-25 · 工作目录 `D:\TEmp\LanChat` · Gemini 已批准文件传输稳定性加固，v2.0.22 已发布
+> 2026-11-25 · 工作目录 `D:\TEmp\LanChat` · v2.0.22 已发布，重复接收气泡修复待 Gemini 复核
 
 ## 当前状态
 
 本轮 `LC-FILE-TRANSFER-STABILITY-001` 已完成 P0/P1/P2 实施并获 Gemini 独立审核 `APPROVED`，无 P0/P1/P2 阻断。LANC 帧、TCP 文件确认字节、UDP 字段和 JSONL 历史格式保持兼容；全中文注释与单文件小于 1000 行约束已检查。
+
+用户实测最新版发现对端只发送一次文件时，本机偶发出现完成文件卡片和第二个“接收完成 · 100%”进度卡片。根因是 `FileTransferController` 的 50ms 进度合并队列与 `OnFileReceived` 完成回调存在先后竞态：完成回调先到时追加完整消息，延迟进度随后因找不到 `_incoming` 又新建消息。修复已在完成回调接管同一 `FileTransferId` 前移除尚未刷新的待处理进度，未改变 LANC 封包或历史格式。
 
 共享 `NetworkService` 使用 `Stopwatch` 单调计时并拒绝非有限速率；发送流先锁定文件长度，严格按报价长度发送，`BinaryReader/Writer` 保留底层流；握手、发送、收尾确认分别使用 10 秒、30 秒、至少 60 秒动态超时，文件 Socket 缓冲为 256KB。出站文件采用按目标轮询的有界队列，单目标最多 2 路、全局最多 6 路；Windows 入口限制单批 32 文件和群聊 16 人，进度 50ms 合批，托管截图使用引用计数清理。Linux IPC 对非有限速率和单帧序列化异常兜底，并与 Windows 对齐托管粘贴参数。
 
@@ -19,6 +21,8 @@ Windows 侧将大批量文件与群聊收件人限制在明确边界内，进度
 ## 发布与文档
 
 `Publish.bat 2.0.22` 已生成 Windows EXE/MSI、Linux amd64/arm64 deb、便携包、CLI 和 `SHA256SUMS.json`，并创建 GitHub Release。发布提交为 `d029ff9`，标签为 `v2.0.22`，更新日志已写入 `CHANGELOG.md`。随后发现异常提交 `5e8ac76 (aa)` 将 24 个历史 release 归档产物写成 0 字节，已从发布提交恢复，待以独立修复提交推送。
+
+本轮新增重复气泡回归已通过；`Compile.bat`、文件传输稳定性回归、好友刷新回归和缓存 .NET 10 SDK 的 Linux `dotnet build` 均通过。当前状态按 `CRDocs/RULES.md` 设为 `WAITING_FOR_GROK`，尚未重新打包或替换 v2.0.22 已发布资产。
 
 ## 未关闭边界与下一步
 

@@ -293,9 +293,18 @@ namespace LanChat
             PublishTransferMessage(message, key, added);
         }
 
+        // 文件完成回调可能先于 50ms 进度刷新进入 UI 队列；完成消息接管前必须撤销同一传输的延迟进度。
+        private void RemovePendingProgress(string transferId)
+        {
+            if (string.IsNullOrEmpty(transferId)) return;
+            lock (_progressGate) _pendingProgress.Remove(transferId);
+        }
+
         private void HandleFileReceived(ChatMessage fileMsg)
         {
             string convKey = _sessionManager.ResolveKey(SessionManager.GetLanKey(fileMsg.SenderId, fileMsg.RemoteAddress));
+            // 若快速传输已经完成，尚未刷新的最终进度不能在完成消息之后再创建孤立气泡。
+            RemovePendingProgress(fileMsg.FileTransferId);
             PeerInfo matchedPeer = null;
             if (_netService != null)
             {
