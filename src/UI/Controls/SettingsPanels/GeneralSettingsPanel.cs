@@ -50,8 +50,8 @@ namespace LanChat
                     g.DrawLine(sep, 16, 54, CARD_W - 16, 54);
 
                     // Row 2: 链接打开方式 (y=54..108)
-                    g.DrawString("链接打开方式", f, tb, new PointF(20, 54 + 9));
-                    g.DrawString("设置 LanChat 对话中链接的默认打开策略。", sf, sb, new PointF(20, 54 + 29));
+                    g.DrawString("链接打开方式", f, tb, new PointF(20, 54 + SettingTitleOffset));
+                    g.DrawString("设置 LanChat 对话中链接的默认打开策略。", sf, sb, new PointF(20, 54 + SettingDescriptionOffset));
                     g.DrawLine(sep, 16, 108, CARD_W - 16, 108);
 
                     // Row 3: 字体大小 (y=108..162)
@@ -59,10 +59,10 @@ namespace LanChat
                     g.DrawLine(sep, 16, 162, CARD_W - 16, 162);
 
                     // Row 4: 默认打开方式 (y=162..216)
-                    g.DrawString("默认文件接收目录", f, tb, new PointF(20, 162 + 9));
+                    g.DrawString("默认文件接收目录", f, tb, new PointF(20, 162 + SettingTitleOffset));
                     string dir = !string.IsNullOrEmpty(AppSettings.SaveDirectory) ? AppSettings.SaveDirectory : (Context.NetService != null ? Context.NetService.SaveDirectory : "ReceivedFiles");
                     string shortDir = dir.Length > 44 ? "..." + dir.Substring(dir.Length - 41) : dir;
-                    g.DrawString(shortDir, sf, sb, new PointF(20, 162 + 29));
+                    g.DrawString(shortDir, sf, sb, new PointF(20, 162 + SettingDescriptionOffset));
                 }
             };
 
@@ -146,23 +146,23 @@ namespace LanChat
                 using (Pen sep = new Pen(ColCardDivider, 1f))
                 {
                     // Row 1: 托盘未读悬浮预览 (y=0..54)
-                    g.DrawString("托盘未读悬浮预览", f, tb, new PointF(20, 9));
-                    g.DrawString("新消息闪烁时鼠标悬停在托盘图标上显示发送人与摘要浮窗。", sf, sb, new PointF(20, 29));
+                    g.DrawString("托盘未读悬浮预览", f, tb, new PointF(20, SettingTitleOffset));
+                    g.DrawString("新消息闪烁时鼠标悬停在托盘图标上显示发送人与摘要浮窗。", sf, sb, new PointF(20, SettingDescriptionOffset));
                     g.DrawLine(sep, 16, 54, CARD_W - 16, 54);
 
                     // Row 2: 自动接收好友文件 (y=54..108)
-                    g.DrawString("自动接收好友文件", f, tb, new PointF(20, 54 + 9));
-                    g.DrawString("局域网好友发送文件时自动保存到默认目录，无需手动逐一确认。", sf, sb, new PointF(20, 54 + 29));
+                    g.DrawString("自动接收好友文件", f, tb, new PointF(20, 54 + SettingTitleOffset));
+                    g.DrawString("局域网好友发送文件时自动保存到默认目录，无需手动逐一确认。", sf, sb, new PointF(20, 54 + SettingDescriptionOffset));
                     g.DrawLine(sep, 16, 108, CARD_W - 16, 108);
 
                     // Row 3: 运行时防止休眠 (y=108..162)
-                    g.DrawString("后台网络驻留运行", f, tb, new PointF(20, 108 + 9));
-                    g.DrawString("关闭主窗口后保持在系统托盘静默运行，随时响应局域网呼叫。", sf, sb, new PointF(20, 108 + 29));
+                    g.DrawString("后台网络驻留运行", f, tb, new PointF(20, 108 + SettingTitleOffset));
+                    g.DrawString("关闭主窗口后保持在系统托盘静默运行，随时响应局域网呼叫。", sf, sb, new PointF(20, 108 + SettingDescriptionOffset));
                     g.DrawLine(sep, 16, 162, CARD_W - 16, 162);
 
                     // Row 4: 网络协议通道 (y=162..216)
-                    g.DrawString("网络协议通道", f, tb, new PointF(20, 162 + 9));
-                    g.DrawString("物理网卡直连通信，多节点广播穿透加速。", sf, sb, new PointF(20, 162 + 29));
+                    g.DrawString("网络协议通道", f, tb, new PointF(20, 162 + SettingTitleOffset));
+                    g.DrawString("物理网卡直连通信，多节点广播穿透加速。", sf, sb, new PointF(20, 162 + SettingDescriptionOffset));
                 }
             };
 
@@ -216,13 +216,13 @@ namespace LanChat
                 using (Pen sep = new Pen(ColCardDivider, 1f))
                 {
                     // Row 1: 关于与更新
-                    g.DrawString("关于 LanChat", f, tb, new PointF(20, 9));
-                    g.DrawString("版本 v" + MainForm.APP_VERSION + " · 局域网极速通讯与协同传输", sf, sb, new PointF(20, 29));
+                    g.DrawString("关于 LanChat", f, tb, new PointF(20, SettingTitleOffset));
+                    g.DrawString("版本 v" + MainForm.APP_VERSION + " · 局域网极速通讯与协同传输", sf, sb, new PointF(20, SettingDescriptionOffset));
                     g.DrawLine(sep, 16, 54, CARD_W - 16, 54);
 
                     // Row 2: 意见与反馈
-                    g.DrawString("意见与问题反馈", f, tb, new PointF(20, 54 + 9));
-                    g.DrawString("帮助我们将 LanChat 打磨得更贴合你的直觉与习惯。", sf, sb, new PointF(20, 54 + 29));
+                    g.DrawString("意见与问题反馈", f, tb, new PointF(20, 54 + SettingTitleOffset));
+                    g.DrawString("帮助我们将 LanChat 打磨得更贴合你的直觉与习惯。", sf, sb, new PointF(20, 54 + SettingDescriptionOffset));
                 }
             };
 

@@ -446,10 +446,10 @@
       title.textContent = 'LanChat 局域网极速通讯';
       const line2 = document.createElement('div');
       line2.className = 'about-meta-line';
-      line2.textContent = `版本 v${runtime.version} · WorkBuddy 1:1 对标现代化极简暗黑视效`;
+      line2.textContent = `版本 v${runtime.version} · 专注局域网内的即时通讯与文件协作`;
       const line3 = document.createElement('div');
       line3.className = 'about-meta-sub';
-      line3.textContent = '原生高性能零冗余依赖架构 · Copyright © 2026 LanChat Team';
+      line3.textContent = '轻量、快速、无云端依赖 · 2026 yangjiang';
       meta.append(title, line2, line3);
       brand.append(logoBox, meta);
 

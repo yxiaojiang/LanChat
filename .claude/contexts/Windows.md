@@ -43,6 +43,13 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `Tools/Scripts/Publish.bat`：全自动版本自增、强制编译、WiX 5 打包与带网络重试的 GitHub Releases 发布脚本。
 
 ## 关键设计点与演进状态
+### UI-INPUT-008 微信式输入区与设置排版（2026-11-25）
+
+- `MainForm.Designer.cs` 将底部输入胶囊扩大为 128px 高，多行 `ChatInputBox` 上方编辑、下方快捷工具栏；表情、接收目录、发文件、截图、清空会话按钮均为真实 GDI+ 图标动作，语音按钮继续隐藏。
+- `ChatInputBox` 使用 RichEdit `EM_SETRECTNP` 固定格式区域内边距，避免插入表情令牌后原生文本行纵向漂移；普通 Enter 发送，Shift+Enter 换行。
+- `SettingsPanelBase` 提供统一 `SettingTitleOffset=7` 与 `SettingDescriptionOffset=32`，各 Windows 设置页的双行条目统一增加上下留白；关于页文案收敛为局域网即时通讯/文件协作描述，落款为 `2026 yangjiang`。Linux 桌面设置 CSS 与关于页同步文案/间距。
+- Windows 原生 `Compile.bat`、Linux `settings-pages.js` `node --check` 与 `git diff --check` 已通过；仍需在实际 DPI 和真实桌面窗口中目测输入框、表情坐标与工具栏命中区域。
+
 ### LC-CC-007 内置表情包与微信比例选择器（2026-11-25）
 
 - `ChatEmojiPicker` 已改为 496×548 基准的暗色浮层：标题、最近使用、所有表情、8 列 48px 网格和底部分类栏；网格使用 `SessionListBox` 自绘滚动，避免原生白色滚动条。

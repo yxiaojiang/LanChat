@@ -877,7 +877,7 @@ class WeChatGui:
             "局域网秒级极速通讯与文件互传\n"
             "UI: 纯标准库自绘 GrokBot Dark Mode\n"
             "零外部运行库依赖\n"
-            "版权所有 © 2026 ChaseFraser LanChat Team. All rights reserved.\n"
+            "轻量、快速、无云端依赖 · 2026 yangjiang\n"
             f"项目主页: https://github.com/{GITHUB_REPO}"
         )
         self.overlay.notice("关于 LanChat", msg)

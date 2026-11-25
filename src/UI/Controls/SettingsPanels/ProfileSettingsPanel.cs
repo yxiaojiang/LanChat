@@ -83,13 +83,13 @@ namespace LanChat
                 using (SolidBrush sb = new SolidBrush(ColTextSecondary))
                 using (Pen sep = new Pen(ColCardDivider, 1f))
                 {
-                    g.DrawString("节点识别码 (Node UUID)", f, tb, new PointF(20, 9));
+                    g.DrawString("节点识别码 (Node UUID)", f, tb, new PointF(20, SettingTitleOffset));
                     string id = Context.NetService != null ? Context.NetService.LocalId : "0000-0000";
-                    g.DrawString(id, sf, sb, new PointF(20, 29));
+                    g.DrawString(id, sf, sb, new PointF(20, SettingDescriptionOffset));
                     g.DrawLine(sep, 16, 54, CARD_W - 16, 54);
 
-                    g.DrawString("操作系统环境", f, tb, new PointF(20, 54 + 9));
-                    g.DrawString(Environment.OSVersion.VersionString + " (" + (Environment.Is64BitOperatingSystem ? "64位" : "32位") + ")", sf, sb, new PointF(20, 54 + 29));
+                    g.DrawString("操作系统环境", f, tb, new PointF(20, 54 + SettingTitleOffset));
+                    g.DrawString(Environment.OSVersion.VersionString + " (" + (Environment.Is64BitOperatingSystem ? "64位" : "32位") + ")", sf, sb, new PointF(20, 54 + SettingDescriptionOffset));
                 }
             };
 

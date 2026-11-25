@@ -15,6 +15,10 @@ namespace LanChat
         /// <summary>标准卡片统一基准宽度（像素）</summary>
         public const int CARD_W = 900;
 
+        // 设置卡片的双行条目统一排版令牌，所有页面共用以避免标题与说明文字贴合。
+        protected const int SettingTitleOffset = 7;
+        protected const int SettingDescriptionOffset = 32;
+
         /// <summary>当前面板关联的设置上下文 DTO</summary>
         protected SettingsContext Context { get; private set; }
 

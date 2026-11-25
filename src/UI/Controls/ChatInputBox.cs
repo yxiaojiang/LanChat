@@ -7,7 +7,7 @@ using System.Windows.Forms;
 namespace LanChat
 {
     /// <summary>
-    /// 聊天输入框，依赖 Windows 原生富文本编辑控件及系统剪贴板。
+    /// 聊天输入框，依赖 Windows 原生多行富文本编辑控件及系统剪贴板。
     /// 普通文字和表情令牌始终保存在 RichTextBox 原文中，表情图片在原生控件完成
     /// 绘制后按 RichEdit 的真实字符坐标叠绘，不创建覆盖子控件，避免破坏鼠标命中。
     /// </summary>
@@ -23,8 +23,20 @@ namespace LanChat
         private const int VerticalScrollMessage = 0x0115;
         private const int MouseWheelMessage = 0x020A;
         private const int ExtendedLimitMessage = 0x0435;
+        private const int ResizeMessage = 0x0005;
+        private const int SetRectNoPaintMessage = 0x00B4;
+        private const int TextPaddingTop = 6;
         private bool _deferredPaintPosted;
         private bool _trimmingLength;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeRect
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetDC(IntPtr hwnd);
@@ -34,6 +46,9 @@ namespace LanChat
 
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wParam, ref NativeRect lParam);
 
         /// <summary>用户明确粘贴资源管理器文件列表时通知宿主。</summary>
         internal event Action<string[]> FilesPasted;
@@ -53,8 +68,16 @@ namespace LanChat
             AutoWordSelection = false;
             TextChanged += (sender, e) => InvalidateEmojiPaint();
             SelectionChanged += (sender, e) => InvalidateEmojiPaint();
-            FontChanged += (sender, e) => InvalidateEmojiPaint();
-            Resize += (sender, e) => InvalidateEmojiPaint();
+            FontChanged += (sender, e) =>
+            {
+                ApplyNativeTextRect();
+                InvalidateEmojiPaint();
+            };
+            Resize += (sender, e) =>
+            {
+                ApplyNativeTextRect();
+                InvalidateEmojiPaint();
+            };
         }
 
         /// <summary>句柄创建后再次写入 RichEdit 原生长度上限，防止单行控件默认放大到 Int32 最大值。</summary>
@@ -62,6 +85,24 @@ namespace LanChat
         {
             base.OnHandleCreated(e);
             SendMessage(Handle, ExtendedLimitMessage, IntPtr.Zero, (IntPtr)MaxInputLength);
+            ApplyNativeTextRect();
+        }
+
+        /// <summary>
+        /// 固定 RichEdit 的文字格式区域，给多行输入保留稳定的上、下内边距。
+        /// 原生控件如果自行重算格式区域，插入表情令牌后可能让整行视觉上移到顶部。
+        /// </summary>
+        private void ApplyNativeTextRect()
+        {
+            if (!IsHandleCreated || IsDisposed || ClientSize.Width <= 0 || ClientSize.Height <= 0) return;
+            NativeRect rect = new NativeRect
+            {
+                Left = 0,
+                Top = TextPaddingTop,
+                Right = Math.Max(1, ClientSize.Width),
+                Bottom = Math.Max(TextPaddingTop + 1, ClientSize.Height - 4)
+            };
+            SendMessage(Handle, SetRectNoPaintMessage, IntPtr.Zero, ref rect);
         }
 
         /// <summary>兜底裁剪 RichEdit 偶尔允许超过原生上限的追加路径，保持协议文本长度稳定。</summary>
@@ -244,6 +285,7 @@ namespace LanChat
             }
 
             base.WndProc(ref m);
+            if (m.Msg == ResizeMessage) ApplyNativeTextRect();
             if (m.Msg == HorizontalScrollMessage || m.Msg == VerticalScrollMessage || m.Msg == MouseWheelMessage)
             {
                 InvalidateEmojiPaint();

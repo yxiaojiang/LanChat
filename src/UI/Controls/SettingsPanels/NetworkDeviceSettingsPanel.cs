@@ -45,18 +45,18 @@ namespace LanChat
                 using (Pen sep = new Pen(ColCardDivider, 1f))
                 {
                     // Row 1
-                    g.DrawString("物理以太网 / Wi-Fi IP 绑定", f, tb, new PointF(20, 9));
-                    g.DrawString("IP: " + ipStr + ":" + port + "  ·  UDP 38888 广播服务就绪", sf, sb, new PointF(20, 29));
+                    g.DrawString("物理以太网 / Wi-Fi IP 绑定", f, tb, new PointF(20, SettingTitleOffset));
+                    g.DrawString("IP: " + ipStr + ":" + port + "  ·  UDP 38888 广播服务就绪", sf, sb, new PointF(20, SettingDescriptionOffset));
                     g.DrawLine(sep, 16, 54, CARD_W - 16, 54);
 
                     // Row 2
-                    g.DrawString("TUN / TAP 虚拟网卡穿透过滤", f, tb, new PointF(20, 54 + 9));
-                    g.DrawString("智能识别并过滤 Clash / WireGuard 虚拟网卡，防止广播风暴。", sf, sb, new PointF(20, 54 + 29));
+                    g.DrawString("TUN / TAP 虚拟网卡穿透过滤", f, tb, new PointF(20, 54 + SettingTitleOffset));
+                    g.DrawString("智能识别并过滤 Clash / WireGuard 虚拟网卡，防止广播风暴。", sf, sb, new PointF(20, 54 + SettingDescriptionOffset));
                     g.DrawLine(sep, 16, 108, CARD_W - 16, 108);
 
                     // Row 3
-                    g.DrawString("多网卡并发单播探测", f, tb, new PointF(20, 108 + 9));
-                    g.DrawString("在局域网复杂交换机拓扑下并发向物理子网各节点单播探测。", sf, sb, new PointF(20, 108 + 29));
+                    g.DrawString("多网卡并发单播探测", f, tb, new PointF(20, 108 + SettingTitleOffset));
+                    g.DrawString("在局域网复杂交换机拓扑下并发向物理子网各节点单播探测。", sf, sb, new PointF(20, 108 + SettingDescriptionOffset));
                 }
             };
 

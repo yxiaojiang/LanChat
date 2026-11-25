@@ -54,8 +54,8 @@ namespace LanChat
                 using (SolidBrush sb = new SolidBrush(ColTextSecondary))
                 {
                     g.DrawString("LanChat 局域网极速通讯", tf, tb, new PointF(90, 20));
-                    g.DrawString("版本 v" + MainForm.APP_VERSION + " · WorkBuddy 1:1 对标现代化极简暗黑视效", mf, sb, new PointF(90, 44));
-                    g.DrawString("原生高性能零冗余依赖架构 · Copyright © 2026 LanChat Team", sf, sb, new PointF(90, 64));
+                    g.DrawString("版本 v" + MainForm.APP_VERSION + " · 专注局域网内的即时通讯与文件协作", mf, sb, new PointF(90, 44));
+                    g.DrawString("轻量、快速、无云端依赖 · 2026 yangjiang", sf, sb, new PointF(90, 70));
                 }
             };
 
@@ -100,8 +100,8 @@ namespace LanChat
                 using (SolidBrush tb = new SolidBrush(ColTextPrimary))
                 using (SolidBrush sb = new SolidBrush(ColTextSecondary))
                 {
-                    g.DrawString("意见与问题反馈", f, tb, new PointF(20, 14));
-                    g.DrawString("帮助我们将 LanChat 打磨得更贴合你的直觉与习惯。", sf, sb, new PointF(20, 34));
+                    g.DrawString("意见与问题反馈", f, tb, new PointF(20, SettingTitleOffset + 7));
+                    g.DrawString("帮助我们将 LanChat 打磨得更贴合你的直觉与习惯。", sf, sb, new PointF(20, SettingDescriptionOffset + 2));
                 }
             };
 

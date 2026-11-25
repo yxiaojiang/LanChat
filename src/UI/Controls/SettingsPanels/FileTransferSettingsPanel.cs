@@ -45,20 +45,20 @@ namespace LanChat
                 using (Pen sep = new Pen(ColCardDivider, 1f))
                 {
                     // Row 1
-                    g.DrawString("自动接收好友文件", f, tb, new PointF(20, 9));
-                    g.DrawString("局域网内接收文件时无需手动逐一确认保存。", sf, sb, new PointF(20, 29));
+                    g.DrawString("自动接收好友文件", f, tb, new PointF(20, SettingTitleOffset));
+                    g.DrawString("局域网内接收文件时无需手动逐一确认保存。", sf, sb, new PointF(20, SettingDescriptionOffset));
                     g.DrawLine(sep, 16, 54, CARD_W - 16, 54);
 
                     // Row 2
-                    g.DrawString("接收文件默认存储目录", f, tb, new PointF(20, 54 + 9));
+                    g.DrawString("接收文件默认存储目录", f, tb, new PointF(20, 54 + SettingTitleOffset));
                     string dispDir = !string.IsNullOrEmpty(AppSettings.SaveDirectory) ? AppSettings.SaveDirectory : (Context.NetService != null ? Context.NetService.SaveDirectory : "ReceivedFiles");
                     string shortDir = dispDir.Length > 44 ? "..." + dispDir.Substring(dispDir.Length - 41) : dispDir;
-                    g.DrawString(shortDir, sf, sb, new PointF(20, 54 + 29));
+                    g.DrawString(shortDir, sf, sb, new PointF(20, 54 + SettingDescriptionOffset));
                     g.DrawLine(sep, 16, 108, CARD_W - 16, 108);
 
                     // Row 3
-                    g.DrawString("64KB 分块极速传输校验", f, tb, new PointF(20, 108 + 9));
-                    g.DrawString("纯原生 LANC 协议流式流转，零中转零依赖。", sf, sb, new PointF(20, 108 + 29));
+                    g.DrawString("64KB 分块极速传输校验", f, tb, new PointF(20, 108 + SettingTitleOffset));
+                    g.DrawString("纯原生 LANC 协议流式流转，零中转零依赖。", sf, sb, new PointF(20, 108 + SettingDescriptionOffset));
                 }
             };
 

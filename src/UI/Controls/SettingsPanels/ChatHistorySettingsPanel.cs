@@ -43,20 +43,20 @@ namespace LanChat
                 using (Pen sep = new Pen(ColCardDivider, 1f))
                 {
                     // Row 1
-                    g.DrawString("聊天记录存储目录", f, tb, new PointF(20, 9));
+                    g.DrawString("聊天记录存储目录", f, tb, new PointF(20, SettingTitleOffset));
                     string curHDir = ChatHistoryService.StorageDirectory;
                     string shortHDir = curHDir.Length > 44 ? "..." + curHDir.Substring(curHDir.Length - 41) : curHDir;
-                    g.DrawString(shortHDir, sf, sb, new PointF(20, 29));
+                    g.DrawString(shortHDir, sf, sb, new PointF(20, SettingDescriptionOffset));
                     g.DrawLine(sep, 16, 54, CARD_W - 16, 54);
 
                     // Row 2
-                    g.DrawString("自动加载历史消息", f, tb, new PointF(20, 54 + 9));
-                    g.DrawString("重启或更新覆盖安装后，自动读取历史会话与消息流。", sf, sb, new PointF(20, 54 + 29));
+                    g.DrawString("自动加载历史消息", f, tb, new PointF(20, 54 + SettingTitleOffset));
+                    g.DrawString("重启或更新覆盖安装后，自动读取历史会话与消息流。", sf, sb, new PointF(20, 54 + SettingDescriptionOffset));
                     g.DrawLine(sep, 16, 108, CARD_W - 16, 108);
 
                     // Row 3
-                    g.DrawString("彻底清空所有本地聊天记录", f, tb, new PointF(20, 108 + 9));
-                    g.DrawString("彻底清除本机保存的所有广播与好友聊天历史文件。", sf, sb, new PointF(20, 108 + 29));
+                    g.DrawString("彻底清空所有本地聊天记录", f, tb, new PointF(20, 108 + SettingTitleOffset));
+                    g.DrawString("彻底清除本机保存的所有广播与好友聊天历史文件。", sf, sb, new PointF(20, 108 + SettingDescriptionOffset));
                 }
             };
 

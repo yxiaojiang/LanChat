@@ -4,6 +4,8 @@
 
 ## 当前状态
 
+本轮新增 UI-INPUT-008：Windows 主聊天输入区改为 128px 高微信式多行胶囊，RichEdit 通过固定格式区域上、下内边距稳定文字与内置表情的纵向坐标，Shift+Enter 可换行、普通 Enter 仍发送。加号菜单中的表情、接收目录、发送文件、屏幕截图、清空会话已展开为输入区底部快捷工具栏；语音入口因协议尚未支持而继续隐藏。设置中心各页面使用 `SettingsPanelBase` 的共享标题/说明偏移量，双行条目增加纵向留白；Windows、Linux 桌面和旧版 Linux 关于文案统一改为新的产品描述，并以 `2026 yangjiang` 收尾。
+
 本轮 `LC-CC-007` 已获 Gemini Round 3 独立审核通过，范围为 Windows 宿主机回归与 Linux `net10.0` 构建：表情选择器为微信比例的 496×548 暗色浮层，Windows 输入框按 RichEdit 真实坐标叠绘彩色 PNG，表情令牌仍保存在原始文本中，输入预览、发送协议、复制与历史不互相污染。Round 2 唯一 P1 阻断项 `LC-CC-007-R2-P1-1` 已关闭：`CapturePrintWindow` 使用 `PrintWindow(..., 2)`，仅在失败时以同一离屏 HDC 走 `WM_PRINT` 回退，并移除 `CopyFromScreen`；可选 P3 `caretInside` 边界也已修正。
 
 新增 `assets/WeChatEmoji.pack` 与共享 `src/Services/EmojiPack.cs`。109 个微信静态表情以受校验的轻量二进制资源包编译进 Windows `LanChat.exe`，并通过 Linux `LanChat.Linux` 的 `LanChat.WeChatEmoji.pack` EmbeddedResource 进入 `lanchat.dll`/ELF。Linux DesktopService 增加 `emoji-pack` IPC，Electron 优先从通信服务获取 data URL，旧版外部目录仍保留回退。LANC 文字帧仍只传 `[表情名]`，旧版本对端收到后仍可读文本，新版本对端从自身程序集资源渲染图片。

@@ -388,10 +388,19 @@ namespace LanChat
         {
             if (e.KeyCode == Keys.Enter)
             {
-                e.SuppressKeyPress = true;
                 if (!e.Control && !e.Shift)
                 {
+                    e.SuppressKeyPress = true;
                     SendMessage();
+                }
+                else if (e.Shift)
+                {
+                    // 微信式输入区：Shift+Enter 保留换行，普通 Enter 继续发送。
+                    e.SuppressKeyPress = false;
+                }
+                else
+                {
+                    e.SuppressKeyPress = true;
                 }
             }
         }

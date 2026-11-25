@@ -49,16 +49,16 @@ namespace LanChat
         // Chat History View
         private WeChatChatView _chatView;
 
-        // Input Capsule Controls (GrokBot 64px floating pill — Docs §4.2 / §8)
+        // 输入胶囊控件：采用微信式高输入区与底部快捷工具栏。
         private Panel _toolPanel; // 兼容占位（方案 A 工具栏已移除）
-        private WeChatIconButton _btnToolEmoji; // 兼容：指向胶囊内 (+) 以便 Emoji 弹层锚定
-        private WeChatIconButton _btnToolBox; // 兼容占位
+        private WeChatIconButton _btnToolEmoji; // 胶囊内 Emoji 快捷按钮
+        private WeChatIconButton _btnToolBox; // 打开接收文件夹
         private WeChatIconButton _btnToolSendFile; // 胶囊内 (+) 附件圆钮
-        private WeChatIconButton _btnToolScissors; // 兼容占位
-        private WeChatIconButton _btnToolMic; // 兼容：指向胶囊内 Mic
+        private WeChatIconButton _btnToolScissors; // 启动系统截图
+        private WeChatIconButton _btnToolMic; // 预留语音入口，当前不展示
         private WeChatIconButton _btnToolCall; // 兼容占位
-        private WeChatIconButton _btnToolFolder; // 胶囊内 Mic（历史字段名复用）
-        private WeChatIconButton _btnToolClear;
+        private WeChatIconButton _btnToolFolder; // 选择并发送文件
+        private WeChatIconButton _btnToolClear; // 清空当前对话
         private Label _lblAutoAccept;
 
         private Panel _inputPanel;
@@ -430,11 +430,11 @@ namespace LanChat
             };
             _chatView.OnFileActionClick += HandleFileActionClick;
 
-            // 2.4 Bottom Floating Input Capsule (高 64px / 圆角 32px / 左右 28px / 底 22px，对齐 Docs §4.2 / §8 与 Alis.png)
+            // 2.4 微信式底部输入区：扩大 Y 轴编辑空间，快捷操作固定在底部工具栏。
             _bottomSendPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 90, // 上 4 + 胶囊 64 + 底 22
+                Height = 154, // 上 4 + 胶囊 128 + 底 22
                 BackColor = Color.FromArgb(18, 18, 18), // #121212 与聊天视口同色，呈浮动感
                 Padding = new Padding(28, 4, 28, 22)
             };
@@ -449,7 +449,7 @@ namespace LanChat
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 GrokTheme.PrepareSoftText(g);
                 Rectangle pillRect = new Rectangle(0, 0, _inputPanel.Width - 1, _inputPanel.Height - 1);
-                int radius = Math.Max(8, _inputPanel.Height / 2); // 64→32 全圆角胶囊
+                int radius = Math.Max(8, _inputPanel.Height / 2); // 128→64 全圆角胶囊
                 using (SolidBrush bg = new SolidBrush(GrokTheme.Level2))
                 using (Pen border = new Pen(GrokTheme.Border, 1f))
                 {
@@ -457,13 +457,13 @@ namespace LanChat
                     DrawRoundedRectangle(g, border, pillRect, radius);
                 }
 
-                // 空输入时绘制占位符（11.0 Regular #5E5E66 + soft AA，对标 Grok 胶囊 muted）
+                // 空输入时绘制占位符；占位区域与真实 RichEdit 的上内边距保持一致。
                 if (_txtInput != null && string.IsNullOrEmpty(_txtInput.GetMessageText()))
                 {
                     using (Font pf = GrokTheme.UiFont(11.0f))
                     {
                         GrokTheme.DrawUiTextLeft(g, _inputPlaceholder, pf, GrokTheme.TextPlaceholder,
-                            64, 0, Math.Max(40, _inputPanel.Width - 64 - 56), _inputPanel.Height);
+                            64, 10, Math.Max(40, _inputPanel.Width - 64 - 56), Math.Max(32, _inputPanel.Height - 58));
                     }
                 }
             };
@@ -479,7 +479,7 @@ namespace LanChat
             _inputPanel.DragEnter += MainForm_DragEnter;
             _inputPanel.DragDrop += MainForm_DragDrop;
 
-            // 左侧 (+) 附件圆钮：36x36，x=14，bg #2A2A2E / hover #38383E
+            // 左侧 (+) 按钮保留菜单入口，同时将菜单中的常用操作展开到下方工具栏。
             _btnToolSendFile = new WeChatIconButton(WeChatIconType.Add, "附件与快捷操作 (点击打开菜单)", 36)
             {
                 Location = new Point(14, 14),
@@ -495,19 +495,61 @@ namespace LanChat
                     ShowInputPlusContextMenu();
                 }
             };
-            _btnToolEmoji = _btnToolSendFile; // Emoji 弹层锚定到 (+)
+            _btnToolEmoji = new WeChatIconButton(WeChatIconType.Emoji, "插入 Emoji 表情", 32)
+            {
+                FillColor = Color.Transparent,
+                HoverFillColor = Color.FromArgb(56, 56, 62),
+                IconColor = Color.FromArgb(190, 190, 196)
+            };
+            _btnToolEmoji.Click += (s, e) => ShowEmojiPopup();
 
-            // 单行无边框输入框（11.0pt #F2F2F6，起点 x≈64，垂直居中）
+            _btnToolBox = new WeChatIconButton(WeChatIconType.Box, "打开接收文件夹", 32)
+            {
+                FillColor = Color.Transparent,
+                HoverFillColor = Color.FromArgb(56, 56, 62),
+                IconColor = Color.FromArgb(190, 190, 196)
+            };
+            _btnToolBox.Click += (s, e) => OpenReceivedFolder();
+
+            _btnToolFolder = new WeChatIconButton(WeChatIconType.Folder, "选择并发送文件", 32)
+            {
+                FillColor = Color.Transparent,
+                HoverFillColor = Color.FromArgb(56, 56, 62),
+                IconColor = Color.FromArgb(190, 190, 196)
+            };
+            _btnToolFolder.Click += (s, e) => BtnSendFile_Click(this, EventArgs.Empty);
+
+            _btnToolScissors = new WeChatIconButton(WeChatIconType.Scissors, "启动屏幕截图", 32)
+            {
+                FillColor = Color.Transparent,
+                HoverFillColor = Color.FromArgb(56, 56, 62),
+                IconColor = Color.FromArgb(190, 190, 196)
+            };
+            _btnToolScissors.Click += (s, e) => TriggerScreenshot();
+
+            _btnToolClear = new WeChatIconButton(WeChatIconType.Clear, "清空当前对话记录", 32)
+            {
+                FillColor = Color.Transparent,
+                HoverFillColor = Color.FromArgb(56, 56, 62),
+                IconColor = Color.FromArgb(190, 190, 196)
+            };
+            _btnToolClear.Click += (s, e) => ClearCurrentChat();
+
+            // 多行无边框输入框：固定格式区上内边距，避免插入表情后文字整体上移。
             _txtInput = new ChatInputBox
             {
-                Multiline = false,
+                Multiline = true,
+                AutoSize = false,
                 MaxLength = 32767,
                 Font = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Regular),
                 BackColor = Color.FromArgb(32, 32, 36), // #202024
                 ForeColor = Color.FromArgb(242, 242, 246), // #F2F2F6
                 BorderStyle = BorderStyle.None,
-                Location = new Point(64, 21),
+                ScrollBars = RichTextBoxScrollBars.None,
+                WordWrap = true,
+                Location = new Point(60, 10),
                 Width = 500,
+                Height = 70,
                 Visible = false,
                 AllowDrop = true
             };
@@ -526,11 +568,10 @@ namespace LanChat
             _txtInput.DragEnter += MainForm_DragEnter;
             _txtInput.DragDrop += MainForm_DragDrop;
 
-            // 语音按钮已去除，保留占位以兼容原有字段
-            _btnToolFolder = new WeChatIconButton(WeChatIconType.Mic, "", 32) { Visible = false };
-            _btnToolMic = _btnToolFolder;
+            // 语音能力尚未接入协议，字段保留兼容但不展示不可用入口。
+            _btnToolMic = new WeChatIconButton(WeChatIconType.Mic, "语音消息（暂未启用）", 32) { Visible = false };
 
-            // 最右侧魅紫 ↑ 发送圆钮：44x44，#8E64DC / hover #9D75EC，距右缘 10px
+            // 最右侧魅紫 ↑ 发送圆钮：与底部快捷工具栏垂直对齐。
             _btnSendWave = new WeChatIconButton(WeChatIconType.UpArrow, "发送消息 (Enter)", 44)
             {
                 IsCircle = true,
@@ -549,18 +590,31 @@ namespace LanChat
                 _btnSendWave.Size = new Size(sendSize, sendSize);
                 _btnSendWave.Location = new Point(w - sendSize - 10, (h - sendSize) / 2);
 
-                // 左侧 (+) 附件圆钮：38x38，垂直居中
+                // 底部快捷工具栏：加号及常用功能按微信输入区节奏横向排列。
                 int plusSize = 38;
                 _btnToolSendFile.Size = new Size(plusSize, plusSize);
-                _btnToolSendFile.Location = new Point(13, (h - plusSize) / 2);
+                int toolbarY = h - plusSize - 10;
+                _btnToolSendFile.Location = new Point(13, toolbarY);
+                if (_btnToolEmoji != null) _btnToolEmoji.Location = new Point(58, toolbarY + 3);
+                if (_btnToolBox != null) _btnToolBox.Location = new Point(94, toolbarY + 3);
+                if (_btnToolFolder != null) _btnToolFolder.Location = new Point(130, toolbarY + 3);
+                if (_btnToolScissors != null) _btnToolScissors.Location = new Point(166, toolbarY + 3);
+                if (_btnToolClear != null) _btnToolClear.Location = new Point(202, toolbarY + 3);
 
-                // 输入框起点在 (+) 之后，终点延伸至发送圆钮左侧（语音图标已去除）
-                _txtInput.Location = new Point(60, (h - _txtInput.Height) / 2);
+                // 编辑区占据胶囊上方，底部留出稳定工具栏高度。
+                _txtInput.Location = new Point(60, 10);
+                _txtInput.Height = Math.Max(42, h - 58);
                 _txtInput.Width = Math.Max(60, _btnSendWave.Left - _txtInput.Left - 16);
+                _btnSendWave.Location = new Point(w - sendSize - 10, toolbarY - 3);
                 _inputPanel.Invalidate();
             };
 
             _inputPanel.Controls.Add(_btnToolSendFile);
+            _inputPanel.Controls.Add(_btnToolEmoji);
+            _inputPanel.Controls.Add(_btnToolBox);
+            _inputPanel.Controls.Add(_btnToolFolder);
+            _inputPanel.Controls.Add(_btnToolScissors);
+            _inputPanel.Controls.Add(_btnToolClear);
             _inputPanel.Controls.Add(_txtInput);
             _inputPanel.Controls.Add(_btnSendWave);
             _bottomSendPanel.Controls.Add(_inputPanel);
@@ -665,11 +719,11 @@ namespace LanChat
                     _btnBottomUser.Top + (_btnBottomUser.Height - _btnRefreshFriends.Height) / 2);
             }
 
-            // 4. 右侧 GrokBot 浮动输入胶囊（高 64 / 左右 28 / 底 22，对齐 Docs §4.2）
+            // 4. 右侧微信式浮动输入胶囊（高 128 / 左右 28 / 底 22）。
             if (_bottomSendPanel != null)
             {
                 _bottomSendPanel.Padding = new Padding(28, 4, 28, 22);
-                _bottomSendPanel.Height = 90 + (_attachmentList == null ? 0 : _attachmentList.Height);
+                _bottomSendPanel.Height = 154 + (_attachmentList == null ? 0 : _attachmentList.Height);
                 if (_inputPanel != null) _inputPanel.Invalidate();
                 _bottomSendPanel.Invalidate();
             }

@@ -197,7 +197,7 @@ body.settings-body {
 }
 
 .settings-row {
-  min-height: 54px;
+  min-height: 58px;
   padding: 8px 20px;
   display: flex;
   align-items: center;
@@ -228,7 +228,7 @@ body.settings-body {
 }
 
 .settings-row-desc {
-  margin-top: 2px;
+  margin-top: 6px;
   font-size: calc(8.5pt + var(--ui-font-delta));
   color: var(--muted);
   line-height: 1.35;
