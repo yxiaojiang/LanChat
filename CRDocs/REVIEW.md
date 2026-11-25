@@ -1,3 +1,60 @@
+# LC-CC-007 — 微信比例表情选择器、输入框图片预览与内置表情资源执行记录
+
+- **任务编号**：`LC-CC-007`
+- **任务主题**：微信比例表情选择器、输入框图片预览、Windows/Linux 内置表情资源
+- **执行方**：Codex
+- **执行日期**：2026-11-25
+- **基线提交**：`6248514`（`修复微信表情面板与内置表情资源`）
+- **审核状态**：`WAITING_FOR_GROK`
+- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/STATUS.md`、`CRDocs/DEFERRED.md`、`Docs/GrokBot_UI_Design_System.md`，以及基线提交的完整 diff。
+
+## 本轮改动
+
+1. `src/UI/Controls/ChatEmojiPicker.cs` 将原紧凑单层表情网格改为约 496×548 的暗色微信比例浮层，包含标题、“最近使用”、“所有表情”、8 列 48px 网格和底部分类栏；网格继续复用 `SessionListBox` 的自绘暗色滑块，不引入原生白色滚动条。
+2. `src/UI/Controls/ChatInputBox.cs` 改用可承载覆盖层的 `RichTextBox`，底层仍保存 `[表情名称]` 原文，由无交互 GDI+ 覆盖层将命中的内置 PNG 画在输入文字上。`MainForm` 的发送、占位符和发送按钮状态统一读取 `GetMessageText()`，不改变历史和网络文本。
+3. 新增 `assets/WeChatEmoji.pack` 与 `src/Services/EmojiPack.cs`。109 个微信静态表情以 `LCEMOJI1` 二进制资源格式校验并编译进 Windows `LanChat.exe`；Linux `LanChat.Linux.csproj` 以 `LanChat.WeChatEmoji.pack` EmbeddedResource 编译进 `lanchat.dll`/自包含 ELF。
+4. `src/linux/LanChat.Linux/DesktopService.cs` 增加 `emoji-pack` IPC，Linux Electron 主进程优先从通信服务获取程序集内置 data URL，旧版外部 `WeChatEmoji` 目录保留为兼容回退。
+5. Windows 编译、发布和回归脚本均追加资源嵌入参数；新增输入框覆盖层和内置资源回归断言。
+
+## 协议与兼容性判断
+
+- 未修改 LANC 魔数、Type 1 字段顺序、Type 1 `Content` 文本、Type 2 文件字段、确认字节或 JSONL 历史字段。
+- 表情发送仍传输原始 `[表情名称]`；新版对端从自身程序集资源渲染图片，未导入资源或旧版对端仍可显示可读文字。
+- 接收端不依赖发送端的本地路径、外部表情目录或发送端 DLL，避免把用户机器路径带入协议。
+
+## 已执行验证
+
+| 命令/证据 | 结果 |
+| --- | --- |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 返回 0；109 项内置表情加载、聊天布局、输入框图片覆盖层与令牌保持、剪贴板、LANC 回环、历史回读及截图清理通过 |
+| 隔离 `LOCALAPPDATA` 后再次执行 `chat_composer_regression.ps1 -ExpectLocalPack` | 返回 0；不依赖旧外部表情目录时，程序集内置资源仍能加载 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 返回 0；原生 Windows 编译、好友刷新、聊天编辑器与组合表情回归通过 |
+| `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false` | 返回 0；`lanchat.dll` net10.0 构建 0 警告、0 错误 |
+| `lanchat.dll` 资源字节核验 | 通过；DLL 内包含 `LanChat.WeChatEmoji.pack` 与 `LCEMOJI1` 资源标记 |
+| `node --check src/linux/desktop/main.cjs`、`tests/linux_desktop_ui_regression.js`、`tests/linux_desktop_ipc_regression.js` | 全部返回 0 |
+| `git diff --check` | 返回 0；无空白错误 |
+| 相关手写源码行数 | `EmojiPack.cs` 108、`ChatEmojiPicker.cs` 287、`ChatInputBox.cs` 280、`DesktopService.cs` 502、测试 370，均低于 1000 行软门禁 |
+
+## 执行者交接重点
+
+请独立审核以下内容，不要仅采信本记录：
+
+1. 检查 `ChatEmojiPicker` 的微信比例、DPI/工作区边界、最近/全部网格滚动、键盘导航、失焦关闭，以及是否仍满足 Zero White Scrollbar 和 GrokBot 视觉规范。
+2. 检查 `ChatInputBox` 覆盖层的 Z 顺序、鼠标键盘穿透、光标/选区/复制/剪切/粘贴、换行/最大长度和清空行为；确认图片只影响视觉，不污染发送文本。
+3. 检查 `EmojiPack.cs` 的资源名、长度/PNG/令牌校验、程序集读取失败回退，以及 Windows EXE 和 Linux `lanchat.dll`/ELF 是否都真正携带资源而非依赖开发机目录。
+4. 检查 Linux `emoji-pack` IPC 的 JSON 结构、data URL 大小、Electron 旧目录回退和通信失败行为；确认不会影响既有 JSONL 管道。
+5. 检查 LANC Type 1、历史 JSONL、旧版无资源对端的向后兼容；确认没有把资源字节或本地路径写入网络协议。
+6. 检查编译脚本、测试脚本、中文注释、文件行数和本记录中的验证结果是否与实际代码一致；若发现 P0/P1/P2 问题，请在审核结论中分级、给出复现条件，并将 `CRDocs/STATUS.md` 保持为 `REJECTED`。
+
+## 未验证边界
+
+- 尚未在两台真实机器上验证新版对新版、新版对旧版的逐条表情发送、复制、历史重开与无资源回退。
+- 尚未实际安装 Windows MSI/绿色包并在不同 DPI 下观察浮层位置、输入框覆盖层光标和交互；当前输入框图片绘制由回归夹具的 `DrawToBitmap` 与令牌断言覆盖。
+- 尚未在 Linux Xorg、原生 Wayland、XWayland 运行 Electron，也尚未在 Linux ARM64/x86_64 实机运行最新 ELF；宿主机 Windows 上只完成 Linux `net10.0` DLL 构建与资源字节核验。
+- 以上边界继续遵循 `CRDocs/DEFERRED.md` 的 `LC-CC-ENV-001`、`LC-LINUX-002-ENV-001` 和 `LC-LINUX-002-GUI-001`，不能视为本轮已验收。
+
+---
+
 # LC-FILE-TRANSFER-STABILITY-001 — 重复接收气泡修复独立审核（Commit `4e8bbc4`）
 
 - **任务编号**：`LC-FILE-TRANSFER-STABILITY-001`

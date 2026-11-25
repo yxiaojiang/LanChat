@@ -1,3 +1,14 @@
+# 当前任务 — LC-CC-007
+
+- **状态**：`WAITING_FOR_GROK`
+- **主题**：微信比例表情选择器、输入框图片预览与内置表情资源
+- **日期**：2026-11-25；**执行者**：Codex（`6248514`）；**独立审核者**：待 Gemini
+- **报告**：[本轮执行记录](REVIEW.md#lc-cc-007--微信比例表情选择器输入框图片预览与内置表情资源执行记录)
+- **一句话结论**：表情选择器改为微信比例的分区大网格，输入框通过 GDI+ 覆盖层显示内置 PNG 但保留 `[名称]` 原文，109 个表情资源已嵌入 Windows `LanChat.exe` 与 Linux `lanchat.dll`/ELF，Linux Electron 通过 `emoji-pack` IPC 获取；LANC Type 1 文本字段未改变。
+- **下一步**：请 Gemini 按 `CRDocs/RULES.md` 独立核对代码、资源嵌入、UI 交互、LANC/JSONL 兼容和验证边界；审核结束后覆盖本任务的 `REVIEW.md` 结论并将本条状态改为 `APPROVED` 或 `REJECTED`，再交出下一份提示词。真实双机、真实安装包、Linux Xorg/Wayland/XWayland 与 ARM64/x86_64 ELF 实机仍属于未验证边界。
+
+---
+
 # 当前任务 — LC-FILE-TRANSFER-STABILITY-001
 
 - **状态**：`APPROVED`（`4e8bbc4` 重复接收气泡修复在 Windows 宿主机回归与 Linux `net10.0` 构建范围放行）
