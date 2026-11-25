@@ -251,11 +251,28 @@ namespace LanChat
 
         private void PromptPeerAndSendFiles(string[] filePaths)
         {
-            PeerInfo peer = PickFileRecipient();
-            if (peer != null) SendFilesToPeer(peer, filePaths);
+            List<PeerInfo> peers = PickFileRecipients(IsBroadcastChat(_activeChatKey));
+            if (peers.Count > 0) SendFilesToPeers(peers, filePaths);
         }
 
-        private PeerInfo PickFileRecipient()
+        private static bool IsBroadcastChat(string key)
+        {
+            return string.Equals(key, SessionManager.BROADCAST_KEY, StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static List<PeerInfo> ReadSelectedRecipients(ListBox listBox)
+        {
+            var selected = new List<PeerInfo>();
+            if (listBox == null) return selected;
+            foreach (object item in listBox.SelectedItems)
+            {
+                PeerInfo peer = item as PeerInfo;
+                if (peer != null) selected.Add(peer);
+            }
+            return selected;
+        }
+
+        private List<PeerInfo> PickFileRecipients(bool allowMultiple)
         {
             var peers = _netService != null ? _netService.GetActivePeers() : new List<PeerInfo>();
             if (peers.Count == 0)
@@ -266,12 +283,12 @@ namespace LanChat
 
             if (peers.Count == 1)
             {
-                return peers[0];
+                return new List<PeerInfo> { peers[0] };
             }
 
             using (Form picker = new Form())
             {
-                picker.Text = "选择接收文件的成员";
+                picker.Text = allowMultiple ? "选择接收文件的成员（可多选）" : "选择接收文件的成员";
                 picker.Size = new System.Drawing.Size(360, 260);
                 picker.StartPosition = FormStartPosition.CenterParent;
                 picker.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -282,7 +299,8 @@ namespace LanChat
                 var lb = new SessionListBox
                 {
                     Dock = DockStyle.Fill, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 32,
-                    IntegralHeight = false, BorderStyle = BorderStyle.None, BackColor = GrokTheme.Level05
+                    IntegralHeight = false, BorderStyle = BorderStyle.None, BackColor = GrokTheme.Level05,
+                    SelectionMode = allowMultiple ? SelectionMode.MultiSimple : SelectionMode.One
                 };
                 lb.DrawItem += (sender, e) =>
                 {
@@ -300,21 +318,88 @@ namespace LanChat
                 foreach (var p in peers) lb.Items.Add(p);
                 lb.SelectedIndex = 0;
 
-                var btnOk = new GrokButton("确定发送", GrokButtonRole.Primary, DialogResult.OK)
+                var btnOk = new GrokButton("确定发送", GrokButtonRole.Primary)
                 {
                     Dock = DockStyle.Bottom,
                     Height = 36
+                };
+                btnOk.Click += (s, e) =>
+                {
+                    if (ReadSelectedRecipients(lb).Count == 0)
+                    {
+                        GrokMessageBox.Show(picker, "请至少选择一位在线成员。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    picker.DialogResult = DialogResult.OK;
                 };
                 picker.AcceptButton = btnOk;
                 picker.Controls.Add(lb);
                 picker.Controls.Add(btnOk);
 
-                if (picker.ShowDialog(this) == DialogResult.OK && lb.SelectedItem is PeerInfo)
+                if (picker.ShowDialog(this) == DialogResult.OK)
                 {
-                    return (PeerInfo)lb.SelectedItem;
+                    return ReadSelectedRecipients(lb);
                 }
             }
-            return null;
+            return new List<PeerInfo>();
+        }
+
+        private PeerInfo PickFileRecipient()
+        {
+            List<PeerInfo> peers = PickFileRecipients(false);
+            return peers.Count > 0 ? peers[0] : null;
+        }
+
+        private bool SendFilesToPeers(IList<PeerInfo> peers, string[] filePaths)
+        {
+            if (peers == null || peers.Count == 0 || filePaths == null || filePaths.Length == 0) return false;
+            var managedDraftPaths = new HashSet<string>(_draftImagePreviews.Keys, StringComparer.OrdinalIgnoreCase);
+            int sent = 0;
+            for (int i = 0; i < peers.Count; i++)
+            {
+                PeerInfo peer = peers[i];
+                if (peer == null || peer.TcpPort <= 0) continue;
+                string[] recipientPaths = filePaths;
+                var copiedManaged = new List<string>();
+                if (i > 0) recipientPaths = CopyManagedDraftFiles(filePaths, managedDraftPaths, copiedManaged);
+                bool queued = SendFilesToPeer(peer, recipientPaths, path =>
+                {
+                    if (copiedManaged.Contains(path)) return true;
+                    return TakeDraftImage(path);
+                });
+                if (!queued)
+                {
+                    foreach (string copy in copiedManaged) FileTransferController.DeleteManagedImage(copy);
+                }
+                else sent++;
+            }
+            if (_listSessions != null) _listSessions.Invalidate();
+            return sent > 0;
+        }
+
+        private string[] CopyManagedDraftFiles(string[] filePaths, HashSet<string> managedDraftPaths, List<string> copies)
+        {
+            var result = new List<string>();
+            foreach (string path in filePaths)
+            {
+                if (managedDraftPaths == null || !managedDraftPaths.Contains(path))
+                {
+                    result.Add(path);
+                    continue;
+                }
+                try
+                {
+                    string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LanChat", "PastedImages");
+                    Directory.CreateDirectory(dir);
+                    string copy = Path.Combine(dir, "群发-" + Guid.NewGuid().ToString("N") + ".png");
+                    File.Copy(path, copy, false);
+                    copies.Add(copy);
+                    result.Add(copy);
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+            return result.ToArray();
         }
 
         private bool SendFilesToPeer(PeerInfo peer, string[] filePaths, Func<string, bool> takeDraftImage = null)

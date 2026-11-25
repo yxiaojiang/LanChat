@@ -101,7 +101,7 @@ namespace LanChat
                     if (string.IsNullOrEmpty(json)) return;
 
                     ThemeMode = ReadPreset(json, "ThemeMode", 3);
-                    AccentPreset = ReadPreset(json, "AccentPreset", 5);
+                    AccentPreset = ReadPreset(json, "AccentPreset", 11);
 
                     Match mNick = Regex.Match(json, "\"NickName\"\\s*:\\s*\"([^\"]*)\"");
                     if (mNick.Success)

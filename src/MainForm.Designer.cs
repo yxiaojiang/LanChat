@@ -207,7 +207,7 @@ namespace LanChat
             _searchHeaderPanel.Controls.Add(_btnSearchToggle);
 
             // 1.2 Center Hero Profile Section (82x82 Red Mascot Avatar + Blue Dot + Centered Nickname)
-            _heroProfilePanel = new Panel
+            _heroProfilePanel = new DoubleBufferedPanel
             {
                 Dock = DockStyle.Top,
                 Height = 175,

@@ -176,7 +176,7 @@ function testSettingsModelAndMarkup() {
   assert.equal(settingsModel.SHORTCUTS.length, 4);
   assert.deepEqual(settingsModel.SHORTCUTS[0], { title: '发送消息', keys: 'Enter' });
   assert.deepEqual(settingsModel.SHORTCUTS[1], { title: '多行换行输入', keys: 'Ctrl + Enter / Shift + Enter' });
-  assert.equal(settingsModel.ACCENTS.length, 5);
+  assert.equal(settingsModel.ACCENTS.length, 11);
   assert.equal(settingsModel.THEMES.length, 3);
   assert.equal(settingsModel.buildDiagnostics({ version: '2.0.17~experiment.5' }).includes('LanChat v2.0.17~experiment.5'), true);
 
@@ -194,15 +194,15 @@ function testSettingsModelAndMarkup() {
   });
   assert.equal(vars['--sidebar'], '#0e131d');
   assert.equal(vars['--viewport'], '#121721');
-  assert.equal(vars['--accent'], '#5c9cff');
-  assert.equal(vars['--selection'], '#285fad');
+  assert.equal(vars['--accent'], '#a16b39');
+  assert.equal(vars['--selection'], '#714826');
   assert.equal(vars['--ui-font-delta'], '4.0pt');
   assert.equal(vars['--chat-font-size'], '13.0pt');
   assert.equal(vars['--ui-font-family'].includes('SimHei'), true);
   assert.equal(vars['--chat-font-family'].includes('Consolas'), true);
   const fallbackVars = appearance.computeCssVars({ themeMode: 99, accentPreset: -1, uiFontSize: 99, chatFontSize: 2 });
   assert.equal(fallbackVars['--viewport'], '#121212');
-  assert.equal(fallbackVars['--accent'], '#8e64dc');
+  assert.equal(fallbackVars['--accent'], '#ffffff');
   assert.equal(fallbackVars['--ui-font-delta'], '0.0pt');
   assert.equal(fallbackVars['--chat-font-size'], '10.5pt');
 
@@ -645,7 +645,7 @@ async function testSettingsController() {
       chatFontSize: 13.0
     });
     assert.equal(doc.documentElement.style.getPropertyValue('--viewport'), '#121721');
-    assert.equal(doc.documentElement.style.getPropertyValue('--accent'), '#5c9cff');
+    assert.equal(doc.documentElement.style.getPropertyValue('--accent'), '#a16b39');
     assert.equal(doc.documentElement.style.getPropertyValue('--ui-font-delta'), '4.0pt');
     assert.equal(doc.documentElement.style.getPropertyValue('--chat-font-size'), '13.0pt');
     assert.equal(doc.documentElement.style.getPropertyValue('--chat-font-family').includes('Consolas'), true);
@@ -744,7 +744,7 @@ async function testMainRendererRaceAndAppearance() {
 
     // 1. 启动即恢复外观设置（重启保持）。
     assert.equal(doc.documentElement.style.getPropertyValue('--viewport'), '#1d1d1e');
-    assert.equal(doc.documentElement.style.getPropertyValue('--accent'), '#4ac5a1');
+    assert.equal(doc.documentElement.style.getPropertyValue('--accent'), '#fc2c3e');
     assert.equal(doc.documentElement.style.getPropertyValue('--ui-font-delta'), '2.0pt');
     assert.equal(doc.documentElement.style.getPropertyValue('--chat-font-size'), '11.5pt');
     assert.equal(ctrl.messages.get('BROADCAST').length, 1);
@@ -771,7 +771,7 @@ async function testMainRendererRaceAndAppearance() {
     });
     assert.equal(nodes.get('nickname').textContent, '新昵称');
     assert.equal(doc.documentElement.style.getPropertyValue('--viewport'), '#121721');
-    assert.equal(doc.documentElement.style.getPropertyValue('--accent'), '#edac5b');
+    assert.equal(doc.documentElement.style.getPropertyValue('--accent'), '#f69412');
     assert.equal(doc.documentElement.style.getPropertyValue('--ui-font-delta'), '-1.0pt');
     assert.equal(doc.documentElement.style.getPropertyValue('--chat-font-size'), '15.0pt');
     assert.equal(doc.documentElement.style.getPropertyValue('--chat-font-family').includes('Consolas'), true);
@@ -822,8 +822,10 @@ async function testMainRendererRaceAndAppearance() {
     assert.deepEqual(progressViews().map(view => view.children[0].value), [42, 0, 65]);
     assert.equal(progressViews()[1].children[1].textContent, '等待发送 · 0%');
     assert.equal(progressViews()[2].children[1].textContent, '接收中 · 65%');
+    onEventHandler({ ...progress, sending: false, transfer: 'incoming', received: 70, speed: 1.25 });
+    assert.equal(progressViews()[2].children[1].textContent, '接收中 · 70% · 1.25 MB/s');
     await ctrl.loadHistory(chat);
-    assert.deepEqual(progressViews().map(view => view.children[0].value), [42, 0, 65]);
+    assert.deepEqual(progressViews().map(view => view.children[0].value), [42, 0, 70]);
     onEventHandler({ ...progress, sending: true, operation: 'first', completed: true, received: 100 });
     onEventHandler({ event: 'message', data: { chat, file: true, sequence: 11, self: true, name: '同名.txt', operation: 'first', path: '/tmp/sent.txt' } });
     assert.equal(feed.querySelectorAll('.file-card').length, 3);

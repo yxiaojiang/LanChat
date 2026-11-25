@@ -278,6 +278,19 @@ namespace LanChat
 
         private static void CheckComposerUi(MainForm form)
         {
+            Require(Field<Control>(form, "_heroProfilePanel") is DoubleBufferedPanel,
+                "左上角头像面板未启用双缓冲，缩放时可能闪烁");
+            using (var recipients = new SessionListBox { SelectionMode = SelectionMode.MultiSimple })
+            {
+                recipients.Items.Add(new PeerInfo { Id = "multi-1", NickName = "在线一" });
+                recipients.Items.Add(new PeerInfo { Id = "multi-2", NickName = "在线二" });
+                recipients.Items.Add(new PeerInfo { Id = "multi-3", NickName = "在线三" });
+                recipients.SetSelected(0, true);
+                recipients.SetSelected(2, true);
+                var selected = MainForm.ReadSelectedRecipients(recipients);
+                Require(selected.Count == 2 && selected[0].Id == "multi-1" && selected[1].Id == "multi-3",
+                    "群聊文件收件人多选结果不完整");
+            }
             var list = Field<SessionListBox>(form, "_listSessions");
             int online = list.Items.IndexOf(SessionPresenter.GroupHeading.Online);
             int offline = list.Items.IndexOf(SessionPresenter.GroupHeading.Offline);

@@ -414,8 +414,10 @@ namespace LanChat
             }
             if (attachments != null)
             {
-                PeerInfo recipient = _selectedPeer ?? PickFileRecipient();
-                if (recipient == null || !SendFilesToPeer(recipient, attachments.ToArray(), TakeDraftImage)) return;
+                bool sent = _selectedPeer != null
+                    ? SendFilesToPeer(_selectedPeer, attachments.ToArray(), TakeDraftImage)
+                    : SendFilesToPeers(PickFileRecipients(IsBroadcastChat(chat)), attachments.ToArray());
+                if (!sent) return;
                 ClearAttachmentDraft(chat);
                 RefreshAttachmentDraft();
             }

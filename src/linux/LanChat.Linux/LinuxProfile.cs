@@ -28,7 +28,7 @@ namespace LanChat.Linux
             (_settings["AutoAcceptFiles"] ?? _settings["auto_accept"]) is not JsonValue accept ||
             !accept.TryGetValue(out bool enabled) || enabled;
         internal int ThemeMode => ReadPreset("ThemeMode", 3);
-        internal int AccentPreset => ReadPreset("AccentPreset", 5);
+        internal int AccentPreset => ReadPreset("AccentPreset", 11);
         internal string UiFontFamily => ReadNonEmpty("UiFontFamily") ?? "Microsoft YaHei UI";
         internal double UiFontSize => ReadSize("UiFontSize", 8.0, 24.0, 10.0);
         internal string ChatFontFamily => ReadNonEmpty("ChatFontFamily") ?? "Microsoft YaHei UI";

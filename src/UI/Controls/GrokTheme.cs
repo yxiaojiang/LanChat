@@ -14,23 +14,32 @@ namespace LanChat
     public static class GrokTheme
     {
         // 各预设依次定义常态、实底和悬停色。实底用于白字会话卡片和消息气泡。
+        // 常态色与创建节点调色盘保持一致，历史 settings.json 的索引仍按整数保存。
         private static readonly int[,] AccentColors =
         {
-            { 0x8E64DC, 0x7946D7, 0x9D75EC },
-            { 0x5C9CFF, 0x285FAD, 0x78ADFF },
-            { 0x4AC5A1, 0x226D59, 0x6CD5B7 },
-            { 0xF27C8B, 0xA63F56, 0xFF99A7 },
-            { 0xEDAC5B, 0x885820, 0xF7C47C }
+            { 0xFFFFFF, 0xB8B8B8, 0xFFFFFF },
+            { 0xA16B39, 0x714826, 0xC08A5A },
+            { 0xFC2C3E, 0xB11F2C, 0xFF6472 },
+            { 0xF9670E, 0xB33F06, 0xFF934E },
+            { 0xF69412, 0xB36507, 0xFFB64A },
+            { 0x14C370, 0x0E8C50, 0x45DF95 },
+            { 0x13B8A3, 0x0C7F71, 0x4BD8C7 },
+            { 0x1884FC, 0x0D53A8, 0x56A7FF },
+            { 0x905AFB, 0x5C2BAF, 0xB18BFF },
+            { 0xFB3499, 0xB31F6A, 0xFF78BB },
+            { 0x777777, 0x4D4D4D, 0x999999 }
         };
 
         internal static Color GetAccentSwatch(int preset)
         {
-            return Color.FromArgb(unchecked((int)0xff000000) | AccentColors[preset, 0]);
+            int index = Math.Max(0, Math.Min(AccentColors.GetLength(0) - 1, preset));
+            return Color.FromArgb(unchecked((int)0xff000000) | AccentColors[index, 0]);
         }
 
         private static Color AccentShade(int shade)
         {
-            return Color.FromArgb(unchecked((int)0xff000000) | AccentColors[AppSettings.AccentPreset, shade]);
+            int preset = Math.Max(0, Math.Min(AccentColors.GetLength(0) - 1, AppSettings.AccentPreset));
+            return Color.FromArgb(unchecked((int)0xff000000) | AccentColors[preset, shade]);
         }
 
         private static Color DarkenAccent()

@@ -47,6 +47,8 @@ namespace LanChat
             string action = progress.IsSending ? "发送" : "接收";
             string status = progress.IsFailed ? action + "失败 · " + progress.ErrorMessage :
                 action + (progress.IsCompleted ? "完成" : "中") + " · " + percent + "%";
+            string rate = FileTransferController.FormatTransferRate(progress.SpeedMBps);
+            if (!progress.IsFailed && !string.IsNullOrEmpty(rate)) status += " · " + rate;
             int width = Math.Max(1, bounds.Width - 36);
             GrokTheme.DrawUiTextLeft(g, status, font, progress.IsFailed ? GrokTheme.TextDestructive : GrokTheme.TextSecondary,
                 bounds.X + 18, bounds.Y + 58, width, 19);

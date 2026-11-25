@@ -1,3 +1,14 @@
+# 本轮交付 — Windows 缩放稳定性、11 色外观、传输速率与群聊文件多选
+
+- **日期**：2026-11-25
+- **执行者**：Codex
+- **审核状态**：`OPEN`，等待独立审核者复跑
+- **范围**：头像缩放防闪烁、附件图 11 色外观预设、Windows/Linux 文件气泡当前速率、群聊在线收件人多选与托管截图副本清理。
+- **已验证**：两套 Windows 回归（含原生编译）、Node 语法/UI 回归、Linux Release `dotnet build`、`git diff --check` 全部通过；未改动 LANC 封包、文件协议和 JSONL 历史格式。
+- **待独立审核边界**：真实 Windows 截图工具/Excel/WPS、长时间拖拽缩放录屏、Linux Xorg/Wayland/XWayland 实机、最新 ELF 与双机局域网联测仍未执行。
+
+---
+
 # LC-CC-005 / LC-CC-006 — 独立审核
 
 - **任务编号**：`LC-CC-005` / `LC-CC-006`

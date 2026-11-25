@@ -7,6 +7,13 @@
   function createConversationView({ doc, win, feed, presentation, overlay, openPath, status }) {
     const group = presentation.GROUP;
 
+    function formatTransferRate(value) {
+      const speed = Number(value);
+      if (!Number.isFinite(speed) || speed <= 0) return '';
+      if (speed < 1) return `${Math.round(speed * 1024)} KB/s`;
+      return `${speed < 10 ? speed.toFixed(2) : speed.toFixed(1)} MB/s`;
+    }
+
     // 追加单条消息时保留正在浏览历史的视口位置，自己发送的消息始终滚到末尾。
     function appendMessage(message, previous) {
       const nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 32;
@@ -91,9 +98,11 @@
         ? Math.min(100, Math.max(0, Math.floor(100 * (state.received ?? 0) / state.total))) : 0;
       bar.value = percent;
       label.classList.toggle('error', Boolean(state.failed || state.unknown));
+      const rate = formatTransferRate(state.speed);
+      const suffix = rate ? ` · ${rate}` : '';
       label.textContent = state.unknown ? (state.queued ? '未发送' : `${action}结果未确认 · ${percent}%`) :
         state.failed ? `${action}失败${state.error ? ` · ${state.error}` : ''}` :
-        state.completed ? `${action}完成 · 100%` : `${state.queued ? '等待发送' : `${action}中`} · ${percent}%`;
+        state.completed ? `${action}完成 · 100%` : `${state.queued ? '等待发送' : `${action}中`} · ${percent}%${suffix}`;
       label.title = label.textContent;
     }
 

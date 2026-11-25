@@ -11,7 +11,7 @@ namespace LanChat
     public class AppearanceSettingsPanel : SettingsPanelBase
     {
         private static readonly string[] ThemeNames = { "深色 (Grok Dark)", "石墨深色", "午夜蓝" };
-        private static readonly string[] AccentNames = { "魅紫", "湖蓝", "薄荷绿", "珊瑚红", "琥珀橙" };
+        private static readonly string[] AccentNames = { "白", "棕", "红", "橙红", "橙", "翠绿", "青", "蓝", "魅紫", "粉", "灰" };
         private static readonly string[] FontFamilies = { "Microsoft YaHei UI", "Segoe UI", "SimSun", "SimHei", "KaiTi", "Arial", "Consolas" };
         private static readonly string[] FontNames = { "微软雅黑", "Segoe UI", "宋体", "黑体", "楷体", "Arial", "Consolas" };
         private static readonly string[] SizeLabels = { "小", "默认", "中", "大", "特大" };
@@ -79,6 +79,7 @@ namespace LanChat
 
         private static string GetAccentLabel(int preset)
         {
+            preset = Math.Max(0, Math.Min(AccentNames.Length - 1, preset));
             Color swatch = GrokTheme.GetAccentSwatch(preset);
             return string.Format("{0} (#{1:X6})", AccentNames[preset], swatch.ToArgb() & 0xffffff);
         }

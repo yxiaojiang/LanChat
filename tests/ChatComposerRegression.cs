@@ -30,6 +30,7 @@ namespace LanChat
             VerifyLayout(bool.Parse(args[1]));
             VerifyEmojiPaint();
             VerifyClipboardPriority();
+            VerifyAppearancePaletteAndTransferRate();
             string source = SaveClipboardImage(args[0]);
             VerifyLoopback(args[0], source);
             Console.WriteLine("聊天表情布局、PNG 与位图粘贴数据、LANC 文本和图片回环及历史回读通过");
@@ -138,6 +139,17 @@ namespace LanChat
                 Require(!text && image, "纯位图剪贴板未保留附件入口");
             }
             Console.WriteLine("LC-CC-005: Windows 图文混合剪贴板优先级断言通过");
+        }
+
+        private static void VerifyAppearancePaletteAndTransferRate()
+        {
+            int[] expected = { 0xFFFFFF, 0xA16B39, 0xFC2C3E, 0xF9670E, 0xF69412, 0x14C370,
+                0x13B8A3, 0x1884FC, 0x905AFB, 0xFB3499, 0x777777 };
+            for (int i = 0; i < expected.Length; i++)
+                Require((GrokTheme.GetAccentSwatch(i).ToArgb() & 0xFFFFFF) == expected[i], "外观调色盘颜色不完整");
+            Require(FileTransferController.FormatTransferRate(0.5) == "512 KB/s", "低速传输速率格式化错误");
+            Require(FileTransferController.FormatTransferRate(12.345) == "12.3 MB/s", "高速传输速率格式化错误");
+            Console.WriteLine("外观 11 色调色盘与发送/接收速率格式化断言通过");
         }
 
         private static string SaveClipboardImage(string directory)

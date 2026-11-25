@@ -445,7 +445,7 @@ namespace LanChat.Linux
                     ["event"] = "progress", ["operation"] = operation, ["transfer"] = value.TransferId,
                     ["chat"] = chat, ["peerNick"] = value.PeerNick,
                     ["name"] = value.FileName, ["sending"] = value.IsSending, ["received"] = value.TransferredBytes,
-                    ["total"] = value.TotalBytes, ["completed"] = value.IsCompleted, ["failed"] = value.IsFailed,
+                    ["total"] = value.TotalBytes, ["speed"] = value.SpeedMBps, ["completed"] = value.IsCompleted, ["failed"] = value.IsFailed,
                     ["error"] = value.ErrorMessage
                 };
                 if (value.IsCompleted || value.IsFailed)

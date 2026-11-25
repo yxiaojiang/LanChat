@@ -4,15 +4,15 @@
 
 ## 当前状态
 
-LC-CC-003 与 LC-CC-004 已由独立审核放行。Windows 端组合 Emoji 按 `NextBoundary` 整段测量绘制，Linux 端摘要、PNG/JPEG 剪贴板回退、截图失败清理和退出竞态均已完成宿主机范围验证。LANC 帧、TCP `0x01` 确认字节、UDP 字段和 JSONL 历史格式保持兼容。
+LC-CC-003、LC-CC-004、LC-CC-005、LC-CC-006 的既有范围已通过独立审核或用户放行。Windows 组合 Emoji、图文剪贴板优先级、隐藏输入框首次右键菜单、选区/草稿隔离以及双端应用截图失败与退出清理均有宿主机回归证据。LANC 帧、TCP 文件确认字节、UDP 字段和 JSONL 历史格式保持兼容。
 
-LC-CC-005 / LC-CC-006 已完成宿主机实现并送独立审核。`ChatInputBox` 对图文并存剪贴板优先读取非空 Unicode 文本，输入框和外层胶囊统一使用暗色右键菜单，保留粘贴、附件、复制、剪切和全选入口。WinForms 回归覆盖隐藏输入框首次右键。聊天视图选区回归覆盖组合表情像素命中、跨 CRLF 复制、会话切换草稿隔离/恢复和关闭清理。
+本轮新增四项：主窗体左上角 Hero 头像面板改用 `DoubleBufferedPanel`，降低拖拽缩放时背景擦除造成的闪烁；WinForms 与 Linux Electron 外观强调色统一扩展为附件图中的 11 个 RGB 预设；文件传输进度模型已有的 `SpeedMBps` 现在显示在 Windows/Linux 文件气泡中，并由 Linux `DesktopService` 透传 `speed`；群聊文件选择器支持 `MultiSimple` 多选在线成员，后续收件人使用独立截图副本，防止并发清理竞态。
 
-本轮 Windows 原生编译、两套 WinForms 回归、Node 语法与 UI/IPC 回归、Linux 共享后端 Windows 构建和 `git diff --check` 均通过。全量手写源码和测试文件低于 1000 行软门禁。宿主机证据不替代真实 Windows 截图工具、Excel/WPS 剪贴板、双机局域网、Linux/QEMU ELF 与 Xorg/Wayland/XWayland 实机验收。
+本轮已运行 `friend_refresh_regression.ps1`、`chat_composer_regression.ps1 -ExpectLocalPack`、Node 桌面语法与 `linux_desktop_ui_regression.js`、Linux Release `dotnet build`、`git diff --check`，全部通过；新增颜色、速率格式化、头像双缓冲和多选收件人断言。相关手写源码及测试均低于 1000 行软门禁。
 
 ## 下一步
 
-等待独立审核者核对 LC-CC-005 / LC-CC-006，并按 `CRDocs/RULES.md` 回写 `CRDocs/REVIEW.md` 与 `CRDocs/STATUS.md`。审核通过后进入 `LC-CC-ENV-001`、`LC-LINUX-002-ENV-001` 和 `LC-LINUX-002-GUI-001` 实机取证。
+本轮记录已写入 `CRDocs/IMPLEMENTATION.md`、`CRDocs/REVIEW.md`、`CRDocs/STATUS.md`，状态为 `WAITING_FOR_GROK`，等待独立审核者复跑。真实 Windows 截图工具/Excel/WPS、长时间拖拽缩放录屏、Linux Xorg/Wayland/XWayland 与最新 ELF、双机局域网联测仍未验证，按 `CRDocs/DEFERRED.md` 保留。
 
 ## 入口
 

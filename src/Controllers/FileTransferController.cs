@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Windows.Forms;
 
@@ -325,6 +326,16 @@ namespace LanChat
             if (bytes < 1024 * 1024) return (bytes / 1024.0).ToString("F1") + " KB";
             if (bytes < 1024 * 1024 * 1024) return (bytes / (1024.0 * 1024.0)).ToString("F2") + " MB";
             return (bytes / (1024.0 * 1024.0 * 1024.0)).ToString("F2") + " GB";
+        }
+
+        /// <summary>将瞬时传输速率格式化为气泡可读的 KB/s 或 MB/s。</summary>
+        internal static string FormatTransferRate(double megabytesPerSecond)
+        {
+            if (double.IsNaN(megabytesPerSecond) || double.IsInfinity(megabytesPerSecond) || megabytesPerSecond <= 0)
+                return string.Empty;
+            if (megabytesPerSecond < 1.0)
+                return (megabytesPerSecond * 1024.0).ToString("F0", CultureInfo.InvariantCulture) + " KB/s";
+            return megabytesPerSecond.ToString(megabytesPerSecond < 10.0 ? "F2" : "F1", CultureInfo.InvariantCulture) + " MB/s";
         }
     }
 }

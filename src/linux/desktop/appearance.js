@@ -7,11 +7,17 @@
   const THEMES = ['深色 (Grok Dark)', '石墨深色', '午夜蓝'];
 
   const ACCENTS = [
-    { label: '魅紫 (#8E64DC)', swatch: '#8E64DC', accent: '#8e64dc', deep: '#7946d7', hot: '#9d75ec' },
-    { label: '湖蓝 (#5C9CFF)', swatch: '#5C9CFF', accent: '#5c9cff', deep: '#285fad', hot: '#78adff' },
-    { label: '薄荷绿 (#4AC5A1)', swatch: '#4AC5A1', accent: '#4ac5a1', deep: '#226d59', hot: '#6cd5b7' },
-    { label: '珊瑚红 (#F27C8B)', swatch: '#F27C8B', accent: '#f27c8b', deep: '#a63f56', hot: '#ff99a7' },
-    { label: '琥珀橙 (#EDAC5B)', swatch: '#EDAC5B', accent: '#edac5b', deep: '#885820', hot: '#f7c47c' }
+    { label: '白 (#FFFFFF)', swatch: '#FFFFFF', accent: '#ffffff', deep: '#b8b8b8', hot: '#ffffff' },
+    { label: '棕 (#A16B39)', swatch: '#A16B39', accent: '#a16b39', deep: '#714826', hot: '#c08a5a' },
+    { label: '红 (#FC2C3E)', swatch: '#FC2C3E', accent: '#fc2c3e', deep: '#b11f2c', hot: '#ff6472' },
+    { label: '橙红 (#F9670E)', swatch: '#F9670E', accent: '#f9670e', deep: '#b33f06', hot: '#ff934e' },
+    { label: '橙 (#F69412)', swatch: '#F69412', accent: '#f69412', deep: '#b36507', hot: '#ffb64a' },
+    { label: '翠绿 (#14C370)', swatch: '#14C370', accent: '#14c370', deep: '#0e8c50', hot: '#45df95' },
+    { label: '青 (#13B8A3)', swatch: '#13B8A3', accent: '#13b8a3', deep: '#0c7f71', hot: '#4bd8c7' },
+    { label: '蓝 (#1884FC)', swatch: '#1884FC', accent: '#1884fc', deep: '#0d53a8', hot: '#56a7ff' },
+    { label: '魅紫 (#905AFB)', swatch: '#905AFB', accent: '#905afb', deep: '#5c2baf', hot: '#b18bff' },
+    { label: '粉 (#FB3499)', swatch: '#FB3499', accent: '#fb3499', deep: '#b31f6a', hot: '#ff78bb' },
+    { label: '灰 (#777777)', swatch: '#777777', accent: '#777777', deep: '#4d4d4d', hot: '#999999' }
   ];
 
   const FONT_PRESETS = [

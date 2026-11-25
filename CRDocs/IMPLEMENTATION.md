@@ -1,3 +1,32 @@
+# 本轮交付 — Windows 缩放稳定性、11 色外观、传输速率与群聊文件多选
+
+> 2026-11-25 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 等待独立审核
+
+## 实际改动
+
+- 将主窗体左上角 Hero 头像所在面板改为 `DoubleBufferedPanel`，避免拖拽缩放期间普通 `Panel` 背景擦除与头像重绘闪烁；新增 WinForms 回归断言确认该面板启用双缓冲。
+- 外观强调色扩展为附件图中的 11 个标准 RGB：`#FFFFFF`、`#A16B39`、`#FC2C3E`、`#F9670E`、`#F69412`、`#14C370`、`#13B8A3`、`#1884FC`、`#905AFB`、`#FB3499`、`#777777`。WinForms 与 Linux Electron 共用同一索引顺序，settings.json 的整数索引和已有 LANC/JSONL 格式不变。
+- `FileTransferController.FormatTransferRate` 统一格式化 KB/s、MB/s；Windows 文件气泡在发送/接收进度有速率样本时追加当前网速，Linux `DesktopService` 将 `speed` 透传到 Electron，桌面文件卡片同步显示。
+- 群聊附件发送使用在线成员多选弹框（`MultiSimple`），点击“确定发送”后逐个投递到所选成员。剪贴板截图在多收件人场景为后续收件人生成独立托管副本，成功历史引用保留，失败或未入队副本按既有托管清理策略删除；用户原始文件不接管清理。
+- 未修改 LANC 封包、文件报价/确认字节或 JSONL 历史字段。
+
+## Windows 宿主机与共享后端验证
+
+| 实际命令 | 结果 |
+| --- | --- |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 返回 0；原生编译、头像双缓冲断言、群聊多选收件人断言、好友刷新与 LC-CC-006 全部通过。 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 返回 0；新增 11 色 RGB 与 KB/s/MB/s 格式化断言，既有 Emoji、PNG、LANC、历史及 LC-CC-004/005 回归通过。 |
+| `C:/Program Files/nodejs/node.exe --check <桌面与测试 JS/CJS>` | 返回 0；相关桌面脚本与回归脚本语法通过。 |
+| `C:/Program Files/nodejs/node.exe tests/linux_desktop_ui_regression.js` | 返回 0；Linux 外观 11 色、双向进度速率显示及既有 UI/IPC 用例通过。 |
+| `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false` | 返回 0，0 警告、0 错误。 |
+| `git diff --check` | 返回 0，无空白错误。 |
+
+## 行数与未验证边界
+
+本轮变更手写源码与测试文件均低于 1000 行软门禁，最高为 `tests/linux_desktop_ui_regression.js` 924 行。当前仅完成 Windows 宿主机和脚本/共享后端验证；真实 Windows 拖拽缩放长时间录屏、真实截图工具/Excel/WPS 粘贴、Linux Xorg/Wayland/XWayland 实机、最新 Linux ELF 实跑及双机局域网联测未验证，继续保留于 [DEFERRED.md](DEFERRED.md)。
+
+---
+
 # LC-CC-005 / LC-CC-006 — Windows 输入区与选区/草稿用例
 
 > 2026-11-25 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 工作区交付
