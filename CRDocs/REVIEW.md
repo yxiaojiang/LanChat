@@ -6,6 +6,7 @@
 - **审核状态**：**APPROVED**（当前开发与 Windows 宿主机回归范围放行）
 - **范围**：头像缩放防闪烁、附件图 11 色外观预设、Windows/Linux 文件气泡当前速率、群聊在线收件人多选与托管截图副本清理，以及 `LC-RV-001` 无在线好友空列表返修。
 - **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`，以及 `e3e9a58`、`a056460` 实际 diff 与相关调用链。
+- **发布确认**：v2.0.21 已由 `Tools/Scripts/Publish.bat` 完成打包并上传 GitHub Release，发布提交为 `f09226b`；更新日志已写入 `CHANGELOG.md`。
 
 ## 独立复跑与验证边界
 
