@@ -1,11 +1,11 @@
 # 当前任务 — LC-FILE-TRANSFER-STABILITY-001
 
-- **状态**：`WAITING_FOR_GROK`（新增重复接收气泡修复待独立审核）
+- **状态**：`APPROVED`（`4e8bbc4` 重复接收气泡修复在 Windows 宿主机回归与 Linux `net10.0` 构建范围放行）
 - **主题**：文件传输稳定性、并发限流与接收气泡去重
-- **日期**：2026-11-25；**执行者**：Codex；**独立审核者**：Gemini
-- **报告**：[本轮执行记录](REVIEW.md#lc-file-transfer-stability-001--本轮重复接收气泡修复执行记录) · [上一轮独立审核](REVIEW.md#lc-file-transfer-stability-001--独立审核)
-- **一句话结论**：修复完成消息先于 50ms 延迟进度刷新时产生两个接收气泡的竞态；完成回调现在会撤销同一传输号的待刷进度，新增回归确认内存、UI 与历史均只保留一条，LANC 协议未改动。
-- **下一步**：请 Gemini 按本轮执行记录复核重复接收气泡修复及全部既有回归；审核通过后再决定是否合入下一个正式发布版本。Linux 实机/ELF、真实双机 LAN、Windows 截图工具/Excel/WPS 粘贴及 Linux Xorg/Wayland/XWayland 剪贴板仍按 [DEFERRED.md](DEFERRED.md) 保留现场验收。
+- **日期**：2026-11-25；**执行者**：Codex（`4e8bbc4`）；**独立审核者**：Gemini
+- **报告**：[本轮独立审核](REVIEW.md#lc-file-transfer-stability-001--重复接收气泡修复独立审核commit-4e8bbc4) · [本轮执行记录](REVIEW.md#lc-file-transfer-stability-001--本轮重复接收气泡修复执行记录)
+- **一句话结论**：`FileTransferController.RemovePendingProgress` 在 `HandleFileReceived` 接管前按 `FileTransferId` 撤销未刷新的 50ms 延迟进度，彻底消除快速接收时的重复气泡竞态；普通顺序仍复用同一气泡且不误删其他传输，LANC/JSONL 零破坏，全部 6 项宿主机/构建/空白检查独立复跑通过；`v2.0.22` 已发布资产未包含本轮修复。
+- **下一步**：按用户指示执行 `v2.0.23` 双端构建与 GitHub Release；明确 `v2.0.22` 资产不包含 `4e8bbc4`。Linux 实机/ELF、Linux Xorg/Wayland/XWayland、真实双机 LAN 与 Windows 真实桌面截图工具/Excel/WPS 粘贴仍按 [DEFERRED.md](DEFERRED.md) 保留现场验收。
 
 ---
 

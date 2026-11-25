@@ -1,3 +1,45 @@
+# LC-FILE-TRANSFER-STABILITY-001 — 重复接收气泡修复独立审核（Commit `4e8bbc4`）
+
+- **任务编号**：`LC-FILE-TRANSFER-STABILITY-001`
+- **任务主题**：快速接收文件时重复气泡修复
+- **审核基线**：`HEAD` 提交 `4e8bbc4`（`fix: prevent duplicate incoming file bubbles`）
+- **审核方**：Gemini 独立审核方
+- **审核日期**：2026-11-25
+- **审核结论**：**APPROVED**（当前开发、Windows 宿主机回归与 Linux `net10.0` 构建范围放行）
+- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、本文件既有记录，以及 `4e8bbc4` 完整 diff（`src/Controllers/FileTransferController.cs`、`tests/ChatComposerRegression.cs`、`CHANGELOG.md`）。
+
+## 审核重点逐项核对
+
+| 核对项 | 结论 | 核对依据 |
+| --- | :---: | --- |
+| 1. `HandleFileReceived` 与 50ms 延迟进度竞态修复 | PASS | `FileTransferController.cs:296-308` 新增 `RemovePendingProgress(fileMsg.FileTransferId)`，在 `HandleFileReceived` 接管完成消息前于 `lock (_progressGate)` 内从 `_pendingProgress` 移除同 `TransferId` 的未刷新进度；由于 `FlushPendingProgress` 与 `HandleFileReceived` 均序列化于 UI 线程且共用 `_progressGate`，即使 50ms 定时器已投递 `BeginInvoke`，晚到的 `FlushPendingProgress` 也不再看到该进度 |
+| 2. 完成先于延迟进度时不追加第二个气泡 | PASS | `HandleFileReceived` 撤销 `_pendingProgress` 后，仅当 `_incoming` 未命中时才调用 `_sessionManager.AddMessage(convKey, fileMsg)` 并以 `added = true` 发布一次完成卡片，不会再被后续 `HandleIncomingProgress` 追加“接收完成 · 100%”气泡 |
+| 3. 普通顺序（进度先到、完成后到）仍复用同一气泡 | PASS | 50ms 定时器先执行 `FlushPendingProgress` 时，`_pendingProgress` 已被清空并写入 `_incoming[Tuple(convKey, transferId)]`；随后 `HandleFileReceived` 命中 `_incoming` 并复用原 `ChatMessage` 更新 `FilePath`/`TransferProgress = null`（`added = false`），仅保留一个气泡 |
+| 4. 不误删其他传输的待处理进度 | PASS | `RemovePendingProgress` 仅对非空 `fileMsg.FileTransferId` 执行 `_pendingProgress.Remove(transferId)`，其余并发传输拥有独立 `TransferId`，不受影响 |
+| 5. `FileTransferId`、会话键、JSONL 与 LANC 兼容 | PASS | 未改动 `Models.cs`、`NetworkService*.cs`、`ChatHistoryService.cs` 与 `SessionManager.cs`，LANC 二进制封包、确认字节、会话键与 JSONL 历史格式完全兼容 |
+| 6. `ChatComposerRegression.cs` 边界用例覆盖 | PASS | `VerifyIncomingCompletionRace`（`156-194` 行）模拟“最终进度（`IsCompleted = true`）经 `QueueProgress` 排队后、`HandleFileReceived` 先抵达”，等待 `150ms` 越过 50ms 定时器后断言会话内存、UI `TransferMessageChanged`（`added == true`）与 JSONL 历史均严格为 1 条 |
+| 7. 行数门禁与中文注释 | PASS | 变更文件均 `< 1000` 行（`FileTransferController.cs` 433 行、`ChatComposerRegression.cs` 350 行），新增注释为中文 |
+| 8. `v2.0.22` 已发布资产边界 | PASS | `CHANGELOG.md` 将本轮修复置于 `## [Unreleased]` 节区，未错误标记为包含在已发布的 `v2.0.22` 资产中 |
+
+## 独立复跑验证证据（均退出码 0）
+
+1. `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack`：退出码 0，输出包含 `文件接收完成先于延迟进度刷新时不会重复追加气泡` 及全部既有回归通过。
+2. `cmd /c "Tools\Scripts\Compile.bat < NUL"`：退出码 0，`release\LanChat.exe` 编译成功。
+3. `powershell -NoProfile -ExecutionPolicy Bypass -File tests/file_transfer_stability_regression.ps1`：退出码 0，输出 `文件传输稳定性边界回归通过：0 字节、64KB、全局 6、单目标 2`。
+4. `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1`：退出码 0，输出包含 `Native Windows compile: ok` 与全部既有回归通过。
+5. `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false`（SDK `10.0.404`）：退出码 0，输出 `LanChat.Linux -> ...\net10.0\lanchat.dll`，0 警告、0 错误。
+6. `git diff --check`：退出码 0，无空白错误。
+
+## 问题分级清单
+
+- **P0 / P1 / P2 / P3**：均无。
+
+## 未验证边界（继续保留于 `CRDocs/DEFERRED.md`）
+
+- Linux 实机 / ARM64 / x86_64 ELF 实跑、Linux Xorg / Wayland / XWayland Electron 桌面与剪贴板、真实双机 LAN（含新旧版本互通）及 Windows 真实桌面截图工具 / Excel / WPS 粘贴仍未现场验证。
+
+---
+
 # LC-FILE-TRANSFER-STABILITY-001 — 本轮重复接收气泡修复执行记录
 
 - **任务编号**：`LC-FILE-TRANSFER-STABILITY-001`

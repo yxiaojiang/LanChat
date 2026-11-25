@@ -1,6 +1,6 @@
 # LC-FILE-TRANSFER-STABILITY-001 — 执行摘要
 
-> 2026-11-25 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 新增重复接收气泡修复，等待 Gemini 复核；详细记录见 `CRDocs/REVIEW.md` 同名记录
+> 2026-11-25 · 执行者 Codex · 状态 `APPROVED` · Gemini 已批准重复接收气泡修复；详细记录见 `CRDocs/REVIEW.md` 同名记录
 
 P0/P1/P2 已完成；本轮补修快速接收时的重复气泡竞态，Windows 回归、新增边界夹具、Linux net10.0 构建均通过；真实 Linux/ELF、双机 LAN 和桌面剪贴板仍未验证。
 
@@ -26,6 +26,7 @@ P0/P1/P2 已完成；本轮补修快速接收时的重复气泡竞态，Windows 
 - `Tools/Scripts/Publish.bat 2.0.22` 已完成 Windows EXE/MSI、Linux amd64/arm64 deb、双架构便携包、双架构 CLI 和 `SHA256SUMS.json` 构建。
 - GitHub Release：[v2.0.22](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.22)；发布提交为 `d029ff9`，标签为 `v2.0.22`。
 - 发布后发现异常提交 `5e8ac76 (aa)` 将 24 个历史 release 归档产物写成 0 字节，已从 `d029ff9` 恢复，后续以独立修复提交推送。
+- 用户已明确要求将本轮修复作为 `v2.0.23` 发布；`v2.0.22` 资产保持原样，不宣称包含 `4e8bbc4`。
 
 ---
 
