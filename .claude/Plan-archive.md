@@ -9,6 +9,8 @@
 - P2：文件 Socket 使用 256KB 缓冲；Linux 传入 `allowSourceDelete: managedPaste`；托管截图群发改为引用计数共享清理。
 - 新增 0 字节、64KB、约 1MB、入口边界和并发上限回归。Windows 编译、既有回归、新增夹具和 `ConcurrentReceive.cs` 均通过；正式 Linux net10 构建因宿主仅有 SDK 9.0.304 未完成。
 - Gemini 于 2026-11-25 独立审核 `APPROVED`，真实 Linux/ELF、双机 LAN、桌面剪贴板继续按 `CRDocs/DEFERRED.md` 延期。
+- v2.0.22 已由 `Publish.bat 2.0.22` 打包并上传 GitHub Release，发布提交 `d029ff9`、标签 `v2.0.22`；后续异常提交造成的 24 个 0 字节历史归档产物已从该发布提交恢复。
+- v2.0.22 已由 `Publish.bat 2.0.22` 打包并上传 GitHub Release，发布提交 `d029ff9`、标签 `v2.0.22`；后续异常提交造成的 24 个 0 字节历史归档产物已从该发布提交恢复。
 
 ## v2.0.18 文件传输体验与跨平台包准备（2026-11-23）
 

@@ -4,8 +4,8 @@
 - **主题**：文件传输稳定性与并发限流加固（P0 / P1 / P2）
 - **日期**：2026-11-25；**执行者**：Codex；**独立审核者**：Gemini
 - **报告**：[独立审核结论](REVIEW.md#lc-file-transfer-stability-001--独立审核) · [执行记录](REVIEW.md#lc-file-transfer-stability-001--文件传输稳定性与并发限流加固执行记录)
-- **一句话结论**：LANC 兼容的传输稳定性（Stopwatch 单调计时/有限速率、先开流取长度、截断/0 字节/超时、leaveOpen）、6/2 有界公平出站队列、32/16 入口限制、托管截图引用计数、50ms 进度合批、Linux IPC 兜底与边界回归均已核对并通过宿主机复跑；正式 Linux `net10.0` 构建因宿主仅有 .NET SDK 9.0.304 仍未完成，Linux 实机与双机联测继续保留未验证。
-- **下一步**：`LC-FILE-TRANSFER-STABILITY-001` 当前开发与 Windows 宿主机回归范围已闭环放行。请在具备 .NET 10 SDK 的环境补跑正式 `net10.0` Linux 后端构建及 Linux 实机/双机联测，或由用户决定进入提交/打包发布。
+- **一句话结论**：LANC 兼容的传输稳定性（Stopwatch 单调计时/有限速率、先开流取长度、截断/0 字节/超时、leaveOpen）、6/2 有界公平出站队列、32/16 入口限制、托管截图引用计数、50ms 进度合批、Linux IPC 兜底与边界回归均已核对并通过；Windows 编译、边界回归、并发接收、Linux net10.0 打包与 Release 资产均已完成。
+- **下一步**：`LC-FILE-TRANSFER-STABILITY-001` 当前开发、审核、打包与发布范围已闭环。Linux 实机/ELF 双端运行、真实双机 LAN、Windows 截图工具/Excel/WPS 粘贴及 Linux Xorg/Wayland/XWayland 剪贴板仍按 [DEFERRED.md](DEFERRED.md) 保留现场验收。
 
 ---
 
