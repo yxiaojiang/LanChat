@@ -6,6 +6,12 @@
     api.createMainController();
   }
 })(typeof globalThis === 'undefined' ? this : globalThis, function (root) {
+const { createSessionSidebar } = typeof module === 'object' && module.exports
+  ? require('./session-sidebar.js') : root.LanChatSessionSidebar;
+const { createConversationView } = typeof module === 'object' && module.exports
+  ? require('./conversation-view.js') : root.LanChatConversationView;
+
+// 主窗协调通信服务、会话状态与输入草稿，视图通过回调触发主窗操作。
 function createMainController(deps = {}) {
 const doc = deps.document || root.document;
 const win = deps.window || root.window || root;
@@ -35,6 +41,14 @@ let connecting = true;
 let deferredEvents = [];
 let connectionGeneration = 0;
 let composeScroll = null;
+const sidebar = createSessionSidebar({
+  doc, presentation, overlay, switchChat, redraw: drawChats,
+  menuFor: entry => entry.key === group ? groupMenu() : peerMenu(entry)
+});
+const conversation = createConversationView({
+  doc, win, feed, presentation, overlay, status,
+  openPath: (path, kind) => api.openPath(path, kind)
+});
 
 function applyAppearance(settingsData) {
   if (!appearance || !settingsData) return;
@@ -66,96 +80,8 @@ function setPeers(list) {
   updateHeader();
 }
 
-function focusSession(id) {
-  const button = [...byId('chats').querySelectorAll('.chat')].find(item => item.dataset.key === id);
-  button?.focus();
-}
-
-function appendSessionHeading(nav, online) {
-  const heading = document.createElement('h2');
-  heading.className = 'session-heading';
-  heading.dataset.online = String(online);
-  heading.textContent = online ? '在线' : '离线';
-  nav.append(heading);
-}
-
 function drawChats() {
-  const restoreKey = document.activeElement?.classList?.contains('chat') ? document.activeElement.dataset.key : '';
-  const nav = byId('chats');
-  const previousScrollTop = nav.scrollTop;
-  nav.replaceChildren();
-  const filter = byId('search').value;
-  const rows = presentation.sessionRows({ peers, messages, filter });
-  let onlineHeading = false;
-  let offlineHeading = false;
-  for (const entry of rows) {
-    if (!entry.pinned && entry.online && !onlineHeading) {
-      appendSessionHeading(nav, true);
-      onlineHeading = true;
-    }
-    if (!entry.pinned && !entry.online && !offlineHeading) {
-      if (!onlineHeading && !filter.trim()) {
-        appendSessionHeading(nav, true);
-        onlineHeading = true;
-      }
-      appendSessionHeading(nav, false);
-      offlineHeading = true;
-    }
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = entry.pinned ? 'chat pinned' : 'chat';
-    button.dataset.key = entry.key;
-    button.setAttribute('aria-current', String(entry.key === active));
-    const count = presentation.unreadText(unread.get(entry.key));
-    button.setAttribute('aria-label', [entry.fullName, entry.pinned ? '置顶' : '', count ? `${count} 条未读` : ''].filter(Boolean).join('，'));
-    const card = document.createElement('span');
-    card.className = 'chat-card';
-    const avatarWrap = document.createElement('span');
-    avatarWrap.className = 'avatar-wrap';
-    const avatar = document.createElement('img');
-    avatar.src = entry.key === group ? 'assets/group.png' : 'assets/peer.png';
-    avatar.alt = '';
-    avatarWrap.append(avatar);
-    if (count) {
-      const badge = document.createElement('span');
-      badge.className = 'badge';
-      badge.textContent = count;
-      avatarWrap.append(badge);
-    }
-    const labels = document.createElement('span');
-    labels.className = 'chat-copy';
-    const titleRow = document.createElement('span');
-    titleRow.className = 'title-row';
-    const title = document.createElement('strong');
-    title.textContent = entry.title;
-    titleRow.append(title);
-    if (entry.pinned) {
-      const pin = document.createElement('em');
-      pin.className = 'pin';
-      pin.textContent = '置顶';
-      titleRow.append(pin);
-    }
-    const summary = document.createElement('small');
-    summary.textContent = entry.snippet;
-    labels.append(titleRow, summary);
-    card.append(avatarWrap, labels);
-    button.append(card);
-    button.addEventListener('click', () => switchChat(entry.key, true));
-    button.addEventListener('contextmenu', event => {
-      event.preventDefault();
-      const point = { x: event.clientX, y: event.clientY };
-      switchChat(entry.key, false);
-      const current = [...nav.querySelectorAll('.chat')].find(item => item.dataset.key === entry.key);
-      window.LanChatOverlay.openMenu(entry.key === group ? groupMenu() : peerMenu(entry), point, current);
-    });
-    nav.append(button);
-  }
-  if (!filter.trim() && !offlineHeading) {
-    if (!onlineHeading) appendSessionHeading(nav, true);
-    appendSessionHeading(nav, false);
-  }
-  nav.scrollTop = previousScrollTop;
-  if (restoreKey) focusSession(restoreKey);
+  sidebar.render({ peers, messages, unread, active });
 }
 
 function syncComposeHeight() {
@@ -188,103 +114,6 @@ function updateHeader() {
   byId('send').title = byId('send').ariaLabel = hasFiles ? '发送附件' : '发送消息';
 }
 
-function appendRendered(message, previous, target = feed) {
-  const view = presentation.decorate(previous, message, message.chat === group);
-  if (view.showTime) {
-    const time = document.createElement('div');
-    time.className = 'time-header';
-    time.textContent = view.timeLabel;
-    target.append(time);
-  }
-  const row = document.createElement('div');
-  row.className = message.system ? 'message-row system' : message.self ? 'message-row self' : 'message-row';
-  if (message.system) {
-    row.textContent = message.text || '';
-    target.append(row);
-    return;
-  }
-  if (view.showSender) {
-    const sender = document.createElement('div');
-    sender.className = 'sender';
-    sender.textContent = message.nick || '节点';
-    row.append(sender);
-  }
-  if (message.file) row.append(fileCard(message));
-  else {
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble';
-    bubble.tabIndex = -1;
-    presentation.drawMessageText(bubble, message.text || '', document);
-    row.append(bubble);
-  }
-  target.append(row);
-}
-
-function fileCard(message) {
-  const card = document.createElement('article');
-  card.className = 'file-card';
-  const badge = document.createElement('span');
-  badge.className = 'file-badge';
-  badge.setAttribute('aria-hidden', 'true');
-  const badgeIcon = document.createElement('img');
-  badgeIcon.src = 'assets/BoxWhite.png';
-  badgeIcon.alt = '';
-  badge.append(badgeIcon);
-  const name = document.createElement('strong');
-  name.textContent = message.name || '未知文件';
-  const size = document.createElement('small');
-  size.textContent = presentation.formatFileSize(message.size) + (message.exists === false ? ' · 原文件不可用' : '');
-  card.append(badge, name, size);
-  if (message.transferState) {
-    const progress = document.createElement('div');
-    progress.className = 'file-progress';
-    const bar = document.createElement('progress');
-    bar.max = 100;
-    bar.setAttribute('aria-label', message.name || '文件传输进度');
-    const label = document.createElement('small');
-    progress.append(bar, label);
-    card.append(progress);
-    message.card = card;
-    message.progressView = { bar, label };
-    paintProgress(message);
-    return card;
-  }
-  const actions = document.createElement('div');
-  actions.className = 'file-actions';
-  actions.append(fileAction('打开文件', message, 'file', message.exists === false), fileAction('打开目录', message, 'directory', false));
-  card.append(actions);
-  return card;
-}
-
-function paintProgress(message) {
-  const { bar, label } = message.progressView;
-  const state = message.transferState;
-  const action = state.sending ? '发送' : '接收';
-  const percent = state.completed ? 100 : state.total > 0
-    ? Math.min(100, Math.max(0, Math.floor(100 * (state.received ?? 0) / state.total))) : 0;
-  bar.value = percent;
-  label.classList.toggle('error', Boolean(state.failed || state.unknown));
-  label.textContent = state.unknown ? (state.queued ? '未发送' : `${action}结果未确认 · ${percent}%`) :
-    state.failed ? `${action}失败${state.error ? ` · ${state.error}` : ''}` :
-    state.completed ? `${action}完成 · 100%` : `${state.queued ? '等待发送' : `${action}中`} · ${percent}%`;
-  label.title = label.textContent;
-}
-
-function fileAction(label, message, kind, unavailable) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.textContent = label;
-  button.disabled = unavailable || !message.path;
-  button.addEventListener('click', async () => {
-    try {
-      await api.openPath(message.path, kind);
-    } catch (error) {
-      status(error.message, true);
-    }
-  });
-  return button;
-}
-
 function appendMessage(message) {
   if (!messages.has(message.chat)) messages.set(message.chat, []);
   const list = messages.get(message.chat);
@@ -293,11 +122,7 @@ function appendMessage(message) {
   if (message.chat !== group && !peers.has(message.chat)) {
     peers.set(message.chat, { key: message.chat, nick: message.peerNick || (!message.self && message.nick) || '局域网节点', online: false });
   }
-  if (message.chat === active) {
-    const nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 32;
-    appendRendered(message, previous);
-    if (nearBottom || message.self) feed.scrollTop = feed.scrollHeight;
-  }
+  if (message.chat === active) conversation.appendMessage(message, previous);
 }
 
 // 发送用本地请求号，接收用对端传输号和会话键。相同文件名和并行收发均独立更新。
@@ -313,7 +138,7 @@ function remember(message) {
   if (pending && pending.chat === message.chat) {
     const list = messages.get(message.chat);
     list[list.indexOf(pending)] = message;
-    if (message.chat === active && feed.contains(pending.card)) pending.card.replaceWith(fileCard(message));
+    if (message.chat === active) conversation.replaceFileCard(pending, message);
   } else {
     if (pending) {
       const previousChat = messages.get(pending.chat);
@@ -336,7 +161,7 @@ function showTransfer(event) {
   if (pending) {
     if (pending.transferState.failed || pending.transferState.completed) return;
     pending.transferState = { ...pending.transferState, ...event, queued: event.queued === true };
-    if (pending.progressView) paintProgress(pending);
+    conversation.paintProgress(pending);
   } else {
     const message = {
       chat: event.chat, self: event.sending, nick: event.peerNick, peerNick: event.peerNick,
@@ -362,15 +187,7 @@ function pruneTransfers() {
 }
 
 function drawHistory(scrollToBottom = true) {
-  const position = feed.scrollTop;
-  const fragment = document.createDocumentFragment();
-  let previous = null;
-  for (const item of messages.get(active) ?? []) {
-    appendRendered(item, previous, fragment);
-    previous = item;
-  }
-  feed.replaceChildren(fragment);
-  feed.scrollTop = scrollToBottom ? feed.scrollHeight : position;
+  conversation.render(messages.get(active) ?? [], scrollToBottom);
 }
 
 async function loadHistory(chat) {
@@ -398,7 +215,7 @@ function switchChat(id, focusCompose = true, force = false) {
       updateHeader();
     }
     if (online && focusCompose) compose.focus();
-    else if (!focusCompose) focusSession(id);
+    else if (!focusCompose) sidebar.focusSession(id);
     return;
   }
   drafts.set(active, compose.value);
@@ -411,7 +228,7 @@ function switchChat(id, focusCompose = true, force = false) {
   drawChats();
   updateHeader();
   if (online && focusCompose) compose.focus();
-  else focusSession(id);
+  else sidebar.focusSession(id);
   void loadHistory(active);
 }
 
@@ -421,16 +238,16 @@ function drawAttachments() {
   list.replaceChildren();
   for (const file of files) {
     const chat = active;
-    const item = document.createElement('div');
+    const item = doc.createElement('div');
     item.className = 'attachment';
     item.title = `${file.name} · ${presentation.formatFileSize(file.size)}`;
-    const icon = document.createElement('img');
+    const icon = doc.createElement('img');
     icon.src = file.preview || 'assets/BoxWhite.png';
     if (file.preview) icon.className = 'attachment-preview';
     icon.alt = '';
-    const name = document.createElement('span');
+    const name = doc.createElement('span');
     name.textContent = file.name;
-    const remove = document.createElement('button');
+    const remove = doc.createElement('button');
     remove.type = 'button';
     remove.textContent = '×';
     remove.setAttribute('aria-label', `移除附件 ${file.name}`);
@@ -496,7 +313,7 @@ function pickRecipient() {
   options.replaceChildren();
   for (const peer of peers.values()) {
     if (!peer.online) continue;
-    const button = document.createElement('button');
+    const button = doc.createElement('button');
     button.value = peer.id;
     button.className = 'pill';
     button.textContent = peer.nick + ' · ' + peer.ip;
@@ -506,7 +323,7 @@ function pickRecipient() {
     status('没有在线节点', true);
     return Promise.resolve('');
   }
-  const previousFocus = document.activeElement;
+  const previousFocus = doc.activeElement;
   dialog.returnValue = '';
   dialog.showModal();
   (options.querySelector('button') || byId('recipient-cancel')).focus();
@@ -573,47 +390,13 @@ function peerMenu(entry) {
 function attachMenu(anchor) {
   const labels = presentation.MENUS.attach;
   const rect = anchor.getBoundingClientRect();
-  window.LanChatOverlay.openMenu([
+  overlay.openMenu([
     { label: labels[0], icon: 'Folder', disabled: !online, run: () => { void sendFilesFor(active); } },
-    { label: labels[1], icon: 'Emoji', disabled: !online, run: () => window.LanChatOverlay.openEmoji(anchor, insertEmoji, anchor) },
+    { label: labels[1], icon: 'Emoji', disabled: !online, run: () => overlay.openEmoji(anchor, insertEmoji, anchor) },
     { label: labels[2], icon: 'Folder', disabled: !online, run: () => { void openDownloads(); } },
     { separator: true },
     { label: labels[3], icon: 'ClearDanger', danger: true, disabled: !online, run: () => { void forgetChat(active, false); } }
   ], { x: rect.left, y: rect.top - 8, above: true }, anchor);
-}
-
-async function copyText(text) {
-  if (!text) return;
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return;
-    }
-  } catch {}
-  const helper = document.createElement('textarea');
-  helper.value = text;
-  helper.style.position = 'fixed';
-  helper.style.opacity = '0';
-  document.body.append(helper);
-  helper.select();
-  document.execCommand('copy');
-  helper.remove();
-}
-
-function selectBubbleText(bubble) {
-  const selection = window.getSelection();
-  if (!selection) return;
-  const range = document.createRange();
-  range.selectNodeContents(bubble);
-  selection.removeAllRanges();
-  selection.addRange(range);
-}
-
-function bubbleSelectedText(bubble) {
-  const selection = window.getSelection();
-  if (!selection || selection.isCollapsed || !selection.rangeCount) return '';
-  const range = selection.getRangeAt(0);
-  return bubble.contains(range.commonAncestorContainer) ? selection.toString() : '';
 }
 
 async function openDownloads() {
@@ -626,7 +409,7 @@ async function openDownloads() {
 
 async function confirmForget(key, removePeer) {
   const name = peers.get(key)?.nick || '未知节点';
-  const accepted = await window.LanChatOverlay.confirmAction(removePeer ? {
+  const accepted = await overlay.confirmAction(removePeer ? {
     title: '删除确认',
     message: `确定要删除好友“${name}”及全部历史消息吗？\n删除后历史记录将无法恢复。`,
     confirmLabel: '删除'
@@ -673,7 +456,7 @@ async function forgetChat(key, removePeer) {
 }
 
 byId('attach').addEventListener('click', () => {
-  if (window.LanChatOverlay.consumeAttachToggle()) return;
+  if (overlay.consumeAttachToggle()) return;
   attachMenu(byId('attach'));
 });
 byId('conversation').addEventListener('file-error', event => status(event.detail, true));
@@ -687,28 +470,6 @@ byId('conversation').addEventListener('file-drop', async event => {
   } catch (error) {
     status(error.message, true);
   }
-});
-feed.addEventListener('contextmenu', event => {
-  const bubble = event.target.closest('.bubble');
-  if (!bubble) return;
-  event.preventDefault();
-  const full = bubble.textContent || '';
-  const selected = bubbleSelectedText(bubble);
-  window.LanChatOverlay.openMenu([
-    { label: '复制', icon: 'Copy', hint: 'Ctrl+C', run: () => { void copyText(selected || full); } },
-    { label: '复制全文', icon: 'Copy', run: () => { void copyText(full); } },
-    { separator: true },
-    { label: '全选', icon: 'User', hint: 'Ctrl+A', keepSelection: true, run: () => selectBubbleText(bubble) }
-  ], { x: event.clientX, y: event.clientY }, bubble);
-});
-feed.addEventListener('keydown', event => {
-  if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'a') return;
-  const anchorNode = window.getSelection()?.anchorNode;
-  const anchorEl = anchorNode?.nodeType === 1 ? anchorNode : anchorNode?.parentElement;
-  const bubble = document.activeElement?.closest?.('.bubble') || anchorEl?.closest?.('.bubble');
-  if (!bubble || !feed.contains(bubble)) return;
-  event.preventDefault();
-  selectBubbleText(bubble);
 });
 byId('compose').addEventListener('submit', event => { event.preventDefault(); void sendCompose(); });
 compose.addEventListener('files-pasted', event => {
@@ -744,46 +505,13 @@ compose.addEventListener('keydown', event => {
   event.preventDefault();
   void sendCompose();
 });
-byId('search').addEventListener('input', () => {
-  window.LanChatOverlay.closeMenu();
-  byId('search-clear').hidden = !byId('search').value;
-  drawChats();
-  byId('search').focus();
-});
-byId('search').addEventListener('keydown', event => {
-  if (event.key !== 'Escape' || !byId('search').value) return;
-  event.preventDefault();
-  byId('search').value = '';
-  byId('search-clear').hidden = true;
-  drawChats();
-  byId('search').focus();
-});
-byId('search-clear').addEventListener('click', () => {
-  byId('search').value = '';
-  byId('search-clear').hidden = true;
-  drawChats();
-  byId('search').focus();
-});
-byId('chats').addEventListener('keydown', event => {
-  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-  const rows = [...byId('chats').querySelectorAll('.chat')];
-  if (!rows.length) return;
-  const index = rows.findIndex(button => button.dataset.key === active);
-  const next = index < 0
-    ? (event.key === 'ArrowDown' ? rows[0] : rows.at(-1))
-    : rows[index + (event.key === 'ArrowDown' ? 1 : -1)];
-  if (!next) return;
-  event.preventDefault();
-  switchChat(next.dataset.key, false);
-});
-byId('chats').addEventListener('scroll', () => window.LanChatOverlay.closeMenu());
 byId('quit').addEventListener('click', () => api?.quit());
 
 // 设置窗口独立为 1260×820 模态子窗体，主窗仅负责触发打开与焦点恢复。
 let settingsTrigger = null;
 byId('open-settings').addEventListener('click', async () => {
   try {
-    settingsTrigger = document.activeElement;
+    settingsTrigger = doc.activeElement;
     await api.openSettings();
   } catch (error) {
     status(error.message, true);
@@ -929,7 +657,7 @@ function handleEvent(event) {
     for (const item of transfers.values()) {
       const state = item.transferState;
       if (!state.completed && !state.failed) state.unknown = true;
-      if (item.progressView) paintProgress(item);
+      conversation.paintProgress(item);
     }
     pruneTransfers();
     status(event.data, true);

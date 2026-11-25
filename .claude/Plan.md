@@ -11,8 +11,9 @@
 
 ## LC-CHAT-COMPOSER-001 · 实机延期验收
 
-- [ ] 真实双机新旧版本互通、Windows 截图工具键盘粘贴、Linux Xorg/Wayland/XWayland 剪贴板、最新 ELF 实跑仍待用户环境执行。
-- [ ] ` LC-CC-003 ` 至 ` LC-CC-006 ` 按 ` CRDocs/DEFERRED.md ` 的触发阶段处理。` renderer.js ` 继续保持下次扩展前先按职责拆分。
+- [x] `LC-CC-005` 已完成图文混合剪贴板优先级、首次右键暗色菜单和输入框复制/剪切/全选入口，宿主机回归通过，等待独立审核。
+- [x] `LC-CC-006` 已完成组合表情像素命中、跨 CRLF 复制、切会话草稿隔离/恢复和关闭清理断言，宿主机回归通过，等待独立审核。
+- [ ] 真实双机新旧版本互通、Windows 截图工具/Excel/WPS 键盘粘贴、Linux Xorg/Wayland/XWayland 剪贴板、最新 ELF 实跑仍待用户环境执行。
 
 ## LC-LINUX-002 · Linux 桌面验收
 

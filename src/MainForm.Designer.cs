@@ -472,6 +472,8 @@ namespace LanChat
                 _txtInput.Visible = true;
                 _txtInput.Focus();
                 _inputPanel.Invalidate();
+                if (e.Button == MouseButtons.Right)
+                    _txtInput.ShowContextMenuAt(_inputPanel.PointToScreen(e.Location));
             };
             _inputPanel.AllowDrop = true;
             _inputPanel.DragEnter += MainForm_DragEnter;

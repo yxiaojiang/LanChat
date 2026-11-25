@@ -85,6 +85,26 @@ namespace LanChat
             catch { }
         }
 
+        // 仅供应用托管截图使用，写入或关闭报错后复读，避免删除已被有效记录引用的图片。
+        internal static bool TryAppendFileReference(string sessionKey, ChatMessage msg)
+        {
+            try
+            {
+                AppendMessage(sessionKey, msg);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                if (!(ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException)) throw;
+                return HasFileReference(sessionKey, msg.FilePath);
+            }
+        }
+
+        internal static bool HasFileReference(string sessionKey, string path)
+        {
+            return LoadHistory(sessionKey).Exists(value => value.IsFile && value.FilePath == path);
+        }
+
         // Linux 桌面需要向用户报告落盘错误，共用同一写入格式。
         internal static void AppendMessage(string sessionKey, ChatMessage msg)
         {

@@ -40,7 +40,8 @@ namespace LanChat
             _bottomSendPanel.Controls.Add(_attachmentList);
             Disposed += (sender, e) =>
             {
-                foreach (string path in new List<string>(_draftImagePreviews.Keys)) ReleaseDraftImage(path, true);
+                foreach (string path in new List<string>(_draftImagePreviews.Keys)) ReleaseDraftImage(path);
+                if (_fileController != null) _fileController.DiscardOutgoingPastes();
             };
         }
 
@@ -102,7 +103,7 @@ namespace LanChat
             string key = _activeChatKey;
             var paths = GetAttachmentDraft(key);
             if (paths == null || index < 0 || index >= paths.Count) return;
-            ReleaseDraftImage(paths[index], true);
+            ReleaseDraftImage(paths[index]);
             paths.RemoveAt(index);
             if (paths.Count == 0) _attachmentDrafts.Remove(key);
             RefreshAttachmentDraft();
@@ -120,7 +121,7 @@ namespace LanChat
                 return;
             }
 
-            // 已提交的图片保留本机副本，发送线程与聊天历史可以继续打开原图。
+            // 截图以独占方式创建，发送时将清理责任交给文件传输控制器。
             string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LanChat", "PastedImages");
             string path = Path.Combine(directory, "截图-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N").Substring(0, 12) + ".png");
             Bitmap preview = null;
@@ -144,7 +145,7 @@ namespace LanChat
             catch (Exception ex)
             {
                 if (preview != null) preview.Dispose();
-                if (created) DeleteDraftImage(path);
+                if (created) FileTransferController.DeleteManagedImage(path);
                 if (!(ex is IOException || ex is UnauthorizedAccessException || ex is ExternalException || ex is ArgumentException)) throw;
                 GrokMessageBox.Show(this, "无法保存剪贴板图片。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -155,28 +156,27 @@ namespace LanChat
             RefreshAttachmentDraft();
         }
 
-        private void ClearAttachmentDraft(string key, bool deleteImage)
+        private void ClearAttachmentDraft(string key)
         {
             var paths = GetAttachmentDraft(key);
             if (paths == null) return;
-            foreach (string path in paths) ReleaseDraftImage(path, deleteImage);
+            foreach (string path in paths) ReleaseDraftImage(path);
             _attachmentDrafts.Remove(key);
         }
 
-        private void ReleaseDraftImage(string path, bool deleteImage)
+        // 发送批次只接管实际入队的截图，释放预览并保留原 PNG 给传输线程。
+        private bool TakeDraftImage(string path)
         {
             Image preview;
-            if (!_draftImagePreviews.TryGetValue(path, out preview)) return;
+            if (!_draftImagePreviews.TryGetValue(path, out preview)) return false;
             _draftImagePreviews.Remove(path);
             preview.Dispose();
-            if (deleteImage) DeleteDraftImage(path);
+            return true;
         }
 
-        private static void DeleteDraftImage(string path)
+        private void ReleaseDraftImage(string path)
         {
-            try { File.Delete(path); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+            if (TakeDraftImage(path)) FileTransferController.DeleteManagedImage(path);
         }
 
         private void RefreshAttachmentDraft()
@@ -317,14 +317,14 @@ namespace LanChat
             return null;
         }
 
-        private bool SendFilesToPeer(PeerInfo peer, string[] filePaths)
+        private bool SendFilesToPeer(PeerInfo peer, string[] filePaths, Func<string, bool> takeDraftImage = null)
         {
             if (peer.TcpPort <= 0)
             {
                 GrokMessageBox.Show(this, "好友当前离线，暂时无法发送文件。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return false;
             }
-            if (_fileController == null || _fileController.SendFiles(peer, filePaths) == 0)
+            if (_fileController == null || _fileController.SendFiles(peer, filePaths, takeDraftImage) == 0)
             {
                 GrokMessageBox.Show(this, "选中的文件已不可用。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;

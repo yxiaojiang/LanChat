@@ -257,13 +257,14 @@ namespace LanChat
         }
 
         /// <summary>将已经在会话内存中的文件气泡写入历史。清空后的旧气泡不会重新写回。</summary>
-        internal bool PersistExistingMessage(string sessionKey, ChatMessage message)
+        internal bool PersistExistingMessage(string sessionKey, ChatMessage message, bool confirmStorage = false)
         {
             lock (_lock)
             {
                 sessionKey = ResolveKey(sessionKey);
                 List<ChatMessage> messages;
                 if (!_histories.TryGetValue(sessionKey, out messages) || !messages.Contains(message)) return false;
+                if (confirmStorage) return ChatHistoryService.TryAppendFileReference(sessionKey, message);
                 ChatHistoryService.SaveMessage(sessionKey, message);
                 return true;
             }

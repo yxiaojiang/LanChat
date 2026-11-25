@@ -1,3 +1,97 @@
+# LC-CC-005 / LC-CC-006 — Windows 输入区与选区/草稿用例
+
+> 2026-11-25 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 工作区交付
+
+## 实际改动
+
+- `ChatInputBox` 在图文混合剪贴板中优先读取非空 Unicode 文本。文本存在时不再把位图当作截图附件，普通文本粘贴继续交给原生输入流程。输入框右键统一使用暗色菜单，保留粘贴、粘贴附件、复制、剪切和全选入口。输入框隐藏时，外层输入胶囊首次右键直接转交同一菜单。
+- `ChatComposerRegression` 增加 Excel/WPS 类图文并存 `DataObject` 的优先级断言，并确认纯位图仍保留附件入口。
+- `FriendRefreshRegression` 增加真实 `WeChatChatView` 视觉行像素命中扫描，所有命中点都必须位于 `ChatTextLayout.NextBoundary` 边界。新增跨 CRLF 原文复制、切换好友会话后草稿隔离、切回后恢复和关闭窗体清理未发送截图断言，并验证隐藏输入框第一次右键能弹出 `GrokPopupMenu`。
+- 未修改 LANC 封包、历史 JSONL 字段、传输协议或用户原始文件清理策略。
+
+## Windows 宿主机验证
+
+| 实际命令 | 结果 |
+| --- | --- |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 返回 0。输出 `LC-CC-005: Windows 图文混合剪贴板优先级断言通过`，并通过既有 Emoji、PNG、LANC、历史回读及 LC-CC-004 回归。 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 返回 0。好友刷新、网卡重绑、侧栏交互、LC-CC-005 首次右键暗色菜单、LC-CC-006 像素命中/跨 CRLF/会话草稿/关闭清理全部通过。 |
+| `cmd.exe /d /c "Tools\Scripts\Compile.bat < nul"` | 在 Windows 隔离编译目录返回 0，生成 `LanChat.exe` 与 `uninstall.exe`。 |
+| `C:/Program Files/nodejs/node.exe --check <桌面与测试 JS/CJS>` | 15 个桌面和 Node 回归文件均返回 0。 |
+| `C:/Program Files/nodejs/node.exe tests/linux_desktop_ui_regression.js` | 返回 0，输出 `linux desktop ui regression: ok`。 |
+| `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false` | 返回 0，0 警告、0 错误。 |
+| `git diff --check` | 返回 0，无空白错误。 |
+
+## 行数与未验证边界
+
+本轮变更的手写源码和测试文件均低于 1000 行软门禁：`ChatInputBox.cs` 184 行、`MainForm.Designer.cs` 690 行、`ChatComposerRegression.cs` 295 行、`FriendRefreshRegression.cs` 472 行。工作区最高仍为 `tests/linux_desktop_ui_regression.js` 922 行。
+
+Windows 真实截图工具与 Excel/WPS 桌面剪贴板仍未在用户实际桌面取证。Linux Xorg、Wayland、XWayland、最新 ELF 实跑及真实双机联测仍待环境验收，保留于 [DEFERRED.md](DEFERRED.md)。
+
+---
+
+# LC-CC-004 — 截图发送失败与退出清理
+
+> 2026-11-25 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 工作区交付
+
+## 实际改动
+
+- Windows 从草稿预览登记中移交实际入队的应用截图。普通文件继续沿用原发送入口。控制器在 TCP 完成回调中同步确认截图历史写入，并与窗体退出清理使用同一把锁。拒收、断连、写入失败且无有效引用时删除应用截图。发送成功且历史已写入的截图即使在 UI 句柄失效时也保留。退出允许删除仍由发送线程打开的托管截图，普通文件保持原读取共享模式。
+- Linux 主进程跟踪截图创建、丢弃、发送预检及后台队列。发送预检失败时可重试，退出已开始时直接清理预检持有的应用截图。退出停止后端并等待清理收尾，排队附件停止派发。文件响应和消息事件返回托管截图的历史写入结果，主进程在后端管道关闭前仍接收晚到的已落盘消息。后端异常退出且在途结果无法确认时保留该截图，避免丢失可能已写入的历史附件。用户文件按创建来源与应用截图区分。
+- 两端继续使用原 LANC 文件报价帧和确认字节，JSONL 继续使用原字段与序列化。Linux 的 `managedPaste` 和 `historySaved` 仅用于本地 Electron 与后端管道。
+
+## Windows 宿主机验证
+
+| 实际命令 | 结果 |
+| --- | --- |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 返回 0。新增对端拒收、读完 PNG 后断连、历史写入失败、退出与最终 ACK 交叠、无 UI 句柄时写入成功、保留同目录用户同名模式文件的回环断言。原 Emoji、剪贴板数据、LANC 与历史回读回归通过。 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 返回 0。原生编译、好友刷新、网卡重绑、WinForms 侧栏交互与截图草稿暂存及移除通过。 |
+| `C:/Program Files/nodejs/node.exe --check <文件>` | 桌面目录 13 个 JS/CJS 和 2 个 Node 回归脚本均返回 0。 |
+| `C:/Program Files/nodejs/node.exe tests/linux_desktop_ui_regression.js` | 返回 0，输出 `linux desktop ui regression: ok`。真实主进程处理器配合 IPC 桩与临时目录，覆盖预检失败后重试、混合批次拒收与断连、写入结果、退出期间预检成功与失败、队列停止、管道晚到确认、正常与异常后端退出、原文件保留。 |
+| `cmd.exe /d /c 'Tools\Scripts\Compile.bat < nul'` | 在隔离的 `bin/lc-cc-004-compile/` 工作目录调用原脚本，返回 0。生成 `LanChat.exe` 与 `uninstall.exe`。 |
+| `csc.exe /nologo /codepage:65001 /target:exe /r:<隔离目录>/LanChat.exe /out:<隔离目录>/ConcurrentReceive.exe tests/ConcurrentReceive.cs`，随后运行 `ConcurrentReceive.exe <隔离接收目录>` | 编译、运行均返回 0。输出 `Final ACK: 1, 1; Complete events: 2`，两份同名文件的 SHA-256 校验通过。 |
+| `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false` | 返回 0，0 警告、0 错误。 |
+| `pwsh -NoProfile -File bin/lc-cc-004-backend/verify.ps1` | 返回 0。忽略目录的临时夹具加载上述 `lanchat.dll`，使用隔离 TCP 回环与历史目录验证后端实际响应和事件。输出 `stored OK`、`blocked OK`、`rejected OK`、`stopping OK`。 |
+| `git diff --check` | 返回 0，无空白错误。 |
+
+## 行数与待验证环境
+
+按编辑器行号，LC-CC-004 改动的手写源码和测试文件均低于 1000 行。`FileTransferController.cs` 331 行、`MainForm.Chat.cs` 589 行、`MainForm.Files.cs` 386 行、`NetworkService.Transfer.cs` 434 行、`ChatHistoryService.cs` 476 行、`SessionManager.cs` 390 行、`DesktopService.cs` 476 行、`main.cjs` 611 行、`service.cjs` 117 行、`ChatComposerRegression.cs` 274 行、`linux_desktop_ipc_regression.js` 393 行。含已放行的 LC-CC-003 工作区变更，手写源码与测试最高为 923 行。
+
+Linux Xorg、Wayland、XWayland 上的 Electron 实机截图和退出、最新 Linux ELF 实跑、真实双机拒收与断连及新旧版联测仍待取证。 [跨环境验收](DEFERRED.md)
+
+---
+
+# LC-CC-003 — Linux 侧栏摘要与表情回显
+
+> 2026-11-25 · 执行者 Codex · 状态 `WAITING_FOR_GROK`
+
+## 实际改动
+
+- 先拆分原 961 行的 `renderer.js`。`session-sidebar.js` 负责会话行、分组、搜索、方向键与侧栏菜单锚点。`conversation-view.js` 负责气泡、文件卡片、进度呈现、聊天滚动与复制。主控制器持有会话、历史加载、发送和传输状态。`index.html` 在主控制器前加载两个视图，打包器按桌面目录收录这两个文件。
+- `presentation.js` 使用 `Intl.Segmenter` 的字素边界，将导入清单语法匹配的 `[名称]` 当作一个元素。群聊 20、私聊 16 的阈值及超出时追加 `...` 的行为继续适用。启动时 `DesktopService` 传递最后一条归档消息的完整摘要来源文本，归档与实时摘要都在渲染端截断。`state.sessions[].summary` 仍是字符串，保留既有群聊昵称前缀和文件标签。LANC 帧和历史 JSONL 格式沿用原结构。
+- 侧栏与聊天气泡共用行内表情渲染。已导入的令牌显示图片，资源缺失或图片解码失败时显示原 `[名称]`。侧栏令牌使用行内盒，沿用原单行省略样式、9.5pt 基准字号和表情图尺寸。
+
+## 回归与证据
+
+| 命令或夹具 | Windows 宿主机实测结果 |
+| --- | --- |
+| `node --check`，桌面目录 13 个 JS/CJS 与 2 个 Node 回归文件 | 15 个文件均返回 0。使用 `C:/Program Files/nodejs/node.exe` v24.18.0。 |
+| `node tests/linux_desktop_ui_regression.js` | 返回 0，输出 `linux desktop ui regression: ok`。断言 👨‍👩‍👧‍👦、👍🏽、🇨🇳、`[敲打]` 在恰好达限、保留边界和舍弃边界均完整。覆盖归档私聊和实时群聊的表情图片、无表情包、单项资源缺失和图片错误回退。原 IPC、好友分组、键盘导航、历史竞态、文件进度和截图草稿用例一并通过。 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 返回 0。Windows Emoji 整段测量和像素对照、本地表情、剪贴板数据、LANC 回环与历史回读通过。 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 返回 0。原生编译、好友刷新和网卡重绑、会话列表键盘/滑块、分组尺寸与截图草稿回归通过。 |
+| `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false` | 返回 0，0 警告、0 错误。 |
+| Windows PowerShell 7 临时归档夹具 | 加载上述构建的程序集，读取临时 JSONL，直接调用 `DesktopService` 的 `state` 处理路径。返回的群聊和私聊 `summary` 与完整原文一致。夹具未启动网络服务。 |
+| Windows Edge Headless 临时页面夹具 | 使用应用页面、样式和生产脚本，只替换桌面桥接。实际解码侧栏和气泡中的 PNG，并核对无资源和坏图时令牌文字的 DOM 与样式。 |
+| `git diff --check` | 返回 0，无空白错误。 |
+
+## 行数与未验证边界
+
+按编辑器行号计，新增及修改的手写文件均低于 1000 行。 `renderer.js` 690 行，`session-sidebar.js` 146 行，`conversation-view.js` 194 行，`presentation.js` 201 行，`desktop.css` 192 行，`index.html` 90 行，`DesktopService.cs` 471 行，`linux_desktop_ui_regression.js` 923 行。
+
+Linux Xorg、Wayland、XWayland 的实际 Electron 窄侧栏摘录、Emoji 字形、系统剪贴板和 DPI 暂无实测。最新 ELF 的 Linux/QEMU 网络命名空间回归及双机新旧端联测仍待取证。 [跨环境验收](DEFERRED.md)
+
+---
+
 # LC-CHAT-COMPOSER-001 — Round 2 整改交接
 
 > 2026-11-24 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 交付为未提交工作区

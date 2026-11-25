@@ -10,7 +10,7 @@ namespace LanChat
     /// <summary>
     /// 文件传输业务控制器
     /// <para>【职责】接管文件流式发送、分块进度、落盘校验、打开文件及定位文件目录等与系统的交互操作。</para>
-    /// <para>【线程安全】底层 TCP Socket 传输事件均通过注入的 ISynchronizeInvoke 统一安全切回 UI 主线程。</para>
+    /// <para>【线程安全】界面通知经 ISynchronizeInvoke 调度，应用截图的落盘与退出清理由控制器同步。</para>
     /// </summary>
     public class FileTransferController
     {
@@ -19,6 +19,8 @@ namespace LanChat
         private readonly ISynchronizeInvoke _sync;
         // 收件先有进度、后有最终路径，按会话和传输号关联同一气泡。
         private readonly Dictionary<Tuple<string, string>, ChatMessage> _incoming = new Dictionary<Tuple<string, string>, ChatMessage>();
+        // 仅跟踪已从草稿接管且尚未写入历史的应用截图。
+        private readonly HashSet<string> _outgoingPastes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>向界面通知文件气泡、会话键以及是否是首次追加。</summary>
         internal event Action<ChatMessage, string, bool> TransferMessageChanged;
@@ -75,6 +77,12 @@ namespace LanChat
         /// <returns>进入传输的文件数。</returns>
         public int SendFiles(PeerInfo peer, string[] filePaths)
         {
+            return SendFiles(peer, filePaths, null);
+        }
+
+        // 草稿回调只交出实际入队的应用截图，普通文件不移交清理责任。
+        internal int SendFiles(PeerInfo peer, string[] filePaths, Func<string, bool> takeDraftImage)
+        {
             if (_netService == null || peer == null || peer.TcpPort <= 0 || filePaths == null) return 0;
 
             string convKey = _sessionManager.ResolveKey(SessionManager.GetLanKey(peer.Id, peer.IP));
@@ -115,6 +123,11 @@ namespace LanChat
             foreach (ChatMessage message in batch)
             {
                 ChatMessage fileMsg = message;
+                bool managed = takeDraftImage != null && takeDraftImage(fileMsg.FilePath);
+                if (managed)
+                {
+                    lock (_outgoingPastes) _outgoingPastes.Add(fileMsg.FilePath);
+                }
                 _netService.SendFileAsync(peer, fileMsg.FilePath, progress =>
                 {
                     var snapshot = progress.Snapshot();
@@ -126,16 +139,47 @@ namespace LanChat
                     });
                 }, (success, reason) =>
                 {
+                    bool saved = false;
+                    if (managed)
+                    {
+                        // 即使窗体已销毁，传输结果也必须与退出清理按同一顺序结算。
+                        lock (_outgoingPastes)
+                        {
+                            if (!_outgoingPastes.Remove(fileMsg.FilePath)) return;
+                            saved = success && _sessionManager.PersistExistingMessage(convKey, fileMsg, confirmStorage: true);
+                            if (!saved) DeleteManagedImage(fileMsg.FilePath);
+                        }
+                    }
                     if (!success) return;
                     SafeInvoke(() =>
                     {
                         fileMsg.TransferProgress = null;
-                        _sessionManager.PersistExistingMessage(convKey, fileMsg);
+                        if (managed)
+                        {
+                            if (!saved) fileMsg.FilePath = null;
+                        }
+                        else _sessionManager.PersistExistingMessage(convKey, fileMsg);
                         PublishTransferMessage(fileMsg, convKey, false);
                     });
-                });
+                }, managed);
             }
             return batch.Count;
+        }
+
+        internal void DiscardOutgoingPastes()
+        {
+            lock (_outgoingPastes)
+            {
+                foreach (string path in _outgoingPastes) DeleteManagedImage(path);
+                _outgoingPastes.Clear();
+            }
+        }
+
+        internal static void DeleteManagedImage(string path)
+        {
+            try { File.Delete(path); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
         }
 
         private void PublishTransferMessage(ChatMessage message, string key, bool added)

@@ -14,6 +14,9 @@ const settingsPageUrl = pathToFileURL(settingsPage).href;
 const allowedFilePaths = new Set();
 const pendingDrops = new Map();
 const pendingPastes = new Map();
+// 主进程持有截图清理责任，直到后端确认历史已引用该路径。
+const sendingPastes = new Map();
+const pasteOperations = new Set();
 const maxFiles = 32;
 const maxPastedImageBytes = 64 * 1024 * 1024;
 let window;
@@ -41,7 +44,11 @@ function startService() {
   service = child;
   child.on('event', event => {
     if (service !== child) return;
-    if (event?.event === 'message') recordMessagePaths(event.data);
+    if (event?.event === 'message') {
+      const paste = sendingPastes.get(event.data.path);
+      if (paste && event.data.historySaved === true) paste.saved = true;
+      recordMessagePaths(event.data);
+    }
     forward(event);
   });
   child.on('disconnect', error => {
@@ -238,7 +245,7 @@ async function stagePastedFiles(paths, imageBytes, allowImage) {
     else if (imageBytes != null) throw new Error('无法读取剪贴板图片');
   }
   if (exiting) {
-    await Promise.all(files.filter(file => file.preview).map(file => unlink(file.path).catch(() => {})));
+    await Promise.all(files.map(deleteOwnedPaste));
     return [];
   }
   return files.map(file => {
@@ -276,7 +283,7 @@ async function stageClipboardImage(image) {
   if (png.length > maxPastedImageBytes) throw new Error('剪贴板图片超过 64 MiB');
   const { width, height } = image.getSize();
   const preview = image.resize(width >= height ? { width: 48 } : { height: 48 }).toDataURL();
-  // 已提交的 PNG 保留本机副本，草稿取消时只删除应用自己创建的图片。
+  // 只为应用独占创建的图片设置清理标记。
   const directory = join(app.getPath('userData'), 'PastedImages');
   const name = '截图-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '-' + randomUUID().slice(0, 12) + '.png';
   const path = join(directory, name);
@@ -288,14 +295,23 @@ async function stageClipboardImage(image) {
     await unlink(path).catch(() => {});
     throw error;
   }
-  return { path, name, size: png.length, preview };
+  return { path, name, size: png.length, preview, managed: true };
+}
+
+async function deleteOwnedPaste(file) {
+  if (file?.managed && !file.saved) await unlink(file.path).catch(() => {});
+}
+
+function trackPasteOperation(operation) {
+  pasteOperations.add(operation);
+  return operation.finally(() => pasteOperations.delete(operation));
 }
 
 async function discardPastedFiles(ids) {
   await Promise.all(ids.map(async id => {
     const file = pendingPastes.get(id);
     pendingPastes.delete(id);
-    if (file?.preview) await unlink(file.path).catch(() => {});
+    await deleteOwnedPaste(file);
   }));
 }
 
@@ -325,33 +341,62 @@ async function dispatchFiles(chat, files, waitForResult = true) {
   fileRecipient(chat);
   const child = service;
   const peer = (await child.request('peers')).find(item => item.id === chat);
+  if (exiting) throw new Error('应用正在退出');
   if (service !== child || child.disconnected) throw new Error('通信服务已断开，请重新连接后发送');
   if (!peer) throw new Error('好友当前离线，暂时无法发送文件');
-  const batch = files.map(({ path, name, size }) => ({ path, progress: {
+  const batch = files.map(file => ({ file, progress: {
     event: 'progress', operation: randomUUID(), chat: peer.key, peerNick: peer.nick,
-    name, total: size, sending: true
+    name: file.name, total: file.size, sending: true
   } }));
   // 先显示整批的待发送气泡，仍沿用逐个发送，避免一次打开多条大文件流。
   for (const { progress } of batch) forward({ ...progress, queued: true, received: 0 });
   const send = async () => {
     const results = [];
-    for (const { path, progress } of batch) {
+    for (const { file, progress } of batch) {
+      const { path, managed } = file;
       try {
-        await child.request('file', { chat, path }, progress.operation);
-        allowedFilePaths.add(resolve(path));
+        if (exiting) throw new Error('应用正在退出');
+        if (managed) sendingPastes.set(path, file);
+        const result = await child.request('file', managed ? { chat, path, managedPaste: true } : { chat, path }, progress.operation);
+        if (managed && result?.historySaved === true) file.saved = true;
+        if (!managed || file.saved) allowedFilePaths.add(resolve(path));
         results.push({ ok: true });
       } catch (error) {
         // 文件在排队时被删除等失败可能发生在通信服务发出首帧之前。
         if (service === child && !child.disconnected)
           forward({ ...progress, queued: false, failed: true, error: error.message });
         results.push({ ok: false, error: error.message });
+      } finally {
+        if (managed) {
+          // 请求可能先被断开，管道仍有已经落盘的消息事件，等子进程关闭后再清理。
+          // 子进程异常退出时无法确认落盘与回执之间的状态，保留可能已被引用的图片。
+          const canDelete = !sendingPastes.has(path) || !child.disconnected || await child.stop();
+          sendingPastes.delete(path);
+          if (canDelete) await deleteOwnedPaste(file);
+        }
       }
     }
     return results;
   };
   const result = send();
   if (waitForResult) return result;
-  void result.catch(error => forward({ event: 'file-error', data: error.message }));
+  void trackPasteOperation(result).catch(error => forward({ event: 'file-error', data: error.message }));
+}
+
+async function sendPastedFiles(chat, ids) {
+  if (!Array.isArray(ids) || !ids.length || ids.length > maxFiles || new Set(ids).size !== ids.length)
+    throw new Error(`一次最多发送 ${maxFiles} 个文件`);
+  const files = ids.map(id => pendingPastes.get(id));
+  if (files.some(file => !file)) throw new Error('粘贴的文件已不可用，请重新粘贴');
+  for (const id of ids) pendingPastes.delete(id);
+  try {
+    await dispatchFiles(chat, files, false);
+  } catch (error) {
+    // 退出后不能重新登记草稿，预检已接管的图片在这里结算。
+    if (exiting) await Promise.all(files.map(deleteOwnedPaste));
+    else ids.forEach((id, i) => pendingPastes.set(id, files[i]));
+    throw error;
+  }
 }
 
 async function sendFiles(chat, paths) {
@@ -406,7 +451,9 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
     event.preventDefault();
     if (exiting) return;
     exiting = true;
-    Promise.allSettled([service.stop(), discardPastedFiles([...pendingPastes.keys()])]).finally(() => {
+    Promise.allSettled([
+      service.stop(), discardPastedFiles([...pendingPastes.keys()]), ...pasteOperations
+    ]).finally(() => {
       stopped = true;
       app.quit();
     });
@@ -517,24 +564,12 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
     });
     handle('drop-files', sendFiles);
     handle('emoji-pack', () => readEmojiPack());
-    handle('stage-paste', stagePastedFiles);
+    handle('stage-paste', (...args) => trackPasteOperation(stagePastedFiles(...args)));
     handle('discard-paste', ids => {
       if (!Array.isArray(ids)) throw new Error('附件列表无效');
-      return discardPastedFiles(ids);
+      return trackPasteOperation(discardPastedFiles(ids));
     });
-    handle('send-paste', async (chat, ids) => {
-      if (!Array.isArray(ids) || !ids.length || ids.length > maxFiles || new Set(ids).size !== ids.length)
-        throw new Error(`一次最多发送 ${maxFiles} 个文件`);
-      const files = ids.map(id => pendingPastes.get(id));
-      if (files.some(file => !file)) throw new Error('粘贴的文件已不可用，请重新粘贴');
-      for (const id of ids) pendingPastes.delete(id);
-      try {
-        await dispatchFiles(chat, files, false);
-      } catch (error) {
-        ids.forEach((id, i) => pendingPastes.set(id, files[i]));
-        throw error;
-      }
-    });
+    handle('send-paste', (...args) => trackPasteOperation(sendPastedFiles(...args)));
     handle('stage-drop', async paths => {
       const files = await validateLocalFiles(paths);
       const token = randomUUID();

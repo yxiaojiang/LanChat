@@ -24,7 +24,7 @@ class Service extends EventEmitter {
       this.#child.once('error', error => this.#disconnect(error));
       this.#child.once('close', (code, signal) => {
         this.#disconnect(new Error(lastDiagnostic || `通信服务已退出（${signal ?? code}）`));
-        resolve();
+        resolve(code === 0);
       });
     });
     this.ready = new Promise((resolve, reject) => {
@@ -76,7 +76,7 @@ class Service extends EventEmitter {
     this.#child.stdin.end();
     const timer = setTimeout(() => this.#child.kill('SIGKILL'), 5000);
     try {
-      await this.closed;
+      return await this.closed;
     } finally {
       clearTimeout(timer);
     }

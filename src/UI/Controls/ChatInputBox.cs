@@ -35,16 +35,38 @@ namespace LanChat
         protected override void WndProc(ref Message m)
         {
             if (m.Msg == PasteMessage && TryPasteAttachment()) return;
-            // 原生右键菜单会对纯附件禁用粘贴，通过暗色菜单补足入口。
-            if (m.Msg == ContextMenuMessage && HasClipboardAttachment())
+            // 输入框和外层胶囊统一使用暗色菜单，避免首次右键仍落回原生白底菜单。
+            if (m.Msg == ContextMenuMessage)
             {
                 Point location = m.LParam == new IntPtr(-1) ? new Point(0, Height) : PointToClient(Cursor.Position);
-                var menu = new GrokPopupMenu();
-                menu.AddItem("粘贴附件", WeChatIconType.Folder, () => TryPasteAttachment(), "Ctrl+V");
-                menu.Show(this, location);
-                return;
+                if (ShowContextMenuAt(PointToScreen(location))) return;
             }
             base.WndProc(ref m);
+        }
+
+        /// <summary>在屏幕坐标处显示输入区暗色菜单，供隐藏输入框的外层胶囊复用。</summary>
+        /// <param name="screenPoint">菜单左上角屏幕坐标。</param>
+        /// <returns>菜单已显示时返回 true。</returns>
+        internal bool ShowContextMenuAt(Point screenPoint)
+        {
+            IDataObject data = ReadClipboard();
+            bool hasText = HasClipboardText(data);
+            bool hasAttachment = HasClipboardAttachment(data, hasText);
+            bool hasSelection = SelectionLength > 0;
+            if (!hasText && !hasAttachment && !hasSelection && TextLength == 0) return false;
+
+            var menu = new GrokPopupMenu();
+            if (hasText)
+                menu.AddItem("粘贴", WeChatIconType.Copy, () => PasteClipboardText(), "Ctrl+V");
+            if (hasAttachment)
+                menu.AddItem("粘贴附件", WeChatIconType.Folder, () => TryPasteAttachment(), "Ctrl+V");
+            if (hasText || hasAttachment) menu.AddSeparator();
+            if (hasSelection)
+                menu.AddItem("复制", WeChatIconType.Copy, Copy, "Ctrl+C")
+                    .AddItem("剪切", WeChatIconType.Scissors, Cut, "Ctrl+X");
+            if (TextLength > 0) menu.AddItem("全选", WeChatIconType.User, SelectAll, "Ctrl+A");
+            menu.ShowAt(screenPoint, this);
+            return true;
         }
 
         private bool TryPasteAttachment()
@@ -57,6 +79,8 @@ namespace LanChat
                 FilesPasted(paths);
                 return true;
             }
+            // 图文并存时优先保留文字，避免 Excel/WPS 单元格被误判为截图。
+            if (HasClipboardText(data)) return false;
             if (ImagePasted == null) return false;
             using (Image image = ReadClipboardImage(data))
             {
@@ -70,12 +94,47 @@ namespace LanChat
         {
             IDataObject data = ReadClipboard();
             if (data == null) return false;
+            return HasClipboardAttachment(data, HasClipboardText(data));
+        }
+
+        private static bool HasClipboardAttachment(IDataObject data, bool hasText)
+        {
+            if (data == null || hasText) return false;
             try
             {
-                return (FilesPasted != null && data.GetDataPresent(DataFormats.FileDrop, false)) ||
-                    (ImagePasted != null && (data.GetDataPresent("PNG", false) || data.GetDataPresent(DataFormats.Bitmap)));
+                return (data.GetDataPresent(DataFormats.FileDrop, false)) ||
+                    (data.GetDataPresent("PNG", false) || data.GetDataPresent(DataFormats.Bitmap));
             }
             catch (ExternalException) { return false; }
+        }
+
+        private static bool HasClipboardText(IDataObject data)
+        {
+            if (data == null) return false;
+            try
+            {
+                if (!data.GetDataPresent(DataFormats.UnicodeText, false) && !data.GetDataPresent(DataFormats.Text, false))
+                    return false;
+                object value = data.GetDataPresent(DataFormats.UnicodeText, false)
+                    ? data.GetData(DataFormats.UnicodeText, false)
+                    : data.GetData(DataFormats.Text, false);
+                string text = value as string;
+                return !string.IsNullOrEmpty(text);
+            }
+            catch (ExternalException) { return false; }
+        }
+
+        private void PasteClipboardText()
+        {
+            IDataObject data = ReadClipboard();
+            if (data == null) return;
+            try
+            {
+                string text = data.GetData(DataFormats.UnicodeText, false) as string ??
+                    data.GetData(DataFormats.Text, false) as string;
+                if (!string.IsNullOrEmpty(text)) SelectedText = text;
+            }
+            catch (ExternalException) { }
         }
 
         private IDataObject ReadClipboard()

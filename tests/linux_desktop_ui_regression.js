@@ -24,6 +24,14 @@ assert.equal(presentation.displayName('12345678901234'), '123456789012...');
 assert.equal(presentation.chipText(' 阿兰 '), '阿兰');
 assert.equal(presentation.chipText(''), '?');
 assert.equal(presentation.clip('123456789012345678901', 20), '1234567890123456789...');
+for (const element of ['👨‍👩‍👧‍👦', '👍🏽', '🇨🇳', '[敲打]']) {
+  const prefix = '甲'.repeat(14);
+  const session = '测试私聊';
+  const summarize = text => presentation.snippet(session, null, new Map([[session, [{ text }]]]));
+  assert.equal(summarize(`${prefix}${element}乙`), `${prefix}${element}乙`);
+  assert.equal(summarize(`${prefix}${element}乙丙`), `${prefix}${element}...`);
+  assert.equal(summarize(`${prefix}乙${element}丙`), `${prefix}乙...`);
+}
 assert.equal(presentation.formatTimestamp('2026-11-23T05:51:00', now), '今天 5:51');
 assert.equal(presentation.formatTimestamp('2026-11-22T05:51:00', now), '11月22日 5:51');
 
@@ -86,6 +94,7 @@ assert.equal(Date.now() - started < 1000, true);
 const css = read('src/linux/desktop/desktop.css');
 const html = read('src/linux/desktop/index.html');
 const renderer = read('src/linux/desktop/renderer.js');
+const conversationView = read('src/linux/desktop/conversation-view.js');
 const main = read('src/linux/desktop/main.cjs');
 const preload = read('src/linux/desktop/preload.cjs');
 const service = read('src/linux/LanChat.Linux/DesktopService.cs');
@@ -96,13 +105,17 @@ for (const id of ['id="chats"', 'id="messages"', 'id="menu"', 'id="emoji"', 'id=
   assert.equal(html.includes(id), true, id);
 }
 assert.equal(html.includes('<label class="search">'), false);
+const mainScripts = [...html.matchAll(/<script src="([^"]+)" defer>/g)].map(match => match[1]);
+for (const path of ['session-sidebar.js', 'conversation-view.js']) {
+  assert.equal(mainScripts.includes(path) && mainScripts.indexOf(path) < mainScripts.indexOf('renderer.js'), true);
+}
 const sidebarBottom = html.match(/<div class="sidebar-bottom">([\s\S]*?)<\/div>/)?.[1];
 assert.equal((sidebarBottom?.match(/<button\b[^>]*\bid="([^"]+)"/g) || []).at(-1)?.includes('id="refresh"'), true);
 assert.match(css, /\.session-heading\s*\{[^}]*\bfont-weight:\s*700\s*;/);
 assert.equal(css.includes('scrollbar-width: thin'), false);
 assert.equal(renderer.includes('lastIndexOf(message)'), false);
-assert.equal(renderer.includes('createDocumentFragment'), true);
-assert.equal(renderer.includes('BoxWhite.png'), true);
+assert.equal(conversationView.includes('createDocumentFragment'), true);
+assert.equal(conversationView.includes('BoxWhite.png'), true);
 assert.equal(renderer.includes('shouldNewlineOnCtrlEnter'), true);
 assert.equal(renderer.includes('composePlaceholder'), true);
 assert.equal(renderer.includes('confirmDrop'), true);
@@ -125,6 +138,7 @@ assert.equal(service.indexOf('Publish("peers")', service.indexOf('case "delete-s
 for (const path of [
   'src/linux/desktop/appearance.js', 'src/linux/desktop/presentation.js', 'src/linux/desktop/scrollbar.js', 'src/linux/desktop/overlay.js',
   'src/linux/desktop/renderer.js', 'src/linux/desktop/settings-model.js', 'src/linux/desktop/settings-pages.js',
+  'src/linux/desktop/session-sidebar.js', 'src/linux/desktop/conversation-view.js', 'tests/linux_desktop_ui_regression.js',
   'src/linux/desktop/settings.js', 'src/linux/desktop/desktop.css', 'src/linux/desktop/settings.css',
   'src/linux/desktop/main.cjs', 'src/linux/desktop/preload.cjs', 'src/linux/desktop/service.cjs',
   'src/linux/LanChat.Linux/DesktopService.cs'
@@ -232,6 +246,7 @@ function makeNode(tagName, id = '') {
   const classes = new Set();
   const cssVars = new Map();
   const children = [];
+  const content = [];
   const node = {
     tagName,
     id,
@@ -251,7 +266,8 @@ function makeNode(tagName, id = '') {
       classes.clear();
       for (const part of String(val || '').split(/\s+/).filter(Boolean)) classes.add(part);
     },
-    textContent: '',
+    get textContent() { return content.map(child => typeof child === 'string' ? child : child.textContent).join(''); },
+    set textContent(value) { this.replaceChildren(String(value)); },
     clientHeight: 115,
     scrollHeight: 115,
     scrollTop: 0,
@@ -276,27 +292,33 @@ function makeNode(tagName, id = '') {
     getAttribute(name) { return attrs.get(name); },
     append(...nodes) {
       for (const child of nodes) {
-        if (typeof child === 'object' && child) {
+        if (typeof child === 'string') content.push(child);
+        else if (typeof child === 'object' && child) {
           if (child.tagName === 'FRAGMENT') {
-            this.append(...child.children);
-            child.children.length = 0;
+            this.append(...child.childContent);
+            child.replaceChildren();
           } else {
             child.parentElement = this;
             children.push(child);
+            content.push(child);
           }
         }
       }
     },
     replaceChildren(...nodes) {
       children.length = 0;
+      content.length = 0;
       this.append(...nodes);
     },
     replaceWith(replacement) {
       const parent = this.parentElement;
       parent.children.splice(parent.children.indexOf(this), 1, replacement);
+      const siblings = parent.childContent;
+      siblings.splice(siblings.indexOf(this), 1, replacement);
       replacement.parentElement = parent;
       this.parentElement = null;
     },
+    get childContent() { return content; },
     contains(target) {
       if (target === this) return true;
       return children.some(child => child.contains?.(target));
@@ -445,6 +467,12 @@ async function testOverlayAttachToggle() {
     presentation.drawMessageText(bubble, '[敲打]', doc);
     assert.equal(bubble.children[0].textContent, '[敲打]');
     assert.equal(bubble.children[0].children[0].src, 'data:image/png;base64,AAAA');
+    presentation.setEmojiPack([]);
+    const summary = makeNode('SMALL');
+    presentation.drawMessageText(summary, '收到[敲打]...', doc, true);
+    assert.equal(summary.textContent, '收到[敲打]...');
+    assert.equal(summary.children[0].className, 'summary-token');
+    assert.equal(summary.children[0].children.length, 0);
   } finally {
     presentation.setEmojiPack([]);
     if (originalDocument === undefined) delete global.document;
@@ -685,7 +713,11 @@ async function testMainRendererRaceAndAppearance() {
     let resolveLateHistory;
     let historyCalls = 0;
     let onEventHandler = null;
-    const archived = { key: 'archive-address', ip: '10.0.0.3', nick: '归档昵称' };
+    const imageUrl = 'data:image/png;base64,AAAA';
+    const prefix = '甲'.repeat(14);
+    const archived = {
+      key: 'archive-address', ip: '10.0.0.3', nick: '归档昵称', summary: `${prefix}[敲打]乙丙`
+    };
     const fakeApi = {
       state: async () => ({
         id: 'self-1', nick: '本机', ip: '10.0.0.1', tcpPort: 38889, sequence: 10, peers: [], sessions: [archived]
@@ -694,6 +726,7 @@ async function testMainRendererRaceAndAppearance() {
         nickname: '本机', autoAcceptFiles: true, themeMode: 1, accentPreset: 2,
         uiFontFamily: 'KaiTi', uiFontSize: 12.0, chatFontFamily: 'Arial', chatFontSize: 11.5
       }),
+      emojiPack: async () => [['[敲打]', imageUrl]],
       history: async () => {
         historyCalls += 1;
         if (historyCalls === 1) return { sequence: 10, messages: [{ sequence: 1, chat: 'BROADCAST', text: '旧消息', timestamp: '2026-11-23T05:00:00' }] };
@@ -718,6 +751,15 @@ async function testMainRendererRaceAndAppearance() {
     const nav = nodes.get('chats');
     const rows = () => nav.children.map(row => row.dataset.key || row.textContent);
     assert.deepEqual(rows(), ['BROADCAST', '在线', '离线', archived.key]);
+    const summary = key => nav.children.find(row => row.dataset.key === key).querySelector('.chat-copy').children[1];
+    const archivedSummary = summary(archived.key);
+    const emoji = archivedSummary.querySelector('.message-emoji');
+    assert.equal(archivedSummary.textContent, `${prefix}[敲打]...`);
+    assert.equal(emoji.children[0].src, imageUrl);
+    emoji.children[0].dispatch('error');
+    assert.equal(archivedSummary.querySelector('.message-emoji'), null);
+    assert.equal(archivedSummary.querySelector('.summary-token').textContent, '[敲打]');
+    assert.equal(archivedSummary.textContent, `${prefix}[敲打]...`);
 
     // 2. settings-updated 即时刷新主窗外观与昵称。
     onEventHandler({
@@ -845,7 +887,18 @@ async function testMainRendererRaceAndAppearance() {
       const row = nav.children.find(button => button.dataset.key === item.key);
       assert.equal(row.getAttribute('aria-label'), item.nick);
     }
+
+    // 实时群聊摘要包含发送者前缀，已导入与缺少资源的令牌可在同一行显示。
+    const groupPrefix = `甲: ${'乙'.repeat(14)}`;
+    onEventHandler({ event: 'message', data: {
+      chat: presentation.GROUP, sequence: 13, nick: '甲', text: `${'乙'.repeat(14)}[敲打][未知表情]丙丁`
+    } });
+    const groupSummary = summary(presentation.GROUP);
+    assert.equal(groupSummary.textContent, `${groupPrefix}[敲打][未知表情]...`);
+    assert.deepEqual(groupSummary.querySelectorAll('.summary-token').map(token => token.children[0]?.src || token.textContent),
+      [imageUrl, '[未知表情]']);
   } finally {
+    presentation.setEmojiPack([]);
     delete process.env.LANCHAT_TEST_MODE;
     if (originalDocument === undefined) delete global.document;
     else global.document = originalDocument;

@@ -123,7 +123,8 @@ namespace LanChat.Linux
                                 ["sessions"] = new JsonArray(_sessions.GetAllSessionKeys().Select(key => new JsonObject
                                 {
                                     ["key"] = key, ["nick"] = _sessions.GetArchivedNick(key),
-                                    ["summary"] = _sessions.GetLastMessageSnippet(key)
+                                    // 由渲染端按可见元素截断，避免启动摘要在传输前切开表情。
+                                    ["summary"] = _sessions.GetLastMessageSnippet(key, int.MaxValue)
                                 }).ToArray())
                             });
                         }
@@ -160,7 +161,8 @@ namespace LanChat.Linux
                         _ = SendText(id, chat, message, targets);
                         break;
                     case "file":
-                        SendFile(id, FindPeer(Required(request, "chat", 256)), Required(request, "path", 4096));
+                        SendFile(id, FindPeer(Required(request, "chat", 256)), Required(request, "path", 4096),
+                            Flag(request, "managedPaste"));
                         break;
                     case "delete-session":
                         // 清空只删历史；删除好友时 RemovePeer 会同步派发 OnPeerLeft -> peers 事件。
@@ -345,7 +347,7 @@ namespace LanChat.Linux
             else Reply(id, new JsonObject { ["confirmed"] = confirmed, ["total"] = targets.Count });
         }
 
-        private void SendFile(string id, PeerInfo target, string path)
+        private void SendFile(string id, PeerInfo target, string path, bool managedPaste)
         {
             if (!Path.IsPathFullyQualified(path) || !File.Exists(path))
                 throw new IOException("选中的文件已不可用");
@@ -357,24 +359,24 @@ namespace LanChat.Linux
                     Fail(id, reason);
                     return;
                 }
-                OnMessage(new ChatMessage
+                bool saved = OnMessage(new ChatMessage
                 {
                     IsSelf = true, IsFile = true, TargetId = target.Id, SenderId = _network.LocalId, SenderNick = _network.NickName,
                     PeerNick = target.NickName, RemoteAddress = target.IP,
                     Content = Path.GetFileName(path), FilePath = path, FileName = Path.GetFileName(path), FileSize = size,
                     Timestamp = DateTime.Now
-                }, id);
-                Reply(id, null);
+                }, id, managedPaste);
+                Reply(id, managedPaste ? new JsonObject { ["historySaved"] = saved } : null);
             });
         }
 
         private void OnMessage(ChatMessage value) => OnMessage(value, null);
 
-        private void OnMessage(ChatMessage value, string operation)
+        private bool OnMessage(ChatMessage value, string operation, bool managedPaste = false)
         {
             lock (_gate)
             {
-                if (_stopping) return;
+                if (_stopping) return false;
                 string key = value.IsBroadcast ? SessionManager.BROADCAST_KEY
                     : SessionManager.GetLanKey(value.IsSelf ? value.TargetId : value.SenderId, value.RemoteAddress);
                 key = _sessions.ResolveKey(key);
@@ -386,9 +388,13 @@ namespace LanChat.Linux
                     failure = "无法保存聊天记录：" + ex.Message;
                     Console.Error.WriteLine(failure);
                 }
+                bool saved = failure == null || (managedPaste && ChatHistoryService.HasFileReference(key, value.FilePath));
+                if (managedPaste && !saved) value.FilePath = null;
                 var frame = MessageFrame(value, key, operation, ++_sequence);
                 if (failure != null) frame["storageError"] = failure;
+                if (managedPaste) frame["historySaved"] = saved;
                 Publish("message", frame);
+                return saved;
             }
         }
 

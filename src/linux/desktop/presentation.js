@@ -1,10 +1,12 @@
-// 主窗客户区的纯展示规则。度量对齐 WinForms 的 GrokTheme 与会话绘制，不访问 DOM 或网络。
+// 主窗客户区的展示规则。度量对齐 WinForms，行内表情使用调用方提供的 DOM。
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   root.LanChatPresentation = api;
 })(typeof globalThis === 'undefined' ? this : globalThis, function () {
   const GROUP = 'BROADCAST';
+  const EMOJI_TOKEN = /\[[^\[\]\s]{1,24}\]/g;
+  const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
   // 未导入本地表情时继续使用两端原有的 Unicode 表情。
   const EMOJIS = [
     '😊', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😇', '😉',
@@ -28,33 +30,62 @@
     return emojiImages.size ? emojiImages : EMOJIS.map(symbol => [symbol, '']);
   }
 
-  function drawMessageText(element, text, document) {
-    if (!emojiImages.size || !text.includes('[')) {
+  function drawMessageText(element, text, document, keepTokensTogether = false) {
+    if ((!emojiImages.size && !keepTokensTogether) || !text.includes('[')) {
       element.textContent = text;
       return;
     }
     let start = 0;
-    for (const match of text.matchAll(/\[[^\[\]\s]{1,24}\]/g)) {
+    for (const match of text.matchAll(EMOJI_TOKEN)) {
       const imageUrl = emojiImages.get(match[0]);
-      if (!imageUrl) continue;
+      if (!imageUrl && !keepTokensTogether) continue;
       element.append(text.slice(start, match.index));
       const token = document.createElement('span');
-      token.className = 'message-emoji';
       token.textContent = match[0];
-      token.title = match[0];
-      const image = document.createElement('img');
-      image.src = imageUrl;
-      image.alt = '';
-      token.append(image);
+      if (keepTokensTogether) token.className = 'summary-token';
+      if (imageUrl) {
+        token.classList.add('message-emoji');
+        token.title = match[0];
+        const image = document.createElement('img');
+        image.alt = '';
+        // 保留原令牌供复制。图片解码失败时，恢复原文字与自然宽度。
+        image.addEventListener('error', () => {
+          token.classList.remove('message-emoji');
+          token.textContent = match[0];
+        }, { once: true });
+        image.src = imageUrl;
+        token.append(image);
+      }
       element.append(token);
       start = match.index + match[0].length;
     }
     element.append(text.slice(start));
   }
 
-  function clip(text, limit) {
+  function* visibleElements(text, keepTokensTogether) {
+    let start = 0;
+    if (keepTokensTogether) {
+      // 只有接收方才知道资源是否存在，合法令牌即使缺图也作为一个元素保留。
+      for (const match of text.matchAll(EMOJI_TOKEN)) {
+        for (const { segment } of graphemes.segment(text.slice(start, match.index))) yield segment;
+        yield match[0];
+        start = match.index + match[0].length;
+      }
+    }
+    for (const { segment } of graphemes.segment(text.slice(start))) yield segment;
+  }
+
+  function clip(text, limit, keepTokensTogether = true) {
     const value = text || '';
-    return value.length > limit ? value.slice(0, limit - 1) + '...' : value;
+    if (value.length <= limit) return value;
+    let count = 0;
+    let end = 0;
+    for (const segment of visibleElements(value, keepTokensTogether)) {
+      count += 1;
+      if (count > limit) return value.slice(0, end) + '...';
+      if (count < limit) end += segment.length;
+    }
+    return value;
   }
 
   function formatFileSize(bytes) {
@@ -75,7 +106,7 @@
   }
 
   function displayName(name) {
-    return clip(name || '局域网节点', 13);
+    return clip(name || '局域网节点', 13, false);
   }
 
   function chipText(nick) {
@@ -84,13 +115,14 @@
   }
 
   function snippet(key, entry, messages, fallback) {
+    const limit = key === GROUP ? 20 : 16;
     const last = messages.get(key)?.at(-1);
     if (last) {
       const body = last.file ? `[文件] ${last.name || ''}` : (last.text || '');
       const text = key === GROUP && last.nick ? `${last.nick}: ${body}` : body;
-      return clip(text, key === GROUP ? 20 : 16);
+      return clip(text, limit);
     }
-    if (fallback) return fallback;
+    if (fallback) return clip(fallback, limit);
     if (key === GROUP) return '局域网会话';
     return entry?.online ? (entry.ip || '与在线节点聊天') : '离线';
   }

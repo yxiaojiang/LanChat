@@ -1,3 +1,137 @@
+# LC-CC-005 / LC-CC-006 — 独立审核
+
+- **任务编号**：`LC-CC-005` / `LC-CC-006`
+- **任务主题**：Windows 图文混合剪贴板优先级、隐藏输入框首次右键暗色菜单（含复制/剪切/全选），以及组合表情像素命中、跨 CRLF 复制、会话草稿隔离与关闭清理回归断言
+- **审核方**：独立审核方
+- **审核日期**：2026-11-25
+- **审核状态**：**APPROVED**（当前开发与 Windows 宿主机回归范围放行）
+- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`，以及工作区实际 diff（`src/UI/Controls/ChatInputBox.cs`、`src/MainForm.Designer.cs`、`tests/ChatComposerRegression.cs`、`tests/FriendRefreshRegression.cs`）。
+
+## 独立复跑与验证边界
+
+### 1. Windows 宿主机独立复跑（均退出码 0）
+
+1. `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack`：退出码 0，输出 `LC-CC-005: Windows 图文混合剪贴板优先级断言通过` 及既有 Emoji、PNG/位图粘贴、LANC 回环、历史回读与 `LC-CC-004` 回归。
+2. `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1`：退出码 0，输出包含 `Native Windows compile: ok`、`LC-CHAT-COMPOSER-001`（含隐藏输入框首次右键弹出 `GrokPopupMenu`）及 `LC-CC-006: 组合表情像素命中、跨 CRLF 复制、切会话草稿和关闭清理通过`。
+3. `C:\Program Files\nodejs\node.exe` 对 `src/linux/desktop/*.js`、`src/linux/desktop/*.cjs` 与 `tests/linux_desktop_*_regression.js` 共 15 个文件执行 `--check`，并运行 `tests/linux_desktop_ui_regression.js`：全部退出码 0，输出 `LC-CC-004: Linux IPC 发送终态、退出预检与管道晚到确认清理通过` 与 `linux desktop ui regression: ok`。
+4. `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false`：退出码 0，0 警告、0 错误。
+5. `git diff --check`：退出码 0，无空白错误；变更文件行数均 `< 1000` 行软门禁（`ChatInputBox.cs` 180 / 编辑器 184 行、`MainForm.Designer.cs` 690 行、`ChatComposerRegression.cs` 291 / 295 行、`FriendRefreshRegression.cs` 466 / 472 行，工作区最高 `tests/linux_desktop_ui_regression.js` 905 / 922 行）。
+
+### 2. 待验证的跨环境实机项（未验证，继续保留）
+
+- **Windows 真实桌面剪贴板**：真实 Windows 截图工具（Win+Shift+S / 微信截图）与 Excel/WPS 单元格的 `Ctrl+V`、`Shift+Insert` 及右键粘贴。
+- **Linux 实机、ELF 与双机联测**：Linux Xorg / Wayland / XWayland 下的 Electron 实机联调、最新 Linux ELF 实跑（`tests/linux_desktop_regression.py`）与真实双机局域网联测，继续保留于 `CRDocs/DEFERRED.md`（`LC-CC-ENV-001`、`LC-LINUX-002-ENV-001`、`LC-LINUX-002-GUI-001`）。
+
+## 结论与六维核对
+
+**APPROVED（当前范围放行）**。无 P0、无 P1 遗留；`LC-CC-005`、`LC-CC-006` 标记为 **RESOLVED**（Windows 代码实现与宿主机自动化回归闭环，真实桌面工具/Excel/WPS、Linux 实机/ELF 与双机联测保留于 `CRDocs/DEFERRED.md`）。
+
+| 核对维度 | 结论 | 说明 |
+| --- | :---: | --- |
+| 1. 图文混合剪贴板优先级 | PASS | `ChatInputBox.TryPasteAttachment` 优先识别 `FileDrop`，随后以 `HasClipboardText` 检查非空 `UnicodeText`/`Text` 并返回 `false` 交给原生文本粘贴，仅无非空文本时才读取 `PNG`/`Bitmap`；`HasClipboardAttachment` 与 `ShowContextMenuAt` 同步遵循此优先级 |
+| 2. 隐藏输入框首次右键与编辑菜单 | PASS | `MainForm.Designer.cs:471-477` 在 `_inputPanel.MouseDown` 右键显框聚焦后直接调用 `_txtInput.ShowContextMenuAt(_inputPanel.PointToScreen(e.Location))`；`ChatInputBox.WndProc` 接管 `WM_CONTEXTMENU` 统一展示暗色 `GrokPopupMenu`，按剪贴板与选区动态提供「粘贴」「粘贴附件」「复制」「剪切」「全选」 |
+| 3. `LC-CC-006` 选区、复制与草稿断言 | PASS | `FriendRefreshRegression.cs` 在真实 `WeChatChatView` 上逐像素扫描 `"甲👨‍👩‍👧‍👦👍🏽🇨🇳❤️1️⃣\r\n乙"` 全部视觉行确认 `GetCharIndexAtPoint` 仅落于 `ChatTextLayout.NextBoundary` 边界，验证跨 CRLF 全选复制原文一致、切换会话草稿隔离/恢复及显式关闭清理 |
+| 4. LANC 协议与 JSONL 兼容 | PASS | 未改动任何 LANC 封包结构、传输协议或 JSONL 历史格式与字段 |
+| 5. 宿主机回归与构建 | PASS | 两套 Windows 回归、原生编译、Node 15 文件 `--check` 与 UI 回归、共享后端 `dotnet build` 及 `git diff --check` 全部退出码 0 |
+| 6. 行数门禁与中文注释规范 | PASS | 全部变更文件 `< 1000` 行软门禁，新增注释与 XML 文档均为中文 |
+
+| 问题 ID | 原严重度 | 结论 | 说明 |
+| --- | :---: | :---: | --- |
+| `LC-CC-005` | P2 | **RESOLVED** | 图文剪贴板优先级与隐藏输入框首次右键暗色菜单（含复制/剪切/全选）已落地并通过回归；真实 Excel/WPS 与截图工具实机验收保留于 `CRDocs/DEFERRED.md`（`LC-CC-ENV-001`） |
+| `LC-CC-006` | P2 | **RESOLVED** | 组合表情像素命中、跨 CRLF 复制、会话草稿隔离/恢复与关闭清理自动化断言已补齐并通过 |
+
+---
+
+# LC-CC-004 — 独立审核
+
+- **任务编号**：`LC-CC-004`
+- **任务主题**：双端应用截图异步发送终态清理、历史引用保护与 Linux 退出并发收尾
+- **审核方**：独立审核方
+- **审核日期**：2026-11-25
+- **审核状态**：**APPROVED**（当前开发与 Windows 宿主机回归范围放行）
+- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`，以及以已放行的 `LC-CC-003` 工作区变更为基线的实际 diff 与完整调用链（`src/Controllers/FileTransferController.cs`、`src/MainForm.Chat.cs`、`src/MainForm.Files.cs`、`src/NetworkService.Transfer.cs`、`src/Services/ChatHistoryService.cs`、`src/Services/SessionManager.cs`、`src/linux/LanChat.Linux/DesktopService.cs`、`src/linux/desktop/{main.cjs,service.cjs}`、`tests/{ChatComposerRegression.cs,linux_desktop_ipc_regression.js}`）。
+
+## 独立复跑与验证边界
+
+### 1. Windows 宿主机独立复跑（均退出码 0）
+
+1. `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack`：退出码 0，输出包含 `LC-CC-004: Windows 拒收、断连、存储失败与退出清理通过，保留成功截图和用户原文件` 及原有 Emoji/剪贴板/LANC/历史回归。
+2. `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1`：退出码 0（原生 `csc.exe` 编译、好友刷新/网卡重绑、侧栏交互与截图草稿暂存移除通过）。
+3. 独立以 `csc.exe` 编译 `src/`（排除 `linux/`、`obj/`、`bin/`、`Uninstall.cs`）至临时目录并编译运行 `tests/ConcurrentReceive.cs`：退出码 0，输出 `Final ACK: 1, 1; Complete events: 2`，两份同名文件 SHA-256 校验通过（随后清理临时目录）。
+4. `C:\Program Files\nodejs\node.exe` 对 `src/linux/desktop/*.js`、`src/linux/desktop/*.cjs` 与 `tests/linux_desktop_*_regression.js` 共 15 个文件执行 `--check`，并运行 `tests/linux_desktop_ui_regression.js`：全部退出码 0，输出 `LC-CC-004: Linux IPC 发送终态、退出预检与管道晚到确认清理通过` 与 `linux desktop ui regression: ok`。
+5. `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false`：退出码 0，0 警告、0 错误。（注：本机未安装 PowerShell 7 `pwsh`，未直接执行 `bin/lc-cc-004-backend/verify.ps1`，`DesktopService.cs` 逻辑已通过源码与调用链静态核对。）
+6. `git diff --check`：退出码 0，无空白错误；全部 18 个工作区改动/新增手写源码与测试文件均 `< 1000` 行软门禁（`LC-CC-004` 改动文件最高为 `main.cjs` 598 行 / 编辑器 611 行、`MainForm.Chat.cs` 588 行；工作区最高为 `tests/linux_desktop_ui_regression.js` 905 行 / 编辑器 923 行）。
+
+### 2. 待验证的跨环境实机项（未验证，继续保留）
+
+- **Linux 实机与 ELF**：Linux Xorg / Wayland / XWayland 下的真实 Electron 截图发送、预检/队列期间退出清理、最新 Linux ELF 实跑（`tests/linux_desktop_regression.py`）。
+- **真实双机联测**：真实双机端到端截图拒收、断连、成功后历史重开、用户原文件保留，以及新旧客户端互通。上述实机项继续保留于 `CRDocs/DEFERRED.md`（`LC-CC-ENV-001`、`LC-LINUX-002-ENV-001`、`LC-LINUX-002-GUI-001`）。
+
+## 结论与六维核对
+
+**APPROVED（当前范围放行）**。无 P0、无 P1 遗留；`LC-CC-004` 标记为 **RESOLVED**（双端代码与宿主机回归闭环，实机/双机补验保留于 `CRDocs/DEFERRED.md` `LC-CC-ENV-001`）。
+
+| 核对维度 | 结论 | 说明 |
+| --- | :---: | --- |
+| 1. Windows 截图所有权移交与退出/历史竞态 | PASS | `MainForm.Chat.cs:418` 经 `TakeDraftImage` 仅移交实际入队截图给 `FileTransferController._outgoingPastes`；完成回调与 `DiscardOutgoingPastes()` 共用 `lock (_outgoingPastes)`：退出先删则回调直接返回不写历史，发送先完则同步调用 `PersistExistingMessage(..., confirmStorage: true)` 写入并复核 JSONL，成功保留、失败删除；`NetworkService.Transfer.cs:384` 仅对托管截图开启 `FileShare.Delete` |
+| 2. Linux `send-paste` 与 `before-quit` 交叠 | PASS | `stage-paste`、`discard-paste`、`send-paste` 与后台 `send()` 均纳入 `pasteOperations`；`before-quit` 置 `exiting = true` 后等待 `service.stop()`、`discardPastedFiles` 与全部 `pasteOperations`；预检与队列循环均检查 `exiting`，退出期间不再派发排队附件且立即清理已接管截图而非回写 `pendingPastes` |
+| 3. 管道晚到确认与后端异常终止保留 | PASS | `sendingPastes` 跟踪在途托管截图，`child.on('event')` 收到 `historySaved === true` 置 `paste.saved = true`；`finally` 在断连时 `await child.stop()` 等 stdout 管道关闭排空晚到 `message` 事件后再判删；`service.cjs:27,79` 返回 `code === 0`，后端异常退出返回 `false` 时保留截图 |
+| 4. 历史引用与用户原文件保护 | PASS | Windows 仅 `StageClipboardImage` 进入 `_draftImagePreviews`，Linux 仅 `stageClipboardImage` 置 `managed: true`；用户文件与普通发送沿用原路径与 `FileShare.Read`，不会被草稿/失败/退出清理误删；已写入 JSONL 的成功截图在退出与无 UI 句柄场景均保留 |
+| 5. LANC 协议与 JSONL 兼容 | PASS | LANC 文件报价帧（`LANC` + `2`）、`0x01`/`0x00` 确认字节与 JSONL 记录格式零改动；`managedPaste` 与 `historySaved` 仅用于本地 Electron 与 `DesktopService` 管道 |
+| 6. 行数门禁与中文注释规范 | PASS | 全部改动/新增文件 `< 1000` 行软门禁，新增注释均为中文，无空白错误 |
+
+| 问题 ID | 原严重度 | 结论 | 说明 |
+| --- | :---: | :---: | --- |
+| `LC-CC-004` | P2 | **RESOLVED** | 双端异步传输终态清理、历史引用保护与退出并发收尾代码与宿主机回归通过；Linux 实机/ELF 与双机联测补验保留于 `CRDocs/DEFERRED.md`（`LC-CC-ENV-001`） |
+
+---
+
+# LC-CC-003 — 独立复审
+
+- **任务编号**：`LC-CC-003`
+- **任务主题**：Linux 侧栏摘要按可见元素截断、归档启动摘要透传、表情回显与缺图回退，以及 `renderer.js` 职责拆分
+- **审核方**：Gemini 独立审核方
+- **审核日期**：2026-11-25
+- **审核状态**：**APPROVED**（当前开发与宿主机回归范围放行）
+- **依据**：`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`、`.claude/Rules.md`，以及工作区实际 diff（`src/linux/LanChat.Linux/DesktopService.cs`、`src/linux/desktop/{desktop.css,index.html,presentation.js,renderer.js,session-sidebar.js,conversation-view.js}`、`tests/linux_desktop_ui_regression.js`）与 `packaging/build-electron.py`。
+
+## 独立复跑与验证边界
+
+### 1. 宿主机回归与专项复跑（本次复审在 Windows 宿主机独立执行，均退出码 0）
+
+1. `C:\Program Files\nodejs\node.exe`（`v24.18.0`）：对 `src/linux/desktop/` 下 13 个 JS/CJS 与 `tests/` 下 2 个回归脚本共 15 个文件逐一执行 `--check`，全部退出码 0；运行 `node tests/linux_desktop_ui_regression.js`，退出码 0，输出 `linux desktop ui regression: ok`。
+2. `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack`：退出码 0（Windows 组合表情整段测量与 GDI+ 像素对照、本地表情加载、剪贴板数据、LANC 回环与历史回读通过）。
+3. `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1`：退出码 0（原生编译、好友刷新与网卡重绑、会话列表键盘/滑块、分组尺寸与截图草稿回归通过）。
+4. `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false`：退出码 0，0 警告、0 错误。
+5. 独立专项复跑（隔离临时夹具与 Edge Headless CDP）：
+   - **侧栏摘要边界**：复测私聊 16 / 群聊 20 阈值下 `👨‍👩‍👧‍👦`、`👍🏽`、`🇨🇳`、`[敲打]`、`[未知令牌]` 的恰好达限、保留边界与舍弃边界，连续多令牌边界，`displayName` 13 字素边界（`keepTokensTogether = false`），`[文件]` 摘要与空会话兜底，全部通过。
+   - **归档启动路径**：加载编译产物 `lanchat.dll` 对隔离 JSONL 历史目录执行 `SessionManager.LoadPersistedHistories()` 与 `DesktopService.ProcessLine("{\"id\":\"req-1\",\"method\":\"state\"}")`，确认私聊（39 字符）、文件（28 字符）及群聊（32 字符）归档 `summary` 均完整未截断返回；并在渲染端确认 `setPeers` 合并在线态时保留归档 `summary`。
+   - **表情回显与回退**：在 Edge Headless（加载真实 `index.html`、`desktop.css` 与全部生产 JS，仅以 `/mock-bridge.js` 注入 `window.lanchat`）验证 420px 与 280px 窄侧栏：有效 PNG（`[敲打]`）真实解码（`naturalWidth === 1`）；坏图（`[坏图]`）触发 `error` 事件后移除 `.message-emoji`、保留 `.summary-token`（`display: inline-block`）并恢复非透明文字；缺图（`[未知]`）保留 `.summary-token`；单行 `nowrap` / `text-overflow: ellipsis` / `9.5pt`（`12.7px`）且不折行。
+6. `git diff --check` 退出码 0；全量 8 个改动/新增源码与测试文件编辑器行数复核与 `IMPLEMENTATION.md` 一致且均 `< 1000` 行软门禁（`tests/linux_desktop_ui_regression.js` 923、`renderer.js` 690、`DesktopService.cs` 471、`presentation.js` 201、`conversation-view.js` 194、`desktop.css` 192、`session-sidebar.js` 146、`index.html` 90）；`packaging/build-electron.py:200-202` 自动收录 `src/linux/desktop/` 全目录文件，新拆模块打包路径完整。
+
+### 2. Linux 实机与跨机验证边界（未验证，继续保留）
+
+- 宿主机为 Windows，本轮**尚未验证** Linux Xorg / Wayland / XWayland 下的真实 Electron 45 窄侧栏缩略效果、Linux 系统 Emoji 字形与 DPI 缩放表现、真实系统剪贴板、Linux/QEMU 网络命名空间最新 ELF 实跑（`tests/linux_desktop_regression.py`），以及真实双机新旧客户端联测。上述跨环境验收继续保留在 `CRDocs/DEFERRED.md`（`LC-CC-ENV-001`、`LC-LINUX-002-ENV-001`、`LC-LINUX-002-GUI-001`）。
+
+## 结论与六维核对
+
+**APPROVED（当前范围放行）**。无 P0、无 P1 遗留；`LC-CC-003` 标记为 **RESOLVED**（宿主机代码与回归闭环，Linux 实机视觉补验保留于 `CRDocs/DEFERRED.md` `LC-CC-ENV-001`）；`LC-CC-006` 中 `renderer.js` 拆分部分已落地，剩余 Windows 选区与草稿用例保留于 `CRDocs/DEFERRED.md`。
+
+| 核对维度 | 结论 | 说明 |
+| --- | :---: | --- |
+| 1. `renderer.js` 职责拆分与打包收录 | PASS | `renderer.js` 由 961 行降至 690 行，拆出 `session-sidebar.js`（146 行）与 `conversation-view.js`（194 行），`index.html` 按序加载，`build-electron.py` 自动收录全目录 |
+| 2. 侧栏摘要字素与表情令牌边界 | PASS | `presentation.js` 以 `Intl.Segmenter`（`grapheme`）+ `EMOJI_TOKEN`（`/\[[^\[\]\s]{1,24}\]/g`）计数截断，私聊 16 / 群聊 20 阈值与 `displayName` 13 字素边界成立 |
+| 3. 启动归档 `summary` 透传链路 | PASS | `DesktopService.cs:127` 传 `int.MaxValue` 输出完整归档摘要，`renderer.js` `setPeers` 合并在线状态时保留 `previous.summary`，由渲染端统一按可见元素截断 |
+| 4. 侧栏表情回显与缺图/坏图回退 | PASS | `drawMessageText(..., true)` 复用气泡渲染逻辑；有图显 PNG，无包或单图缺失保留 `.summary-token` 可读文字，`img` `error` 清理 `.message-emoji` 并恢复文本与自然宽度 |
+| 5. LANC 协议、历史格式与 Windows 兼容性 | PASS | 未改动 `Models.cs`、`NetworkService*.cs`、`ChatHistoryService.cs` 及 `SessionManager.GetLastMessageSnippet` 默认 20 上限，LANC 帧与 JSONL 历史完全向后兼容 |
+| 6. 行数门禁与中文注释规范 | PASS | 全部改动/新增文件 `< 1000` 行软门禁，新增注释均为中文，无空白错误 |
+
+| 问题 ID | 原严重度 | 结论 | 说明 |
+| --- | :---: | :---: | --- |
+| `LC-CC-003` | P2 | **RESOLVED** | 代码实现、回归测试与宿主机隔离夹具/Edge Headless 复验通过；Linux Xorg/Wayland/XWayland 实机窄侧栏与 DPI 视觉补验保留于 `CRDocs/DEFERRED.md`（`LC-CC-ENV-001`） |
+
+---
+
 # LC-CHAT-COMPOSER-001 — Round 2 独立复审
 
 - **任务编号**：`LC-CHAT-COMPOSER-001`

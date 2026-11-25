@@ -94,6 +94,7 @@ aside { display: flex; flex-direction: column; min-height: 0; background: var(--
 .chat strong, .chat small, h1, #connection { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat strong { font-size: calc(11pt + var(--ui-font-delta)); }
 .chat small { margin-top: 2px; color: var(--subtitle); font-size: calc(9.5pt + var(--ui-font-delta)); }
+.chat small .summary-token { display: inline-block; }
 .chat[aria-current="true"] small, .chat[aria-current="true"] .pin { color: var(--text); }
 .pin { margin-left: auto; flex: none; color: var(--accent); font-size: calc(9.5pt + var(--ui-font-delta)); font-style: normal; }
 .secondary, small { color: var(--muted); font-size: calc(9.5pt + var(--ui-font-delta)); }

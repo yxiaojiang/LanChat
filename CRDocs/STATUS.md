@@ -1,4 +1,37 @@
-## 当前任务 — LC-CHAT-COMPOSER-001（Round 2：独立复审通过）
+## 当前任务 — LC-CC-005 / LC-CC-006（Windows 输入区与选区/草稿用例）
+
+- **状态** `APPROVED`（当前开发与 Windows 宿主机回归范围放行）。
+- **日期** 2026-11-25。
+- **执行者** Codex；**独立审核方** 独立复审。
+- **结论** `ChatInputBox` 图文混合剪贴板优先保留非空文本，隐藏输入框首次右键弹出暗色 `GrokPopupMenu` 并保留粘贴/粘贴附件/复制/剪切/全选；`LC-CC-006` 组合表情逐像素命中边界、跨 CRLF 复制、切会话草稿隔离/恢复与关闭清理断言通过；LANC/JSONL 零破坏，全量文件 `< 1000` 行。
+- **验证边界** 独立复跑 `chat_composer_regression.ps1 -ExpectLocalPack`、`friend_refresh_regression.ps1`（含原生编译）、Node 15 文件 `--check` 与 `tests/linux_desktop_ui_regression.js`、`dotnet build` 共享后端及 `git diff --check` 均通过。真实 Windows 截图工具/Excel/WPS 桌面、Linux Xorg/Wayland/XWayland、最新 ELF 与真实双机联测仍待验证，保留于 `CRDocs/DEFERRED.md`。
+- **下一步** `LC-CC-005` / `LC-CC-006` 当前范围已闭环。由用户决定进入提交/打包发布，或安排 `CRDocs/DEFERRED.md` 中的真实桌面、Linux 实机/ELF 与双机联测验收（`LC-CC-ENV-001`、`LC-LINUX-002-ENV-001`、`LC-LINUX-002-GUI-001`）。 [审核结论](REVIEW.md) · [实施与验证](IMPLEMENTATION.md) · [实机边界](DEFERRED.md)
+
+---
+
+## 当前任务 — LC-CC-004（截图发送失败与退出清理）
+
+- **状态** `APPROVED`（当前开发与 Windows 宿主机回归范围放行）。
+- **日期** 2026-11-25。
+- **执行者** Codex；**独立审核方** 独立复审。
+- **结论** Windows 截图所有权移交、`lock (_outgoingPastes)` 退出/历史同步结算与 `FileShare.Delete` 成立；Linux `send-paste`/`before-quit` 交叠、管道晚到确认及后端异常终止保留逻辑成立；用户原文件与历史引用受保护，LANC/JSONL 零破坏，全量改动文件 `< 1000` 行。
+- **验证边界** 独立复跑 Windows 两套回归、`ConcurrentReceive.cs`、Node 15 文件 `--check` 与 `tests/linux_desktop_ui_regression.js`、`dotnet build` 共享后端及 `git diff --check` 均通过（宿主机无 `pwsh`，未直接执行 `bin/lc-cc-004-backend/verify.ps1`）。Linux Electron 实机、最新 ELF（`tests/linux_desktop_regression.py`）与真实双机联测仍待验证，保留于 `CRDocs/DEFERRED.md`。
+- **下一步** `LC-CC-004` 当前范围已闭环。由用户决定进入提交/打包发布，或安排 `CRDocs/DEFERRED.md` 中的 `LC-CC-005`/`LC-CC-006` 剩余用例及 Linux/双机实机验收（`LC-CC-ENV-001`、`LC-LINUX-002-ENV-001`、`LC-LINUX-002-GUI-001`）。 [审核结论](REVIEW.md) · [实施与验证](IMPLEMENTATION.md) · [实机边界](DEFERRED.md)
+
+---
+
+## 历史状态 — LC-CC-003（Linux 侧栏摘要与表情回显）
+
+- **状态** `APPROVED`（当前开发与宿主机回归范围放行）。
+- **日期** 2026-11-25。
+- **执行者** Codex；**独立审核方** Gemini（独立复审）。
+- **结论** `renderer.js` 已拆分为主控制器（690 行）、`session-sidebar.js`（146 行）与 `conversation-view.js`（194 行），全量修改文件 `< 1000` 行；`presentation.js` 按 `Intl.Segmenter` 字素与表情令牌截断；`DesktopService.cs` 启动 `state` 完整透传归档摘要；侧栏已导入表情可显图，缺图与坏图均回退可读 `[名称]`；LANC 协议与 Windows 行为零破坏。
+- **验证边界** 独立复跑 Node 15 文件 `--check` 与 `tests/linux_desktop_ui_regression.js`、两套 Windows 回归、`dotnet build` 共享后端、`git diff --check`，并独立以编译产物 `lanchat.dll` 验证隔离 JSONL 归档 `state` 响应及 Edge Headless 验证真实 PNG 解码、`error` 回退与 420px/280px 窄侧栏单行样式，全部通过。**未验证** Linux Xorg/Wayland/XWayland Electron 实机窄侧栏与系统剪贴板、Linux/QEMU 最新 ELF 实跑（`tests/linux_desktop_regression.py`）及真实双机新旧端联测，继续保留于 `CRDocs/DEFERRED.md`。
+- **下一步** `LC-CC-003` 当前范围已闭环。由用户决定进入提交/打包发布，或安排下一项专项（如 `CRDocs/DEFERRED.md` 中的 `LC-CC-004`、`LC-CC-005`、`LC-CC-006` 剩余用例，或 Linux/双机实机验收 `LC-CC-ENV-001` / `LC-LINUX-002-ENV-001` / `LC-LINUX-002-GUI-001`）。 [复审结论](REVIEW.md) · [实施证据](IMPLEMENTATION.md) · [实机边界](DEFERRED.md)
+
+---
+
+## 历史状态 — LC-CHAT-COMPOSER-001（Round 2：独立复审通过）
 
 - **状态**：**APPROVED**（当前开发与宿主机回归范围放行）。
 - **日期**：2026-11-24。

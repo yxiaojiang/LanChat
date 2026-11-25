@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -21,6 +22,7 @@ namespace LanChat
     internal static class FriendRefreshRegression
     {
         private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
+        private const BindingFlags AnyInstance = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
         private static readonly IPAddress PeerAddress = IPAddress.Parse("127.0.0.2");
         private static IPAddress _fixtureAddress = IPAddress.Parse("127.0.0.4");
 
@@ -70,6 +72,7 @@ namespace LanChat
                     CheckListRebuild(form);
                     CheckScrollDrag(form);
                     CheckComposerUi(form);
+                    CheckChatSelectionAndDraftSwitch(form);
                 }
                 catch (Exception error)
                 {
@@ -310,7 +313,83 @@ namespace LanChat
             Require(File.Exists(file) && previews[file].Size == new Size(24, 12), "截图保存为 PNG 并按比例预览");
             remove.Invoke(form, new object[] { 0 });
             Require(!attachments.Visible && !File.Exists(file) && previews.Count == 0, "移除图片草稿后清理临时图片");
+
+            // 输入框处于隐藏空态时，第一次右键应由外层胶囊转交暗色菜单。
+            var input = Field<ChatInputBox>(form, "_txtInput");
+            var inputPanel = Field<Panel>(form, "_inputPanel");
+            input.Visible = false;
+            Clipboard.SetText("右键粘贴文字");
+            MethodInfo panelMouseDown = inputPanel.GetType().GetMethod("OnMouseDown", Private);
+            Require(panelMouseDown != null, "输入胶囊缺少鼠标按下入口");
+            panelMouseDown.Invoke(inputPanel, new object[] { new MouseEventArgs(MouseButtons.Right, 1, 20, 20, 0) });
+            GrokPopupMenu menu = Application.OpenForms.OfType<GrokPopupMenu>().FirstOrDefault();
+            Require(menu != null, "输入框首次右键未弹出暗色菜单");
+            menu.Close();
             Console.WriteLine("LC-CHAT-COMPOSER-001: 联合标题间距、圆点颜色、图像草稿暂存与移除通过");
+        }
+
+        private static void CheckChatSelectionAndDraftSwitch(MainForm form)
+        {
+            var view = Field<WeChatChatView>(form, "_chatView");
+            Require(view != null, "聊天视图不存在");
+            string content = "甲👨‍👩‍👧‍👦👍🏽🇨🇳❤️1️⃣\r\n乙";
+            view.Width = 520;
+            view.Height = 300;
+            view.SetMessages(new List<ChatMessage> { new ChatMessage { Content = content, Timestamp = DateTime.Now } });
+            FieldInfo renderField = view.GetType().GetField("_renderItems", Private);
+            Require(renderField != null, "未找到聊天消息行集合");
+            var renderItems = (IList)renderField.GetValue(view);
+            Require(renderItems != null && renderItems.Count > 0, "聊天视图未生成可选消息行");
+            object item = renderItems[0];
+            Require(item != null, "聊天消息行为空");
+            MethodInfo hit = view.GetType().GetMethod("GetCharIndexAtPoint", Private);
+            Require(hit != null, "未找到像素命中方法");
+            using (Graphics graphics = view.CreateGraphics())
+            using (Font font = view.GetMsgFont())
+            {
+                var boundaries = new HashSet<int> { 0 };
+                for (int cursor = 0; cursor < content.Length; cursor = ChatTextLayout.NextBoundary(content, cursor))
+                    boundaries.Add(ChatTextLayout.NextBoundary(content, cursor));
+                FieldInfo linesField = item.GetType().GetField("Lines", AnyInstance);
+                Require(linesField != null, "未找到消息视觉行字段");
+                var lines = (IList)linesField.GetValue(item);
+                Require(lines != null && lines.Count > 0, "聊天消息行未生成视觉行");
+                foreach (object line in lines)
+                {
+                    Require(line != null, "消息视觉行为空");
+                    FieldInfo boundsField = line.GetType().GetField("Bounds", AnyInstance);
+                    Require(boundsField != null, "未找到视觉行边界字段");
+                    RectangleF bounds = (RectangleF)boundsField.GetValue(line);
+                    for (int x = (int)bounds.Left; x <= (int)bounds.Right; x++)
+                    {
+                        int index = (int)hit.Invoke(view, new object[] { item, new Point(x, (int)bounds.Top + 2), graphics, font });
+                        Require(boundaries.Contains(index),
+                            "像素命中落在组合表情内部");
+                    }
+                }
+            }
+
+            view.GetType().GetField("_selectedItem", Private).SetValue(view, item);
+            view.SelectAllCurrentMessage();
+            view.CopySelectedText();
+            Require(Clipboard.GetText() == content, "跨 CRLF 复制改变了原始消息");
+
+            var attachmentList = Field<SessionListBox>(form, "_attachmentList");
+            MethodInfo stage = form.GetType().GetMethod("StageClipboardImage", Private);
+            using (var image = new Bitmap(32, 16)) stage.Invoke(form, new object[] { image });
+            Require(attachmentList.Items.Count == 1, "草稿未进入当前会话");
+            string path = (string)attachmentList.Items[0];
+            var presenter = Field<SessionPresenter>(form, "_sessionPresenter");
+            presenter.SelectPeerChat(new PeerInfo { Id = "draft-peer", NickName = "草稿好友", IP = IPAddress.Parse("127.0.0.250"), TcpPort = 0 });
+            Require(attachmentList.Items.Count == 0, "切换会话后草稿泄漏到新会话");
+            presenter.SelectSession(SessionPresenter.BROADCAST_TARGET);
+            Require(attachmentList.Items.Count == 1 && (string)attachmentList.Items[0] == path,
+                "切回原会话后草稿未恢复");
+            form.GetType().GetField("_isExplicitExit", Private).SetValue(form, true);
+            form.GetType().GetMethod("MainForm_FormClosing", Private).Invoke(form, new object[] { form, new FormClosingEventArgs(CloseReason.UserClosing, false) });
+            form.Dispose();
+            Require(!File.Exists(path), "关闭窗口未清理未发送截图草稿");
+            Console.WriteLine("LC-CC-006: 组合表情像素命中、跨 CRLF 复制、切会话草稿和关闭清理通过");
         }
 
         private static void SendIdentity(UdpClient udp, string id, string nick, int port)

@@ -29,9 +29,11 @@ namespace LanChat
             Console.OutputEncoding = new UTF8Encoding(false);
             VerifyLayout(bool.Parse(args[1]));
             VerifyEmojiPaint();
+            VerifyClipboardPriority();
             string source = SaveClipboardImage(args[0]);
             VerifyLoopback(args[0], source);
             Console.WriteLine("聊天表情布局、PNG 与位图粘贴数据、LANC 文本和图片回环及历史回读通过");
+            VerifyManagedTransfers(args[0], source);
             return 0;
         }
 
@@ -117,6 +119,27 @@ namespace LanChat
             Console.WriteLine("BMP 肤色、ZWJ 和独立表情的 Segoe UI Emoji 整段测量及 GDI+ 像素对照通过");
         }
 
+        private static void VerifyClipboardPriority()
+        {
+            using (var bitmap = new Bitmap(8, 8))
+            {
+                var mixed = new DataObject();
+                mixed.SetData(DataFormats.UnicodeText, "Excel 单元格");
+                mixed.SetData(DataFormats.Bitmap, bitmap);
+                MethodInfo hasText = typeof(ChatInputBox).GetMethod("HasClipboardText", BindingFlags.NonPublic | BindingFlags.Static);
+                MethodInfo hasImage = typeof(ChatInputBox).GetMethod("HasClipboardAttachment", BindingFlags.NonPublic | BindingFlags.Static);
+                bool text = (bool)hasText.Invoke(null, new object[] { mixed });
+                bool image = (bool)hasImage.Invoke(null, new object[] { mixed, text });
+                Require(text && !image, "图文混合剪贴板未优先保留文字");
+
+                var imageOnly = new DataObject(DataFormats.Bitmap, bitmap);
+                text = (bool)hasText.Invoke(null, new object[] { imageOnly });
+                image = (bool)hasImage.Invoke(null, new object[] { imageOnly, text });
+                Require(!text && image, "纯位图剪贴板未保留附件入口");
+            }
+            Console.WriteLine("LC-CC-005: Windows 图文混合剪贴板优先级断言通过");
+        }
+
         private static string SaveClipboardImage(string directory)
         {
             string source = Path.Combine(directory, "截图-测试.png");
@@ -183,6 +206,90 @@ namespace LanChat
         private static void Require(bool condition, string message)
         {
             if (!condition) throw new InvalidOperationException(message);
+        }
+
+        private static void VerifyManagedTransfers(string directory, string source)
+        {
+            ChatHistoryService.ProfileStorageDirectory = Path.Combine(directory, "managed-history");
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            try
+            {
+                using (var network = new NetworkService("截图发送方", directory))
+                using (var noUi = new Control())
+                {
+                    var sessions = new SessionManager();
+                    var controller = new FileTransferController(network, sessions, noUi);
+                    var peer = new PeerInfo { Id = "附件接收方", IP = IPAddress.Loopback, TcpPort = ((IPEndPoint)listener.LocalEndpoint).Port };
+                    string key = SessionManager.GetLanKey(peer.Id, peer.IP);
+                    string pasteDirectory = Path.Combine(directory, "PastedImages");
+                    Directory.CreateDirectory(pasteDirectory);
+                    var bytes = File.ReadAllBytes(source);
+                    foreach (string scenario in new[] { "拒收", "断连", "成功", "存储失败", "退出", "用户文件" })
+                    {
+                        string path = Path.Combine(pasteDirectory, "截图-" + scenario + ".png");
+                        File.WriteAllBytes(path, bytes);
+                        bool managed = scenario != "用户文件";
+                        // 存储目录被同名文件占用，模拟对端确认后本地历史写入失败。
+                        string history = ChatHistoryService.ProfileStorageDirectory;
+                        if (scenario == "存储失败")
+                        {
+                            ChatHistoryService.ProfileStorageDirectory = Path.Combine(directory, "blocked-history");
+                            File.WriteAllText(ChatHistoryService.ProfileStorageDirectory, "");
+                        }
+                        var sender = managed ? controller : new FileTransferController(network, sessions, null);
+                        Require(sender.SendFiles(peer, new[] { path }, file => managed && file == path) == 1, "文件未进入发送队列");
+                        var pending = listener.BeginAcceptTcpClient(null, null);
+                        using (var ready = pending.AsyncWaitHandle)
+                            Require(ready.WaitOne(5000), "截图发送未连接对端");
+                        using (TcpClient client = listener.EndAcceptTcpClient(pending))
+                        using (NetworkStream stream = client.GetStream())
+                        using (var reader = new BinaryReader(stream, Encoding.UTF8, true))
+                        {
+                            client.ReceiveTimeout = 5000;
+                            Require(Encoding.ASCII.GetString(reader.ReadBytes(4)) == "LANC" && reader.ReadByte() == 2, "文件报价帧不兼容");
+                            reader.ReadString();
+                            reader.ReadString();
+                            reader.ReadString();
+                            Require(reader.ReadString() == Path.GetFileName(path) && reader.ReadInt64() == bytes.Length, "文件报价字段不兼容");
+                            if (scenario == "拒收" || scenario == "用户文件") stream.WriteByte(0);
+                            else
+                            {
+                                stream.WriteByte(1);
+                                Require(reader.ReadBytes(bytes.Length).SequenceEqual(bytes), "对端收到的截图字节不一致");
+                                if (scenario == "退出")
+                                {
+                                    controller.DiscardOutgoingPastes();
+                                    Require(!File.Exists(path), "退出时未清理等待最终确认的截图");
+                                }
+                                if (scenario != "断连") stream.WriteByte(1);
+                            }
+                        }
+                        if (scenario == "成功")
+                        {
+                            Require(SpinWait.SpinUntil(() => ChatHistoryService.LoadHistory(key).Exists(msg => msg.FilePath == path), 5000),
+                                "UI 句柄不可用时仍应保存成功截图的引用");
+                            controller.DiscardOutgoingPastes();
+                            Require(File.ReadAllBytes(path).SequenceEqual(bytes), "退出删除了历史引用的截图");
+                        }
+                        else if (!managed)
+                        {
+                            var message = sessions.GetLastMessage(key);
+                            Require(SpinWait.SpinUntil(() => message.TransferProgress.IsFailed, 5000), "用户文件拒收未完成");
+                            Require(File.ReadAllBytes(path).SequenceEqual(bytes), "拒收误删了用户原始文件");
+                        }
+                        else
+                        {
+                            Require(SpinWait.SpinUntil(() => !File.Exists(path), 5000), scenario + "未清理应用截图");
+                            Require(!ChatHistoryService.LoadHistory(key).Exists(msg => msg.FilePath == path), scenario + "产生失效历史引用");
+                        }
+                        ChatHistoryService.ProfileStorageDirectory = history;
+                    }
+                    Require(ChatHistoryService.LoadHistory(key).Count == 1, "只应保留成功截图的历史行");
+                }
+            }
+            finally { listener.Stop(); }
+            Console.WriteLine("LC-CC-004: Windows 拒收、断连、存储失败与退出清理通过，保留成功截图和用户原文件");
         }
     }
 }

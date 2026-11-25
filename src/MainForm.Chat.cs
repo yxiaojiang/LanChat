@@ -415,8 +415,8 @@ namespace LanChat
             if (attachments != null)
             {
                 PeerInfo recipient = _selectedPeer ?? PickFileRecipient();
-                if (recipient == null || !SendFilesToPeer(recipient, attachments.ToArray())) return;
-                ClearAttachmentDraft(chat, false);
+                if (recipient == null || !SendFilesToPeer(recipient, attachments.ToArray(), TakeDraftImage)) return;
+                ClearAttachmentDraft(chat);
                 RefreshAttachmentDraft();
             }
 
@@ -563,7 +563,7 @@ namespace LanChat
 
             if (dr == DialogResult.OK && _sessionPresenter != null)
             {
-                ClearAttachmentDraft(SessionManager.GetLanKey(peer.Id, peer.IP), true);
+                ClearAttachmentDraft(SessionManager.GetLanKey(peer.Id, peer.IP));
                 _sessionPresenter.DeletePeerSession(peer);
             }
         }

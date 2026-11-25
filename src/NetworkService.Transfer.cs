@@ -306,6 +306,12 @@ namespace LanChat
         /// <param name="completionCallback">传输完毕回调委托 (success, reason)</param>
         public void SendFileAsync(PeerInfo peer, string filePath, Action<FileTransferProgress> progressCallback, Action<bool, string> completionCallback)
         {
+            SendFileAsync(peer, filePath, progressCallback, completionCallback, false);
+        }
+
+        internal void SendFileAsync(PeerInfo peer, string filePath, Action<FileTransferProgress> progressCallback,
+            Action<bool, string> completionCallback, bool allowSourceDelete)
+        {
             new Thread(() =>
             {
                 string transferId = Guid.NewGuid().ToString("N");
@@ -374,7 +380,9 @@ namespace LanChat
                             DateTime lastTime = DateTime.Now;
                             long lastBytes = 0;
 
-                            using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                            // 应用截图在退出时可删除，已打开的发送流仍由传输线程负责关闭。
+                            FileShare share = allowSourceDelete ? FileShare.Read | FileShare.Delete : FileShare.Read;
+                            using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, share))
                             {
                                 int read;
                                 while ((read = fs.Read(buffer, 0, buffer.Length)) > 0)

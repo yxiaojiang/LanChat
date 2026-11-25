@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
-const { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } = require('node:fs');
+const { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } = require('node:fs');
+const { EventEmitter } = require('node:events');
 const Module = require('node:module');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
@@ -214,7 +215,178 @@ async function testMainPathPolicy() {
   }
 }
 
+async function testPasteLifecycle() {
+  const source = readFileSync(join(__dirname, '../src/linux/desktop/main.cjs'), 'utf8');
+  const directory = mkdtempSync(join(tmpdir(), 'lanchat-paste-lifecycle-'));
+  const pasted = join(directory, 'PastedImages');
+  const png = Buffer.from('模拟 PNG 数据');
+  const tick = () => new Promise(resolve => setImmediate(resolve));
+  const waitFor = async (check, message) => {
+    const limit = Date.now() + 4000;
+    while (!check() && Date.now() < limit) await tick();
+    assert.ok(check(), message);
+  };
+  try {
+    for (const scenario of ['传输终态', '退出时预检拒绝', '退出时预检通过',
+      '退出时管道晚到确认', '退出时传输未完成', '后端异常退出']) {
+      const handlers = new Map();
+      const calls = [];
+      const events = [];
+      const peer = { id: 'peer', key: 'chat', nick: '好友' };
+      const session = new EventEmitter();
+      session.setPermissionRequestHandler = session.setPermissionCheckHandler = () => {};
+      const app = Object.assign(new EventEmitter(), {
+        getPath: () => directory,
+        requestSingleInstanceLock: () => true,
+        enableSandbox() {},
+        whenReady: () => Promise.resolve(),
+        quit: () => { finalQuit++; }
+      });
+      let finalQuit = 0;
+      let mainWindow;
+      let child;
+      let notifyStopping;
+      let finishStop;
+      const stopped = new Promise(resolve => { finishStop = resolve; });
+      const stopping = new Promise(resolve => { notifyStopping = resolve; });
+      class Window extends EventEmitter {
+        constructor() {
+          super();
+          mainWindow = this;
+          this.webContents = Object.assign(new EventEmitter(), {
+            mainFrame: { url: pathToFileURL(join(__dirname, '../src/linux/desktop/index.html')).href },
+            setWindowOpenHandler() {},
+            send: (_channel, event) => events.push(event)
+          });
+        }
+        isDestroyed() { return false; }
+        removeMenu() {}
+        async loadFile() {}
+      }
+      class Service extends EventEmitter {
+        constructor() { super(); child = this; }
+        request(method, args, operation) {
+          return new Promise((resolve, reject) => calls.push({ method, args, operation, resolve, reject }));
+        }
+        stop() { notifyStopping(); return stopped; }
+      }
+      const electron = {
+        app, BrowserWindow: Window, ipcMain: { handle: (name, handler) => handlers.set(name, handler) },
+        session: { defaultSession: session },
+        nativeImage: { createFromBuffer: () => ({
+          isEmpty: () => false, toPNG: () => png, getSize: () => ({ width: 1, height: 1 }),
+          resize: () => ({ toDataURL: () => 'data:image/png;base64,AA==' })
+        }) }
+      };
+      runInNewContext(source, {
+        require: name => name === 'electron' ? electron : name === './service.cjs' ? Service :
+          name === './appearance.js' ? {} : require(name),
+        __dirname: join(__dirname, '../src/linux/desktop'),
+        process: { env: {}, resourcesPath: directory },
+        ArrayBuffer, Buffer, console
+      });
+      await tick();
+      const invoke = (name, ...args) => handlers.get('lanchat:' + name)(
+        { sender: mainWindow.webContents, senderFrame: mainWindow.webContents.mainFrame }, ...args);
+      const stage = async () => (await invoke('stage-paste', [], new ArrayBuffer(2), true))[0];
+      const beginQuit = async () => {
+        let prevented = false;
+        app.emit('before-quit', { preventDefault() { prevented = true; } });
+        assert.equal(prevented, true);
+        await stopping;
+        assert.equal(finalQuit, 0);
+      };
+      const next = async method => {
+        await waitFor(() => calls.length !== 0, '通信服务未收到 ' + method);
+        const call = calls.shift();
+        assert.equal(call.method, method);
+        return call;
+      };
+      const pathOf = attachment => join(pasted, attachment.name);
+      const committed = request => child.emit('event', {
+        event: 'message', data: { path: request.args.path, historySaved: true, file: true, operation: request.operation }
+      });
+      const image = await stage();
+      const path = pathOf(image);
+      const original = join(pasted, '截图-用户原文件.png');
+      writeFileSync(original, '用户原文件');
+      const [user] = await invoke('stage-paste', [original], null, true);
+
+      if (scenario === '传输终态') {
+        const success = await stage();
+        const unsaved = await stage();
+        const disconnected = await stage();
+        const ids = [image.id, success.id, unsaved.id, disconnected.id, user.id];
+        const first = invoke('send-paste', peer.id, ids);
+        (await next('peers')).resolve([]);
+        await assert.rejects(first, /离线/);
+        assert.ok(existsSync(path), '发送预检失败后应保留草稿供重试');
+        const send = invoke('send-paste', peer.id, ids);
+        (await next('peers')).resolve([peer]);
+        await send;
+        const rejected = await next('file');
+        assert.equal(rejected.args.managedPaste, true);
+        rejected.reject(new Error('对方拒收'));
+        const saved = await next('file');
+        committed(saved);
+        saved.resolve({ historySaved: true });
+        (await next('file')).resolve({ historySaved: false });
+        (await next('file')).reject(new Error('对端断连'));
+        const raw = await next('file');
+        assert.equal(raw.args.managedPaste, undefined);
+        assert.equal(raw.args.path, original);
+        raw.reject(new Error('对方拒收'));
+        await beginQuit();
+        finishStop(true);
+        await waitFor(() => finalQuit === 1, '主进程未退出');
+        assert.ok(events.some(event => event.failed && event.error === '对方拒收'));
+        for (const attachment of [image, unsaved, disconnected]) assert.equal(existsSync(pathOf(attachment)), false);
+        assert.deepEqual(readFileSync(pathOf(success)), png);
+      } else if (['退出时管道晚到确认', '退出时传输未完成', '后端异常退出'].includes(scenario)) {
+        const queued = await stage();
+        const unsent = await stage();
+        const send = invoke('send-paste', peer.id, [image.id, queued.id, user.id]);
+        (await next('peers')).resolve([peer]);
+        await send;
+        const active = await next('file');
+        await beginQuit();
+        child.disconnected = true;
+        active.reject(new Error('通信服务已断开，操作结果未确认'));
+        await tick();
+        assert.equal(finalQuit, 0, '必须等待在途传输与管道关闭');
+        assert.ok(existsSync(path), '管道关闭前不得删除可能已有历史引用的截图');
+        if (scenario === '退出时管道晚到确认') committed(active);
+        finishStop(scenario !== '后端异常退出');
+        await waitFor(() => finalQuit === 1, '主进程未等待清理后退出');
+        if (scenario === '退出时传输未完成') assert.equal(existsSync(path), false);
+        else assert.deepEqual(readFileSync(path), png);
+        assert.equal(existsSync(pathOf(queued)), false);
+        assert.equal(existsSync(pathOf(unsent)), false);
+        assert.equal(calls.length, 0, '退出后不得继续向后端派发排队附件');
+      } else {
+        const send = invoke('send-paste', peer.id, [image.id, user.id]);
+        const peers = await next('peers');
+        await beginQuit();
+        finishStop(true);
+        await tick();
+        assert.equal(finalQuit, 0, '预检尚未处理时不得完成退出');
+        if (scenario === '退出时预检拒绝') peers.reject(new Error('通信服务已断开'));
+        else peers.resolve([peer]);
+        await assert.rejects(send, /断开|退出/);
+        await waitFor(() => finalQuit === 1, '主进程未等待预检清理后退出');
+        assert.equal(existsSync(path), false);
+        assert.equal(calls.length, 0);
+      }
+      assert.equal(readFileSync(original, 'utf8'), '用户原文件');
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+  console.log('LC-CC-004: Linux IPC 发送终态、退出预检与管道晚到确认清理通过');
+}
+
 module.exports = async function testDesktopIpc() {
   await testPreloadImagePaste();
   await testMainPathPolicy();
+  await testPasteLifecycle();
 };
