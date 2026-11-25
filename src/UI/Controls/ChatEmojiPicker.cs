@@ -9,8 +9,9 @@ using System.Windows.Forms;
 namespace LanChat
 {
     /// <summary>
-    /// 聊天表情选择器，依赖本地表情目录和会话列表的自绘滚动。
-    /// 弹层失焦即销毁，表情位图在进程内复用，只把可读文字交给输入框。
+    /// 微信比例的聊天表情选择器。
+    /// 依赖 SessionListBox 的暗色自绘滚动模型与 EmojiPack；弹层失焦即销毁，位图由进程缓存持有。
+    /// 视觉边界是选择与预览，不改变网络消息格式，仍向输入模型写入可读表情令牌。
     /// </summary>
     internal sealed class ChatEmojiPicker : Form
     {
@@ -22,88 +23,72 @@ namespace LanChat
             "👍", "👎", "👏", "🙏", "🤝", "🎉", "🔥", "❤️", "💯", "✨",
             "💪", "✌️", "🖐️", "✋", "👊", "☕", "💻", "📱", "🍺", "🎁"
         };
-        private static readonly Lazy<Dictionary<string, Bitmap>> Images = new Lazy<Dictionary<string, Bitmap>>(LoadImages);
+        private static readonly Lazy<Dictionary<string, Bitmap>> Images =
+            new Lazy<Dictionary<string, Bitmap>>(LoadImages, true);
         private static readonly List<string> ImportedOrder = new List<string>();
-        private const int Cell = 36;
+        private const int Cell = 48;
+        private const int Columns = 8;
+        private const int RecentCount = 12;
         private readonly string[] _entries;
-        private readonly SessionListBox _grid;
+        private readonly string[] _recentEntries;
+        private readonly SessionListBox _recentGrid;
+        private readonly SessionListBox _allGrid;
         private readonly ToolTip _tip = new ToolTip();
-        private readonly int _columns;
-        private int _hover = -1;
-        private int _column;
+        private int _recentHover = -1;
+        private int _allHover = -1;
+        private int _recentColumn;
+        private int _allColumn;
 
         private ChatEmojiPicker(Control anchor, Action<string> select)
         {
             _entries = Images.Value.Count == 0 ? UnicodeEntries : ImportedOrder.ToArray();
+            int recentLength = Math.Min(RecentCount, _entries.Length);
+            _recentEntries = new string[recentLength];
+            Array.Copy(_entries, _recentEntries, recentLength);
+
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = false;
+            AutoScaleMode = AutoScaleMode.None;
             BackColor = GrokTheme.Level2;
-            Padding = new Padding(8);
+            ClientSize = new Size(Columns * Cell + 24, 548);
 
             Rectangle reference = anchor.RectangleToScreen(anchor.ClientRectangle);
             Rectangle work = Screen.FromRectangle(reference).WorkingArea;
-            _columns = Math.Max(1, Math.Min(10, (work.Width - 30) / Cell));
-            int rows = (_entries.Length + _columns - 1) / _columns;
-            int above = Math.Max(0, reference.Top - work.Top - 6);
-            int below = Math.Max(0, work.Bottom - reference.Bottom - 6);
-            int visibleRows = Math.Max(1, Math.Min(rows, (Math.Max(above, below) - 16) / Cell));
-            ClientSize = new Size(_columns * Cell + 28, visibleRows * Cell + 16);
-            Location = new Point(Math.Max(work.Left, Math.Min(reference.Left, work.Right - Width)),
-                above >= Height || above >= below ? Math.Max(work.Top, reference.Top - Height - 6) : reference.Bottom + 6);
-
-            // 与应用其他浮层使用同一圆角和暗色滑块，网格行由 ListBox 处理滚轮与视口。
-            using (GraphicsPath border = GrokTheme.RoundedRect(new Rectangle(0, 0, Width, Height), 16))
+            int width = Math.Min(ClientSize.Width, Math.Max(Columns * 40 + 24, work.Width - 20));
+            ClientSize = new Size(width, Math.Min(ClientSize.Height, Math.Max(360, work.Height - 20)));
+            using (GraphicsPath border = GrokTheme.RoundedRect(new Rectangle(0, 0, Width, Height), 18))
                 Region = new Region(border);
-            _grid = new SessionListBox
-            {
-                Dock = DockStyle.Fill, AccessibleName = "表情", ItemHeight = Cell,
-                DrawMode = DrawMode.OwnerDrawFixed, IntegralHeight = false,
-                BorderStyle = BorderStyle.None, BackColor = GrokTheme.Level2
-            };
-            for (int row = 0; row < rows; row++)
-                _grid.Items.Add(string.Join(" ", _entries, row * _columns, Math.Min(_columns, _entries.Length - row * _columns)));
-            _grid.DrawItem += DrawRow;
-            _grid.MouseMove += (sender, e) =>
-            {
-                int index = FindCell(e.Location);
-                if (index == _hover) return;
-                _hover = index;
-                _tip.SetToolTip(_grid, index >= 0 ? _entries[index] : null);
-                _grid.Invalidate();
-            };
-            _grid.MouseLeave += (sender, e) => { _hover = -1; _grid.Invalidate(); };
-            _grid.MouseClick += (sender, e) =>
-            {
-                if (e.Button != MouseButtons.Left) return;
-                int index = FindCell(e.Location);
-                if (index >= 0) select(_entries[index]);
-            };
-            _grid.KeyDown += (sender, e) =>
-            {
-                if (e.KeyCode == Keys.Enter)
-                {
-                    e.SuppressKeyPress = true;
-                    select(_entries[Math.Min(_entries.Length - 1, Math.Max(0, _grid.SelectedIndex) * _columns + _column)]);
-                }
-                else if (e.KeyCode == Keys.Left || e.KeyCode == Keys.Right)
-                {
-                    e.SuppressKeyPress = true;
-                    int count = Math.Min(_columns, _entries.Length - Math.Max(0, _grid.SelectedIndex) * _columns);
-                    _column = Math.Max(0, Math.Min(count - 1, _column + (e.KeyCode == Keys.Left ? -1 : 1)));
-                    _grid.Invalidate();
-                }
-            };
-            _grid.SelectedIndex = 0;
-            Controls.Add(_grid);
-            Shown += (sender, e) => _grid.Focus();
+
+            Controls.Add(CreateTitleBar());
+            Controls.Add(CreateSectionLabel("最近使用", 52));
+            _recentGrid = CreateGrid(_recentEntries);
+            _recentGrid.Location = new Point(12, 80);
+            _recentGrid.Size = new Size(Width - 24, Math.Max(Cell, Rows(_recentEntries) * Cell));
+            Controls.Add(_recentGrid);
+
+            int allTitleTop = _recentGrid.Bottom + 4;
+            Controls.Add(CreateSectionLabel("所有表情", allTitleTop));
+            _allGrid = CreateGrid(_entries);
+            _allGrid.Location = new Point(12, allTitleTop + 28);
+            _allGrid.Size = new Size(Width - 24, Math.Max(Cell, Height - _allGrid.Top - 54));
+            Controls.Add(_allGrid);
+            Controls.Add(CreateCategoryBar());
+
+            AttachGrid(_recentGrid, _recentEntries, false, select);
+            AttachGrid(_allGrid, _entries, true, select);
+            Shown += (sender, e) => _allGrid.Focus();
             KeyPreview = true;
             KeyDown += (sender, e) => { if (e.KeyCode == Keys.Escape) Close(); };
             Deactivate += (sender, e) => Close();
             Disposed += (sender, e) => _tip.Dispose();
+
+            Location = new Point(Math.Max(work.Left, Math.Min(reference.Left, work.Right - Width)),
+                reference.Top - Height - 8 >= work.Top ? reference.Top - Height - 8 :
+                Math.Min(work.Bottom - Height, reference.Bottom + 8));
         }
 
-        /// <summary>在工具按钮旁显示表情选择器，选中后关闭并通知输入框。</summary>
+        /// <summary>在输入工具按钮旁显示选择器，并在点击后回调可传输的表情令牌。</summary>
         internal static void Open(Form owner, Control anchor, Action<string> onPick)
         {
             ChatEmojiPicker popup = null;
@@ -115,7 +100,7 @@ namespace LanChat
             popup.Show(owner);
         }
 
-        /// <summary>查找本机导入的表情位图，未匹配时返回空。位图由进程持有。</summary>
+        /// <summary>查找内置或兼容旧版外部目录中的表情位图；位图由进程缓存持有。</summary>
         internal static Bitmap FindImage(string token)
         {
             Bitmap image;
@@ -124,8 +109,12 @@ namespace LanChat
 
         private static Dictionary<string, Bitmap> LoadImages()
         {
-            string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LanChat", "WeChatEmoji");
             var images = new Dictionary<string, Bitmap>(StringComparer.Ordinal);
+            foreach (EmojiPackEntry entry in EmojiPack.GetEntries()) AddImage(images, entry.Token, entry.Png);
+            if (images.Count > 0) return images;
+
+            // 兼容旧版导入目录：没有内置资源时仍允许开发版和旧安装包显示表情。
+            string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LanChat", "WeChatEmoji");
             string manifest = Path.Combine(directory, "manifest.tsv");
             if (!File.Exists(manifest)) return images;
             try
@@ -136,20 +125,7 @@ namespace LanChat
                     string[] parts = line.Split('\t');
                     if (parts.Length != 2 || !Regex.IsMatch(parts[0], @"^\[[^\[\]\s]{1,24}\]$") ||
                         !Regex.IsMatch(parts[1], @"^[0-9]{3}\.png$") || images.ContainsKey(parts[0])) continue;
-                    try
-                    {
-                        byte[] bytes = File.ReadAllBytes(Path.Combine(directory, parts[1]));
-                        if (bytes.Length > 128 * 1024) continue;
-                        using (var stream = new MemoryStream(bytes))
-                        using (Image image = Image.FromStream(stream))
-                        {
-                            if (image.Width <= 64 && image.Height <= 64)
-                            {
-                                images.Add(parts[0], new Bitmap(image));
-                                ImportedOrder.Add(parts[0]);
-                            }
-                        }
-                    }
+                    try { AddImage(images, parts[0], File.ReadAllBytes(Path.Combine(directory, parts[1]))); }
                     catch (IOException) { }
                     catch (ArgumentException) { }
                 }
@@ -159,39 +135,153 @@ namespace LanChat
             return images;
         }
 
-        private int FindCell(Point location)
+        private static void AddImage(Dictionary<string, Bitmap> images, string token, byte[] bytes)
         {
-            if (location.X < 0 || location.X >= _columns * Cell) return -1;
-            int row = _grid.IndexFromPoint(location);
-            int index = row * _columns + location.X / Cell;
-            return row >= 0 && index < _entries.Length ? index : -1;
+            if (images.ContainsKey(token) || bytes == null || bytes.Length > 128 * 1024) return;
+            using (var stream = new MemoryStream(bytes, false))
+            using (Image image = Image.FromStream(stream))
+            {
+                if (image.Width > 64 || image.Height > 64) return;
+                images.Add(token, new Bitmap(image));
+                ImportedOrder.Add(token);
+            }
+        }
+
+        private Panel CreateTitleBar()
+        {
+            var title = new Panel { Location = new Point(0, 0), Size = new Size(Width, 52), BackColor = GrokTheme.Level2 };
+            title.Paint += (sender, e) =>
+            {
+                using (Font font = GrokTheme.UiFont(10.5f, FontStyle.Bold))
+                    GrokTheme.DrawUiTextLeft(e.Graphics, "表情", font, GrokTheme.TextPrimary, 16, 0, 120, title.Height);
+                using (Pen pen = new Pen(GrokTheme.Border, 1f)) e.Graphics.DrawLine(pen, 12, title.Height - 1, title.Width - 12, title.Height - 1);
+            };
+            return title;
+        }
+
+        private Panel CreateSectionLabel(string text, int top)
+        {
+            var label = new Panel { Location = new Point(12, top), Size = new Size(Width - 24, 28), BackColor = GrokTheme.Level2 };
+            label.Paint += (sender, e) =>
+            {
+                using (Font font = GrokTheme.UiFont(9.5f))
+                    GrokTheme.DrawUiTextLeft(e.Graphics, text, font, GrokTheme.TextSecondary, 4, 0, label.Width - 8, label.Height);
+            };
+            return label;
+        }
+
+        private Panel CreateCategoryBar()
+        {
+            int top = Height - 54;
+            var tabs = new Panel { Location = new Point(0, top), Size = new Size(Width, 54), BackColor = GrokTheme.Level1 };
+            tabs.Paint += (sender, e) =>
+            {
+                using (Pen border = new Pen(GrokTheme.Border, 1f)) e.Graphics.DrawLine(border, 12, 0, tabs.Width - 12, 0);
+                int[] centers = { 48, 128, 208, 288, 368 };
+                WeChatIconType[] icons = { WeChatIconType.Search, WeChatIconType.Emoji, WeChatIconType.Box, WeChatIconType.Scissors, WeChatIconType.More };
+                for (int i = 0; i < centers.Length && centers[i] < tabs.Width; i++)
+                {
+                    Rectangle icon = new Rectangle(centers[i] - 12, 15, 24, 24);
+                    WeChatIcon.Draw(e.Graphics, icons[i], icon, i == 1, i == 1 ? GrokTheme.AccentHot : GrokTheme.TextSecondary);
+                }
+            };
+            return tabs;
+        }
+
+        private SessionListBox CreateGrid(string[] entries)
+        {
+            var grid = new SessionListBox
+            {
+                ItemHeight = Cell, DrawMode = DrawMode.OwnerDrawFixed, IntegralHeight = false,
+                BorderStyle = BorderStyle.None, BackColor = GrokTheme.Level2, ForeColor = GrokTheme.TextPrimary,
+                Tag = entries, AccessibleName = "表情网格"
+            };
+            for (int row = 0; row < Rows(entries); row++)
+                grid.Items.Add(string.Join(" ", entries, row * Columns, Math.Min(Columns, entries.Length - row * Columns)));
+            return grid;
+        }
+
+        private void AttachGrid(SessionListBox grid, string[] entries, bool all, Action<string> select)
+        {
+            grid.DrawItem += DrawRow;
+            grid.MouseMove += (sender, e) =>
+            {
+                int index = FindCell(grid, entries, e.Location);
+                if (all ? index == _allHover : index == _recentHover) return;
+                if (all) _allHover = index; else _recentHover = index;
+                _tip.SetToolTip(grid, index >= 0 ? entries[index] : null);
+                grid.Invalidate();
+            };
+            grid.MouseLeave += (sender, e) => { if (all) _allHover = -1; else _recentHover = -1; grid.Invalidate(); };
+            grid.MouseClick += (sender, e) =>
+            {
+                if (e.Button == MouseButtons.Left)
+                {
+                    int index = FindCell(grid, entries, e.Location);
+                    if (index >= 0) select(entries[index]);
+                }
+            };
+            grid.KeyDown += (sender, e) =>
+            {
+                int column = all ? _allColumn : _recentColumn;
+                if (e.KeyCode == Keys.Enter)
+                {
+                    e.SuppressKeyPress = true;
+                    int index = Math.Min(entries.Length - 1, Math.Max(0, grid.SelectedIndex) * Columns + column);
+                    if (index >= 0) select(entries[index]);
+                }
+                else if (e.KeyCode == Keys.Left || e.KeyCode == Keys.Right)
+                {
+                    e.SuppressKeyPress = true;
+                    int count = Math.Min(Columns, entries.Length - Math.Max(0, grid.SelectedIndex) * Columns);
+                    column = Math.Max(0, Math.Min(count - 1, column + (e.KeyCode == Keys.Left ? -1 : 1)));
+                    if (all) _allColumn = column; else _recentColumn = column;
+                    grid.Invalidate();
+                }
+            };
+            if (entries.Length > 0) grid.SelectedIndex = 0;
+        }
+
+        private int FindCell(SessionListBox grid, string[] entries, Point location)
+        {
+            if (location.X < 0 || location.X >= Columns * Cell) return -1;
+            int row = grid.IndexFromPoint(location);
+            int index = row * Columns + location.X / Cell;
+            return row >= 0 && index < entries.Length ? index : -1;
         }
 
         private void DrawRow(object sender, DrawItemEventArgs e)
         {
             if (e.Index < 0) return;
-            Graphics g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            int first = e.Index * _columns;
+            var grid = (SessionListBox)sender;
+            string[] entries = (string[])grid.Tag;
+            int hover = grid == _allGrid ? _allHover : _recentHover;
+            int column = grid == _allGrid ? _allColumn : _recentColumn;
+            int first = e.Index * Columns;
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
             using (var background = new SolidBrush(GrokTheme.Level2))
-            using (var hover = new SolidBrush(GrokTheme.Level3))
-            using (var font = new Font("Segoe UI Emoji", 14f))
+            using (var selected = new SolidBrush(GrokTheme.Level3))
+            using (var font = new Font("Segoe UI Emoji", 16f))
             {
-                g.FillRectangle(background, e.Bounds);
-                for (int i = 0; i < _columns && first + i < _entries.Length; i++)
+                e.Graphics.FillRectangle(background, e.Bounds);
+                for (int i = 0; i < Columns && first + i < entries.Length; i++)
                 {
                     int index = first + i;
                     Rectangle cell = new Rectangle(i * Cell, e.Bounds.Top, Cell, Cell);
-                    if (index == _hover || (_grid.Focused && e.Index == _grid.SelectedIndex &&
-                        index == Math.Min(_entries.Length - 1, first + _column)))
-                        MainForm.DrawRoundedRectangle(g, hover, Rectangle.Inflate(cell, -1, -1), 8);
-                    Bitmap image = FindImage(_entries[index]);
-                    if (image != null) g.DrawImage(image, Rectangle.Inflate(cell, -5, -5));
-                    else TextRenderer.DrawText(g, _entries[index], font, cell, GrokTheme.TextPrimary,
+                    if (index == hover || (grid.Focused && e.Index == grid.SelectedIndex && index == Math.Min(entries.Length - 1, first + column)))
+                        MainForm.DrawRoundedRectangle(e.Graphics, selected, Rectangle.Inflate(cell, -2, -2), 10);
+                    Bitmap image = FindImage(entries[index]);
+                    if (image != null) e.Graphics.DrawImage(image, Rectangle.Inflate(cell, -8, -8));
+                    else TextRenderer.DrawText(e.Graphics, entries[index], font, cell, GrokTheme.TextPrimary,
                         TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
                 }
             }
+        }
+
+        private static int Rows(string[] entries)
+        {
+            return Math.Max(1, (entries.Length + Columns - 1) / Columns);
         }
     }
 }

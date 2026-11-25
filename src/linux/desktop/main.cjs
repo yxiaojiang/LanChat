@@ -563,7 +563,10 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       return selection.canceled ? [] : sendFiles(chat, selection.filePaths);
     });
     handle('drop-files', sendFiles);
-    handle('emoji-pack', () => readEmojiPack());
+    handle('emoji-pack', async () => {
+      // 新版表情随 lanchat-bin/lanchat.dll 编译，旧版开发目录仍保留文件回退。
+      try { return await service.request('emoji-pack'); } catch { return readEmojiPack(); }
+    });
     handle('stage-paste', (...args) => trackPasteOperation(stagePastedFiles(...args)));
     handle('discard-paste', ids => {
       if (!Array.isArray(ids)) throw new Error('附件列表无效');

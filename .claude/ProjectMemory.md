@@ -18,6 +18,11 @@
 
 ## 二、底层网络通信契约
 
+### 4. 内置表情资源与兼容边界
+- `assets/WeChatEmoji.pack` 是 109 项微信静态表情的只读编译资源；`EmojiPack.cs` 仅负责资源解析和 Linux data URL 导出，不进入 LANC 帧。
+- Windows 原生编译通过 `/res:assets\WeChatEmoji.pack,LanChat.WeChatEmoji.pack` 将资源写入 `LanChat.exe`；Linux `LanChat.Linux.csproj` 以同名 `EmbeddedResource` 写入 `lanchat.dll`/自包含 ELF，Electron 通过 `emoji-pack` IPC 读取。
+- 表情传输仍使用 Type 1 的 `Content` 原文 `[名称]`，新旧客户端互通保持不变；本地缺图时必须显示原令牌，不能因资源缺失丢弃消息。
+
 ### 1. 端口与魔数
 - **魔数**：`0x4C, 0x41, 0x4E, 0x43`（ASCII: `"LANC"`），所有 TCP 传输与握手帧的第一道合法性校验。
 - **UDP 发现端口**：`38888`（启用 `ReuseAddress` 与 `Broadcast`）。

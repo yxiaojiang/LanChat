@@ -4,6 +4,12 @@
 
 ## 当前状态
 
+本轮 `LC-CC-007` 已完成：表情选择器改为微信比例的 496×548 暗色浮层，分为“最近使用”“所有表情”两段，8 列 48px 舒适网格和底部分类栏，滚动仍使用自绘暗灰滑块。Windows 输入框改为可承载覆盖绘制的富文本编辑器容器，表情令牌仍保存在原始文本中，由无交互 GDI+ 覆盖层绘制彩色 PNG，因此输入预览、发送协议、复制与历史不互相污染。
+
+新增 `assets/WeChatEmoji.pack` 与共享 `src/Services/EmojiPack.cs`。109 个微信静态表情以受校验的轻量二进制资源包编译进 Windows `LanChat.exe`，并通过 Linux `LanChat.Linux` 的 `LanChat.WeChatEmoji.pack` EmbeddedResource 进入 `lanchat.dll`/ELF。Linux DesktopService 增加 `emoji-pack` IPC，Electron 优先从通信服务获取 data URL，旧版外部目录仍保留回退。LANC 文字帧仍只传 `[表情名]`，旧版本对端收到后仍可读文本，新版本对端从自身程序集资源渲染图片。
+
+Windows 聊天表情、输入覆盖层、LANC 回环、历史回读、剪贴板、好友刷新回归均通过；在隔离 `LOCALAPPDATA`、不依赖旧外部表情目录时，内置资源仍可加载。Linux net10.0 `lanchat.dll` 构建 0 警告、0 错误，DLL 中已核验资源名和 `LCEMOJI1` 资源头；Electron `main.cjs` 语法及 Linux UI/IPC 回归通过。尚未做真实双机新旧版本现场验收，仍需确认两端安装包均使用新构建并观察实际 DPI 下浮层位置与输入图片覆盖层。
+
 本轮 `LC-FILE-TRANSFER-STABILITY-001` 已完成 P0/P1/P2 实施并获 Gemini 独立审核 `APPROVED`，无 P0/P1/P2 阻断。LANC 帧、TCP 文件确认字节、UDP 字段和 JSONL 历史格式保持兼容；全中文注释与单文件小于 1000 行约束已检查。
 
 用户实测最新版发现对端只发送一次文件时，本机偶发出现完成文件卡片和第二个“接收完成 · 100%”进度卡片。根因是 `FileTransferController` 的 50ms 进度合并队列与 `OnFileReceived` 完成回调存在先后竞态：完成回调先到时追加完整消息，延迟进度随后因找不到 `_incoming` 又新建消息。修复已在完成回调接管同一 `FileTransferId` 前移除尚未刷新的待处理进度，未改变 LANC 封包或历史格式。

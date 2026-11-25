@@ -15,6 +15,10 @@
 
 ## 核心实现机制
 
+### LC-CC-007 表情资源契约（2026-11-25）
+
+表情发送不新增或修改 LANC Type 1 字段，仍发送原始 `[表情名称]` 文本，因此旧版对端可以继续显示可读令牌。109 个 PNG 与清单按 `LCEMOJI1` 资源包格式编译进 Windows `LanChat.exe` 和 Linux `lanchat.dll`/自包含 ELF；Linux DesktopService 的 `emoji-pack` IPC 只把本地程序集资源转换为 data URL 交给 Electron。接收端不依赖发送端文件路径或共享目录，缺少资源时保留原文本回退。
+
 Windows 将 TCP 接收端点地址和发送者 ID 用于本地文字、文件会话归档。文件完成事件以 `ChatMessage` 提供这些字段，Linux C# 终端沿用消息模型读取昵称和文件信息。地址直接由连接取得，LANC 文本与文件帧字段兼容原版本。
 
 v2.0.18 的每文件进度是桌面层临时状态：Windows 控制器和 Linux 桌面服务按已有 transfer/request ID 将进度更新到原聊天气泡，成功文件消息复用已有消息模型和历史格式；不增加 LANC 帧字段，也不要求旧版对端升级。剪贴板文件粘贴仅是各桌面端本地附件选择流程，不进入网络协议。

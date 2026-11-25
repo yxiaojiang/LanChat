@@ -43,6 +43,12 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `Tools/Scripts/Publish.bat`：全自动版本自增、强制编译、WiX 5 打包与带网络重试的 GitHub Releases 发布脚本。
 
 ## 关键设计点与演进状态
+### LC-CC-007 内置表情包与微信比例选择器（2026-11-25）
+
+- `ChatEmojiPicker` 已改为 496×548 基准的暗色浮层：标题、最近使用、所有表情、8 列 48px 网格和底部分类栏；网格使用 `SessionListBox` 自绘滚动，避免原生白色滚动条。
+- `ChatInputBox` 继续保留原始 `[名称]` 文本，增加无交互 GDI+ 覆盖层，把命中的内置表情令牌绘制为 PNG；`MainForm` 发送、占位符和按钮状态统一调用 `GetMessageText()`，不改变 LANC/JSONL 文本格式。
+- `EmojiPack.cs` 解析 `LanChat.WeChatEmoji.pack`，Windows 编译脚本通过 `/res` 将 109 项资源写入 `LanChat.exe`；外部 `%LOCALAPPDATA%\LanChat\WeChatEmoji` 仅作为旧版开发回退。真实双机、安装包覆盖和多 DPI 仍待现场验收。
+
 ### v2.0.18 文件传输界面与剪贴板
 
 - `FileTransferController.TransferMessageChanged` 按每个文件更新聊天记录里的进行中气泡；多文件分别显示百分比，成功后同一气泡变为文件卡片，失败/断线保留终态。`SessionManager.PersistExistingMessage` 只持久化确认完成的记录，更新现有记录不重复追加。

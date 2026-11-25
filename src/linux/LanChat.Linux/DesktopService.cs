@@ -169,6 +169,10 @@ namespace LanChat.Linux
                     case "settings":
                         Reply(id, SettingsFrame());
                         break;
+                    case "emoji-pack":
+                        Reply(id, new JsonArray(EmojiPack.GetDataUrls()
+                            .Select(item => new JsonArray(item[0], item[1])).ToArray()));
+                        break;
                     case "save-settings":
                         Reply(id, SaveSettings(request));
                         break;

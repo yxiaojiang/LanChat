@@ -22,7 +22,7 @@ $patterns = @('Models.cs', 'NetworkService*.cs', 'MainForm*.cs', 'Program.cs', '
 $sources = foreach ($pattern in $patterns) { (Get-ChildItem (Join-Path $repo "src\$pattern") -File).FullName }
 $compilerOptions = @('/nologo', '/codepage:65001', '/r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll')
 $icon = Join-Path $repo 'assets\app.ico'
-& $compiler @compilerOptions /target:winexe /main:LanChat.Program "/win32icon:$icon" "/res:$icon,LanChat.app.ico" "/out:$output\LanChat.exe" @sources
+& $compiler @compilerOptions /target:winexe /main:LanChat.Program "/win32icon:$icon" "/res:$icon,LanChat.app.ico" "/res:$(Join-Path $repo 'assets\WeChatEmoji.pack'),LanChat.WeChatEmoji.pack" "/out:$output\LanChat.exe" @sources
 if ($LASTEXITCODE -ne 0) { throw 'Native application compilation failed' }
 Write-Output 'Native Windows compile: ok'
 

@@ -458,7 +458,7 @@ namespace LanChat
                 }
 
                 // 空输入时绘制占位符（11.0 Regular #5E5E66 + soft AA，对标 Grok 胶囊 muted）
-                if (_txtInput != null && string.IsNullOrEmpty(_txtInput.Text))
+                if (_txtInput != null && string.IsNullOrEmpty(_txtInput.GetMessageText()))
                 {
                     using (Font pf = GrokTheme.UiFont(11.0f))
                     {
@@ -515,7 +515,7 @@ namespace LanChat
             _txtInput.FilesPasted += StageClipboardFiles;
             _txtInput.ImagePasted += StageClipboardImage;
             _txtInput.LostFocus += (s, e) => {
-                if (string.IsNullOrEmpty(_txtInput.Text)) _txtInput.Visible = false;
+                if (string.IsNullOrEmpty(_txtInput.GetMessageText())) _txtInput.Visible = false;
                 _inputPanel.Invalidate();
             };
             _txtInput.GotFocus += (s, e) => {

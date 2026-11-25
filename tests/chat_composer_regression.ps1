@@ -10,6 +10,7 @@ $patterns = @('Models.cs', 'NetworkService*.cs', 'MainForm*.cs', 'Program.cs', '
 $sources = foreach ($pattern in $patterns) { (Get-ChildItem (Join-Path $repo "src\$pattern") -File).FullName }
 $test = Join-Path $PSScriptRoot 'ChatComposerRegression.cs'
 $flags = @('/nologo', '/codepage:65001', '/target:exe', '/main:LanChat.ChatComposerRegression',
+    "/res:$(Join-Path $repo 'assets\WeChatEmoji.pack'),LanChat.WeChatEmoji.pack",
     '/r:System.Windows.Forms.dll,System.Drawing.dll,System.dll,System.Core.dll', "/out:$output\ChatComposerRegression.exe")
 & $compiler @flags @sources $test
 if ($LASTEXITCODE -ne 0) { throw 'Chat composer fixture compilation failed' }

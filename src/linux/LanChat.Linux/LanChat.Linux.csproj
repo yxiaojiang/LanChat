@@ -15,7 +15,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="..\..\..\assets\WeChatEmoji.pack" LogicalName="LanChat.WeChatEmoji.pack" />
     <Compile Include="..\..\Models.cs" Link="Models.cs" />
+    <Compile Include="..\..\Services\EmojiPack.cs" Link="EmojiPack.cs" />
     <Compile Include="..\..\NetworkService.cs" Link="NetworkService.cs" />
     <Compile Include="..\..\NetworkService.Interface.cs" Link="NetworkService.Interface.cs" />
     <Compile Include="..\..\NetworkService.Discovery.cs" Link="NetworkService.Discovery.cs" />

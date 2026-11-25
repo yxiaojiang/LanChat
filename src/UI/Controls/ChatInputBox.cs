@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -7,10 +8,11 @@ using System.Windows.Forms;
 namespace LanChat
 {
     /// <summary>
-    /// 聊天输入框，依赖 Windows 原生编辑控件及系统剪贴板。
-    /// 将文件和图片交给宿主暂存，文字沿用原生编辑流程，随输入框释放。
+    /// 聊天输入框，依赖 Windows 原生富文本编辑控件及系统剪贴板。
+    /// 普通文字沿用原生编辑流程；内置表情令牌由无交互的 GDI+ 覆盖层绘制为图片，
+    /// 底层仍保存可读的 [名称] 文本，避免富文本 OLE 图片破坏复制、剪切和协议兼容。
     /// </summary>
-    internal sealed class ChatInputBox : TextBox
+    internal sealed class ChatInputBox : RichTextBox
     {
         private const int PasteMessage = 0x0302;
         private const int ContextMenuMessage = 0x007B;
@@ -19,6 +21,100 @@ namespace LanChat
         internal event Action<string[]> FilesPasted;
         /// <summary>用户粘贴位图时同步通知宿主，回调返回后输入框释放图片。</summary>
         internal event Action<Image> ImagePasted;
+
+        /// <summary>初始化单行暗色富文本编辑器，禁止系统滚动条破坏输入胶囊。</summary>
+        public ChatInputBox()
+        {
+            BorderStyle = BorderStyle.None;
+            DetectUrls = false;
+            Multiline = true;
+            WordWrap = false;
+            ScrollBars = RichTextBoxScrollBars.None;
+            AcceptsTab = false;
+            AutoWordSelection = false;
+            _emojiOverlay = new EmojiOverlay(this) { Dock = DockStyle.Fill, Enabled = false };
+            Controls.Add(_emojiOverlay);
+            TextChanged += (sender, e) => _emojiOverlay.Invalidate();
+            FontChanged += (sender, e) => _emojiOverlay.Invalidate();
+            Resize += (sender, e) => _emojiOverlay.Invalidate();
+        }
+
+        /// <summary>返回协议与历史使用的原始文本，表情覆盖层不改变底层令牌。</summary>
+        internal string GetMessageText()
+        {
+            return (Text ?? string.Empty).Replace("\uFFFC", string.Empty);
+        }
+
+        /// <summary>
+        /// 在当前选区插入一枚内置表情。底层写入令牌，覆盖层负责立即显示图片。
+        /// </summary>
+        /// <param name="token">形如 [敲打] 的表情令牌。</param>
+        internal void InsertEmoji(string token)
+        {
+            if (string.IsNullOrEmpty(token)) return;
+            SelectedText = token;
+        }
+
+        private readonly EmojiOverlay _emojiOverlay;
+
+        /// <summary>输入框上层的只读表情绘制面板，鼠标与键盘事件全部穿透给原生编辑器。</summary>
+        private sealed class EmojiOverlay : Control
+        {
+            private readonly ChatInputBox _owner;
+
+            internal EmojiOverlay(ChatInputBox owner)
+            {
+                _owner = owner;
+                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
+                    ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+                BackColor = Color.Transparent;
+                TabStop = false;
+            }
+
+            protected override void OnPaintBackground(PaintEventArgs e)
+            {
+                // 不擦除原生编辑器背景；命中令牌时只覆盖其文字矩形。
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                string text = _owner.Text ?? string.Empty;
+                if (text.Length == 0) return;
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                float x = 0;
+                int index = 0;
+                while (index < text.Length)
+                {
+                    int close = text.IndexOf(']', index);
+                    if (text[index] == '[' && close > index + 1 && close - index <= 25)
+                    {
+                        string token = text.Substring(index, close - index + 1);
+                        Bitmap image = ChatEmojiPicker.FindImage(token);
+                        if (image != null)
+                        {
+                            float tokenWidth = MeasureText(e.Graphics, text.Substring(index, close - index + 1));
+                            float size = Math.Max(16f, _owner.Font.GetHeight(e.Graphics) - 1f);
+                            float y = Math.Max(0f, (_owner.ClientSize.Height - size) / 2f);
+                            using (var background = new SolidBrush(_owner.BackColor))
+                                e.Graphics.FillRectangle(background, new RectangleF(x, y, Math.Max(tokenWidth, size + 2f), size));
+                            e.Graphics.DrawImage(image, new RectangleF(x + 1f, y, size, size));
+                            x += tokenWidth;
+                            index = close + 1;
+                            continue;
+                        }
+                    }
+                    string one = text.Substring(index, 1);
+                    x += MeasureText(e.Graphics, one);
+                    index++;
+                }
+            }
+
+            private float MeasureText(Graphics graphics, string text)
+            {
+                return graphics.MeasureString(text, _owner.Font, 10000, StringFormat.GenericTypographic).Width;
+            }
+        }
 
         /// <summary>系统剪贴板提供图片或文件时接收 Ctrl+V 和 Shift+Insert。</summary>
         /// <param name="msg">当前键盘消息。</param>

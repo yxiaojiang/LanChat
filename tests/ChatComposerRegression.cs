@@ -29,6 +29,7 @@ namespace LanChat
             Console.OutputEncoding = new UTF8Encoding(false);
             VerifyLayout(bool.Parse(args[1]));
             VerifyEmojiPaint();
+            VerifyRichEmojiInput();
             VerifyClipboardPriority();
             VerifyAppearancePaletteAndTransferRate();
             VerifyIncomingCompletionRace(args[0]);
@@ -119,6 +120,31 @@ namespace LanChat
                 }
             }
             Console.WriteLine("BMP 肤色、ZWJ 和独立表情的 Segoe UI Emoji 整段测量及 GDI+ 像素对照通过");
+        }
+
+        private static void VerifyRichEmojiInput()
+        {
+            using (var input = new ChatInputBox())
+            {
+                input.CreateControl();
+                input.Width = 160;
+                input.Height = 32;
+                input.InsertEmoji("[敲打]");
+                Require(input.Controls.Count == 1, "输入框表情覆盖层未创建");
+                Require(input.GetMessageText() == "[敲打]", "输入框表情覆盖层未保持原始令牌");
+                using (var canvas = new Bitmap(input.Width, input.Height))
+                {
+                    input.Controls[0].DrawToBitmap(canvas, new Rectangle(0, 0, canvas.Width, canvas.Height));
+                    Require(Enumerable.Range(0, canvas.Width * canvas.Height).Any(i =>
+                    {
+                        Color pixel = canvas.GetPixel(i % canvas.Width, i / canvas.Width);
+                        return pixel.A > 100 && pixel.R > pixel.B + 35;
+                    }), "输入框表情覆盖层未绘制彩色图片");
+                }
+                input.Clear();
+                Require(string.IsNullOrEmpty(input.GetMessageText()), "清空输入框后仍残留表情令牌");
+            }
+            Console.WriteLine("输入框以图片显示微信表情且发送文本仍保留令牌通过");
         }
 
         private static void VerifyClipboardPriority()

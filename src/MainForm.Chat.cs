@@ -375,7 +375,7 @@ namespace LanChat
 
         private void TxtInput_TextChanged(object sender, EventArgs e)
         {
-            bool hasText = !string.IsNullOrWhiteSpace(_txtInput.Text) || GetAttachmentDraft(_activeChatKey) != null;
+            bool hasText = !string.IsNullOrWhiteSpace(_txtInput.GetMessageText()) || GetAttachmentDraft(_activeChatKey) != null;
             if (_btnSendWave != null && _btnSendWave.IsActive != hasText)
             {
                 _btnSendWave.IsActive = hasText;
@@ -403,7 +403,7 @@ namespace LanChat
 
         private void SendMessage()
         {
-            string text = _txtInput.Text.Trim();
+            string text = _txtInput.GetMessageText().Trim();
             string chat = _activeChatKey;
             var attachments = GetAttachmentDraft(chat);
             if (string.IsNullOrEmpty(text) && attachments == null) return;
@@ -444,7 +444,7 @@ namespace LanChat
             {
                 _txtInput.Visible = true;
                 if (_txtInput.TextLength - _txtInput.SelectionLength + token.Length <= _txtInput.MaxLength)
-                    _txtInput.SelectedText = token;
+                    _txtInput.InsertEmoji(token);
                 _txtInput.Focus();
             });
         }
