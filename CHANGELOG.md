@@ -4,6 +4,18 @@
 
 ---
 
+## [v2.0.24] - 2026-11-25
+
+### 微信表情输入与回归夹具收口
+- 修复 `ChatComposerRegression` 截图夹具在非交互/锁屏桌面调用 `CopyFromScreen` 导致句柄无效的问题，改用 `PrintWindow(..., 2)` 并仅在失败时通过同一离屏 DC 的 `WM_PRINT` 安全回退。
+- 修正输入框表情令牌末尾插入符边界，使刚插入的表情立即显示，同时保留尾部继续输入能力。
+- LC-CC-007 Round 3 已获 Gemini 独立审核通过；Windows/隔离环境回归、好友刷新、Linux `net10.0` 构建及 Node UI/IPC 回归全部通过。
+
+### 验证边界
+- 真实双机互通、Windows 安装包与多 DPI、真实截图工具/Excel/WPS 粘贴、Linux Xorg/Wayland/XWayland 实机及 ARM64/x86_64 ELF 实机仍待现场验收。
+
+---
+
 ## [v2.0.23] - 2026-11-25
 
 ### 文件接收显示修复

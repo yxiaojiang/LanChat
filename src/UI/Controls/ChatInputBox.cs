@@ -1,6 +1,5 @@
 using System;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -9,135 +8,249 @@ namespace LanChat
 {
     /// <summary>
     /// 聊天输入框，依赖 Windows 原生富文本编辑控件及系统剪贴板。
-    /// 普通文字沿用原生编辑流程；内置表情令牌由无交互的 GDI+ 覆盖层绘制为图片，
-    /// 底层仍保存可读的 [名称] 文本，避免富文本 OLE 图片破坏复制、剪切和协议兼容。
+    /// 普通文字和表情令牌始终保存在 RichTextBox 原文中，表情图片在原生控件完成
+    /// 绘制后按 RichEdit 的真实字符坐标叠绘，不创建覆盖子控件，避免破坏鼠标命中。
     /// </summary>
     internal sealed class ChatInputBox : RichTextBox
     {
+        private const int MaxInputLength = 32767;
         private const int PasteMessage = 0x0302;
         private const int ContextMenuMessage = 0x007B;
+        private const int PaintMessage = 0x000F;
+        private const int PrintMessage = 0x0317;
+        private const int PrintClientMessage = 0x0318;
+        private const int HorizontalScrollMessage = 0x0114;
+        private const int VerticalScrollMessage = 0x0115;
+        private const int MouseWheelMessage = 0x020A;
+        private const int ExtendedLimitMessage = 0x0435;
+        private bool _deferredPaintPosted;
+        private bool _trimmingLength;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetDC(IntPtr hwnd);
+
+        [DllImport("user32.dll")]
+        private static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam);
 
         /// <summary>用户明确粘贴资源管理器文件列表时通知宿主。</summary>
         internal event Action<string[]> FilesPasted;
         /// <summary>用户粘贴位图时同步通知宿主，回调返回后输入框释放图片。</summary>
         internal event Action<Image> ImagePasted;
 
-        /// <summary>初始化单行暗色富文本编辑器，禁止系统滚动条破坏输入胶囊。</summary>
+        /// <summary>初始化单行暗色富文本编辑器，保留纯文本输入契约和长度上限。</summary>
         public ChatInputBox()
         {
             BorderStyle = BorderStyle.None;
             DetectUrls = false;
-            Multiline = true;
+            Multiline = false;
+            MaxLength = MaxInputLength;
             WordWrap = false;
             ScrollBars = RichTextBoxScrollBars.None;
             AcceptsTab = false;
             AutoWordSelection = false;
-            _emojiOverlay = new EmojiOverlay(this) { Dock = DockStyle.Fill, Enabled = false };
-            Controls.Add(_emojiOverlay);
-            TextChanged += (sender, e) => _emojiOverlay.Invalidate();
-            FontChanged += (sender, e) => _emojiOverlay.Invalidate();
-            Resize += (sender, e) => _emojiOverlay.Invalidate();
+            TextChanged += (sender, e) => InvalidateEmojiPaint();
+            SelectionChanged += (sender, e) => InvalidateEmojiPaint();
+            FontChanged += (sender, e) => InvalidateEmojiPaint();
+            Resize += (sender, e) => InvalidateEmojiPaint();
         }
 
-        /// <summary>返回协议与历史使用的原始文本，表情覆盖层不改变底层令牌。</summary>
+        /// <summary>句柄创建后再次写入 RichEdit 原生长度上限，防止单行控件默认放大到 Int32 最大值。</summary>
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            SendMessage(Handle, ExtendedLimitMessage, IntPtr.Zero, (IntPtr)MaxInputLength);
+        }
+
+        /// <summary>兜底裁剪 RichEdit 偶尔允许超过原生上限的追加路径，保持协议文本长度稳定。</summary>
+        protected override void OnTextChanged(EventArgs e)
+        {
+            if (!_trimmingLength && TextLength > MaxInputLength)
+            {
+                int caret = Math.Min(MaxInputLength, Math.Max(0, SelectionStart));
+                _trimmingLength = true;
+                try
+                {
+                    Text = (Text ?? string.Empty).Substring(0, MaxInputLength);
+                    SelectionStart = caret;
+                    SelectionLength = 0;
+                }
+                finally { _trimmingLength = false; }
+            }
+            base.OnTextChanged(e);
+        }
+
+        /// <summary>返回协议与历史使用的原始文本，表情图片绘制不改变底层令牌。</summary>
         internal string GetMessageText()
         {
             return (Text ?? string.Empty).Replace("\uFFFC", string.Empty);
         }
 
         /// <summary>
-        /// 在当前选区插入一枚内置表情。底层写入令牌，覆盖层负责立即显示图片。
+        /// 在当前选区插入一枚内置表情。底层只写入可读令牌，图片由自身绘制流程显示。
         /// </summary>
         /// <param name="token">形如 [敲打] 的表情令牌。</param>
         internal void InsertEmoji(string token)
         {
             if (string.IsNullOrEmpty(token)) return;
             SelectedText = token;
+            InvalidateEmojiPaint();
         }
 
-        private readonly EmojiOverlay _emojiOverlay;
-
-        /// <summary>输入框上层的只读表情绘制面板，鼠标与键盘事件全部穿透给原生编辑器。</summary>
-        private sealed class EmojiOverlay : Control
+        /// <summary>刷新原生 RichEdit 完成后的表情叠绘，不引入覆盖窗口。</summary>
+        private void InvalidateEmojiPaint()
         {
-            private readonly ChatInputBox _owner;
+            if (!IsDisposed && IsHandleCreated) Invalidate();
+        }
 
-            internal EmojiOverlay(ChatInputBox owner)
-            {
-                _owner = owner;
-                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                    ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
-                BackColor = Color.Transparent;
-                TabStop = false;
-            }
+        /// <summary>在指定绘图上下文中按 RichEdit 客户区坐标绘制可见表情令牌。</summary>
+        /// <param name="graphics">已经由原生编辑器绘制过背景、文字和插入符的上下文。</param>
+        private void DrawEmojiPaint(Graphics graphics)
+        {
+            string text = Text ?? string.Empty;
+            if (text.Length == 0 || ClientSize.Width <= 0 || ClientSize.Height <= 0) return;
 
-            protected override void OnPaintBackground(PaintEventArgs e)
-            {
-                // 不擦除原生编辑器背景；命中令牌时只覆盖其文字矩形。
-            }
+            int selectionStart = Math.Max(0, Math.Min(TextLength, SelectionStart));
+            int selectionEnd = SelectionLength > 0
+                ? Math.Min(TextLength, selectionStart + SelectionLength)
+                : selectionStart;
+            Rectangle visible = ClientRectangle;
+            graphics.ResetClip();
+            graphics.SetClip(visible);
 
-            protected override void OnPaint(PaintEventArgs e)
+            for (int index = 0; index < text.Length;)
             {
-                string text = _owner.Text ?? string.Empty;
-                if (text.Length == 0) return;
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                float x = 0;
-                int index = 0;
-                while (index < text.Length)
+                int close = text.IndexOf(']', index);
+                if (text[index] == '[' && close > index + 1 && close - index <= 25)
                 {
-                    int close = text.IndexOf(']', index);
-                    if (text[index] == '[' && close > index + 1 && close - index <= 25)
+                    string token = text.Substring(index, close - index + 1);
+                    Bitmap image = ChatEmojiPicker.FindImage(token);
+                    int end = close + 1;
+                    if (image != null)
                     {
-                        string token = text.Substring(index, close - index + 1);
-                        Bitmap image = ChatEmojiPicker.FindImage(token);
-                        if (image != null)
+                        // 选区和插入符必须由 RichEdit 保持可见，命中令牌时让原生文字自然显示。
+                        bool selected = selectionEnd > index && selectionStart < end;
+                        bool caretInside = SelectionLength == 0 && selectionStart > index && selectionStart < end;
+                        if (!selected && !caretInside)
                         {
-                            float tokenWidth = MeasureText(e.Graphics, text.Substring(index, close - index + 1));
-                            float size = Math.Max(16f, _owner.Font.GetHeight(e.Graphics) - 1f);
-                            float y = Math.Max(0f, (_owner.ClientSize.Height - size) / 2f);
-                            using (var background = new SolidBrush(_owner.BackColor))
-                                e.Graphics.FillRectangle(background, new RectangleF(x, y, Math.Max(tokenWidth, size + 2f), size));
-                            e.Graphics.DrawImage(image, new RectangleF(x + 1f, y, size, size));
-                            x += tokenWidth;
-                            index = close + 1;
-                            continue;
+                            try
+                            {
+                                Point start = GetPositionFromCharIndex(index);
+                                Point finish = GetPositionFromCharIndex(end);
+                                float tokenWidth = finish.X - start.X;
+                                float lineHeight = Math.Max(1f, Font.GetHeight(graphics));
+                                float imageSize = Math.Min(Math.Max(16f, lineHeight - 1f),
+                                    Math.Min(tokenWidth - 2f, ClientSize.Height - 2f));
+                                if (tokenWidth > 2f && imageSize >= 8f)
+                                {
+                                    float y = start.Y + (lineHeight - imageSize) / 2f;
+                                    var tokenBounds = new RectangleF(start.X, y, tokenWidth, imageSize);
+                                    if (tokenBounds.IntersectsWith(visible))
+                                    {
+                                        // 只擦除当前令牌的真实 RichEdit 矩形，普通文字和背景不受影响。
+                                        using (var background = new SolidBrush(BackColor))
+                                            graphics.FillRectangle(background, tokenBounds);
+                                        float imageX = start.X + Math.Max(0f, (tokenWidth - imageSize) / 2f);
+                                        graphics.DrawImage(image, new RectangleF(imageX, y, imageSize, imageSize));
+                                    }
+                                }
+                            }
+                            catch (ArgumentException) { }
+                            catch (ExternalException) { }
                         }
+                        index = end;
+                        continue;
                     }
-                    string one = text.Substring(index, 1);
-                    x += MeasureText(e.Graphics, one);
-                    index++;
                 }
+                index++;
             }
+        }
 
-            private float MeasureText(Graphics graphics, string text)
+        /// <summary>在原生窗口 DC 上执行表情叠绘，使 PrintWindow 与屏幕绘制使用同一路径。</summary>
+        private void DrawEmojiOnWindow()
+        {
+            if (!IsHandleCreated || IsDisposed) return;
+            IntPtr hdc = GetDC(Handle);
+            if (hdc == IntPtr.Zero) return;
+            try
             {
-                return graphics.MeasureString(text, _owner.Font, 10000, StringFormat.GenericTypographic).Width;
+                using (Graphics graphics = Graphics.FromHdc(hdc)) DrawEmojiPaint(graphics);
             }
+            finally { ReleaseDC(Handle, hdc); }
+        }
+
+        /// <summary>把叠绘延后到 RichEdit 完成滚动后的消息尾部，避免原生擦除覆盖图片。</summary>
+        private void PostDeferredEmojiPaint()
+        {
+            if (_deferredPaintPosted || !IsHandleCreated || IsDisposed) return;
+            _deferredPaintPosted = true;
+            try
+            {
+                BeginInvoke((MethodInvoker)delegate
+                {
+                    _deferredPaintPosted = false;
+                    DrawEmojiOnWindow();
+                });
+            }
+            catch (InvalidOperationException) { _deferredPaintPosted = false; }
         }
 
         /// <summary>系统剪贴板提供图片或文件时接收 Ctrl+V 和 Shift+Insert。</summary>
         /// <param name="msg">当前键盘消息。</param>
         /// <param name="keyData">按键和修饰键。</param>
-        /// <returns>附件粘贴已处理时返回 true，其他按键沿用原生处理。</returns>
+        /// <returns>粘贴已处理时返回 true。</returns>
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            if ((keyData == (Keys.Control | Keys.V) || keyData == (Keys.Shift | Keys.Insert)) && TryPasteAttachment()) return true;
+            if (keyData == (Keys.Control | Keys.V) || keyData == (Keys.Shift | Keys.Insert))
+            {
+                if (TryPasteAttachment()) return true;
+                PasteClipboardText();
+                return true;
+            }
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
-        /// <summary>接收原生粘贴消息，并为附件提供暗色右键粘贴入口。</summary>
+        /// <summary>处理原生绘制、滚动和粘贴消息，保持纯文本粘贴及表情坐标同步。</summary>
         /// <param name="m">Windows 编辑控件消息。</param>
         protected override void WndProc(ref Message m)
         {
-            if (m.Msg == PasteMessage && TryPasteAttachment()) return;
-            // 输入框和外层胶囊统一使用暗色菜单，避免首次右键仍落回原生白底菜单。
+            if (m.Msg == PasteMessage)
+            {
+                if (!TryPasteAttachment()) PasteClipboardText();
+                return;
+            }
             if (m.Msg == ContextMenuMessage)
             {
                 Point location = m.LParam == new IntPtr(-1) ? new Point(0, Height) : PointToClient(Cursor.Position);
                 if (ShowContextMenuAt(PointToScreen(location))) return;
             }
+            if (m.Msg == PaintMessage)
+            {
+                base.WndProc(ref m);
+                DrawEmojiOnWindow();
+                PostDeferredEmojiPaint();
+                return;
+            }
+            if (m.Msg == PrintMessage || m.Msg == PrintClientMessage)
+            {
+                base.WndProc(ref m);
+                if (m.WParam != IntPtr.Zero)
+                {
+                    using (Graphics graphics = Graphics.FromHdc(m.WParam)) DrawEmojiPaint(graphics);
+                }
+                return;
+            }
+
             base.WndProc(ref m);
+            if (m.Msg == HorizontalScrollMessage || m.Msg == VerticalScrollMessage || m.Msg == MouseWheelMessage)
+            {
+                InvalidateEmojiPaint();
+                Update();
+                DrawEmojiOnWindow();
+                PostDeferredEmojiPaint();
+            }
         }
 
         /// <summary>在屏幕坐标处显示输入区暗色菜单，供隐藏输入框的外层胶囊复用。</summary>
@@ -220,6 +333,7 @@ namespace LanChat
             catch (ExternalException) { return false; }
         }
 
+        /// <summary>只读取 UnicodeText/Text 并以当前输入样式插入，绝不调用 RichEdit RTF 粘贴。</summary>
         private void PasteClipboardText()
         {
             IDataObject data = ReadClipboard();
@@ -228,7 +342,18 @@ namespace LanChat
             {
                 string text = data.GetData(DataFormats.UnicodeText, false) as string ??
                     data.GetData(DataFormats.Text, false) as string;
-                if (!string.IsNullOrEmpty(text)) SelectedText = text;
+                if (string.IsNullOrEmpty(text)) return;
+                int start = SelectionStart;
+                SelectedText = text;
+                int inserted = Math.Max(0, Math.Min(text.Length, TextLength - start));
+                if (inserted > 0)
+                {
+                    Select(start, inserted);
+                    SelectionFont = Font;
+                    SelectionColor = ForeColor;
+                }
+                Select(Math.Min(TextLength, start + inserted), 0);
+                InvalidateEmojiPaint();
             }
             catch (ExternalException) { }
         }

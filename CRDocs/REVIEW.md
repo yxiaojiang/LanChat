@@ -1,57 +1,274 @@
-# LC-CC-007 — 微信比例表情选择器、输入框图片预览与内置表情资源执行记录
+# LC-CC-007 — Round 3 独立复审（通过：`LC-CC-007-R2-P1-1` 已闭环）
 
 - **任务编号**：`LC-CC-007`
-- **任务主题**：微信比例表情选择器、输入框图片预览、Windows/Linux 内置表情资源
+- **任务主题**：微信比例表情选择器、输入框图片预览与内置表情资源
+- **审核轮次**：Round 3 独立复审（复核 Round 2 打回项 `LC-CC-007-R2-P1-1` 与可选 P3）
+- **审核基线**：工作区未提交整改（基于 `6248514`，改动 `src/MainForm.Designer.cs`、`src/Services/EmojiPack.cs`、`src/UI/Controls/ChatEmojiPicker.cs`、`src/UI/Controls/ChatInputBox.cs`、`src/linux/desktop/main.cjs`、`tests/ChatComposerRegression.cs`）
+- **独立审核方**：Gemini
+- **审核日期**：2026-11-25
+- **审核结论**：**APPROVED**（当前开发、Windows 宿主机回归与 Linux `net10.0` 构建范围放行；实机与跨环境验证边界继续保留于 `CRDocs/DEFERRED.md`）
+- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/STATUS.md`、`CRDocs/DEFERRED.md`、`Docs/GrokBot_UI_Design_System.md`，以及工作区实际代码、diff 与宿主机独立实测。
+
+## 一、Round 2 问题复核结果
+
+| 问题 ID | 原级别 | Round 3 复核 | 复核依据与实测证据 |
+| --- | :---: | :---: | --- |
+| `LC-CC-007-R2-P1-1` | **P1** | **RESOLVED** | 核查 `tests/ChatComposerRegression.cs:269-289`：`CapturePrintWindow` 已改用 `PrintWindow(control.Handle, hdc, 2)`（`PW_RENDERFULLCONTENT`，第 279 行）；全文已彻底移除 `Graphics.CopyFromScreen(...)`（零匹配）；仅在 `PrintWindow` 返回 `false` 时于同一离屏 `hdc` 上调用 `SendMessage(control.Handle, WmPrint, hdc, (IntPtr)0x00000004)` 回退（第 280-284 行）；不再依赖屏幕坐标、窗口遮挡或交互式桌面 DC。在上一轮抛出 `Win32Exception: 句柄无效。` 的同一非交互会话中独立复跑 `chat_composer_regression.ps1 -ExpectLocalPack` 与隔离 `LOCALAPPDATA` 回归均稳定退出码 `0`。 |
+| `LC-CC-007-R2-P3-1` | **P3（可选）** | **PARTIAL（非阻断）** | 1) `src/UI/Controls/ChatInputBox.cs:135` 已将 `caretInside` 修正为 `SelectionLength == 0 && selectionStart > index && selectionStart < end`，插入符位于令牌末尾 `end` 时立即保留表情图片显示且不覆盖插入符，位于令牌内部 `(index, end)` 时仍回退原生文本便于编辑；2) `ChatEmojiPicker` 网格居中/外宽未在本轮调整，属非阻断 P3。 |
+| Round 1 历史项 & 兼容性 | — | **PASS** | Round 1 全部 P0/P1/P2（`LC-CC-007-P0-1`、`P1-1`、`P1-2`、`P2-1`、`P2-2`）已在 Round 2 复核关闭且本轮未引入回退；LANC 协议与 JSONL 历史格式零改动；全量改动源码与测试文件 `< 1000` 行（`MainForm.Designer.cs` 691、`main.cjs` 610、`ChatComposerRegression.cs` 558、`ChatInputBox.cs` 398、`ChatEmojiPicker.cs` 326、`EmojiPack.cs` 115），新增注释为中文。 |
+
+## 二、Round 3 独立验证证据与边界区分
+
+### 1. 已在 Windows 宿主机独立复跑通过的内容
+
+| 验证命令 | 退出码 | 实测结果 |
+| --- | :---: | --- |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 全部 7 组回归通过（含 `输入框 PrintWindow、RichEdit 坐标、鼠标命中、滚动、选区、MaxLength 与纯文本粘贴通过`、剪贴板优先级、11 色外观与速率、接收完成竞态、LANC/JSONL 回环及托管截图清理） |
+| 隔离 `LOCALAPPDATA` 后执行 `tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 临时空 `LOCALAPPDATA` 环境下全部 7 组回归通过，确认内置 `WeChatEmoji.pack` 不依赖开发机外部目录 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 0 | `Native Windows compile: ok` 及全部好友刷新、侧栏、组合表情与草稿回归通过 |
+| `"C:\Program Files\nodejs\node.exe" --check src/linux/desktop/main.cjs` | 0 | 语法检查通过 |
+| `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ui_regression.js` | 0 | 输出 `linux desktop ui regression: ok` |
+| `"C:\Program Files\nodejs\node.exe" -e "require('./tests/linux_desktop_ipc_regression.js')().then(()=>console.log('ipc ok'))"` | 0 | 输出 `LC-CC-004` IPC 清理通过及 `ipc ok` |
+| `git diff --check` | 0 | 仅有 Git LF→CRLF 提示，无空白错误 |
+
+### 2. 仅完成 Linux `net10.0` 构建但未在 Linux 实机运行的内容
+
+- `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false`：退出码 `0`（0 警告、0 错误），生成 `src/linux/LanChat.Linux/bin/Release/net10.0/lanchat.dll`；尚未在 Linux 实机运行。
+
+### 3. 仍未验证的跨环境与实机内容（不得视为通过，继续保留于 `CRDocs/DEFERRED.md`）
+
+- 真实双机互通（新版对新版、新版对旧版、无资源对端的表情令牌回退、复制与历史重开）。
+- Windows MSI / 绿色包安装、100%/125%/150% 多 DPI 缩放及真实桌面截图工具/Excel/WPS 粘贴。
+- Linux Xorg / 原生 Wayland / XWayland 下的 Electron 实机运行与系统剪贴板。
+- Linux ARM64 / x86_64 自包含 ELF 实机运行及 `tests/linux_desktop_regression.py` 回归。
+
+---
+
+# LC-CC-007 — Round 2 打回项整改执行记录（`LC-CC-007-R2-P1-1`）
+
+- **任务编号**：`LC-CC-007`
+- **整改轮次**：Round 2 复审打回回归夹具修复
+- **执行日期**：2026-11-25
+- **执行者**：Codex
+- **对应审核问题**：`LC-CC-007-R2-P1-1`（`tests/ChatComposerRegression.cs:CapturePrintWindow`）
+- **本轮结论**：P1 阻断项已修复；可选 P3 的 `caretInside` 边界也已顺手修正，选择器网格居中/外宽未纳入本轮改动。
+
+## 一、本轮改动
+
+1. `tests/ChatComposerRegression.cs:CapturePrintWindow`：
+   - 将 `PrintWindow(control.Handle, hdc, 1)` 改为 `PrintWindow(control.Handle, hdc, 2)`（`PW_RENDERFULLCONTENT`）。
+   - 移除无条件 `Graphics.CopyFromScreen(...)`，不再依赖屏幕坐标、窗口遮挡、交互式桌面或桌面 DC。
+   - 仅当 `PrintWindow(..., 2)` 返回 `false` 时，才使用同一离屏 HDC 调用 `WM_PRINT` 回退。
+2. `src/UI/Controls/ChatInputBox.cs`：将 `caretInside` 改为 `selectionStart > index && selectionStart < end`，使表情令牌末尾插入符位置立即保留图片显示，同时不覆盖插入符。
+
+## 二、验证证据（以下命令均退出码 0）
+
+| 验证命令 | 结果 |
+| --- | --- |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 通过；PrintWindow、RichEdit 坐标、鼠标命中、滚动、选区、MaxLength、纯文本粘贴、LANC/JSONL 与托管截图清理回归均通过。 |
+| 隔离 `LOCALAPPDATA` 后再次执行 `tests/chat_composer_regression.ps1 -ExpectLocalPack` | 通过；隔离环境下同一完整回归通过。 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 通过；原生 Windows 编译及好友/侧栏/组合表情回归通过。 |
+| `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false` | 通过；`net10.0` 构建 0 警告、0 错误。 |
+| `"C:\\Program Files\\nodejs\\node.exe" --check src/linux/desktop/main.cjs` | 通过。 |
+| `"C:\\Program Files\\nodejs\\node.exe" tests/linux_desktop_ui_regression.js` | 通过；`linux desktop ui regression: ok`。 |
+| `"C:\\Program Files\\nodejs\\node.exe" -e "require('./tests/linux_desktop_ipc_regression.js')().then(()=>console.log('ok'))"` | 通过；输出 `ok`。 |
+| `git diff --check` | 通过；仅有 Git 的 LF→CRLF 提示，无空白错误。 |
+
+代码核验确认 `tests/ChatComposerRegression.cs` 中 `CapturePrintWindow` 使用 `PrintWindow(..., 2)`，且不再包含 `CopyFromScreen`。
+
+## 三、未验证边界
+
+本轮没有把以下内容写成通过：真实双机新版/旧版互通、Windows MSI/绿色包安装、100%/125%/150% 多 DPI、真实截图工具/Excel/WPS 粘贴、Linux Xorg/Wayland/XWayland Electron 实机、Linux ARM64/x86_64 ELF 实机运行及 `tests/linux_desktop_regression.py`。Linux 本轮仅完成 `net10.0` 构建和 Node 宿主机回归，仍按 `CRDocs/DEFERRED.md` 保留现场验收边界。
+
+请 Gemini 按 `CRDocs/RULES.md` 独立复核本轮 P1 修复与证据；审核结束后再回写 `CRDocs/REVIEW.md`、`CRDocs/STATUS.md`，只有独立审核者可以将状态改为 `APPROVED`。
+
+---
+
+# LC-CC-007 — Round 2 独立复审（打回：回归夹具 `CopyFromScreen` 导致必跑回归退出码 1）
+
+- **任务编号**：`LC-CC-007`
+- **审核轮次**：Round 2 独立复审
+- **审核基线**：工作区未提交整改（基于 `6248514`，改动 `ChatInputBox.cs`、`ChatEmojiPicker.cs`、`EmojiPack.cs`、`MainForm.Designer.cs`、`main.cjs`、`tests/ChatComposerRegression.cs`）
+- **独立审核方**：Gemini
+- **审核日期**：2026-11-25
+- **审核结论**：**REJECTED**（Round 1 全部产品代码 P0/P1/P2 已复核 **RESOLVED**，但新增回归夹具 `tests/ChatComposerRegression.cs:CapturePrintWindow` 无条件调用 `CopyFromScreen` 导致必跑回归 `tests/chat_composer_regression.ps1 -ExpectLocalPack` 抛出 `Win32Exception: 句柄无效。` 退出码 1，记为 P1 `LC-CC-007-R2-P1-1` 打回修复）
+- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/STATUS.md`、`CRDocs/DEFERRED.md`、`Docs/GrokBot_UI_Design_System.md`，以及工作区实际 diff 与宿主机独立实测。
+
+## 一、Round 1 问题复核结果
+
+| 问题 ID | 原级别 | Round 2 复核 | 复核依据与实测证据 |
+| --- | :---: | :---: | --- |
+| `LC-CC-007-P0-1` | P0 | **RESOLVED** | `ChatInputBox.cs` 已彻底删除 `EmojiOverlay` 子控件（实测 `CONTROLS = 0`），改在 `WM_PAINT`/`WM_PRINT`/`WM_PRINTCLIENT` 后按 RichEdit 真实矩形叠绘；`PrintWindow(..., 2)`（`PW_RENDERFULLCONTENT`）实测 `total=10400, black=0, bg=9129, bright=268, emoji=267`（黑屏 0 像素）；`WM_NCHITTEST = 1` 且 `ChildWindowFromPoint == box.Handle`，无鼠标吞噬 |
+| `LC-CC-007-P1-1` | P1 | **RESOLVED** | 改用 `GetPositionFromCharIndex(index)` 与 `GetPositionFromCharIndex(end)` 定位可见区内令牌；实测末尾表情 `"Hi [敲打]"` `start={20,0}, end={60,0}, width=40`，代理对前缀 `"😊👨‍👩‍👧‍👦 [敲打] ok"` `idx=14, start={54,0}, end={94,0}, width=40`；`WM_HSCROLL`/`WM_VSCROLL`/`WM_MOUSEWHEEL`/`SelectionChanged`/`TextChanged` 均同步刷新，选区与插入符命中令牌时跳过叠绘 |
+| `LC-CC-007-P1-2` | P1 | **RESOLVED** | 构造器与 `MainForm.Designer.cs` 均显式设置 `Multiline = false`、`MaxLength = 32767`，`OnHandleCreated` 追加 `EM_EXLIMITTEXT`（`0x0435`），`OnTextChanged` 兜底裁剪；`ProcessCmdKey`（`Ctrl+V` / `Shift+Insert`）与 `WM_PASTE` 在非附件路径统一走 `PasteClipboardText()` 读取 `UnicodeText`/`Text` 并恢复 `Font`/`ForeColor`，禁止 RTF/OLE 粘贴 |
+| `LC-CC-007-P2-1` | P2 | **RESOLVED** | `ChatEmojiPicker` 实测尺寸 `496×548`，网格预留 `GridSliderReserve = 16`，补齐 `16px` 圆角、`1px #2C2C32` 描边、`CS_DROPSHADOW` 与 `GotFocus`/`LostFocus`/`OnDeactivate` 重绘，移除无交互底栏，真实维护进程内 `RecentOrder`（上限 12 去重） |
+| `LC-CC-007-P2-2` | P2 | **RESOLVED** | `main.cjs` 新增 `emojiPackCache` 缓存非空结果并在后端异常或返回 `[]` 时回退 `readEmojiPack()`；`EmojiPack.cs` 补齐 `token.Length <= 26`（括号内 `<= 24`）及 PNG IHDR `1..64` 校验 |
+| LANC / JSONL 兼容 | — | **PASS** | 未改动 `Models.cs`、`NetworkService*.cs`、`ChatHistoryService.cs`、`SessionManager.cs`；LANC 魔数、Type 1/Type 2 字段顺序与 JSONL 历史格式零改动；全量改动手写文件 `< 1000` 行，全中文注释 |
+
+## 二、Round 2 新发现问题清单
+
+| 问题 ID | 严重度 | 位置 | 问题描述与复现证据 | 整改要求 |
+| --- | :---: | --- | --- | --- |
+| `LC-CC-007-R2-P1-1` | **P1** | `tests/ChatComposerRegression.cs:269-288` | `CapturePrintWindow` 对 `PrintWindow` 传入标志 `1`（`PW_CLIENTONLY`）后，第 285-286 行无条件调用 `graphics.CopyFromScreen(...)`。在非交互/锁屏桌面会话中独立执行 `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` 时直接抛出 `System.ComponentModel.Win32Exception: 句柄无效。`，返回退出码 `1`，并阻断后续所有剪贴板、外观、竞态、LANC 回环与托管截图清理回归执行；即使在交互桌面下，若 `(40,40)` 被其他窗口遮挡也会导致用例不稳定。 | 改用 `PrintWindow(control.Handle, hdc, 2)`（`PW_RENDERFULLCONTENT`，本机探针已实证在同环境返回 `ok=True, black=0, bg=9129, bright=268, emoji=267`），移除无条件 `CopyFromScreen`，确保 `chat_composer_regression.ps1 -ExpectLocalPack` 及隔离 `LOCALAPPDATA` 复跑在任意桌面会话稳定退出码 `0`。 |
+| `LC-CC-007-R2-P3-1` | **P3（可选）** | `src/UI/Controls/ChatInputBox.cs:135`、`src/UI/Controls/ChatEmojiPicker.cs:69-77` | 1) `caretInside` 判断 `selectionStart <= end`，刚点击插入末尾表情时插入符恰在 `end`，需再键入字符或移动光标才转为图片显示（可评估改为 `selectionStart > index && selectionStart < end`）；2) `ChatEmojiPicker` 宽 `496` 但网格宽 `400` 且左偏 `x=12`，右侧留白 `84px`（可顺手居中或收紧外宽）。 | 非阻断项，可按需顺手优化。 |
+
+## 三、Round 2 独立验证证据与边界区分
+
+### 1. 已在 Windows 宿主机独立验证的内容
+
+| 命令/专项探针 | 退出码 | 实测结果 |
+| --- | :---: | --- |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | **1（FAIL）** | 在 `VerifyRichEmojiInput` -> `CapturePrintWindow` 抛出 `System.ComponentModel.Win32Exception: 句柄无效。`（`LC-CC-007-R2-P1-1`） |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 0 | `Native Windows compile: ok` 及全部既有回归通过 |
+| `cmd /c "Tools\Scripts\Compile.bat < NUL"` + 真实 WinForms 探针（验证后已还原 `release/*.exe`） | 0 | `CONTROLS=0`, `MAXLENGTH=32767`, `MULTILINE=False`, `PW2: ok=True black=0 bg=9129 bright=268 emoji=267`, `TRAILING_EMOJI width=40`, `SURROGATE_PREFIX width=40`, `HITTEST ht=1 childIsBox=True`, `PICKER_SIZE=496x548` |
+| `"C:\Program Files\nodejs\node.exe"`（`v24.18.0`）执行 `--check src/linux/desktop/main.cjs`、`tests/linux_desktop_ui_regression.js` 与 `tests/linux_desktop_ipc_regression.js` | 0 | 全部通过 |
+| `git diff --check` | 0 | 无空白错误 |
+
+### 2. 仅完成 Linux `net10.0` DLL 构建但未在 Linux 实机运行的内容
+
+- `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false`：退出码 `0`，0 警告、0 错误；尚未在 Linux 实机运行。
+
+### 3. 尚未验证的跨环境与实机内容（继续保留于 `CRDocs/DEFERRED.md`）
+
+- 真实双机新版/旧版/无资源对端互通；Windows MSI / 绿色包安装与多 DPI（100%/125%/150%）；Linux Xorg / Wayland / XWayland Electron 实机与 ARM64 / x86_64 ELF 实机运行（含 `tests/linux_desktop_regression.py`）。
+
+---
+
+# LC-CC-007 — Round 1 打回整改执行记录
+
+- **任务编号**：`LC-CC-007`
+- **整改轮次**：Round 1 审核打回整改
 - **执行方**：Codex
 - **执行日期**：2026-11-25
-- **基线提交**：`6248514`（`修复微信表情面板与内置表情资源`）
-- **审核状态**：`WAITING_FOR_GROK`
-- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/STATUS.md`、`CRDocs/DEFERRED.md`、`Docs/GrokBot_UI_Design_System.md`，以及基线提交的完整 diff。
+- **当前状态**：`WAITING_FOR_GROK`，等待 Gemini 独立复审；本记录不是独立审核结论
+- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/STATUS.md`、本文件原 Round 1 审核结论、`Docs/GrokBot_UI_Design_System.md` 与工作区实际源码
 
-## 本轮改动
+## 一、本轮整改内容
 
-1. `src/UI/Controls/ChatEmojiPicker.cs` 将原紧凑单层表情网格改为约 496×548 的暗色微信比例浮层，包含标题、“最近使用”、“所有表情”、8 列 48px 网格和底部分类栏；网格继续复用 `SessionListBox` 的自绘暗色滑块，不引入原生白色滚动条。
-2. `src/UI/Controls/ChatInputBox.cs` 改用可承载覆盖层的 `RichTextBox`，底层仍保存 `[表情名称]` 原文，由无交互 GDI+ 覆盖层将命中的内置 PNG 画在输入文字上。`MainForm` 的发送、占位符和发送按钮状态统一读取 `GetMessageText()`，不改变历史和网络文本。
-3. 新增 `assets/WeChatEmoji.pack` 与 `src/Services/EmojiPack.cs`。109 个微信静态表情以 `LCEMOJI1` 二进制资源格式校验并编译进 Windows `LanChat.exe`；Linux `LanChat.Linux.csproj` 以 `LanChat.WeChatEmoji.pack` EmbeddedResource 编译进 `lanchat.dll`/自包含 ELF。
-4. `src/linux/LanChat.Linux/DesktopService.cs` 增加 `emoji-pack` IPC，Linux Electron 主进程优先从通信服务获取程序集内置 data URL，旧版外部 `WeChatEmoji` 目录保留为兼容回退。
-5. Windows 编译、发布和回归脚本均追加资源嵌入参数；新增输入框覆盖层和内置资源回归断言。
+### P0：`LC-CC-007-P0-1`
 
-## 协议与兼容性判断
+- 删除 `ChatInputBox` 的 `Dock = Fill` `EmojiOverlay` 子控件，不再让 `OptimizedDoubleBuffer` 和空的 `OnPaintBackground` 覆盖 RichEdit 客户区。
+- 在 `RichTextBox` 自身完成 `WM_PAINT`、`WM_PRINT`、`WM_PRINTCLIENT` 后，用窗口 DC 叠绘表情图片；背景只填充命中的真实令牌矩形，普通文字、输入背景和光标不再被大面积黑色遮挡。
+- 叠绘使用 `GetPositionFromCharIndex` 的 RichEdit 客户区坐标，并在水平/垂直滚动、鼠标滚轮、文字变化、选区变化和重绘后刷新。没有覆盖子窗口，因此 `WM_NCHITTEST`、左键定位、右键命中和系统选区均回到 RichEdit。
+- 选区与插入符落在表情令牌范围时跳过图片叠绘，保留原生 RichEdit 的高亮和光标。
 
-- 未修改 LANC 魔数、Type 1 字段顺序、Type 1 `Content` 文本、Type 2 文件字段、确认字节或 JSONL 历史字段。
-- 表情发送仍传输原始 `[表情名称]`；新版对端从自身程序集资源渲染图片，未导入资源或旧版对端仍可显示可读文字。
-- 接收端不依赖发送端的本地路径、外部表情目录或发送端 DLL，避免把用户机器路径带入协议。
+### P1：`LC-CC-007-P1-1`
 
-## 已执行验证
+- 废弃逐 UTF-16 码元 `MeasureString` 累加，改为按令牌起止索引调用 `GetPositionFromCharIndex`，仅在客户区可见范围内绘制，并用起止坐标计算令牌宽度。
+- 在 `TextChanged`、`SelectionChanged`、`WM_PAINT`、`WM_PRINT`、`WM_HSCROLL`、`WM_VSCROLL` 和鼠标滚轮路径同步刷新；代理对问题不再参与表情令牌坐标计算。
 
-| 命令/证据 | 结果 |
+### P1：`LC-CC-007-P1-2`
+
+- `ChatInputBox` 构造器和 `src/MainForm.Designer.cs` 均显式设置 `Multiline = false`、`MaxLength = 32767`；句柄创建时再次写入 RichEdit 原生长度上限，并对异常追加路径做长度裁剪。
+- `WM_PASTE`、Ctrl+V、Shift+Insert 均先处理文件/图片附件；非附件路径只读取 `UnicodeText`/`Text` 并以当前 `Font`、`ForeColor` 插入，禁止调用 RichEdit RTF/OLE 粘贴。
+- 主输入字体和颜色仍由设计器保持为 `11.0pt`、`#F2F2F6`。
+
+### P2：`LC-CC-007-P2-1` 与 `LC-CC-007-P2-2`
+
+- `ChatEmojiPicker` 改为 496×548 基准尺寸，网格宽度为 `8×48px + 16px` 滑块预留区；补齐 `#2C2C32` 1px 外框、16px 圆角、`CS_DROPSHADOW`、失焦/获焦重绘，并移除无交互底部装饰图标。
+- 最近使用由进程内真实选择顺序维护，重复选择会移到首位并限制为 12 项。
+- `main.cjs` 对非空 `emoji-pack` 结果做主进程缓存，后端返回空数组或异常时回退 `readEmojiPack()`；非空回退结果也会缓存。
+- `EmojiPack.cs` 增加令牌总长度不超过 26 个 UTF-16 字符（方括号内最多 24 个字符）以及 PNG IHDR 存在、宽高均为 1～64 的校验。
+
+### 回归测试
+
+`tests/ChatComposerRegression.cs` 现已使用真实 WinForms `ChatInputBox` 宿主窗体，覆盖：
+
+- `PrintWindow` 调用及实际可见客户区渲染：输入背景非纯黑、普通文字可见、微信 PNG 可见；嵌入式 RichEdit 在本机主题下若 `PrintWindow` 返回 false，则补发 `WM_PRINT` 并采集实际客户区，避免把平台返回值误当作渲染结果。
+- 无覆盖子控件、`WM_NCHITTEST` 客户区命中、左键点击定位和右键命中。
+- 水平滚动后的 RichEdit 起止坐标变化、可见令牌范围、选区长度和令牌内插入符位置。
+- `MaxLength = 32767`、单行契约、WM_PASTE、Ctrl+V、Shift+Insert 的 RTF/HTML 混合剪贴板纯文本化、字体颜色保持和 OLE 缺失。
+
+本轮没有修改 LANC 魔数、Type 1/Type 2 字段顺序、确认字节、JSONL 历史字段或表情令牌网络格式。
+
+## 二、验证证据
+
+以下命令均从 `D:\TEmp\LanChat` 执行，退出码均为 0：
+
+| 验证命令 | 结果 |
 | --- | --- |
-| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 返回 0；109 项内置表情加载、聊天布局、输入框图片覆盖层与令牌保持、剪贴板、LANC 回环、历史回读及截图清理通过 |
-| 隔离 `LOCALAPPDATA` 后再次执行 `chat_composer_regression.ps1 -ExpectLocalPack` | 返回 0；不依赖旧外部表情目录时，程序集内置资源仍能加载 |
-| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 返回 0；原生 Windows 编译、好友刷新、聊天编辑器与组合表情回归通过 |
-| `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false` | 返回 0；`lanchat.dll` net10.0 构建 0 警告、0 错误 |
-| `lanchat.dll` 资源字节核验 | 通过；DLL 内包含 `LanChat.WeChatEmoji.pack` 与 `LCEMOJI1` 资源标记 |
-| `node --check src/linux/desktop/main.cjs`、`tests/linux_desktop_ui_regression.js`、`tests/linux_desktop_ipc_regression.js` | 全部返回 0 |
-| `git diff --check` | 返回 0；无空白错误 |
-| 相关手写源码行数 | `EmojiPack.cs` 108、`ChatEmojiPicker.cs` 287、`ChatInputBox.cs` 280、`DesktopService.cs` 502、测试 370，均低于 1000 行软门禁 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 通过；输出包含输入框 PrintWindow、RichEdit 坐标、鼠标命中、滚动、选区、MaxLength 与纯文本粘贴，以及 LANC/JSONL/PNG 回环。 |
+| 上述聊天回归在隔离 `LOCALAPPDATA` 子进程中复跑 | 通过；内置 `WeChatEmoji.pack` 不依赖旧外部目录。 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 通过；原生 Windows 编译及既有好友/侧栏/组合表情回归通过。 |
+| `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false` | 通过；Linux `net10.0`，0 警告、0 错误。 |
+| `"C:\\Program Files\\nodejs\\node.exe" --check src/linux/desktop/main.cjs` | 通过。 |
+| `"C:\\Program Files\\nodejs\\node.exe" tests/linux_desktop_ui_regression.js` | 通过；`linux desktop ui regression: ok`。 |
+| `"C:\\Program Files\\nodejs\\node.exe" -e "require('./tests/linux_desktop_ipc_regression.js')().then(()=>console.log('ok'))"` | 通过；输出 `ok`。 |
+| `git diff --check` | 通过；仅有 Git 的 LF→CRLF 提示，无空白错误。 |
 
-## 执行者交接重点
+相关手写文件当前均低于 1000 行：`ChatInputBox.cs` 405、`ChatEmojiPicker.cs` 330、`EmojiPack.cs` 118、`main.cjs` 624、`ChatComposerRegression.cs` 564、`MainForm.Designer.cs` 691。
 
-请独立审核以下内容，不要仅采信本记录：
+## 三、未验证边界
 
-1. 检查 `ChatEmojiPicker` 的微信比例、DPI/工作区边界、最近/全部网格滚动、键盘导航、失焦关闭，以及是否仍满足 Zero White Scrollbar 和 GrokBot 视觉规范。
-2. 检查 `ChatInputBox` 覆盖层的 Z 顺序、鼠标键盘穿透、光标/选区/复制/剪切/粘贴、换行/最大长度和清空行为；确认图片只影响视觉，不污染发送文本。
-3. 检查 `EmojiPack.cs` 的资源名、长度/PNG/令牌校验、程序集读取失败回退，以及 Windows EXE 和 Linux `lanchat.dll`/ELF 是否都真正携带资源而非依赖开发机目录。
-4. 检查 Linux `emoji-pack` IPC 的 JSON 结构、data URL 大小、Electron 旧目录回退和通信失败行为；确认不会影响既有 JSONL 管道。
-5. 检查 LANC Type 1、历史 JSONL、旧版无资源对端的向后兼容；确认没有把资源字节或本地路径写入网络协议。
-6. 检查编译脚本、测试脚本、中文注释、文件行数和本记录中的验证结果是否与实际代码一致；若发现 P0/P1/P2 问题，请在审核结论中分级、给出复现条件，并将 `CRDocs/STATUS.md` 保持为 `REJECTED`。
+以下内容没有在本轮写成通过，仍需现场或独立环境验收：
 
-## 未验证边界
+- 真实双机新版/旧版互通、缺资源端表情令牌回退、复制与历史重开。
+- Windows MSI/绿色包安装、100%/125%/150% DPI 下的浮层位置、输入区叠绘和真实截图工具/Excel/WPS 粘贴。
+- Linux Xorg、原生 Wayland、XWayland Electron 实机运行与系统剪贴板；Linux ARM64/x86_64 ELF 实跑及 `tests/linux_desktop_regression.py`。
+- 真实 Linux 桌面下 `emoji-pack` IPC 的启动耗时、重连缓存效果和输入法交互。
 
-- 尚未在两台真实机器上验证新版对新版、新版对旧版的逐条表情发送、复制、历史重开与无资源回退。
-- 尚未实际安装 Windows MSI/绿色包并在不同 DPI 下观察浮层位置、输入框覆盖层光标和交互；当前输入框图片绘制由回归夹具的 `DrawToBitmap` 与令牌断言覆盖。
-- 尚未在 Linux Xorg、原生 Wayland、XWayland 运行 Electron，也尚未在 Linux ARM64/x86_64 实机运行最新 ELF；宿主机 Windows 上只完成 Linux `net10.0` DLL 构建与资源字节核验。
-- 以上边界继续遵循 `CRDocs/DEFERRED.md` 的 `LC-CC-ENV-001`、`LC-LINUX-002-ENV-001` 和 `LC-LINUX-002-GUI-001`，不能视为本轮已验收。
+请 Gemini 独立复审本节 P0/P1 代码与证据，并在完成后按 `CRDocs/RULES.md` 回写 `CRDocs/REVIEW.md`、`CRDocs/STATUS.md`，只有独立审核者可以将状态改为 `APPROVED`。
+
+---
+
+# LC-CC-007 — 微信比例表情选择器、输入框图片预览与内置表情资源独立审核（Commit `6248514`）
+
+- **任务编号**：`LC-CC-007`
+- **任务主题**：微信比例表情选择器、输入框图片预览与内置表情资源
+- **审核基线**：代码提交 `6248514`（`修复微信表情面板与内置表情资源`），CRDocs 送审基线 `b0cfe56`
+- **独立审核方**：Gemini
+- **审核日期**：2026-11-25
+- **审核结论**：**REJECTED**（发现 1 项 P0 阻断、2 项 P1 阻断与 2 项 P2 问题，打回 Codex 整改）
+- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/STATUS.md`、`CRDocs/DEFERRED.md`、`Docs/GrokBot_UI_Design_System.md`，以及提交 `6248514` 完整 diff 与宿主机独立实测。
+
+## 一、六维重点核对结论
+
+| 核对维度 | 结论 | 核对依据与发现 |
+| --- | :---: | --- |
+| 1. `ChatEmojiPicker.cs` | **WARN (P2)** | 复用 `SessionListBox` 暗色自绘滑块，符合 Zero White Scrollbar 契约，支持 Esc/失焦关闭与工作区防溢出；但实际尺寸为 `408×548`（非送审记录所称 `496×548`），「最近使用」仅静态切片前 12 项未记录使用历史，底部分类栏 5 个图标纯装饰无交互，缺少 `1px #2C2C32` 外边框、`16px` 圆角/`CS_DROPSHADOW` 与 `LostFocus` 重绘，且右侧滑块 12px 热区与第 8 列重叠（`LC-CC-007-P2-1`） |
+| 2. `ChatInputBox.cs` | **FAIL (P0 + P1)** | 底层 `GetMessageText()` 未污染 `[表情名称]` 原文，但 `EmojiOverlay` 存在严重阻断缺陷：`Dock = Fill` + `OptimizedDoubleBuffer` + 空 `OnPaintBackground` 在真实 Win32 绘制中将 `88.5%` 区域涂成纯黑 `(0,0,0)` 遮挡文字与光标；仅设 `Enabled = false` 未处理 `WM_NCHITTEST -> HTTRANSPARENT` 导致鼠标点击/划选/右键被吞（`LC-CC-007-P0-1`）；逐字 `MeasureString` 偏离 RichEdit 真实坐标（短文本已差 `6.2px`）且不随水平滚动/选区/代理对更新（`LC-CC-007-P1-1`）；继承 `RichTextBox` 后 `MaxLength` 变为 `2147483647` 且 `Ctrl+V` 允许贴入富文本 RTF 样式（`LC-CC-007-P1-2`） |
+| 3. 内置资源与嵌入 | **PASS (含 P2 建议)** | `assets/WeChatEmoji.pack` 实测 `990,849` 字节、魔数 `LCEMOJI1`、恰好 `109` 项有效 PNG（全数 `<= 64×64`、令牌合法、无重复、无尾字节）；Windows `LanChat.exe` 与 Linux `lanchat.dll` 均已真实嵌入 `LanChat.WeChatEmoji.pack`；隔离 `LOCALAPPDATA` 复跑通过，不再依赖开发机外部目录；仅 `EmojiPack.cs` 缺少 24 字符令牌长度与 PNG IHDR `<= 64` 校验（`LC-CC-007-P2-2`） |
+| 4. Linux `emoji-pack` IPC | **PASS (含 P2 建议)** | `DesktopService.cs:172-175` 返回 `[[token, "data:image/png;base64,..."], ...]`，JSON 结构与 `presentation.js` 匹配；`renderer.js:546` 仅启动时请求一次，单行 JSONL 约 `1.32 MB`（`1,322,980` 字节），未破坏 JSONL 管道；但 `main.cjs:568` 在后端返回空数组 `[]` 时未回退 `readEmojiPack()`，且无主进程缓存（`LC-CC-007-P2-2`） |
+| 5. LANC 协议与 JSONL 兼容 | **PASS** | 未改动 `Models.cs`、`NetworkService*.cs`、`ChatHistoryService.cs`、`SessionManager.cs`；LANC 魔数、Type 1 `Content`（仍传输原始 `[表情名称]`）、Type 2 文件帧与 JSONL 历史格式零改动，未将本地路径或图片字节写入网络协议 |
+| 6. 行数门禁、中文注释与脚本 | **PASS** | 全部改动文件 `< 1000` 行软门禁（`EmojiPack.cs` 104、`ChatInputBox.cs` 273、`ChatEmojiPicker.cs` 283、`Tests/ChatComposerRegression.cs` 376、`DesktopService.cs` 492、`MainForm.Chat.cs` 590、`main.cjs` 600、`MainForm.Designer.cs` 690），注释为中文，`git diff --check` 返回 0 |
+
+## 二、问题分级清单（P0 / P1 / P2 / P3）
+
+| 问题 ID | 严重度 | 位置 | 问题描述与复现证据 | 整改要求 |
+| --- | :---: | --- | --- | --- |
+| `LC-CC-007-P0-1` | **P0** | `src/UI/Controls/ChatInputBox.cs:35-36, 61-117` | `EmojiOverlay` 以 `Dock = Fill` 覆盖 `RichTextBox`：1) 启用 `OptimizedDoubleBuffer` 但 `OnPaintBackground` 为空且无透明合成，`PrintWindow` 实测 `400×26`（`10400` 像素）中输入 `"Hello [敲打] World"` 后有 **`9200` 像素（88.5%）为纯黑 `(0,0,0)`**，直接遮黑普通文字、`#202024` 背景与光标；2) 仅设 `Enabled = false` 未拦截 `WM_NCHITTEST` 返回 `HTTRANSPARENT (-1)`，实测 `SendMessage(overlay.Handle, WM_NCHITTEST)` 返回 `1 (HTCLIENT)` 且 `ChildWindowFromPoint` 命中覆盖层，导致无法点击定位光标、划选文字或右键弹出 `GrokPopupMenu`。现有 `VerifyRichEmojiInput` 仅对覆盖层自身调用 `DrawToBitmap` 未测到上述失效。 | 彻底重构输入区表情渲染方案（例如取消全覆盖不透明子控件，改为在 `RichTextBox` `WM_PAINT` 后直接于自身 DC 上按实际字符位置叠绘表情，或采用严格 `WS_EX_TRANSPARENT` + `WM_NCHITTEST -> HTTRANSPARENT` + 非双缓冲局部重绘），并补充真实 `ChatInputBox` 渲染背景/文字可见性（非纯黑）与鼠标点击/右键命中回归断言。 |
+| `LC-CC-007-P1-1` | **P1** | `src/UI/Controls/ChatInputBox.cs:79-116` | 表情绘制位置使用逐 UTF-16 字符 `MeasureString(..., GenericTypographic)` 从 `x = 0` 累加，不依赖 RichEdit 实际排版：1) `"Hello [敲打] World"` 实测 `RichTextBox.GetPositionFromCharIndex(6).X = 43`，覆盖层算出 `36.8`（偏差 `6.2px`）；2) 长文本水平滚动后实测 `RichEditX = 350`（视口内），覆盖层画在 `x > 650`（视口外），裸露原文 `[敲打]`；3) `text.Substring(index, 1)` 拆分代理对 Emoji；4) 未在 `HScroll`/`SelectionChanged`/`WM_PAINT` 时重绘，光标与选区不同步。 | 改用 `RichTextBox.GetPositionFromCharIndex(index)`（及结束字符坐标）定位每个表情令牌的真实客户区坐标；仅绘制位于可见 `ClientRectangle` 内的令牌；在 `TextChanged`、`HScroll`、`SelectionChanged`、滚动/重绘消息后触发更新，且不遮挡选区高亮与插入符。 |
+| `LC-CC-007-P1-2` | **P1** | `src/UI/Controls/ChatInputBox.cs:15, 26-40, 123-187`；`src/MainForm.Designer.cs:501-512` | 改为继承 `RichTextBox` 后：1) 未设置 `MaxLength`，实测 `BOX_MAXLENGTH = 2147483647`（原 `TextBox` 为 `32767`，与 Linux `32768` 对齐），使 `MainForm.Chat.cs:446` 长度保护实质失效；2) 剪贴板含富文本（RTF/HTML）+ 文本时 `TryPasteAttachment()` 返回 `false` 落回 `RichTextBox` 原生粘贴，实测会贴入 `20pt` 红色等 RTF 格式，破坏 `11.0pt #F2F2F6` 纯文本输入规范；3) 构造设 `Multiline = true` 而 `MainForm.Designer.cs:503` 改回 `Multiline = false`，配置冲突。 | 显式设置 `MaxLength = 32767`（并确认插入表情与粘贴均遵守上限）；在 `ProcessCmdKey` / `WM_PASTE` 中对纯文本粘贴统一走 `PasteClipboardText()`（或 `Paste(DataFormats.GetFormat(DataFormats.UnicodeText))`）禁止贴入 RTF/OLE 格式；统一单行 `Multiline = false` 契约并补充最大长度与 RTF 纯文本化回归断言。 |
+| `LC-CC-007-P2-1` | **P2** | `src/UI/Controls/ChatEmojiPicker.cs:45-47, 54, 60-61, 173-189, 204-243` | 1) 浮层宽度为 `408×548`（与送审记录“约 496×548”不符）；2) 「最近使用」仅静态复制 `_entries` 前 12 项，选中表情后不更新；3) 底部分类栏 5 个图标无点击/悬停/提示；4) 缺少 `1px #2C2C32` 描边、`16px` 圆角/`CS_DROPSHADOW` 及网格 `LostFocus` 重绘；5) 网格宽度 `384 = 8×48` 未为右侧自绘滑块预留间距，滑块 12px 热区与第 8 列重叠。 | 整改 P0/P1 时一并评估修复：记录真实最近使用列表（至少进程内更新）、为网格预留滑块右边距、补齐 `1px #2C2C32` 外框与 `LostFocus` 重绘、移除无效装饰图标或明确其交互，并使文档尺寸描述与代码一致。 |
+| `LC-CC-007-P2-2` | **P2** | `src/linux/desktop/main.cjs:566-569`；`src/Services/EmojiPack.cs:55-90` | 1) `main.cjs` 仅在 `service.request('emoji-pack')` 抛错时回退 `readEmojiPack()`，返回空数组 `[]` 时未回退；2) `EmojiPack.cs` 未校验令牌长度 `<= 24` 字符及 PNG IHDR 尺寸 `<= 64×64`（与 `ChatEmojiPicker` / `main.cjs` 校验尺度不一致）；3) 单次 `emoji-pack` 响应 JSONL 约 `1.32 MB`，重连时重复全量回传。 | 建议 `main.cjs` 对非空结果做内存缓存并在空数组时回退 `readEmojiPack()`；建议 `EmojiPack.cs` 补齐 24 字符令牌长度与 PNG IHDR `<= 64×64` 校验。 |
+| — | **P3** | `src/UI/Controls/ChatEmojiPicker.cs:233-240` | 末行（5 项）上 `_allColumn` 处于 `5..7` 时按 `Left` 会先夹紧到列 4 而非左移至列 3。 | 可顺手在 `Left`/`Right` 计算前先将 `column` 夹紧到 `count - 1`。 |
+
+## 三、独立验证证据与边界区分
+
+### 1. 已在 Windows 宿主机独立验证的内容
+
+| 命令/专项探针 | 退出码 | 实测结果 |
+| --- | :---: | --- |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 既有 7 项回归输出全部通过 |
+| 隔离 `LOCALAPPDATA` 后执行 `tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 确认内置资源不依赖开发机外部 `WeChatEmoji` 目录 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 0 | `Native Windows compile: ok` 及全部既有好友刷新/编辑器/草稿回归通过 |
+| `cmd /c "Tools\Scripts\Compile.bat < NUL"` + 反射核验 `release\LanChat.exe`（验证后已还原工作区跟踪二进制） | 0 | 嵌入 `LanChat.app.ico`、`LanChat.WeChatEmoji.pack`（`990,849` 字节） |
+| `assets/WeChatEmoji.pack` 二进制逐项解析探针 | 0 | `size=990849`, `magic=LCEMOJI1`, `count=109`, `badPng=0`, `badDim=0`, `badTok=0`, `dup=0`, `maxPng=11315`, `trailing=0`, `estJsonlBytes=1322980` |
+| 真实 WinForms `ChatInputBox` 渲染与 Win32 命中探针 | 0 | **复现 P0/P1**：`PrintWindow` 9200/10400 像素纯黑；`WM_NCHITTEST = 1 (HTCLIENT)`；`ChildWindowFromPoint` 命中覆盖层；`RichEditX=43` vs `OverlayMeasuredX=36.8`；滚动后 `RichEditX=350`；`MaxLength=2147483647`；`RichTextBox` 接受 `20pt` 红色 RTF |
+| `C:\Program Files\nodejs\node.exe`（`v24.18.0`）执行 `--check src/linux/desktop/main.cjs`、`tests/linux_desktop_ui_regression.js` 及直接调用 `tests/linux_desktop_ipc_regression.js` | 0 | 全部通过（注：系统 `PATH` 中 `C:\WINDOWS\system32\node` 为空桩，需显式调用 `C:\Program Files\nodejs\node.exe`） |
+| `git diff --check` | 0 | 无空白错误 |
+
+### 2. 仅完成 Linux `net10.0` DLL 构建但未在 Linux 实机运行的内容
+
+- `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false`：退出码 `0`，0 警告、0 错误，生成 `src/linux/LanChat.Linux/bin/Release/net10.0/lanchat.dll`（`1,097,728` 字节），字节核验包含 `LanChat.WeChatEmoji.pack` 与 `LCEMOJI1`。
+- 该 DLL **尚未在 Linux 实机运行**，也未实跑 `DesktopService` 的 `emoji-pack` 管道通讯。
+
+### 3. 尚未验证的跨环境与实机内容（不得视为通过，继续保留于 `CRDocs/DEFERRED.md`）
+
+- 真实双机的新版对新版、新版对旧版、无资源对端的表情发送、复制、历史重开与可读回退。
+- Windows 真实 MSI / 绿色包安装与多 DPI（100% / 125% / 150%）下的表情浮层定位、输入框图文混排交互与光标体验。
+- Linux Xorg / 原生 Wayland / XWayland 下的 Electron 实机运行（含 `emoji-pack` IPC 启动耗时与渲染）。
+- Linux ARM64 / x86_64 自包含 ELF 实机运行与 `tests/linux_desktop_regression.py` 回归。
 
 ---
 

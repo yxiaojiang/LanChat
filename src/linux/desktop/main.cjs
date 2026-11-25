@@ -17,6 +17,8 @@ const pendingPastes = new Map();
 // 主进程持有截图清理责任，直到后端确认历史已引用该路径。
 const sendingPastes = new Map();
 const pasteOperations = new Set();
+// 首次成功读取的非空表情清单由主进程复用，避免重连时重复传输整包数据。
+let emojiPackCache = null;
 const maxFiles = 32;
 const maxPastedImageBytes = 64 * 1024 * 1024;
 let window;
@@ -565,7 +567,16 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
     handle('drop-files', sendFiles);
     handle('emoji-pack', async () => {
       // 新版表情随 lanchat-bin/lanchat.dll 编译，旧版开发目录仍保留文件回退。
-      try { return await service.request('emoji-pack'); } catch { return readEmojiPack(); }
+      if (Array.isArray(emojiPackCache) && emojiPackCache.length) return emojiPackCache;
+      let embedded = [];
+      try { embedded = await service.request('emoji-pack'); } catch { embedded = []; }
+      if (Array.isArray(embedded) && embedded.length) {
+        emojiPackCache = embedded;
+        return embedded;
+      }
+      const fallback = await readEmojiPack();
+      if (fallback.length) emojiPackCache = fallback;
+      return fallback;
     });
     handle('stage-paste', (...args) => trackPasteOperation(stagePastedFiles(...args)));
     handle('discard-paste', ids => {

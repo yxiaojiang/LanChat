@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
@@ -19,6 +20,22 @@ namespace LanChat
     internal static class ChatComposerRegression
     {
         private const string Content = "甲👨‍👩‍👧‍👦👍🏽🇨🇳❤️1️⃣\r\n[敲打]乙";
+        private const int WmPaste = 0x0302;
+        private const int WmNchittest = 0x0084;
+        private const int WmLButtonDown = 0x0201;
+        private const int WmLButtonUp = 0x0202;
+        private const int WmRButtonDown = 0x0204;
+        private const int EmScrollCaret = 0x00B7;
+        private const int WmPrint = 0x0317;
+
+        [DllImport("user32.dll")]
+        private static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr ChildWindowFromPoint(IntPtr parent, Point point);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam);
 
         /// <summary>运行显示、剪贴板和 TCP 图文及历史回归。</summary>
         /// <param name="args">输出目录与是否要求已导入本机微信表情。</param>
@@ -26,18 +43,27 @@ namespace LanChat
         [STAThread]
         public static int Main(string[] args)
         {
-            Console.OutputEncoding = new UTF8Encoding(false);
-            VerifyLayout(bool.Parse(args[1]));
-            VerifyEmojiPaint();
-            VerifyRichEmojiInput();
-            VerifyClipboardPriority();
-            VerifyAppearancePaletteAndTransferRate();
-            VerifyIncomingCompletionRace(args[0]);
-            string source = SaveClipboardImage(args[0]);
-            VerifyLoopback(args[0], source);
-            Console.WriteLine("聊天表情布局、PNG 与位图粘贴数据、LANC 文本和图片回环及历史回读通过");
-            VerifyManagedTransfers(args[0], source);
-            return 0;
+            try
+            {
+                Console.OutputEncoding = new UTF8Encoding(false);
+                VerifyLayout(bool.Parse(args[1]));
+                VerifyEmojiPaint();
+                VerifyRichEmojiInput();
+                VerifyClipboardPriority();
+                VerifyAppearancePaletteAndTransferRate();
+                VerifyIncomingCompletionRace(args[0]);
+                string source = SaveClipboardImage(args[0]);
+                VerifyLoopback(args[0], source);
+                Console.WriteLine("聊天表情布局、PNG 与位图粘贴数据、LANC 文本和图片回环及历史回读通过");
+                VerifyManagedTransfers(args[0], source);
+                return 0;
+            }
+            catch (Exception error)
+            {
+                Console.Error.WriteLine("回归失败类型：" + error.GetType().FullName);
+                Console.Error.WriteLine("回归失败信息：" + error.Message);
+                return 1;
+            }
         }
 
         private static void VerifyLayout(bool expectPack)
@@ -124,27 +150,185 @@ namespace LanChat
 
         private static void VerifyRichEmojiInput()
         {
+            using (var host = new Form())
             using (var input = new ChatInputBox())
             {
-                input.CreateControl();
-                input.Width = 160;
-                input.Height = 32;
-                input.InsertEmoji("[敲打]");
-                Require(input.Controls.Count == 1, "输入框表情覆盖层未创建");
-                Require(input.GetMessageText() == "[敲打]", "输入框表情覆盖层未保持原始令牌");
-                using (var canvas = new Bitmap(input.Width, input.Height))
+                host.ShowInTaskbar = false;
+                host.FormBorderStyle = FormBorderStyle.FixedToolWindow;
+                host.StartPosition = FormStartPosition.Manual;
+                host.Location = new Point(40, 40);
+                host.ClientSize = new Size(420, 80);
+                input.Location = new Point(8, 8);
+                input.Size = new Size(380, 32);
+                input.Font = new Font("Microsoft YaHei UI", 11f, FontStyle.Regular);
+                input.BackColor = Color.FromArgb(32, 32, 36);
+                input.ForeColor = Color.FromArgb(242, 242, 246);
+                host.Controls.Add(input);
+                host.Show();
+                input.Text = "Hello [敲打] World";
+                input.SelectionStart = input.TextLength;
+                input.Focus();
+                Application.DoEvents();
+
+                Require(input.Controls.Count == 0, "输入框不应创建覆盖子控件");
+                Require(input.MaxLength == 32767 && !input.Multiline, "输入框单行或长度契约错误");
+                Require(input.GetMessageText() == "Hello [敲打] World", "输入框未保持原始令牌");
+                using (var canvas = CapturePrintWindow(input))
                 {
-                    input.Controls[0].DrawToBitmap(canvas, new Rectangle(0, 0, canvas.Width, canvas.Height));
-                    Require(Enumerable.Range(0, canvas.Width * canvas.Height).Any(i =>
-                    {
-                        Color pixel = canvas.GetPixel(i % canvas.Width, i / canvas.Width);
-                        return pixel.A > 100 && pixel.R > pixel.B + 35;
-                    }), "输入框表情覆盖层未绘制彩色图片");
+                    Require(CountBlack(canvas) < canvas.Width * canvas.Height / 20, "输入区被绘制为大面积纯黑");
+                    Require(HasBrightPixel(canvas, 0, 42), "输入区普通文字不可见");
+                    Require(HasEmojiPixel(canvas, input.GetPositionFromCharIndex(6).X,
+                        input.GetPositionFromCharIndex(13).X), "输入区微信表情未在 RichEdit 坐标绘制");
                 }
+
+                Point screenPoint = input.PointToScreen(new Point(10, 10));
+                Require(SendMessage(input.Handle, WmNchittest, IntPtr.Zero, MakeLParam(screenPoint.X, screenPoint.Y)) == (IntPtr)1,
+                    "输入框 WM_NCHITTEST 未返回客户区");
+                Require(ChildWindowFromPoint(host.Handle, new Point(input.Left + 10, input.Top + 10)) == input.Handle,
+                    "鼠标命中仍落在表情覆盖层");
+
+                int world = input.Text.IndexOf("World", StringComparison.Ordinal);
+                Point worldPosition = input.GetPositionFromCharIndex(world + 1);
+                SendMessage(input.Handle, WmLButtonDown, (IntPtr)1, MakeLParam(worldPosition.X, worldPosition.Y + 8));
+                SendMessage(input.Handle, WmLButtonUp, IntPtr.Zero, MakeLParam(worldPosition.X, worldPosition.Y + 8));
+                Require(input.SelectionStart >= world && input.SelectionStart <= world + 5, "左键点击未定位输入光标");
+                SendMessage(input.Handle, WmRButtonDown, IntPtr.Zero, MakeLParam(worldPosition.X, worldPosition.Y + 8));
+                Require(input.Handle == ChildWindowFromPoint(host.Handle, new Point(input.Left + worldPosition.X, input.Top + worldPosition.Y + 8)),
+                    "右键命中未落在输入框");
+
+                string longText = new string('A', 70) + " [敲打] World";
+                input.Text = longText;
+                int longTokenStart = longText.IndexOf("[", StringComparison.Ordinal);
+                input.SelectionStart = 0;
+                Application.DoEvents();
+                Point beforeScroll = input.GetPositionFromCharIndex(longTokenStart);
+                input.SelectionStart = input.TextLength;
+                input.ScrollToCaret();
+                SendMessage(input.Handle, EmScrollCaret, IntPtr.Zero, IntPtr.Zero);
+                Application.DoEvents();
+                input.Refresh();
+                Application.DoEvents();
+                int tokenStart = longTokenStart;
+                int tokenEnd = tokenStart + "[敲打]".Length;
+                Point scrolledStart = input.GetPositionFromCharIndex(tokenStart);
+                Point scrolledEnd = input.GetPositionFromCharIndex(tokenEnd);
+                Require(scrolledStart.X < input.ClientSize.Width && scrolledEnd.X > 0, "水平滚动后表情不在可见区");
+                Require(beforeScroll.X != scrolledStart.X, "水平滚动未改变 RichEdit 字符坐标");
+
+                input.Select(tokenStart, tokenEnd - tokenStart);
+                Application.DoEvents();
+                Require(input.SelectionLength == tokenEnd - tokenStart, "表情令牌选区长度被改变");
+                input.Select(tokenStart + 2, 0);
+                Application.DoEvents();
+                Require(input.SelectionLength == 0 && input.SelectionStart == tokenStart + 2, "表情令牌内插入符定位失败");
+
                 input.Clear();
-                Require(string.IsNullOrEmpty(input.GetMessageText()), "清空输入框后仍残留表情令牌");
+                var richText = new DataObject();
+                richText.SetData(DataFormats.UnicodeText, "纯文本");
+                richText.SetData(DataFormats.Rtf, "{\\rtf1\\ansi\\cf1\\fs40 富文本}");
+                richText.SetData(DataFormats.Html, "<span style=\"color:red;font-size:40pt\">HTML 富文本</span>");
+                Clipboard.SetDataObject(richText, true);
+                try
+                {
+                    SendMessage(input.Handle, WmPaste, IntPtr.Zero, IntPtr.Zero);
+                    Require(input.Text == "纯文本", "WM_PASTE 未强制转换为纯文本");
+                    input.Select(0, input.TextLength);
+                    Require(Math.Abs(input.SelectionFont.SizeInPoints - 11f) < 0.1f &&
+                        input.SelectionColor.ToArgb() == input.ForeColor.ToArgb(), "纯文本粘贴破坏输入字体或颜色");
+                    Require(input.Rtf.IndexOf("\\object", StringComparison.OrdinalIgnoreCase) < 0,
+                        "纯文本粘贴带入了 OLE 对象");
+                }
+                finally { Clipboard.Clear(); }
+
+                input.Clear();
+                Clipboard.SetDataObject(richText, true);
+                try
+                {
+                    MethodInfo processKey = typeof(ChatInputBox).GetMethod("ProcessCmdKey",
+                        BindingFlags.Instance | BindingFlags.NonPublic);
+                    Message keyMessage = Message.Create(input.Handle, 0, IntPtr.Zero, IntPtr.Zero);
+                    object[] keyArguments = { keyMessage, Keys.Control | Keys.V };
+                    Require((bool)processKey.Invoke(input, keyArguments), "Ctrl+V 未被输入框接管");
+                    Require(input.Text == "纯文本", "Ctrl+V 未强制转换为纯文本");
+                    input.Clear();
+                    keyArguments[1] = Keys.Shift | Keys.Insert;
+                    Require((bool)processKey.Invoke(input, keyArguments), "Shift+Insert 未被输入框接管");
+                    Require(input.Text == "纯文本", "Shift+Insert 未强制转换为纯文本");
+                }
+                finally { Clipboard.Clear(); }
+
+                input.Clear();
+                input.Text = new string('x', 32767);
+                input.AppendText("z");
+                Require(input.TextLength == 32767, "MaxLength=32767 未限制插入长度");
+                host.Close();
             }
-            Console.WriteLine("输入框以图片显示微信表情且发送文本仍保留令牌通过");
+            Console.WriteLine("输入框 PrintWindow、RichEdit 坐标、鼠标命中、滚动、选区、MaxLength 与纯文本粘贴通过");
+        }
+
+        private static Bitmap CapturePrintWindow(Control control)
+        {
+            var bitmap = new Bitmap(control.Width, control.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            bool printed;
+            using (Graphics graphics = Graphics.FromImage(bitmap))
+            {
+                IntPtr hdc = graphics.GetHdc();
+                try
+                {
+                    // 优先让目标窗口把完整客户区绘制到离屏 DC，避免依赖交互式桌面或屏幕坐标。
+                    printed = PrintWindow(control.Handle, hdc, 2);
+                    if (!printed)
+                    {
+                        // 部分主题下 PrintWindow 可能失败，才使用同一离屏 DC 的原生打印回退。
+                        SendMessage(control.Handle, WmPrint, hdc, (IntPtr)0x00000004);
+                    }
+                }
+                finally { graphics.ReleaseHdc(hdc); }
+            }
+            return bitmap;
+        }
+
+        private static int CountBlack(Bitmap bitmap)
+        {
+            int count = 0;
+            for (int y = 0; y < bitmap.Height; y++)
+                for (int x = 0; x < bitmap.Width; x++)
+                {
+                    Color pixel = bitmap.GetPixel(x, y);
+                    if (pixel.R < 3 && pixel.G < 3 && pixel.B < 3) count++;
+                }
+            return count;
+        }
+
+        private static bool HasBrightPixel(Bitmap bitmap, int left, int right)
+        {
+            left = Math.Max(0, left);
+            right = Math.Min(bitmap.Width, right);
+            for (int y = 0; y < bitmap.Height; y++)
+                for (int x = left; x < right; x++)
+                {
+                    Color pixel = bitmap.GetPixel(x, y);
+                    if (pixel.R > 120 && pixel.G > 120 && pixel.B > 120) return true;
+                }
+            return false;
+        }
+
+        private static bool HasEmojiPixel(Bitmap bitmap, int left, int right)
+        {
+            left = Math.Max(0, left);
+            right = Math.Min(bitmap.Width, right);
+            for (int y = 0; y < bitmap.Height; y++)
+                for (int x = left; x < right; x++)
+                {
+                    Color pixel = bitmap.GetPixel(x, y);
+                    if (pixel.R > pixel.B + 25 && pixel.G > 35) return true;
+                }
+            return false;
+        }
+
+        private static IntPtr MakeLParam(int x, int y)
+        {
+            return (IntPtr)((y << 16) | (x & 0xFFFF));
         }
 
         private static void VerifyClipboardPriority()

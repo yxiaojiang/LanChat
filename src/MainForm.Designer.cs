@@ -501,6 +501,7 @@ namespace LanChat
             _txtInput = new ChatInputBox
             {
                 Multiline = false,
+                MaxLength = 32767,
                 Font = new Font("Microsoft YaHei UI", 11.0f, FontStyle.Regular),
                 BackColor = Color.FromArgb(32, 32, 36), // #202024
                 ForeColor = Color.FromArgb(242, 242, 246), // #F2F2F6

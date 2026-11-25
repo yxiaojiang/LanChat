@@ -76,7 +76,7 @@ namespace LanChat
         private static bool IsToken(byte[] bytes)
         {
             string token = Encoding.UTF8.GetString(bytes);
-            if (token.Length < 3 || token[0] != '[' || token[token.Length - 1] != ']') return false;
+            if (token.Length < 3 || token.Length > 26 || token[0] != '[' || token[token.Length - 1] != ']') return false;
             for (int i = 1; i < token.Length - 1; i++)
                 if (token[i] == '[' || token[i] == ']' || char.IsWhiteSpace(token[i])) return false;
             return true;
@@ -84,9 +84,20 @@ namespace LanChat
 
         private static bool IsPng(byte[] bytes)
         {
-            return bytes.Length >= 24 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E &&
-                bytes[3] == 0x47 && bytes[4] == 0x0D && bytes[5] == 0x0A && bytes[6] == 0x1A &&
-                bytes[7] == 0x0A;
+            if (bytes.Length < 33) return false;
+            if (bytes[0] != 0x89 || bytes[1] != 0x50 || bytes[2] != 0x4E || bytes[3] != 0x47 ||
+                bytes[4] != 0x0D || bytes[5] != 0x0A || bytes[6] != 0x1A || bytes[7] != 0x0A ||
+                ReadUInt32(bytes, 8) != 13 || bytes[12] != (byte)'I' || bytes[13] != (byte)'H' ||
+                bytes[14] != (byte)'D' || bytes[15] != (byte)'R') return false;
+            uint width = ReadUInt32(bytes, 16);
+            uint height = ReadUInt32(bytes, 20);
+            return width > 0 && width <= 64 && height > 0 && height <= 64;
+        }
+
+        private static uint ReadUInt32(byte[] bytes, int index)
+        {
+            return ((uint)bytes[index] << 24) | ((uint)bytes[index + 1] << 16) |
+                ((uint)bytes[index + 2] << 8) | bytes[index + 3];
         }
     }
 

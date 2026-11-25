@@ -1,11 +1,12 @@
 # 当前任务 — LC-CC-007
 
-- **状态**：`WAITING_FOR_GROK`
+- **状态**：`APPROVED`（当前开发、Windows 宿主机回归与 Linux `net10.0` 构建范围放行）
 - **主题**：微信比例表情选择器、输入框图片预览与内置表情资源
-- **日期**：2026-11-25；**执行者**：Codex（`6248514`）；**独立审核者**：待 Gemini
-- **报告**：[本轮执行记录](REVIEW.md#lc-cc-007--微信比例表情选择器输入框图片预览与内置表情资源执行记录)
-- **一句话结论**：表情选择器改为微信比例的分区大网格，输入框通过 GDI+ 覆盖层显示内置 PNG 但保留 `[名称]` 原文，109 个表情资源已嵌入 Windows `LanChat.exe` 与 Linux `lanchat.dll`/ELF，Linux Electron 通过 `emoji-pack` IPC 获取；LANC Type 1 文本字段未改变。
-- **下一步**：请 Gemini 按 `CRDocs/RULES.md` 独立核对代码、资源嵌入、UI 交互、LANC/JSONL 兼容和验证边界；审核结束后覆盖本任务的 `REVIEW.md` 结论并将本条状态改为 `APPROVED` 或 `REJECTED`，再交出下一份提示词。真实双机、真实安装包、Linux Xorg/Wayland/XWayland 与 ARM64/x86_64 ELF 实机仍属于未验证边界。
+- **日期**：2026-11-25；**执行者**：Codex（Round 2 打回整改）；**独立审核者**：Gemini（Round 3 独立复审通过）
+- **报告**：[Round 3 独立复审（通过）](REVIEW.md#lc-cc-007--round-3-独立复审通过lc-cc-007-r2-p1-1-已闭环) · [Round 2 打回整改执行记录](REVIEW.md#lc-cc-007--round-2-打回项整改执行记录-lc-cc-007-r2-p1-1) · [实机边界](DEFERRED.md)
+- **一句话结论**：`LC-CC-007-R2-P1-1` 已复核 `RESOLVED`（`CapturePrintWindow` 改用 `PrintWindow(control.Handle, hdc, 2)`，已移除 `CopyFromScreen`，仅在失败时以同一离屏 HDC 走 `WM_PRINT` 回退）；可选 P3 `ChatInputBox.cs:135` 的 `caretInside` 边界已核验修正；独立复跑 Windows/隔离 `LOCALAPPDATA` 回归、好友刷新回归、Linux `net10.0` 构建、指定 Node 语法/UI/IPC 回归与 `git diff --check` 全部退出码 `0`。
+- **未验证边界**：真实双机互通、Windows MSI/绿色包安装、100%/125%/150% 多 DPI、真实截图工具/Excel/WPS 粘贴、Linux Xorg/Wayland/XWayland Electron 实机与 ARM64/x86_64 ELF 实机（含 `tests/linux_desktop_regression.py`）仍未验证，继续保留于 [DEFERRED.md](DEFERRED.md)。
+- **下一步**：`LC-CC-007` 当前开发与宿主机回归范围已闭环；由用户决定安排提交/打包发布，或进入 [DEFERRED.md](DEFERRED.md) 中的真实双机、多 DPI 安装包与 Linux/ELF 实机现场验收。
 
 ---
 

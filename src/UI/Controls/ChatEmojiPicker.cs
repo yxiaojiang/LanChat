@@ -26,9 +26,13 @@ namespace LanChat
         private static readonly Lazy<Dictionary<string, Bitmap>> Images =
             new Lazy<Dictionary<string, Bitmap>>(LoadImages, true);
         private static readonly List<string> ImportedOrder = new List<string>();
+        private static readonly List<string> RecentOrder = new List<string>();
         private const int Cell = 48;
         private const int Columns = 8;
         private const int RecentCount = 12;
+        private const int PickerWidth = 496;
+        private const int PickerHeight = 548;
+        private const int GridSliderReserve = 16;
         private readonly string[] _entries;
         private readonly string[] _recentEntries;
         private readonly SessionListBox _recentGrid;
@@ -42,38 +46,36 @@ namespace LanChat
         private ChatEmojiPicker(Control anchor, Action<string> select)
         {
             _entries = Images.Value.Count == 0 ? UnicodeEntries : ImportedOrder.ToArray();
-            int recentLength = Math.Min(RecentCount, _entries.Length);
-            _recentEntries = new string[recentLength];
-            Array.Copy(_entries, _recentEntries, recentLength);
+            _recentEntries = BuildRecentEntries(_entries);
 
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = false;
             AutoScaleMode = AutoScaleMode.None;
             BackColor = GrokTheme.Level2;
-            ClientSize = new Size(Columns * Cell + 24, 548);
+            ClientSize = new Size(PickerWidth, PickerHeight);
+            SetStyle(ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
 
             Rectangle reference = anchor.RectangleToScreen(anchor.ClientRectangle);
             Rectangle work = Screen.FromRectangle(reference).WorkingArea;
             int width = Math.Min(ClientSize.Width, Math.Max(Columns * 40 + 24, work.Width - 20));
             ClientSize = new Size(width, Math.Min(ClientSize.Height, Math.Max(360, work.Height - 20)));
-            using (GraphicsPath border = GrokTheme.RoundedRect(new Rectangle(0, 0, Width, Height), 18))
+            using (GraphicsPath border = GrokTheme.RoundedRect(new Rectangle(0, 0, Width, Height), 16))
                 Region = new Region(border);
 
             Controls.Add(CreateTitleBar());
             Controls.Add(CreateSectionLabel("最近使用", 52));
             _recentGrid = CreateGrid(_recentEntries);
             _recentGrid.Location = new Point(12, 80);
-            _recentGrid.Size = new Size(Width - 24, Math.Max(Cell, Rows(_recentEntries) * Cell));
+            _recentGrid.Size = new Size(Columns * Cell + GridSliderReserve, Math.Max(Cell, Rows(_recentEntries) * Cell));
             Controls.Add(_recentGrid);
 
             int allTitleTop = _recentGrid.Bottom + 4;
             Controls.Add(CreateSectionLabel("所有表情", allTitleTop));
             _allGrid = CreateGrid(_entries);
             _allGrid.Location = new Point(12, allTitleTop + 28);
-            _allGrid.Size = new Size(Width - 24, Math.Max(Cell, Height - _allGrid.Top - 54));
+            _allGrid.Size = new Size(Columns * Cell + GridSliderReserve, Math.Max(Cell, Height - _allGrid.Top - 12));
             Controls.Add(_allGrid);
-            Controls.Add(CreateCategoryBar());
 
             AttachGrid(_recentGrid, _recentEntries, false, select);
             AttachGrid(_allGrid, _entries, true, select);
@@ -86,6 +88,34 @@ namespace LanChat
             Location = new Point(Math.Max(work.Left, Math.Min(reference.Left, work.Right - Width)),
                 reference.Top - Height - 8 >= work.Top ? reference.Top - Height - 8 :
                 Math.Min(work.Bottom - Height, reference.Bottom + 8));
+        }
+
+        /// <summary>为无边框弹层启用 16px 圆角阴影，并与系统窗口合成保持一致。</summary>
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams parameters = base.CreateParams;
+                parameters.ClassStyle |= 0x00020000;
+                return parameters;
+            }
+        }
+
+        /// <summary>绘制暗色底板和 1px #2C2C32 外边框，边缘由窗口 Region 裁剪。</summary>
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            using (var border = new Pen(GrokTheme.Border, 1f))
+            using (GraphicsPath path = GrokTheme.RoundedRect(new Rectangle(0, 0, Width - 1, Height - 1), 16))
+                e.Graphics.DrawPath(border, path);
+        }
+
+        /// <summary>选择器失去焦点时重绘悬停和选中态，避免暗色状态残留。</summary>
+        protected override void OnDeactivate(EventArgs e)
+        {
+            if (_recentGrid != null) _recentGrid.Invalidate();
+            if (_allGrid != null) _allGrid.Invalidate();
+            base.OnDeactivate(e);
         }
 
         /// <summary>在输入工具按钮旁显示选择器，并在点击后回调可传输的表情令牌。</summary>
@@ -105,6 +135,27 @@ namespace LanChat
         {
             Bitmap image;
             return Images.Value.TryGetValue(token, out image) ? image : null;
+        }
+
+        /// <summary>记录最近选择的令牌，保持进程内真实最近使用顺序并去除重复项。</summary>
+        private static void RecordRecent(string token)
+        {
+            if (string.IsNullOrEmpty(token)) return;
+            RecentOrder.Remove(token);
+            RecentOrder.Insert(0, token);
+            if (RecentOrder.Count > RecentCount) RecentOrder.RemoveRange(RecentCount, RecentOrder.Count - RecentCount);
+        }
+
+        private static string[] BuildRecentEntries(string[] entries)
+        {
+            var available = new HashSet<string>(entries, StringComparer.Ordinal);
+            var result = new List<string>();
+            foreach (string token in RecentOrder)
+            {
+                if (available.Contains(token)) result.Add(token);
+                if (result.Count == RecentCount) break;
+            }
+            return result.ToArray();
         }
 
         private static Dictionary<string, Bitmap> LoadImages()
@@ -170,24 +221,6 @@ namespace LanChat
             return label;
         }
 
-        private Panel CreateCategoryBar()
-        {
-            int top = Height - 54;
-            var tabs = new Panel { Location = new Point(0, top), Size = new Size(Width, 54), BackColor = GrokTheme.Level1 };
-            tabs.Paint += (sender, e) =>
-            {
-                using (Pen border = new Pen(GrokTheme.Border, 1f)) e.Graphics.DrawLine(border, 12, 0, tabs.Width - 12, 0);
-                int[] centers = { 48, 128, 208, 288, 368 };
-                WeChatIconType[] icons = { WeChatIconType.Search, WeChatIconType.Emoji, WeChatIconType.Box, WeChatIconType.Scissors, WeChatIconType.More };
-                for (int i = 0; i < centers.Length && centers[i] < tabs.Width; i++)
-                {
-                    Rectangle icon = new Rectangle(centers[i] - 12, 15, 24, 24);
-                    WeChatIcon.Draw(e.Graphics, icons[i], icon, i == 1, i == 1 ? GrokTheme.AccentHot : GrokTheme.TextSecondary);
-                }
-            };
-            return tabs;
-        }
-
         private SessionListBox CreateGrid(string[] entries)
         {
             var grid = new SessionListBox
@@ -218,7 +251,11 @@ namespace LanChat
                 if (e.Button == MouseButtons.Left)
                 {
                     int index = FindCell(grid, entries, e.Location);
-                    if (index >= 0) select(entries[index]);
+                    if (index >= 0)
+                    {
+                        RecordRecent(entries[index]);
+                        select(entries[index]);
+                    }
                 }
             };
             grid.KeyDown += (sender, e) =>
@@ -228,7 +265,11 @@ namespace LanChat
                 {
                     e.SuppressKeyPress = true;
                     int index = Math.Min(entries.Length - 1, Math.Max(0, grid.SelectedIndex) * Columns + column);
-                    if (index >= 0) select(entries[index]);
+                    if (index >= 0)
+                    {
+                        RecordRecent(entries[index]);
+                        select(entries[index]);
+                    }
                 }
                 else if (e.KeyCode == Keys.Left || e.KeyCode == Keys.Right)
                 {
@@ -239,6 +280,8 @@ namespace LanChat
                     grid.Invalidate();
                 }
             };
+            grid.LostFocus += (sender, e) => grid.Invalidate();
+            grid.GotFocus += (sender, e) => grid.Invalidate();
             if (entries.Length > 0) grid.SelectedIndex = 0;
         }
 
