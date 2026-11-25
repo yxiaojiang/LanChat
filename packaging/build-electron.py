@@ -17,7 +17,7 @@ from build_linux import ROOT, check_elf
 
 
 ELECTRON = "45.4.1"
-VERSION = "2.0.22"
+VERSION = "2.0.23"
 ARCHITECTURES = {
     "amd64": ("x64", "e1d077c7a087d7e344350ea0c5cd2b7dc5af3d9bf7979474f38e0fc1a560b875"),
     "arm64": ("arm64", "3da04c450fa682e3b80961e92a918a1c2a1a10796527a7e63dec7b8e466b6334"),
