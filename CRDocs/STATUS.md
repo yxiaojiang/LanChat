@@ -1,3 +1,14 @@
+# 当前任务 — LC-FILE-TRANSFER-STABILITY-001
+
+- **状态**：`APPROVED`（当前开发与 Windows 宿主机回归范围放行）
+- **主题**：文件传输稳定性与并发限流加固（P0 / P1 / P2）
+- **日期**：2026-11-25；**执行者**：Codex；**独立审核者**：Gemini
+- **报告**：[独立审核结论](REVIEW.md#lc-file-transfer-stability-001--独立审核) · [执行记录](REVIEW.md#lc-file-transfer-stability-001--文件传输稳定性与并发限流加固执行记录)
+- **一句话结论**：LANC 兼容的传输稳定性（Stopwatch 单调计时/有限速率、先开流取长度、截断/0 字节/超时、leaveOpen）、6/2 有界公平出站队列、32/16 入口限制、托管截图引用计数、50ms 进度合批、Linux IPC 兜底与边界回归均已核对并通过宿主机复跑；正式 Linux `net10.0` 构建因宿主仅有 .NET SDK 9.0.304 仍未完成，Linux 实机与双机联测继续保留未验证。
+- **下一步**：`LC-FILE-TRANSFER-STABILITY-001` 当前开发与 Windows 宿主机回归范围已闭环放行。请在具备 .NET 10 SDK 的环境补跑正式 `net10.0` Linux 后端构建及 Linux 实机/双机联测，或由用户决定进入提交/打包发布。
+
+---
+
 ## 当前任务 — Windows 稳定性、外观与群聊文件传输收口
 
 - **状态** `APPROVED`（当前开发与 Windows 宿主机回归范围放行）。
@@ -136,3 +147,5 @@
 - **Scope**：Linux Electron 桌面设置八页初版拆分、IPC 白名单、昵称/自动接收/目录迁移/只读备用确认与 `clear-all-histories`。
 
 2 项 P1 OPEN：`LC-S3-001` 外观四项只在设置窗内存生效且被写成 Windows 未接线；`LC-S3-002` 清空后在途 `historyLoads` 响应可能把旧气泡填回。P2 含反馈框原生滚动条、小工作区 `minWidth/minHeight` 顶破 `computeSettingsBounds`、只读备用确认缺少真实分支执行测试、快捷键页缺少 `Ctrl + Enter`、相同历史目录仍提示已迁移。
+
+

@@ -1,3 +1,54 @@
+# LC-FILE-TRANSFER-STABILITY-001 — 独立审核
+
+- **任务编号**：`LC-FILE-TRANSFER-STABILITY-001`
+- **任务主题**：文件传输稳定性与并发限流加固（P0 / P1 / P2）
+- **审核方**：Gemini 独立审核方
+- **审核日期**：2026-11-25
+- **审核状态**：**APPROVED**（当前开发与 Windows 宿主机回归范围放行）
+- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/STATUS.md`、本文件底部同名执行记录，以及工作区实际改动源码与测试（`src/NetworkService.cs`、`src/NetworkService.Transfer.cs`、`src/Controllers/FileTransferController.cs`、`src/MainForm.Files.cs`、`src/MainForm.Chat.cs`、`src/linux/LanChat.Linux/DesktopService.cs`、`tests/FileTransferStabilityRegression.cs`、`tests/file_transfer_stability_regression.ps1`、`tests/FriendRefreshRegression.cs`、`tests/ConcurrentReceive.cs`）。
+
+## 独立复跑与验证边界
+
+### 1. Windows 宿主机独立复跑（均退出码 0）
+
+1. `cmd /c "Tools\Scripts\Compile.bat < NUL"`：退出码 0，Windows 原生 `release\LanChat.exe` 编译成功。
+2. `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1`：退出码 0，包含 `Native Windows compile: ok`、32 文件 / 16 群聊收件人入口边界断言及既有 WinForms 回归通过。
+3. `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack`：退出码 0，包含剪贴板优先级、LANC 文本/图片回环、JSONL 历史及 `LC-CC-004` 截图清理回归通过。
+4. `powershell -NoProfile -ExecutionPolicy Bypass -File tests/file_transfer_stability_regression.ps1`：退出码 0，输出 `文件传输稳定性边界回归通过：0 字节、64KB、全局 6、单目标 2`。
+5. 独立以 `csc.exe` 编译 `src/Models.cs`、`src/NetworkService*.cs` 与 `tests/ConcurrentReceive.cs` 并传入临时目录运行：退出码 0，输出 `Final ACK: 1, 1; Complete events: 2`，双路同名文件 SHA-256 校验通过（随后清理临时目录）。
+6. `dotnet --list-sdks` 实测宿主仅安装 `9.0.304`；`dotnet build src/linux/LanChat.Linux/LanChat.Linux.csproj --no-restore` 退出码 1，报 `NETSDK1045`（当前 .NET SDK 不支持面向 `.NET 10.0`）。
+7. 行数门禁与注释规范：全部改动/新增手写文件均 `< 1000` 行软门禁（`NetworkService.Transfer.cs` 615、`MainForm.Files.cs` 503、`DesktopService.cs` 488、`FriendRefreshRegression.cs` 486、`FileTransferController.cs` 424、`NetworkService.cs` 265、`FileTransferStabilityRegression.cs` 244、`file_transfer_stability_regression.ps1` 16），新增注释与 XML 文档均为中文。
+
+### 2. 未验证边界（继续保留，不得视同已验收）
+
+- **正式 Linux `net10.0` 构建**：宿主仅安装 `.NET SDK 9.0.304`，`net10.0` 正式编译未完成；此前执行者的 `net9.0` 临时编译仅作语法兼容参考，不得替代正式 `net10.0` 构建。
+- **Linux 实机与双机联测**：Linux ARM64 / x86_64 ELF 实机、Linux Electron Xorg / Wayland / XWayland、真实双机新旧客户端互通、真实 Windows 截图工具/Excel/WPS 粘贴，以及真实 LAN 吞吐与连接数取证均尚未验证。
+
+## 审核结论与维度核对
+
+**APPROVED（当前开发与 Windows 宿主机回归范围放行）**。无 P0、无 P1、无 P2 阻断遗留。
+
+| 核对维度 | 结论 | 说明 |
+| --- | :---: | --- |
+| 1. LANC 协议向后兼容 | PASS | `NetworkService.Transfer.cs` 未改动 `MAGIC`、`packetType 2` 字段顺序（`transferId`、`senderId`、`senderNick`、`fileName`、`fileSize`）及 `0x01`/`0x00` 确认字节 |
+| 2. Stopwatch 速率有限性 | PASS | 收发双方均使用 `Stopwatch.GetTimestamp()` 单调计时；`CalculateTransferSpeed` 对 `bytes <= 0`、`elapsedSeconds <= 0.001`、`NaN`/`Infinity`/负数统一返回 `0d`；UI 格式化与 Linux IPC 同步兜底 |
+| 3. 流长度 TOCTOU、截断、0 字节与 `leaveOpen` | PASS | `SendFileCore` 先打开带 `FileShare` 的 `FileStream` 再读取同一实例 `fs.Length`；按剩余字节读取并在 `read == 0` 时抛 `EndOfStreamException`；0 字节文件跳过循环并完成收尾；文件流 `BinaryReader`/`BinaryWriter` 均设 `leaveOpen: true` |
+| 4. 分阶段超时与 Socket 缓冲 | PASS | 握手接收超时 10s、正文发送超时 30s、最终确认按文件大小设为 60s~300s；packetType 2 协商前后双端设置 256KB `SendBufferSize`/`ReceiveBufferSize` |
+| 5. 有界出站并发与公平轮询 | PASS | `NetworkService` 维持全局最多 6 路、单目标最多 2 路；`TakeReadyOutgoingTransfersLocked` 按节点轮询出队；`RunOutgoingTransfer` 的 `finally` 保证异常时回收计数并继续出队；`Dispose()` 调用 `RejectQueuedOutgoingTransfers()` 拒绝排队任务 |
+| 6. 32 文件 / 16 成员入口限制 | PASS | `MainForm.Files.cs` 在剪贴板文件/截图、文件选择器、拖拽与群发入口均强制校验单批 32 文件与群聊 16 在线成员并给出中文提示；无效/离线全失败时明确提示 |
+| 7. 托管截图引用计数与清理 | PASS | `SendFilesToPeers` 仅首次认领移交预览句柄，`FileTransferController` 以 `ManagedPasteState` 跟踪 `Remaining` 与 `HasSavedReference`；多目标成功/部分失败保留文件，全部失败删除，退出时 `DiscardOutgoingPastes()` 清理未落盘引用 |
+| 8. Windows UI 进度合批 | PASS | `FileTransferController` 以 50ms `Timer` 将高频接收进度合并至 `_pendingProgress` 后单次 `SafeInvoke` 刷新；发送端已在 `SendFileCore` 按 200ms 节流，并在控件销毁时释放定时器 |
+| 9. Linux IPC 兜底与 `managedPaste` | PASS | `DesktopService.cs` 对 `SpeedMBps` 使用 `double.IsFinite` 归零；`WriteOutput` 对单帧构造/序列化异常做隔离记录不中断后续输出；`SendFile` 将 `managedPaste` 透传给 `allowSourceDelete` |
+| 10. 边界回归与测试覆盖 | PASS | `FileTransferStabilityRegression.cs` 实测 0 字节、64KB、约 1MB 接收速率与全局 6 / 单目标 2 并发上限；`FriendRefreshRegression.cs` 覆盖 32 文件与 16 成员边界；`ConcurrentReceive.cs` 复跑通过 |
+
+---
+
+# 历史执行记录与审核归档
+
+> 以下为 `LC-FILE-TRANSFER-STABILITY-001` 送审前执行记录（位于本文件底部）及历史任务审核归档。
+
+---
+
 # 本轮交付 — Windows 缩放稳定性、11 色外观、传输速率与群聊文件多选（独立复审）
 
 - **日期**：2026-11-25
@@ -564,3 +615,68 @@ Linux 的 `display.themeIndex`、`accentIndex`、字体下标和 `uiSize`/`chatS
 - 送审稿与代码不一致：昵称上限是 1～80，与 `LinuxProfile` 一致，不是 1～32；检查更新文案是「将在后续维护切片接入」，不是「当前已是最新版本」。
 - 快捷键页只写 `Shift + Enter` 换行。主窗实际是 Enter 发送，Ctrl+Enter 和 Shift+Enter 都能换行。
 - 选了与当前相同的历史目录时，配置层会跳过复制，界面仍提示「聊天记录已迁移并保存设置」。`ChatHistoryService.ClearAllHistories()` 删除失败会被吃掉，界面仍显示成功；这点和 WinForms 相同。
+# LC-FILE-TRANSFER-STABILITY-001 — 文件传输稳定性与并发限流加固执行记录
+
+> 2026-11-25 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 等待 Gemini 独立审核
+> 工程：`D:/TEmp/LanChat`
+
+## 本轮范围
+
+按 `.claude/Plan.md` 顶部「文件传输稳定性与并发限流加固」方案实施 P0、P1、P2，保持既有 LANC 魔数、packetType 2 文件报价字段顺序、确认字节及 JSONL 历史字段兼容；遵守全中文注释、零外部依赖和单文件低于 1000 行约束。
+
+## 实际改动
+
+### P0：传输稳定性与 Linux IPC
+
+- `src/NetworkService.Transfer.cs` 的发送端和接收端统一使用 `Stopwatch.GetTimestamp()` 单调计时；当时间窗口不超过 1ms、字节增量为零或计算结果非有限/负数时输出 0，杜绝 `NaN`、`Infinity` 和负速率。
+- 保持 accept 握手 `ReceiveTimeout = 10000ms`；进入文件流后设置 `SendTimeout = 30000ms`；读取最终 `doneConfirm` 前按文件大小设置 `ReceiveTimeout`，范围为 60000~300000ms。
+- `src/linux/LanChat.Linux/DesktopService.cs` 对 `SpeedMBps` 使用 `double.IsFinite` 归零；JSONL 写出对单帧构造/序列化异常隔离并记录错误，不因单帧失败终止后续输出。
+
+### P1：文件一致性、入口和底层并发
+
+- 发送端先打开带正确 `FileShare` 的 `FileStream`，再从同一流读取 `Length` 写入协议头；发送循环按剩余长度计算 `toRead`，提前读到 0 时主动失败；文件读写器均以 `leaveOpen: true` 构造。
+- 文件 TCP 双端在确认 packetType 2 后使用 256KB Socket 缓冲。
+- `NetworkService` 增加按目标节点轮询的有界出站队列：单目标最多 2 路，全局最多 6 路，前序完成后继续出队。
+- `src/MainForm.Files.cs` 统一单批 32 个文件和群聊最多 16 名在线成员，剪贴板、文件选择器、拖拽和群发入口均有超限提示；群发全部无效/离线时明确提示。
+- `src/Controllers/FileTransferController.cs` 以 50ms 定时合并进度更新，降低高频 `BeginInvoke`；托管截图改为按发送目标引用计数共享清理，不再同步复制 N-1 份。
+
+### P2：跨端细节
+
+- Linux `SendFile` 向共享核心传入 `allowSourceDelete: managedPaste`，与 Windows 托管截图语义一致。
+- 新增 `tests/FileTransferStabilityRegression.cs` 与 `tests/file_transfer_stability_regression.ps1`，覆盖 0 字节、64KB、约 1MB 文件、32 文件/16 收件人入口边界及全局 6/单目标 2 并发上限。
+
+## LANC 兼容性判断
+
+本轮未修改 `MAGIC`、packetType 2 后的 `transferId`、发送者 ID、昵称、文件名、Int64 文件大小字段顺序，也未修改 accept/doneConfirm 确认字节。修改只涉及流生命周期、计时、Socket 参数、发送调度和桌面层状态管理，旧版对端仍可按原协议收发。
+
+## 实际验证
+
+| 命令 | 结果 |
+| --- | --- |
+| `cmd /c "Tools\\Scripts\\Compile.bat < NUL"` | 返回 0；Windows 原生 `LanChat.exe` 与 `uninstall.exe` 编译完成。 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 返回 0；好友刷新、入口 32/16 边界断言及既有 WinForms 回归通过。 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 返回 0；剪贴板、LANC 文本/PNG、历史及截图清理回归通过。 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/file_transfer_stability_regression.ps1` | 返回 0；0 字节、64KB、约 1MB、速率有限性、全局最多 6 路和单目标最多 2 路通过。 |
+| `tests/ConcurrentReceive.cs` 回环编译并运行 | 返回 0；同名双文件最终 ACK、SHA-256 和完成事件通过。 |
+| `dotnet build src/linux/LanChat.Linux/LanChat.Linux.csproj --no-restore` | 未通过环境门槛：宿主只有 SDK 9.0.304，项目目标为 net10.0，报 `NETSDK1045`。 |
+| `dotnet restore/build ... -p:TargetFramework=net9.0 -p:RuntimeFrameworkVersion=9.0.8` | 返回 0；作为临时兼容语法证据，0 警告、0 错误，不替代正式 net10 构建。 |
+| `git diff --check` | 返回 0；无空白错误。 |
+
+## 行数与未验证边界
+
+本轮相关手写文件行数：`NetworkService.Transfer.cs` 615、`FileTransferController.cs` 424、`MainForm.Files.cs` 503、`DesktopService.cs` 498、`FileTransferStabilityRegression.cs` 245，均低于 1000 行。
+
+尚未验证：安装 .NET 10 SDK 后的正式 Linux net10 构建、Linux/ARM64/x86_64 ELF 实机、Linux Electron Xorg/Wayland/XWayland、真实双机新旧版本互通、真实 Windows 截图工具/Excel/WPS 粘贴，以及真实 LAN 下的吞吐和连接数取证。Windows 回环和 net9 临时目标证据不得替代上述实机验收。
+
+## 交接审核重点
+
+请 Gemini 独立核对：
+
+1. `NetworkService` 出站队列在并发完成、拒绝、异常和 `Dispose` 时的计数回收及公平轮询；确认不存在超过 6/2 的窗口。
+2. 发送端先开流取长度、动态截断失败、0 字节文件和最终确认超时逻辑；确认没有改变 LANC 字段顺序和确认字节。
+3. 托管截图引用计数在多目标成功、部分失败、全部失败和窗体退出时的保留/删除语义。
+4. Linux IPC 单帧序列化异常、非有限速率归零和 `managedPaste` 参数传递。
+5. 现有回归输出与未验证边界是否被准确区分；若发现 P0/P1 问题，请在本文件写明复现条件、分级和修复要求，并将 `CRDocs/STATUS.md` 保持为打回状态。
+
+---
+

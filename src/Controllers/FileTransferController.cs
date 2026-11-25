@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace LanChat
@@ -20,8 +21,28 @@ namespace LanChat
         private readonly ISynchronizeInvoke _sync;
         // 收件先有进度、后有最终路径，按会话和传输号关联同一气泡。
         private readonly Dictionary<Tuple<string, string>, ChatMessage> _incoming = new Dictionary<Tuple<string, string>, ChatMessage>();
-        // 仅跟踪已从草稿接管且尚未写入历史的应用截图。
-        private readonly HashSet<string> _outgoingPastes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>
+        /// 同一托管截图被群发到多个目标时的共享清理状态。
+        /// <para>职责：记录尚未结算的发送数和是否已有历史引用。</para>
+        /// <para>依赖：由文件发送完成回调和窗体退出清理共同更新。</para>
+        /// <para>边界：只管理应用生成的截图，不触碰用户原始文件。</para>
+        /// <para>生命周期：第一次入队创建，所有目标结算或退出清理时结束。</para>
+        /// </summary>
+        private sealed class ManagedPasteState
+        {
+            internal int Remaining;
+            internal bool HasSavedReference;
+        }
+
+        // 仅跟踪已从草稿接管且尚未写入历史的应用截图，并按群发目标引用计数。
+        private readonly Dictionary<string, ManagedPasteState> _outgoingPastes =
+            new Dictionary<string, ManagedPasteState>(StringComparer.OrdinalIgnoreCase);
+        // 高频网络进度先合并到内存，避免每个 64KB 分块都向 UI 投递 BeginInvoke。
+        private readonly object _progressGate = new object();
+        private readonly Dictionary<string, FileTransferProgress> _pendingProgress =
+            new Dictionary<string, FileTransferProgress>(StringComparer.Ordinal);
+        private readonly System.Threading.Timer _progressFlushTimer;
+        private bool _progressFlushScheduled;
 
         /// <summary>向界面通知文件气泡、会话键以及是否是首次追加。</summary>
         internal event Action<ChatMessage, string, bool> TransferMessageChanged;
@@ -42,13 +63,23 @@ namespace LanChat
             _netService = netService;
             _sessionManager = sessionManager;
             _sync = sync;
+            _progressFlushTimer = new System.Threading.Timer(FlushProgressTimer, null, Timeout.Infinite, Timeout.Infinite);
+            Control owner = sync as Control;
+            if (owner != null)
+            {
+                owner.Disposed += (sender, args) =>
+                {
+                    lock (_progressGate) _pendingProgress.Clear();
+                    _progressFlushTimer.Dispose();
+                };
+            }
 
             if (_netService != null)
             {
                 _netService.OnFileProgress += progress =>
                 {
                     var snapshot = progress.Snapshot();
-                    SafeInvoke(() => HandleIncomingProgress(snapshot));
+                    QueueProgress(snapshot);
                 };
                 _netService.OnFileReceived += msg => SafeInvoke(() => HandleFileReceived(msg));
             }
@@ -68,6 +99,41 @@ namespace LanChat
             {
                 action();
             }
+        }
+
+        private void QueueProgress(FileTransferProgress progress)
+        {
+            if (progress == null) return;
+            lock (_progressGate)
+            {
+                _pendingProgress[progress.TransferId ?? string.Empty] = progress;
+                if (_progressFlushScheduled) return;
+                _progressFlushScheduled = true;
+                _progressFlushTimer.Change(50, Timeout.Infinite);
+            }
+        }
+
+        private void FlushProgressTimer(object state)
+        {
+            Control control = _sync as Control;
+            if (control != null && !control.IsHandleCreated)
+            {
+                lock (_progressGate) _progressFlushScheduled = false;
+                return;
+            }
+            SafeInvoke(FlushPendingProgress);
+        }
+
+        private void FlushPendingProgress()
+        {
+            List<FileTransferProgress> pending;
+            lock (_progressGate)
+            {
+                pending = new List<FileTransferProgress>(_pendingProgress.Values);
+                _pendingProgress.Clear();
+                _progressFlushScheduled = false;
+            }
+            foreach (FileTransferProgress progress in pending) HandleIncomingProgress(progress);
         }
 
         /// <summary>
@@ -119,7 +185,7 @@ namespace LanChat
                 _sessionManager.AddMessage(convKey, fileMsg, persist: false);
                 batch.Add(fileMsg);
             }
-            // 先追加整批气泡，再启动原有并行文件流。
+            // 先追加整批气泡，再交给底层有界传输队列调度。
             foreach (ChatMessage message in batch) PublishTransferMessage(message, convKey, true);
             foreach (ChatMessage message in batch)
             {
@@ -127,7 +193,16 @@ namespace LanChat
                 bool managed = takeDraftImage != null && takeDraftImage(fileMsg.FilePath);
                 if (managed)
                 {
-                    lock (_outgoingPastes) _outgoingPastes.Add(fileMsg.FilePath);
+                    lock (_outgoingPastes)
+                    {
+                        ManagedPasteState state;
+                        if (!_outgoingPastes.TryGetValue(fileMsg.FilePath, out state))
+                        {
+                            state = new ManagedPasteState();
+                            _outgoingPastes.Add(fileMsg.FilePath, state);
+                        }
+                        state.Remaining++;
+                    }
                 }
                 _netService.SendFileAsync(peer, fileMsg.FilePath, progress =>
                 {
@@ -146,9 +221,16 @@ namespace LanChat
                         // 即使窗体已销毁，传输结果也必须与退出清理按同一顺序结算。
                         lock (_outgoingPastes)
                         {
-                            if (!_outgoingPastes.Remove(fileMsg.FilePath)) return;
+                            ManagedPasteState state;
+                            if (!_outgoingPastes.TryGetValue(fileMsg.FilePath, out state)) return;
                             saved = success && _sessionManager.PersistExistingMessage(convKey, fileMsg, confirmStorage: true);
-                            if (!saved) DeleteManagedImage(fileMsg.FilePath);
+                            if (saved) state.HasSavedReference = true;
+                            state.Remaining--;
+                            if (state.Remaining <= 0)
+                            {
+                                _outgoingPastes.Remove(fileMsg.FilePath);
+                                if (!state.HasSavedReference) DeleteManagedImage(fileMsg.FilePath);
+                            }
                         }
                     }
                     if (!success) return;
@@ -171,7 +253,8 @@ namespace LanChat
         {
             lock (_outgoingPastes)
             {
-                foreach (string path in _outgoingPastes) DeleteManagedImage(path);
+                foreach (KeyValuePair<string, ManagedPasteState> item in _outgoingPastes)
+                    if (!item.Value.HasSavedReference) DeleteManagedImage(item.Key);
                 _outgoingPastes.Clear();
             }
         }

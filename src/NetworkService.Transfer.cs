@@ -1,14 +1,49 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Collections.Generic;
 
 namespace LanChat
 {
     public partial class NetworkService : IDisposable
     {
+        private const int FileSocketBufferSize = 262144;
+        private const int MaxConcurrentPerPeer = 2;
+        private const int MaxGlobalOutgoing = 6;
+
+        /// <summary>
+        /// 单个出站文件请求的调度数据。
+        /// <para>职责：保存协议发送所需的目标、文件和回调。</para>
+        /// <para>依赖：由 NetworkService 的有界队列创建和释放。</para>
+        /// <para>边界：不改变 LANC 封包，仅控制文件发送线程何时启动。</para>
+        /// <para>生命周期：入队时创建，发送完成或服务释放时结束。</para>
+        /// </summary>
+        private sealed class OutgoingTransfer
+        {
+            internal readonly PeerInfo Peer;
+            internal readonly string FilePath;
+            internal readonly Action<FileTransferProgress> ProgressCallback;
+            internal readonly Action<bool, string> CompletionCallback;
+            internal readonly bool AllowSourceDelete;
+            internal readonly string PeerKey;
+
+            internal OutgoingTransfer(PeerInfo peer, string filePath,
+                Action<FileTransferProgress> progressCallback, Action<bool, string> completionCallback,
+                bool allowSourceDelete)
+            {
+                Peer = peer;
+                FilePath = filePath;
+                ProgressCallback = progressCallback;
+                CompletionCallback = completionCallback;
+                AllowSourceDelete = allowSourceDelete;
+                PeerKey = (peer.Id ?? string.Empty) + "\n" + (peer.IP == null ? string.Empty : peer.IP.ToString());
+            }
+        }
+
         #region TCP Listener
 
         private void InitTcpListener()
@@ -66,8 +101,8 @@ namespace LanChat
             {
                 using (client)
                 using (NetworkStream stream = client.GetStream())
-                using (BinaryReader reader = new BinaryReader(stream, Encoding.UTF8))
-                using (BinaryWriter writer = new BinaryWriter(stream, Encoding.UTF8))
+                using (BinaryReader reader = new BinaryReader(stream, Encoding.UTF8, true))
+                using (BinaryWriter writer = new BinaryWriter(stream, Encoding.UTF8, true))
                 {
                     byte[] magic = reader.ReadBytes(4);
                     if (magic.Length < 4 || magic[0] != MAGIC[0] || magic[1] != MAGIC[1] || magic[2] != MAGIC[2] || magic[3] != MAGIC[3])
@@ -120,6 +155,8 @@ namespace LanChat
                     }
                     else if (packetType == 2) // File Transfer Request
                     {
+                        client.SendBufferSize = FileSocketBufferSize;
+                        client.ReceiveBufferSize = FileSocketBufferSize;
                         string transferId = reader.ReadString();
                         string senderId = reader.ReadString();
                         string senderNick = reader.ReadString();
@@ -155,7 +192,7 @@ namespace LanChat
 
                         byte[] chunk = new byte[65536];
                         long receivedBytes = 0;
-                        DateTime lastTime = DateTime.Now;
+                        long lastTimestamp = Stopwatch.GetTimestamp();
                         long lastBytes = 0;
 
                         try
@@ -174,13 +211,13 @@ namespace LanChat
                                     fs.Write(chunk, 0, read);
                                     receivedBytes += read;
 
-                                    DateTime now = DateTime.Now;
-                                    double elapsed = (now - lastTime).TotalSeconds;
+                                    long nowTimestamp = Stopwatch.GetTimestamp();
+                                    double elapsed = (nowTimestamp - lastTimestamp) / (double)Stopwatch.Frequency;
                                     if (elapsed >= 0.2 || receivedBytes == fileSize)
                                     {
                                         progress.TransferredBytes = receivedBytes;
-                                        progress.SpeedMBps = elapsed > 0 ? (receivedBytes - lastBytes) / (elapsed * 1024.0 * 1024.0) : 0;
-                                        lastTime = now;
+                                        progress.SpeedMBps = CalculateTransferSpeed(receivedBytes - lastBytes, elapsed);
+                                        lastTimestamp = nowTimestamp;
                                         lastBytes = receivedBytes;
                                         if (OnFileProgress != null) OnFileProgress(progress);
                                     }
@@ -312,10 +349,114 @@ namespace LanChat
         internal void SendFileAsync(PeerInfo peer, string filePath, Action<FileTransferProgress> progressCallback,
             Action<bool, string> completionCallback, bool allowSourceDelete)
         {
-            new Thread(() =>
+            if (peer == null || string.IsNullOrEmpty(filePath))
             {
-                string transferId = Guid.NewGuid().ToString("N");
-                string fileName = Path.GetFileName(filePath);
+                if (completionCallback != null) completionCallback(false, "文件发送参数无效");
+                return;
+            }
+
+            QueueOutgoingTransfer(new OutgoingTransfer(peer, filePath, progressCallback, completionCallback, allowSourceDelete));
+        }
+
+        private void QueueOutgoingTransfer(OutgoingTransfer transfer)
+        {
+            List<OutgoingTransfer> ready;
+            bool rejected;
+            lock (_outgoingTransferLock)
+            {
+                rejected = _outgoingTransferDisposed;
+                if (!rejected)
+                {
+                    Queue<OutgoingTransfer> queue;
+                    if (!_outgoingTransferQueues.TryGetValue(transfer.PeerKey, out queue))
+                    {
+                        queue = new Queue<OutgoingTransfer>();
+                        _outgoingTransferQueues.Add(transfer.PeerKey, queue);
+                    }
+                    bool wasEmpty = queue.Count == 0;
+                    queue.Enqueue(transfer);
+                    if (wasEmpty) _outgoingPeerOrder.Enqueue(transfer.PeerKey);
+                }
+                ready = rejected ? null : TakeReadyOutgoingTransfersLocked();
+            }
+
+            if (rejected)
+            {
+                CompleteRejectedOutgoingTransfer(transfer);
+                return;
+            }
+            StartOutgoingTransfers(ready);
+        }
+
+        private List<OutgoingTransfer> TakeReadyOutgoingTransfersLocked()
+        {
+            var ready = new List<OutgoingTransfer>();
+            while (_activeOutgoingTransfers < MaxGlobalOutgoing && _outgoingPeerOrder.Count > 0)
+            {
+                OutgoingTransfer selected = null;
+                int rounds = _outgoingPeerOrder.Count;
+                for (int i = 0; i < rounds; i++)
+                {
+                    string peerKey = _outgoingPeerOrder.Dequeue();
+                    Queue<OutgoingTransfer> queue;
+                    if (!_outgoingTransferQueues.TryGetValue(peerKey, out queue) || queue.Count == 0)
+                        continue;
+
+                    int activeForPeer;
+                    _activeOutgoingByPeer.TryGetValue(peerKey, out activeForPeer);
+                    _outgoingPeerOrder.Enqueue(peerKey);
+                    if (activeForPeer >= MaxConcurrentPerPeer) continue;
+
+                    selected = queue.Dequeue();
+                    _activeOutgoingTransfers++;
+                    _activeOutgoingByPeer[peerKey] = activeForPeer + 1;
+                    break;
+                }
+
+                if (selected == null) break;
+                ready.Add(selected);
+            }
+            return ready;
+        }
+
+        private void StartOutgoingTransfers(List<OutgoingTransfer> transfers)
+        {
+            if (transfers == null) return;
+            foreach (OutgoingTransfer transfer in transfers)
+            {
+                new Thread(() => RunOutgoingTransfer(transfer)) { IsBackground = true }.Start();
+            }
+        }
+
+        private void RunOutgoingTransfer(OutgoingTransfer transfer)
+        {
+            try
+            {
+                SendFileCore(transfer);
+            }
+            finally
+            {
+                List<OutgoingTransfer> ready;
+                lock (_outgoingTransferLock)
+                {
+                    _activeOutgoingTransfers--;
+                    int activeForPeer = _activeOutgoingByPeer[transfer.PeerKey] - 1;
+                    if (activeForPeer == 0) _activeOutgoingByPeer.Remove(transfer.PeerKey);
+                    else _activeOutgoingByPeer[transfer.PeerKey] = activeForPeer;
+                    ready = TakeReadyOutgoingTransfersLocked();
+                }
+                StartOutgoingTransfers(ready);
+            }
+        }
+
+        private void SendFileCore(OutgoingTransfer transfer)
+        {
+            PeerInfo peer = transfer.Peer;
+            string filePath = transfer.FilePath;
+            Action<FileTransferProgress> progressCallback = transfer.ProgressCallback;
+            Action<bool, string> completionCallback = transfer.CompletionCallback;
+            string transferId = Guid.NewGuid().ToString("N");
+            string fileName = Path.GetFileName(filePath);
 
                 var progress = new FileTransferProgress
                 {
@@ -336,9 +477,13 @@ namespace LanChat
                     if (completionCallback != null) completionCallback(false, reason);
                 };
 
-                try
+            try
+            {
+                // 先锁定发送流并读取同一实例的长度，避免报价头和实际内容发生 TOCTOU 分裂。
+                FileShare share = transfer.AllowSourceDelete ? FileShare.Read | FileShare.Delete : FileShare.Read;
+                using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, share))
                 {
-                    long fileSize = new FileInfo(filePath).Length;
+                    long fileSize = fs.Length;
                     progress.TotalBytes = fileSize;
                     if (progressCallback != null) progressCallback(progress);
                     IPEndPoint localEp = GetLocalEndpointForTarget(peer.IP);
@@ -353,10 +498,12 @@ namespace LanChat
                             return;
                         }
                         client.EndConnect(result);
+                        client.SendBufferSize = FileSocketBufferSize;
+                        client.ReceiveBufferSize = FileSocketBufferSize;
 
                         using (NetworkStream stream = client.GetStream())
-                        using (BinaryWriter writer = new BinaryWriter(stream, Encoding.UTF8))
-                        using (BinaryReader reader = new BinaryReader(stream, Encoding.UTF8))
+                        using (BinaryWriter writer = new BinaryWriter(stream, Encoding.UTF8, true))
+                        using (BinaryReader reader = new BinaryReader(stream, Encoding.UTF8, true))
                         {
                             writer.Write(MAGIC);
                             writer.Write((byte)2); // PacketType FileOffer
@@ -374,38 +521,37 @@ namespace LanChat
                                 fail("对方拒绝或未自动接收文件");
                                 return;
                             }
+                            client.SendTimeout = 30000;
 
                             byte[] buffer = new byte[65536];
                             long sentBytes = 0;
-                            DateTime lastTime = DateTime.Now;
+                            long lastTimestamp = Stopwatch.GetTimestamp();
                             long lastBytes = 0;
 
-                            // 应用截图在退出时可删除，已打开的发送流仍由传输线程负责关闭。
-                            FileShare share = allowSourceDelete ? FileShare.Read | FileShare.Delete : FileShare.Read;
-                            using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, share))
+                            while (sentBytes < fileSize)
                             {
-                                int read;
-                                while ((read = fs.Read(buffer, 0, buffer.Length)) > 0)
+                                int toRead = (int)Math.Min(buffer.Length, fileSize - sentBytes);
+                                int read = fs.Read(buffer, 0, toRead);
+                                if (read == 0) throw new EndOfStreamException("发送文件在读取过程中被截断");
+                                stream.Write(buffer, 0, read);
+                                sentBytes += read;
+                                progress.TransferredBytes = sentBytes;
+
+                                long nowTimestamp = Stopwatch.GetTimestamp();
+                                double elapsed = (nowTimestamp - lastTimestamp) / (double)Stopwatch.Frequency;
+                                if (elapsed >= 0.2 || sentBytes == fileSize)
                                 {
-                                    stream.Write(buffer, 0, read);
-                                    sentBytes += read;
-                                    progress.TransferredBytes = sentBytes;
-
-                                    DateTime now = DateTime.Now;
-                                    double elapsed = (now - lastTime).TotalSeconds;
-                                    if (elapsed >= 0.2 || sentBytes == fileSize)
-                                    {
-                                        double speed = (sentBytes - lastBytes) / (elapsed * 1024.0 * 1024.0);
-                                        lastTime = now;
-                                        lastBytes = sentBytes;
-
-                                        progress.SpeedMBps = speed;
-                                        if (progressCallback != null) progressCallback(progress);
-                                    }
+                                    progress.SpeedMBps = CalculateTransferSpeed(sentBytes - lastBytes, elapsed);
+                                    lastTimestamp = nowTimestamp;
+                                    lastBytes = sentBytes;
+                                    if (progressCallback != null) progressCallback(progress);
                                 }
                             }
+                            // 应用截图在退出时可删除，已打开的发送流仍由传输线程负责关闭。
                             stream.Flush();
 
+                            // 接收端可能仍在刷盘或被杀毒软件扫描，收尾确认不能复用握手阶段的 10 秒。
+                            client.ReceiveTimeout = CalculateCompletionTimeout(fileSize);
                             byte doneConfirm = reader.ReadByte();
                             if (doneConfirm == 1)
                             {
@@ -421,11 +567,47 @@ namespace LanChat
                         }
                     }
                 }
-                catch (Exception ex)
-                {
-                    if (!progress.IsFailed && !progress.IsCompleted) fail("发送失败: " + ex.Message);
-                }
-            }) { IsBackground = true }.Start();
+            }
+            catch (Exception ex)
+            {
+                if (!progress.IsFailed && !progress.IsCompleted) fail("发送失败: " + ex.Message);
+            }
+        }
+
+        private static double CalculateTransferSpeed(long bytes, double elapsedSeconds)
+        {
+            // 首轮小文件可能在一个计时刻内完成，禁止除以极小时间产生 Infinity 或 NaN。
+            if (bytes <= 0 || elapsedSeconds <= 0.001) return 0d;
+            double speed = bytes / (elapsedSeconds * 1024.0 * 1024.0);
+            return double.IsNaN(speed) || double.IsInfinity(speed) || speed < 0d ? 0d : speed;
+        }
+
+        private static int CalculateCompletionTimeout(long fileSize)
+        {
+            long megabytes = Math.Max(0L, fileSize / (1024L * 1024L));
+            long timeout = Math.Max(60000L, Math.Min(300000L, megabytes * 1000L));
+            return (int)timeout;
+        }
+
+        private void RejectQueuedOutgoingTransfers()
+        {
+            var rejected = new List<OutgoingTransfer>();
+            lock (_outgoingTransferLock)
+            {
+                if (_outgoingTransferDisposed) return;
+                _outgoingTransferDisposed = true;
+                foreach (Queue<OutgoingTransfer> queue in _outgoingTransferQueues.Values)
+                    while (queue.Count > 0) rejected.Add(queue.Dequeue());
+                _outgoingPeerOrder.Clear();
+            }
+            foreach (OutgoingTransfer transfer in rejected) CompleteRejectedOutgoingTransfer(transfer);
+        }
+
+        private static void CompleteRejectedOutgoingTransfer(OutgoingTransfer transfer)
+        {
+            if (transfer.CompletionCallback == null) return;
+            try { transfer.CompletionCallback(false, "网络服务已停止"); }
+            catch { }
         }
 
         #endregion

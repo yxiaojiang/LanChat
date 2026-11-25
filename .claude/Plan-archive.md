@@ -2,6 +2,14 @@
 
 > 最近更新：2026-11-23。
 
+## LC-FILE-TRANSFER-STABILITY-001 文件传输稳定性与并发限流加固（2026-11-25）
+
+- P0：收发双方改用 Stopwatch 单调计时，有限速率；补齐发送/收尾超时；Linux IPC 增加非有限速率和单帧序列化异常兜底。
+- P1：发送流先取同一 FileStream 长度，严格处理截断和 leaveOpen；新增单批 32 文件、群聊 16 人入口限制，以及按目标轮询的单目标 2 路/全局 6 路出站队列；Windows 进度 50ms 合批。
+- P2：文件 Socket 使用 256KB 缓冲；Linux 传入 `allowSourceDelete: managedPaste`；托管截图群发改为引用计数共享清理。
+- 新增 0 字节、64KB、约 1MB、入口边界和并发上限回归。Windows 编译、既有回归、新增夹具和 `ConcurrentReceive.cs` 均通过；正式 Linux net10 构建因宿主仅有 SDK 9.0.304 未完成。
+- Gemini 于 2026-11-25 独立审核 `APPROVED`，真实 Linux/ELF、双机 LAN、桌面剪贴板继续按 `CRDocs/DEFERRED.md` 延期。
+
 ## v2.0.18 文件传输体验与跨平台包准备（2026-11-23）
 
 - Windows 与 Linux Electron 的发送/接收进度均显示在聊天气泡中，多文件逐文件更新百分比；粘贴系统剪贴板文件可暂存为附件，用户点击发送或按 Enter 后才开始传输。普通文本粘贴保留。

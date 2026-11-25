@@ -99,7 +99,29 @@ namespace LanChat.Linux
         private async Task WriteOutput(StreamWriter output)
         {
             await foreach (var makeFrame in _output.Reader.ReadAllAsync())
-                await output.WriteLineAsync(makeFrame().ToJsonString());
+            {
+                string line;
+                try
+                {
+                    // 单帧构造或序列化失败不能终止后续 JSONL IPC 输出。
+                    line = makeFrame().ToJsonString();
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine("Linux IPC 帧序列化失败：" + ex.Message);
+                    continue;
+                }
+
+                try
+                {
+                    await output.WriteLineAsync(line);
+                }
+                catch (IOException ex)
+                {
+                    Console.Error.WriteLine("Linux IPC 输出失败：" + ex.Message);
+                    break;
+                }
+            }
         }
 
         private bool ProcessLine(string line)
@@ -367,7 +389,7 @@ namespace LanChat.Linux
                     Timestamp = DateTime.Now
                 }, id, managedPaste);
                 Reply(id, managedPaste ? new JsonObject { ["historySaved"] = saved } : null);
-            });
+            }, managedPaste);
         }
 
         private void OnMessage(ChatMessage value) => OnMessage(value, null);
@@ -438,6 +460,7 @@ namespace LanChat.Linux
             lock (_gate)
             {
                 if (_stopping) return;
+                double speed = double.IsFinite(value.SpeedMBps) ? value.SpeedMBps : 0d;
                 string chat = _sessions.ResolveKey(SessionManager.GetLanKey(value.TransferPeerId, value.TransferPeerAddress));
                 var key = (value.IsSending, value.TransferId, chat);
                 var frame = new JsonObject
@@ -445,7 +468,7 @@ namespace LanChat.Linux
                     ["event"] = "progress", ["operation"] = operation, ["transfer"] = value.TransferId,
                     ["chat"] = chat, ["peerNick"] = value.PeerNick,
                     ["name"] = value.FileName, ["sending"] = value.IsSending, ["received"] = value.TransferredBytes,
-                    ["total"] = value.TotalBytes, ["speed"] = value.SpeedMBps, ["completed"] = value.IsCompleted, ["failed"] = value.IsFailed,
+                    ["total"] = value.TotalBytes, ["speed"] = speed, ["completed"] = value.IsCompleted, ["failed"] = value.IsFailed,
                     ["error"] = value.ErrorMessage
                 };
                 if (value.IsCompleted || value.IsFailed)

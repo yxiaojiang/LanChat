@@ -21,6 +21,7 @@
 - 设置优先旧程序同级已有文件。便携同级可创建时先创建，其余情况只要能创建或确认 `~/.config/lanchat` 就使用其中的 `settings.json`。仅此目录创建失败才读 `~/.local/share/lanchat/settings.json`，两份同时存在按固定顺序选择。备份后写入，旧位置只读时由用户确认可写位置。升级和回退沿用原历史、接收目录和附件路径。
 - UI 以当前 Windows 客户区及 GrokBot 为基准。切片 1 的双栏、会话、聊天、文件卡片、暗色菜单和浮动滑块已通过 Round 3 代码审核（[CRDocs](../../CRDocs/STATUS.md)）。第 3 步切片 2 已实现独立八页设置窗。托盘恢复没有运行证据，关闭窗口仍是退出。原生 Wayland 自绘窗框不能完成规定操作时使用系统边框，当前默认系统边框。Xorg 与 Wayland 分别取证。
 - v2.0.18 源码提供 1260×820 独立设置窗和八页，保留昵称、自动收件、目录选择/迁移、只读位置确认、主题/字体及清空历史。文件收发进度在消息气泡内逐文件更新；系统复制的文件粘贴进编辑框后成为待发送附件。主窗与设置窗复用受限 preload IPC，LANC 封包不变。
+- 2026-11-25 Gemini 已批准本轮 `DesktopService` 与共享传输加固：非有限速率归零、单帧 JSON 序列化异常隔离，Linux 文件发送向共享核心传入 `allowSourceDelete: managedPaste`，与 Windows 托管截图语义对齐。宿主只有 .NET SDK 9.0.304，net10.0 正式构建待补装 SDK；同代码使用临时 net9 目标编译通过，Linux 实机与双机联测仍延期。
 - `release/linux-electron/` 由 `Tools/Scripts/BuildLinuxDeb.py` 构建，包含 amd64/arm64 deb、portable tar.gz、独立 CLI 和 `SHA256SUMS.json`；该目录已从 Git 源码提交中忽略，作为 Release 资产发布。ARM64 实机安装与剪贴板验收由用户执行，禁止以虚拟机结果替代。
 - 首包可用一个架构的 Linux 实机或虚拟机集成。正式候选要求物理 x86_64 和物理 ARM64 都完成升级、回退及与公开版 Windows 物理机的局域网互通，同时通过支持矩阵。虚拟机证据单列。
 - 银河麒麟 V10 国防版（020）ARM64 的第二轮试验包因 glibc 下限与 OpenSSL 包名不可满足而留在 `iU`。系统为 glibc 2.31，旧版实际映射 OpenSSL 1.1。自第三轮起要求 `libc6 (>= 2.31)`，OpenSSL 依赖优先 3 并允许 `libssl1.1 (>= 1.1.1)`。用户已确认第五轮实机安装无报错，桌面可刷新和收发文字；第 2 步据此验收通过。该次回报未含 dpkg 状态、CLI、回退或库映射输出，不补记为已测。实机双架构升级回退和 Windows 局域网互通仍是第 4 步门槛。 [实施证据](../../PlanDocs/LC-LINUX-002/INTEGRATION.md)

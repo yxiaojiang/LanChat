@@ -1,6 +1,11 @@
 # Plan.md — 当前活跃计划
 
-> 2026-11-25 · 本轮 Windows 稳定性、外观与群聊文件传输已独立审核通过，准备发布 v2.0.21。
+> 2026-11-25 · 文件传输稳定性加固已获 Gemini 独立审核 `APPROVED`；记忆已归档，当前准备发布 v2.0.22。正式 Linux net10 构建与实机联测继续保留延期。
+
+## 当前活跃事项
+
+- [ ] 在具备 .NET 10 SDK 的环境补跑 Linux `net10.0` 后端构建，并取得 Linux/ELF 实机证据。
+- [ ] 完成真实双机新旧版本互通、Windows 截图工具/Excel/WPS 粘贴及 Linux Xorg/Wayland/XWayland 联测。
 
 ## 发布收口
 

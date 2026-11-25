@@ -1,3 +1,11 @@
+# LC-FILE-TRANSFER-STABILITY-001 — 执行摘要
+
+> 2026-11-25 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 详细记录见 `CRDocs/REVIEW.md` 同名记录
+
+P0/P1/P2 已完成，Windows 回归和新增边界夹具通过；正式 Linux net10 构建因宿主缺少 .NET 10 SDK 暂未完成，真实 Linux/ELF、双机 LAN 和桌面剪贴板仍未验证。
+
+---
+
 # 本轮交付 — Windows 缩放稳定性、11 色外观、传输速率与群聊文件多选
 
 > 2026-11-25 · 执行者 Codex · 状态 `APPROVED` · v2.0.21 已发布
@@ -393,3 +401,14 @@ LANC 握手帧、TCP `0x01` 及 UDP 六段公告兼容。旧客户端只回 `0x0
 ## 异议与理由
 
 无异议。
+# LC-FILE-TRANSFER-STABILITY-001 — 执行摘要
+
+> 2026-11-25 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 详细记录见 `CRDocs/REVIEW.md` 顶部
+
+- 已完成 P0/P1/P2：单调速率、文件流 TOCTOU、超时、256KB Socket 缓冲、32/16 入口限制、6/2 公平出站队列、UI 进度合批、托管截图引用计数清理和 Linux IPC 兜底。
+- 已新增 `tests/FileTransferStabilityRegression.cs` 与 `tests/file_transfer_stability_regression.ps1`，覆盖 0 字节、64KB、约 1MB、速率有限性和并发上限。
+- Windows 原生编译、好友刷新、聊天编辑器、并发接收及新增夹具均通过；Linux 共享代码使用 net9 临时目标编译通过。
+- 正式 `dotnet build` net10.0 受宿主仅安装 SDK 9.0.304 阻断；真实 Linux/ELF、双机 LAN 和桌面剪贴板仍未验证。
+
+---
+

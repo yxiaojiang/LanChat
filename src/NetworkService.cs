@@ -58,6 +58,16 @@ namespace LanChat
         // Unix 的 File.Move 先检查目标再重命名。串行提交避免同一进程的两路接收越过检查。
         private static readonly object _receiveCommitLock = new object();
 
+        // 出站文件按目标节点分队列，避免群发时单个大文件独占全部发送线程。
+        private readonly object _outgoingTransferLock = new object();
+        private readonly Dictionary<string, Queue<OutgoingTransfer>> _outgoingTransferQueues =
+            new Dictionary<string, Queue<OutgoingTransfer>>(StringComparer.Ordinal);
+        private readonly Queue<string> _outgoingPeerOrder = new Queue<string>();
+        private readonly Dictionary<string, int> _activeOutgoingByPeer =
+            new Dictionary<string, int>(StringComparer.Ordinal);
+        private int _activeOutgoingTransfers;
+        private bool _outgoingTransferDisposed;
+
         // =========================================================================
         // 核心网络事件总线
         // =========================================================================
@@ -226,6 +236,7 @@ namespace LanChat
         /// </summary>
         public void Dispose()
         {
+            RejectQueuedOutgoingTransfers();
             lock (_discoveryLock)
             {
                 if (!_isRunning) return;

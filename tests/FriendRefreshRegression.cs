@@ -283,6 +283,10 @@ namespace LanChat
             var noPeers = MainForm.NormalizeRecipientList(new List<PeerInfo>());
             Require(noPeers != null && noPeers.Count == 0, "0 在线好友收件人列表未保持为空列表");
             Require(MainForm.NormalizeRecipientList(null).Count == 0, "空收件人快照未归一化为空列表");
+            Require(MainForm.IsFileBatchWithinLimit(new string[32]) && !MainForm.IsFileBatchWithinLimit(new string[33]),
+                "文件入口未拒绝超过 32 个文件");
+            Require(MainForm.IsRecipientSelectionWithinLimit(true, 16) && !MainForm.IsRecipientSelectionWithinLimit(true, 17),
+                "群聊收件人入口未拒绝超过 16 人");
             using (var recipients = new SessionListBox { SelectionMode = SelectionMode.MultiSimple })
             {
                 recipients.Items.Add(new PeerInfo { Id = "multi-1", NickName = "在线一" });

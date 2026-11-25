@@ -10,6 +10,8 @@ namespace LanChat
 {
     public partial class MainForm : Form
     {
+        internal const int MaxFilesPerBatch = 32;
+        internal const int MaxFileRecipients = 16;
         // 附件草稿依附会话，切换聊天时不发送或丢弃草稿。
         private readonly Dictionary<string, List<string>> _attachmentDrafts = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         // 只记录从剪贴板生成的图片，删除草稿时不能误删用户复制的原始文件。
@@ -82,11 +84,23 @@ namespace LanChat
 
         private void StageClipboardFiles(string[] files)
         {
+            if (files == null || files.Length == 0) return;
             string key = _activeChatKey;
             var paths = GetAttachmentDraft(key) ?? new List<string>();
+            int available = MaxFilesPerBatch - paths.Count;
+            int incoming = 0;
+            if (files != null)
+            {
+                foreach (string file in files)
+                    if (File.Exists(file) && !paths.Contains(file)) incoming++;
+            }
+            if (incoming > available)
+            {
+                GrokMessageBox.Show(this, "一次最多发送 32 个附件。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
             foreach (string file in files)
             {
-                if (paths.Count == 32) break;
                 if (File.Exists(file) && !paths.Contains(file)) paths.Add(file);
             }
             if (paths.Count == 0)
@@ -115,7 +129,7 @@ namespace LanChat
         {
             string key = _activeChatKey;
             var paths = GetAttachmentDraft(key) ?? new List<string>();
-            if (paths.Count >= 32)
+            if (paths.Count >= MaxFilesPerBatch)
             {
                 GrokMessageBox.Show(this, "一次最多发送 32 个附件。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
@@ -266,6 +280,23 @@ namespace LanChat
             return peers == null ? new List<PeerInfo>() : new List<PeerInfo>(peers);
         }
 
+        /// <summary>判断一次文件选择是否满足单批次 1 至 32 个文件的入口约束。</summary>
+        /// <param name="filePaths">待发送文件路径数组。</param>
+        /// <returns>数量在允许范围内返回 true，否则返回 false。</returns>
+        internal static bool IsFileBatchWithinLimit(string[] filePaths)
+        {
+            return filePaths != null && filePaths.Length > 0 && filePaths.Length <= MaxFilesPerBatch;
+        }
+
+        /// <summary>判断文件收件人数量是否满足单聊或群聊入口约束。</summary>
+        /// <param name="allowMultiple">是否处于群聊多选模式。</param>
+        /// <param name="count">当前选中的在线成员数量。</param>
+        /// <returns>数量有效返回 true，否则返回 false。</returns>
+        internal static bool IsRecipientSelectionWithinLimit(bool allowMultiple, int count)
+        {
+            return count > 0 && (!allowMultiple || count <= MaxFileRecipients);
+        }
+
         internal static List<PeerInfo> ReadSelectedRecipients(ListBox listBox)
         {
             var selected = new List<PeerInfo>();
@@ -336,6 +367,11 @@ namespace LanChat
                         GrokMessageBox.Show(picker, "请至少选择一位在线成员。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         return;
                     }
+                    if (!IsRecipientSelectionWithinLimit(allowMultiple, ReadSelectedRecipients(lb).Count))
+                    {
+                        GrokMessageBox.Show(picker, "一次最多选择 16 名在线成员。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
                     picker.DialogResult = DialogResult.OK;
                 };
                 picker.AcceptButton = btnOk;
@@ -359,57 +395,48 @@ namespace LanChat
         private bool SendFilesToPeers(IList<PeerInfo> peers, string[] filePaths)
         {
             if (peers == null || peers.Count == 0 || filePaths == null || filePaths.Length == 0) return false;
+            if (peers.Count > MaxFileRecipients)
+            {
+                GrokMessageBox.Show(this, "一次最多选择 16 名在线成员。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return false;
+            }
+            if (!IsFileBatchWithinLimit(filePaths))
+            {
+                GrokMessageBox.Show(this, "一次最多发送 32 个文件。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return false;
+            }
             var managedDraftPaths = new HashSet<string>(_draftImagePreviews.Keys, StringComparer.OrdinalIgnoreCase);
+            var claimedManagedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             int sent = 0;
             for (int i = 0; i < peers.Count; i++)
             {
                 PeerInfo peer = peers[i];
                 if (peer == null || peer.TcpPort <= 0) continue;
                 string[] recipientPaths = filePaths;
-                var copiedManaged = new List<string>();
-                if (i > 0) recipientPaths = CopyManagedDraftFiles(filePaths, managedDraftPaths, copiedManaged);
                 bool queued = SendFilesToPeer(peer, recipientPaths, path =>
                 {
-                    if (copiedManaged.Contains(path)) return true;
-                    return TakeDraftImage(path);
+                    if (!managedDraftPaths.Contains(path)) return false;
+                    if (claimedManagedPaths.Add(path)) TakeDraftImage(path);
+                    return true;
                 });
-                if (!queued)
-                {
-                    foreach (string copy in copiedManaged) FileTransferController.DeleteManagedImage(copy);
-                }
-                else sent++;
+                if (queued) sent++;
             }
             if (_listSessions != null) _listSessions.Invalidate();
-            return sent > 0;
-        }
-
-        private string[] CopyManagedDraftFiles(string[] filePaths, HashSet<string> managedDraftPaths, List<string> copies)
-        {
-            var result = new List<string>();
-            foreach (string path in filePaths)
+            if (sent == 0)
             {
-                if (managedDraftPaths == null || !managedDraftPaths.Contains(path))
-                {
-                    result.Add(path);
-                    continue;
-                }
-                try
-                {
-                    string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LanChat", "PastedImages");
-                    Directory.CreateDirectory(dir);
-                    string copy = Path.Combine(dir, "群发-" + Guid.NewGuid().ToString("N") + ".png");
-                    File.Copy(path, copy, false);
-                    copies.Add(copy);
-                    result.Add(copy);
-                }
-                catch (IOException) { }
-                catch (UnauthorizedAccessException) { }
+                GrokMessageBox.Show(this, "没有在线成员成功进入文件发送队列。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
-            return result.ToArray();
+            return sent > 0;
         }
 
         private bool SendFilesToPeer(PeerInfo peer, string[] filePaths, Func<string, bool> takeDraftImage = null)
         {
+            if (filePaths == null || filePaths.Length == 0) return false;
+            if (!IsFileBatchWithinLimit(filePaths))
+            {
+                GrokMessageBox.Show(this, "一次最多发送 32 个文件。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return false;
+            }
             if (peer.TcpPort <= 0)
             {
                 GrokMessageBox.Show(this, "好友当前离线，暂时无法发送文件。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
