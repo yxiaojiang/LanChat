@@ -1,6 +1,12 @@
 # 本轮交付 — Windows 缩放稳定性、11 色外观、传输速率与群聊文件多选
 
-> 2026-11-25 · 执行者 Codex · 状态 `APPROVED` · 独立审核通过，待 v2.0.21 发布
+> 2026-11-25 · 执行者 Codex · 状态 `APPROVED` · v2.0.21 已发布
+
+## v2.0.21 发布结果
+
+- `Tools/Scripts/Publish.bat` 已完成版本递增、Windows 原生编译、WiX MSI、Linux x86_64/ARM64 自包含 ELF、Electron Debian/便携包与 CLI 构建。
+- GitHub Release：[`v2.0.21`](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.21)，全部资产上传成功；发布提交为 `f09226b`，此前审核与返修记录分别为 `41a9be5`、`a056460`。
+- `CHANGELOG.md` 已新增 v2.0.21 更新说明，包含头像缩放、11 色配色、传输速率、群聊文件多选及 `LC-RV-001` 修复。
 
 ## LC-RV-001 返修
 

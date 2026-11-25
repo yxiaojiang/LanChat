@@ -5,7 +5,8 @@
 - **本轮范围**：左上角头像缩放防闪烁、附件图 11 色外观、文件气泡发送/接收网速、群聊在线成员多选发送与托管截图副本清理，以及 `LC-RV-001` 无在线好友空列表返修。
 - **一句话结论**：`LC-RV-001` 已复核关闭（`PickFileRecipients` 全路径返回非空 `List<PeerInfo>`，`NormalizeRecipientList` 归一化 `null` 快照，0 在线好友与 `null` 快照断言通过）；五项宿主机/脚本/后端回归命令全部通过，头像双缓冲、11 色配色、双向速率与 LANC/JSONL 兼容均成立，全量改动文件 `< 1000` 行。
 - **未验证**：真实 Windows 桌面拖拽缩放录屏/截图工具/Excel/WPS、Linux Xorg/Wayland/XWayland 与最新 ELF、真实双机局域网联测，继续见 [DEFERRED.md](DEFERRED.md)。
-- **下一步**：当前开发与宿主机回归范围已闭环。由用户决定进入提交/打包发布，或安排 [DEFERRED.md](DEFERRED.md) 中的真实桌面、Linux 实机/ELF 与双机联测验收。 [审核结论](REVIEW.md) · [实施与验证](IMPLEMENTATION.md) · [实机边界](DEFERRED.md)
+- **发布结果**：v2.0.21 已完成 Windows/Linux 打包并上传 GitHub Release（`f09226b`）。更新日志已写入 `CHANGELOG.md`。
+- **下一步**：当前开发、审核与发布范围已闭环；真实桌面、Linux 实机/ELF 与双机联测仍按 [DEFERRED.md](DEFERRED.md) 等待现场验收。 [审核结论](REVIEW.md) · [实施与验证](IMPLEMENTATION.md) · [实机边界](DEFERRED.md)
 
 ---
 

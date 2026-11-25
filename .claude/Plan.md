@@ -22,7 +22,8 @@
 - [x] 文件气泡显示发送/接收速率；Linux `speed` IPC 字段与 UI 回归已覆盖。
 - [x] 群聊文件支持在线成员多选，托管截图按收件人复制并沿用成功引用保留/失败清理规则。
 - [x] 独立审核者复跑并回写 `CRDocs/REVIEW.md`；`LC-RV-001` 空引用已修复并通过 0 在线好友断言。
-- [ ] 发布脚本递增到 v2.0.21，生成 Windows/Linux 产物并同步 GitHub Release；真实桌面、Linux 实机、ELF 与双机联测仍延期。
+- [x] 发布脚本递增到 v2.0.21，生成 Windows/Linux 产物并同步 GitHub Release（提交 `f09226b`）；`CHANGELOG.md` 已更新。
+- [ ] 真实桌面、Linux 实机、ELF 与双机联测仍延期，按 `CRDocs/DEFERRED.md` 等待现场验收。
 
 ## LC-LINUX-002 · Linux 桌面验收
 
