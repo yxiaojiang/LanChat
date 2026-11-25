@@ -1,13 +1,13 @@
 # Plan.md — 当前活跃计划
 
-> 2026-11-24 · LC-CHAT-COMPOSER-001 Round 2 已独立复审通过，进入提交、双架构打包和 GitHub Release 收口。
+> 2026-11-25 · LC-CHAT-COMPOSER-001 Round 2 已独立复审通过，v2.0.20 已提交、推送并发布。
 
-## 本轮发布收口
+## 发布收口
 
 - [x] 刷新项目记忆，记录 Round 2 ` APPROVED `、验证证据、延期边界和 deb/CLI 产物差异。
-- [ ] 提交当前审核通过改动并推送 ` main `。
-- [ ] 执行 ` Tools/Scripts/Publish.bat `，生成 Windows EXE/MSI、Linux amd64/arm64 deb、便携包、CLI 和 ` SHA256SUMS.json `。
-- [ ] 核对 GitHub Release 版本、资产大小、架构命名和 SHA-256，回写记忆中的实际提交与发布结果。
+- [x] 提交当前审核通过改动并推送 ` main `。Round 2 提交为 ` 9c5c0bc `，版本同步与发布提交为 ` 1e2bf84 `。
+- [x] 执行 ` Tools/Scripts/Publish.bat `，生成 Windows EXE/MSI、Linux amd64/arm64 deb、双架构便携包、双架构 CLI 和 ` SHA256SUMS.json `。
+- [x] GitHub Release ` v2.0.20 ` 资产已核对为已上传，arm64 便携包在发布脚本中断后单独补传成功。
 
 ## LC-CHAT-COMPOSER-001 · 实机延期验收
 

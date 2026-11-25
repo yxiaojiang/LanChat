@@ -1,6 +1,6 @@
 # Linux.md — Linux 客户端模块上下文
 
-> 2026-11-24 · 当前源码已完成 LC-CHAT-COMPOSER-001 Round 2 审核通过，准备生成下一版 Linux amd64/arm64 deb、便携包和 CLI。桌面 deb 包含 Electron runtime、资源、同架构自包含 ELF 和启动器，体积主要由 Electron runtime 构成。`lanchat-cli_<版本>_<架构>` 仅含同架构自包含 ELF，可直接放到对应 Linux 架构运行，但只提供终端/无头入口。Windows 宿主 Node 回归和后端编译通过，Linux ELF 实跑及 Electron 实机验收仍待用户环境。旧版状态见 [LC-LINUX-001](../../PlanDocs/LC-LINUX-001/STATUS.md)。
+> 2026-11-25 · LC-CHAT-COMPOSER-001 Round 2 已审核通过，v2.0.20 已发布。桌面 deb 包含 Electron runtime、资源、同架构自包含 ELF 和启动器，体积主要由 Electron runtime 构成。`lanchat-cli_<版本>_<架构>` 仅含同架构自包含 ELF，可直接放到对应 Linux 架构运行，但只提供终端/无头入口。Windows 宿主 Node 回归和后端编译通过，Linux ELF 实跑及 Electron 实机验收仍待用户环境。旧版状态见 [LC-LINUX-001](../../PlanDocs/LC-LINUX-001/STATUS.md)。
 
 ## 当前源码和升级样本
 
