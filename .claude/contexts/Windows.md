@@ -1,6 +1,6 @@
 # Windows.md — Windows 客户端模块上下文
 
-> 2026-11-24 · LC-CHAT-COMPOSER-001 Round 2 与好友刷新返修均已独立审核通过，当前准备提交并发布下一版。组合 Emoji 的整段 GDI+ 测量/绘制和截图草稿回归已通过；原生构建和回环 Win32 交互隔离回归通过。真实多机 LAN、实际换网、系统截图粘贴和 TUN 路由仍待现场验收。
+> 2026-11-25 · LC-CC-007 Round 3 已独立审核通过，`v2.0.24` 已发布。组合 Emoji 的整段 GDI+ 测量/绘制、`PrintWindow(..., 2)` 截图回归、原生构建和回环 Win32 交互隔离回归均通过；真实多机 LAN、实际换网、系统截图粘贴和 TUN 路由仍待现场验收。
 
 ## 模块定位与职责
 Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装、无外部依赖、支持 MSI 标准向导安装与绿色单文件执行**的现代化桌面应用。
@@ -46,7 +46,7 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 ### LC-CC-007 内置表情包与微信比例选择器（2026-11-25）
 
 - `ChatEmojiPicker` 已改为 496×548 基准的暗色浮层：标题、最近使用、所有表情、8 列 48px 网格和底部分类栏；网格使用 `SessionListBox` 自绘滚动，避免原生白色滚动条。
-- `ChatInputBox` 继续保留原始 `[名称]` 文本，增加无交互 GDI+ 覆盖层，把命中的内置表情令牌绘制为 PNG；`MainForm` 发送、占位符和按钮状态统一调用 `GetMessageText()`，不改变 LANC/JSONL 文本格式。
+- `ChatInputBox` 继续保留原始 `[名称]` 文本，按 RichEdit 真实字符坐标在自身绘制流程中把命中的内置表情令牌绘制为 PNG；`CapturePrintWindow` 使用 `PrintWindow(..., 2)`，失败时才走同一离屏 HDC 的 `WM_PRINT` 回退，不依赖屏幕坐标；`MainForm` 发送、占位符和按钮状态统一调用 `GetMessageText()`，不改变 LANC/JSONL 文本格式。
 - `EmojiPack.cs` 解析 `LanChat.WeChatEmoji.pack`，Windows 编译脚本通过 `/res` 将 109 项资源写入 `LanChat.exe`；外部 `%LOCALAPPDATA%\LanChat\WeChatEmoji` 仅作为旧版开发回退。真实双机、安装包覆盖和多 DPI 仍待现场验收。
 
 ### v2.0.18 文件传输界面与剪贴板

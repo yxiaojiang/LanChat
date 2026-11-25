@@ -1,10 +1,10 @@
 # SessionBrief.md — 当前接手摘要
 
-> 2026-11-25 · 工作目录 `D:\TEmp\LanChat` · v2.0.23 已发布，重复接收气泡修复已审核并上线
+> 2026-11-25 · 工作目录 `D:\TEmp\LanChat` · `v2.0.24` 已发布，LC-CC-007 已获 Gemini Round 3 独立审核通过
 
 ## 当前状态
 
-本轮 `LC-CC-007` 已完成：表情选择器改为微信比例的 496×548 暗色浮层，分为“最近使用”“所有表情”两段，8 列 48px 舒适网格和底部分类栏，滚动仍使用自绘暗灰滑块。Windows 输入框改为可承载覆盖绘制的富文本编辑器容器，表情令牌仍保存在原始文本中，由无交互 GDI+ 覆盖层绘制彩色 PNG，因此输入预览、发送协议、复制与历史不互相污染。
+本轮 `LC-CC-007` 已获 Gemini Round 3 独立审核通过，范围为 Windows 宿主机回归与 Linux `net10.0` 构建：表情选择器为微信比例的 496×548 暗色浮层，Windows 输入框按 RichEdit 真实坐标叠绘彩色 PNG，表情令牌仍保存在原始文本中，输入预览、发送协议、复制与历史不互相污染。Round 2 唯一 P1 阻断项 `LC-CC-007-R2-P1-1` 已关闭：`CapturePrintWindow` 使用 `PrintWindow(..., 2)`，仅在失败时以同一离屏 HDC 走 `WM_PRINT` 回退，并移除 `CopyFromScreen`；可选 P3 `caretInside` 边界也已修正。
 
 新增 `assets/WeChatEmoji.pack` 与共享 `src/Services/EmojiPack.cs`。109 个微信静态表情以受校验的轻量二进制资源包编译进 Windows `LanChat.exe`，并通过 Linux `LanChat.Linux` 的 `LanChat.WeChatEmoji.pack` EmbeddedResource 进入 `lanchat.dll`/ELF。Linux DesktopService 增加 `emoji-pack` IPC，Electron 优先从通信服务获取 data URL，旧版外部目录仍保留回退。LANC 文字帧仍只传 `[表情名]`，旧版本对端收到后仍可读文本，新版本对端从自身程序集资源渲染图片。
 
@@ -26,9 +26,9 @@ Windows 侧将大批量文件与群聊收件人限制在明确边界内，进度
 
 ## 发布与文档
 
-`Publish.bat 2.0.23` 已生成 Windows EXE/MSI、Linux amd64/arm64 deb、便携包、CLI 和 `SHA256SUMS.json`，并创建 GitHub Release。发布提交为 `7bd84e5`，标签为 `v2.0.23`，更新日志已写入 `CHANGELOG.md`。`v2.0.22` 资产明确不包含 `4e8bbc4`，本轮修复仅随 v2.0.23 发布。
+`Publish.bat 2.0.24` 已生成 Windows EXE/MSI、Linux amd64/arm64 deb、便携包、CLI 和 `SHA256SUMS.json`，并创建 GitHub Release：[v2.0.24](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.24)。准备提交为 `15dd985`，发布提交为 `debd9ef`；`CHANGELOG.md` 已写入 LC-CC-007 收口说明与验证边界。
 
-本轮新增重复气泡回归已通过；`Compile.bat`、文件传输稳定性回归、好友刷新回归和缓存 .NET 10 SDK 的 Linux `dotnet build` 均通过。Gemini 已将 `4e8bbc4` 标记为 `APPROVED`，v2.0.23 Release 资产已全部上传。
+本轮新增重复气泡回归已通过；`Compile.bat`、文件传输稳定性回归、好友刷新回归和缓存 .NET 10 SDK 的 Linux `dotnet build` 均通过。Gemini 已将 `LC-CC-007` 与 `4e8bbc4` 标记为 `APPROVED`，v2.0.24 Release 资产已全部上传。
 
 ## 未关闭边界与下一步
 

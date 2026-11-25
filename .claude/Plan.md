@@ -1,6 +1,6 @@
 # Plan.md — 当前活跃计划
 
-> 2026-11-25 · 文件传输稳定性加固及重复接收气泡修复均获 Gemini 独立审核 `APPROVED`；v2.0.23 已完成打包、发布与远程推送。历史完成项见 `Plan-archive.md`。
+> 2026-11-25 · `LC-CC-007` Round 3 已获 Gemini 独立审核 `APPROVED`；`v2.0.24` 已完成打包、发布与远程推送。历史完成项见 `Plan-archive.md`。
 
 ## 当前活跃事项
 
@@ -10,10 +10,12 @@
 
 ## 当前发布基线
 
-- 版本：`v2.0.23`
-- 发布提交：`7bd84e5`
-- 发布标签：`v2.0.23`
-- 说明：`v2.0.22` 资产不包含 `4e8bbc4`；本轮修复已包含在 `v2.0.23`。
+- 版本：`v2.0.24`
+- 准备提交：`15dd985`
+- 发布提交：`debd9ef`
+- 发布标签：`v2.0.24`
+- Release：[GitHub v2.0.24](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.24)
+- 说明：LC-CC-007 Round 3 审核通过；本轮 P1 修复与可选 P3 修复已包含在 `v2.0.24`。
 - 更新日志：`CHANGELOG.md`
 - 审核记录：`CRDocs/STATUS.md`、`CRDocs/REVIEW.md`、`CRDocs/IMPLEMENTATION.md`
 - 延期边界：`CRDocs/DEFERRED.md`
