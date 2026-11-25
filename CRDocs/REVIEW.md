@@ -1,11 +1,45 @@
-# 本轮交付 — Windows 缩放稳定性、11 色外观、传输速率与群聊文件多选
+# 本轮交付 — Windows 缩放稳定性、11 色外观、传输速率与群聊文件多选（独立审核）
 
 - **日期**：2026-11-25
-- **执行者**：Codex
-- **审核状态**：`OPEN`，等待独立审核者复跑
-- **范围**：头像缩放防闪烁、附件图 11 色外观预设、Windows/Linux 文件气泡当前速率、群聊在线收件人多选与托管截图副本清理。
-- **已验证**：两套 Windows 回归（含原生编译）、Node 语法/UI 回归、Linux Release `dotnet build`、`git diff --check` 全部通过；未改动 LANC 封包、文件协议和 JSONL 历史格式。
-- **待独立审核边界**：真实 Windows 截图工具/Excel/WPS、长时间拖拽缩放录屏、Linux Xorg/Wayland/XWayland 实机、最新 ELF 与双机局域网联测仍未执行。
+- **执行者**：Codex（基线提交 `e3e9a58`）
+- **审核方**：独立审核方
+- **审核状态**：**WAITING_FOR_GROK**（`LC-RV-001` 已返修，等待独立审核者复跑）
+- **范围**：头像缩放防闪烁、附件图 11 色外观预设、Windows/Linux 文件气泡当前速率、群聊在线收件人多选与托管截图副本清理，以及无在线好友空列表返修。
+- **依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`，以及 `e3e9a58` 实际 diff 与相关调用链。
+
+## 独立复跑与验证边界
+
+### 1. Windows 宿主机独立复跑（均退出码 0）
+
+1. `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1`：退出码 0（`Native Windows compile: ok`、`LC-FR-001`~`004`/`008`、`LC-CHAT-COMPOSER-001`、`LC-CC-006`、头像 `DoubleBufferedPanel`、群聊收件人多选、0 在线好友空列表与 `null` 快照归一化断言通过）。
+2. `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack`：退出码 0（包含 `外观 11 色调色盘与发送/接收速率格式化断言通过`、`LC-CC-005`、`LC-CC-004` 及 Emoji/PNG/LANC/历史回归）。
+3. `C:\Program Files\nodejs\node.exe` 对 `src/linux/desktop/*.js`、`src/linux/desktop/*.cjs` 与 `tests/linux_desktop_*_regression.js` 共 15 个文件执行 `--check`，并运行 `tests/linux_desktop_ui_regression.js`：全部退出码 0，输出 `LC-CC-004: Linux IPC 发送终态、退出预检与管道晚到确认清理通过` 与 `linux desktop ui regression: ok`。
+4. `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false`：退出码 0，0 警告、0 错误。
+5. `git diff --check`：退出码 0，无空白错误；本轮改动手写源码与测试文件均 `< 1000` 行软门禁（最高为 `tests/linux_desktop_ui_regression.js` 907 行）。
+
+### 2. 未验证的跨环境边界（继续保留于 `CRDocs/DEFERRED.md`）
+
+- 真实 Windows 拖拽缩放长时间录屏、真实截图工具（Win+Shift+S / 微信截图）/ Excel / WPS 粘贴。
+- Linux Xorg / Wayland / XWayland 实机 Electron、最新 Linux ELF 实跑（`tests/linux_desktop_regression.py`）与真实双机局域网联测。
+
+## 审核结论与维度核对
+
+**WAITING_FOR_GROK**。`LC-RV-001` 已修复：无在线好友时 `PickFileRecipients` 返回 `new List<PeerInfo>()`，入口统一归一化 `null` 快照，调用方继续通过 `Count` 判空；自动化断言和全部宿主机回归已通过，等待独立审核者确认关闭。
+
+| 核对维度 | 结论 | 说明 |
+| --- | :---: | --- |
+| 1. 头像缩放防闪烁 | PASS | `src/MainForm.Designer.cs:210` 将 `_heroProfilePanel` 改为 `DoubleBufferedPanel`，`FriendRefreshRegression.cs:281` 已覆盖类型断言 |
+| 2. 11 色配色与索引兼容 | PASS | `GrokTheme.cs`、`AppearanceSettingsPanel.cs`、`AppSettings.cs`（上限 11）、`LinuxProfile.cs`（上限 11）与 `appearance.js` 均严格对齐 11 色 RGB 与索引顺序，越界均做夹紧 |
+| 3. 双向传输速率显示 | PASS | `NetworkService.Transfer.cs` 收发均写入 `SpeedMBps`；`FileTransferController.FormatTransferRate` 与 `conversation-view.js` 统一格式化 `KB/s` / `MB/s`；`ChatFileCardRenderer.cs` 与 `DesktopService.cs` 透传/渲染正常 |
+| 4. 群聊多选与托管截图清理 | **PASS（返修）** | `PickFileRecipients` 多选与 `SendFilesToPeers` 为 `i > 0` 生成 `"群发-<guid>.png"` 托管副本及失败清理逻辑成立；无在线好友分支返回空列表，`NormalizeRecipientList` 将 `null` 快照归一化，`PromptPeerAndSendFiles` 与 `PickFileRecipient` 的 `Count` 访问不再崩溃 |
+| 5. LANC 协议与 JSONL 兼容 | PASS | 未改动 `Models.cs`、`NetworkService*.cs`、`ChatHistoryService.cs`、`SessionManager.cs`，LANC 封包与 JSONL 历史格式完全兼容 |
+| 6. 行数门禁与注释规范 | PASS | 全部改动文件 `< 1000` 行软门禁，无空白错误 |
+
+### 问题清单
+
+| 问题 ID | 严重度 | 状态 | 位置与说明 |
+| --- | :---: | :---: | --- |
+| `LC-RV-001` | **P1** | **RESOLVED，待独立复审** | `src/MainForm.Files.cs` 无在线好友分支已返回 `new List<PeerInfo>()`，并通过 `NormalizeRecipientList` 防御 `null` 快照；`FriendRefreshRegression` 新增 0 在线好友和 `null` 归一化断言，关闭警告后不会再触发 `NullReferenceException`。 |
 
 ---
 

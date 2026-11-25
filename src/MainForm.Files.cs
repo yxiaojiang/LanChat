@@ -260,6 +260,12 @@ namespace LanChat
             return string.Equals(key, SessionManager.BROADCAST_KEY, StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>将在线收件人快照归一化为非空列表，保证无在线好友时调用方可安全读取 Count。</summary>
+        internal static List<PeerInfo> NormalizeRecipientList(IEnumerable<PeerInfo> peers)
+        {
+            return peers == null ? new List<PeerInfo>() : new List<PeerInfo>(peers);
+        }
+
         internal static List<PeerInfo> ReadSelectedRecipients(ListBox listBox)
         {
             var selected = new List<PeerInfo>();
@@ -274,11 +280,11 @@ namespace LanChat
 
         private List<PeerInfo> PickFileRecipients(bool allowMultiple)
         {
-            var peers = _netService != null ? _netService.GetActivePeers() : new List<PeerInfo>();
+            List<PeerInfo> peers = NormalizeRecipientList(_netService != null ? _netService.GetActivePeers() : null);
             if (peers.Count == 0)
             {
                 GrokMessageBox.Show(this, "当前无在线好友，无法发送文件", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return null;
+                return new List<PeerInfo>();
             }
 
             if (peers.Count == 1)

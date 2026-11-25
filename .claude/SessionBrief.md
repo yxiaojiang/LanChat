@@ -8,11 +8,11 @@ LC-CC-003、LC-CC-004、LC-CC-005、LC-CC-006 的既有范围已通过独立审�
 
 本轮新增四项：主窗体左上角 Hero 头像面板改用 `DoubleBufferedPanel`，降低拖拽缩放时背景擦除造成的闪烁；WinForms 与 Linux Electron 外观强调色统一扩展为附件图中的 11 个 RGB 预设；文件传输进度模型已有的 `SpeedMBps` 现在显示在 Windows/Linux 文件气泡中，并由 Linux `DesktopService` 透传 `speed`；群聊文件选择器支持 `MultiSimple` 多选在线成员，后续收件人使用独立截图副本，防止并发清理竞态。
 
-本轮已运行 `friend_refresh_regression.ps1`、`chat_composer_regression.ps1 -ExpectLocalPack`、Node 桌面语法与 `linux_desktop_ui_regression.js`、Linux Release `dotnet build`、`git diff --check`，全部通过；新增颜色、速率格式化、头像双缓冲和多选收件人断言。相关手写源码及测试均低于 1000 行软门禁。
+本轮已运行 `friend_refresh_regression.ps1`、`chat_composer_regression.ps1 -ExpectLocalPack`、Node IPC/UI 回归与桌面语法检查、Linux Release `dotnet build`、`git diff --check`，全部通过；新增颜色、速率格式化、头像双缓冲、多选收件人及 `LC-RV-001`（0 在线好友/空快照）断言。相关手写源码及测试均低于 1000 行软门禁。
 
 ## 下一步
 
-本轮记录已写入 `CRDocs/IMPLEMENTATION.md`、`CRDocs/REVIEW.md`、`CRDocs/STATUS.md`，状态为 `WAITING_FOR_GROK`，等待独立审核者复跑。真实 Windows 截图工具/Excel/WPS、长时间拖拽缩放录屏、Linux Xorg/Wayland/XWayland 与最新 ELF、双机局域网联测仍未验证，按 `CRDocs/DEFERRED.md` 保留。
+本轮记录已写入 `CRDocs/IMPLEMENTATION.md`、`CRDocs/REVIEW.md`、`CRDocs/STATUS.md`，`LC-RV-001` 已返修，状态为 `WAITING_FOR_GROK`，等待独立审核者复跑。真实 Windows 截图工具/Excel/WPS、长时间拖拽缩放录屏、Linux Xorg/Wayland/XWayland 与最新 ELF、双机局域网联测仍未验证，按 `CRDocs/DEFERRED.md` 保留。
 
 ## 入口
 

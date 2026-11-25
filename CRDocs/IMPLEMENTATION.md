@@ -2,6 +2,12 @@
 
 > 2026-11-25 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 等待独立审核
 
+## LC-RV-001 返修
+
+- `PickFileRecipients` 在无在线好友时统一返回 `new List<PeerInfo>()`；新增 `NormalizeRecipientList`，将可能的 `null` 在线快照归一化为非空列表，保持 `PromptPeerAndSendFiles` 与 `PickFileRecipient` 的 `Count` 判空调用不变。
+- `FriendRefreshRegression` 新增空列表与 `null` 快照断言，覆盖关闭“无在线好友”警告后的安全返回路径。
+- 返修后 `friend_refresh_regression.ps1`、`chat_composer_regression.ps1 -ExpectLocalPack`、Node IPC/UI 回归、Node `--check`、Linux Release `dotnet build` 与 `git diff --check` 均通过。
+
 ## 实际改动
 
 - 将主窗体左上角 Hero 头像所在面板改为 `DoubleBufferedPanel`，避免拖拽缩放期间普通 `Panel` 背景擦除与头像重绘闪烁；新增 WinForms 回归断言确认该面板启用双缓冲。

@@ -280,6 +280,9 @@ namespace LanChat
         {
             Require(Field<Control>(form, "_heroProfilePanel") is DoubleBufferedPanel,
                 "左上角头像面板未启用双缓冲，缩放时可能闪烁");
+            var noPeers = MainForm.NormalizeRecipientList(new List<PeerInfo>());
+            Require(noPeers != null && noPeers.Count == 0, "0 在线好友收件人列表未保持为空列表");
+            Require(MainForm.NormalizeRecipientList(null).Count == 0, "空收件人快照未归一化为空列表");
             using (var recipients = new SessionListBox { SelectionMode = SelectionMode.MultiSimple })
             {
                 recipients.Items.Add(new PeerInfo { Id = "multi-1", NickName = "在线一" });

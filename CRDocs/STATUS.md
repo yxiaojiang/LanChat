@@ -1,11 +1,11 @@
 ## 当前任务 — Windows 稳定性、外观与群聊文件传输收口
 
-- **状态** `WAITING_FOR_GROK`。
-- **日期** 2026-11-25；执行者 Codex；等待独立审核者复跑本轮改动。
-- **本轮范围**：左上角头像缩放防闪烁、附件图 11 色外观、文件气泡发送/接收网速、群聊在线成员多选发送。
-- **验证**：`friend_refresh_regression.ps1`、`chat_composer_regression.ps1 -ExpectLocalPack`、Node `--check` 与 `linux_desktop_ui_regression.js`、Linux Release `dotnet build`、`git diff --check` 均通过；所有相关文件 `< 1000` 行。
-- **未验证**：真实 Windows 桌面拖拽缩放/截图工具/Excel/WPS、Linux Xorg/Wayland/XWayland 与最新 ELF、真实双机局域网联测，继续见 [DEFERRED.md](DEFERRED.md)。
-- **下一步**：请独立审核者按 `CRDocs/REVIEW.md` 顶部本轮记录复跑并回写审核结论。
+- **状态** `WAITING_FOR_GROK`（`LC-RV-001` 已修复，等待独立复审）。
+- **日期** 2026-11-25；**执行者** Codex；**独立审核方** 独立复审。
+- **本轮范围**：左上角头像缩放防闪烁、附件图 11 色外观、文件气泡发送/接收网速、群聊在线成员多选发送与托管截图副本清理。
+- **一句话结论**：`PickFileRecipients` 的无在线好友分支现统一返回空列表，并以非空归一化保护 `null` 快照；新增 0 在线好友回归断言，五项宿主机/脚本/后端回归命令全部通过，头像双缓冲、11 色配色、双向速率与 LANC/JSONL 兼容保持成立。
+- **未验证**：真实 Windows 桌面拖拽缩放录屏/截图工具/Excel/WPS、Linux Xorg/Wayland/XWayland 与最新 ELF、真实双机局域网联测，继续见 [DEFERRED.md](DEFERRED.md)。
+- **下一步**：请独立审核者复跑 `CRDocs/REVIEW.md` 顶部返修记录，确认 `LC-RV-001` 已关闭后回写最终审核结论。
 
 ---
 
