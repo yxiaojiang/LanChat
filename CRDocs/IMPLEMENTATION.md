@@ -1,3 +1,58 @@
+# LC-UI-INPUT-008 — 微信式输入区与设置页排版执行记录
+
+> 2026-11-25 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 本记录是执行者交接，不是独立审核结论
+
+## 本轮范围
+
+根据用户提供的四张界面参考图，处理 Windows 主聊天输入区、设置中心各页面的双行排版，以及关于页产品描述与署名。未修改 LANC 魔数、Type 1/Type 2 封包字段、确认字节或 JSONL 历史格式。
+
+## 实际改动
+
+1. **微信式输入区与表情纵向稳定**
+   - `src/MainForm.Designer.cs` 将底部输入胶囊调整为 128px 高，编辑区改为多行 RichEdit，上方用于文本编辑、下方保留快捷工具栏。
+   - `src/UI/Controls/ChatInputBox.cs` 通过 RichEdit `EM_SETRECTNP` 固定文字格式区域的上/下内边距，避免插入 `[表情名]` 令牌后原生文字视觉上移；保留原始令牌文本与既有图片叠绘路径。
+   - `src/MainForm.Chat.cs` 保持普通 Enter 发送，增加 Shift+Enter 换行。
+
+2. **加号功能展开**
+   - 将表情、打开接收文件夹、选择并发送文件、系统截图、清空当前会话作为输入区底部的 32px GDI+ 快捷按钮展开。
+   - 加号菜单入口仍保留；语音按钮因当前协议没有语音消息能力而继续隐藏，避免展示不可用功能。
+
+3. **设置页统一增加纵向留白**
+   - `SettingsPanelBase` 增加共享 `SettingTitleOffset=7` 与 `SettingDescriptionOffset=32`。
+   - 通用、个人主页、文件传输、聊天记录、设备连接、关于等页面的双行条目统一采用共享偏移量；Linux Electron `settings.css` 同步将条目最小高度调为 58px、说明文字上间距调为 6px。
+
+4. **关于页文案**
+   - Windows、Linux Electron 与旧版 Linux GUI 同步改为“专注局域网内的即时通讯与文件协作”“轻量、快速、无云端依赖 · 2026 yangjiang”，移除 `LanChat Team` 署名。
+
+## 宿主机验证
+
+| 实际命令 | 结果 |
+| --- | --- |
+| `Tools/Scripts/Compile.bat` | 返回 0；Windows 原生 `LanChat.exe` 与 `uninstall.exe` 编译成功。验证后已还原 release 二进制，避免把构建产物混入源码提交。 |
+| `node --check src/linux/desktop/settings-pages.js` | 返回 0；Linux 设置页面脚本语法通过。 |
+| `git diff --check` | 返回 0；无空白错误，仅有 Git 的换行转换提示。 |
+| `git status --short` | 提交后工作区干净；源码与当前态记忆已提交并推送，提交 `2b6d510`。 |
+
+## 文件行数门禁
+
+本轮修改的手写源码均低于 1000 行软门禁：`MainForm.Designer.cs` 745、`ChatInputBox.cs` 447、`MainForm.Chat.cs` 599、`SettingsPanelBase.cs` 492、`GeneralSettingsPanel.cs` 269、`AboutSettingsPanel.cs` 122、Linux `settings-pages.js` 501、`settings.css` 742、旧版 Linux `gui.py` 960。
+
+## 未验证边界
+
+- 尚未在真实 Windows 窗口中对 100%/125%/150% DPI 做截图或鼠标命中验收。
+- 尚未通过自动化用例证明多行 RichEdit 在超长文本、滚动、中文输入法预编辑和表情插入混合场景下的最终视觉表现。
+- 尚未在 Linux Xorg、Wayland、XWayland 实机检查 Electron 输入区与设置页；当前仅同步源码并完成 Node 语法检查。
+
+## 请审核者重点核对
+
+1. `ChatInputBox` 的 `EM_SETRECTNP` 是否会在句柄重建、字体变化、Resize 和多行滚动时造成文本/表情坐标漂移或光标命中异常。
+2. `_inputPanel.Resize` 的快捷按钮初始化、布局边界与发送按钮位置，确认不存在空引用、遮挡、不可点击或超出窄窗口的问题。
+3. Shift+Enter 与普通 Enter 的按键语义是否符合现有快捷键契约；确认附件、剪贴板、历史和 LANC/JSONL 文本格式没有回归。
+4. 设置页共享偏移量是否覆盖所有双行条目，并确认 54px 卡片行高下底部文字没有裁切。
+5. 将真实 DPI、实际窗口目测和 Linux 实机验证区分为未验证证据，不要仅凭宿主机编译将本轮直接判为全环境通过。
+
+---
+
 # LC-FILE-TRANSFER-STABILITY-001 — 执行摘要
 
 > 2026-11-25 · 执行者 Codex · 状态 `APPROVED` · Gemini 已批准重复接收气泡修复；详细记录见 `CRDocs/REVIEW.md` 同名记录

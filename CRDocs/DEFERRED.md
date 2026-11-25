@@ -4,6 +4,16 @@
 
 ---
 
+## LC-UI-INPUT-008-ENV-001 [OPEN] 输入区与设置页真实窗口验收
+
+- **来源轮次**：`LC-UI-INPUT-008`，2026-11-25。
+- **位置**：`src/MainForm.Designer.cs`、`src/UI/Controls/ChatInputBox.cs`、`src/UI/Controls/SettingsPanels/`、`src/linux/desktop/settings.css`。
+- **现状**：Windows 原生编译、Linux 设置脚本语法检查和空白检查通过；尚未在真实窗口中完成多 DPI、鼠标命中、中文输入法预编辑、超长多行文本及 Linux Xorg/Wayland/XWayland 实机验收。
+- **触发阶段**：`LC-UI-INPUT-008` 独立审核通过后进行 Windows 与 Linux 桌面现场验收。
+- **验收条件**：100%/125%/150% DPI 下输入文字和内置表情保持同一基线，快捷按钮均可点击且不遮挡编辑区；普通 Enter 发送、Shift+Enter 换行；设置中心所有双行条目无裁切且间距一致；关于页显示新描述和 `2026 yangjiang`；Linux Electron 三种桌面会话下输入区、设置页和焦点恢复正常。
+
+---
+
 ## LC-CC-ENV-001 [OPEN] 剪贴板与新旧客户端的桌面验收
 
 - **来源** LC-CHAT-COMPOSER-001 Round 1，2026-11-24。

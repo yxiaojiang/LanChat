@@ -1,3 +1,34 @@
+# LC-UI-INPUT-008 — 执行者送审记录
+
+- **任务编号**：`LC-UI-INPUT-008`
+- **任务主题**：微信式高输入区、表情文字纵向稳定、快捷工具展开、设置页统一间距与关于页文案
+- **执行日期**：2026-11-25
+- **执行者**：Codex
+- **当前状态**：`WAITING_FOR_GROK`；以下为执行记录，不能视为独立审核结论
+- **审核依据**：`.claude/Rules.md`、`CRDocs/README.md`、`CRDocs/RULES.md`、`CRDocs/STATUS.md`、`CRDocs/DEFERRED.md`、`Docs/GrokBot_UI_Design_System.md`，以及提交 `2b6d510` 的实际代码与 diff。
+
+## 执行摘要
+
+Windows 输入区由 64px 单行胶囊调整为 128px 高多行编辑区；`ChatInputBox` 使用 RichEdit `EM_SETRECTNP` 固定格式区域内边距，抑制插入内置表情令牌后的文字纵向漂移。普通 Enter 仍发送，Shift+Enter 换行。加号菜单中的表情、接收目录、发文件、系统截图、清空会话展开为底部快捷按钮，语音入口因协议未支持而隐藏。设置中心的双行标题/说明采用 `SettingsPanelBase` 共享偏移量，Linux Electron 同步增加行高和说明间距；关于页三端文案移除 `LanChat Team`，以 `2026 yangjiang` 收尾。
+
+## 已执行验证
+
+| 验证 | 结果 |
+| --- | --- |
+| `Tools/Scripts/Compile.bat` | 返回 0，Windows 原生编译成功；release 二进制已还原。 |
+| `node --check src/linux/desktop/settings-pages.js` | 返回 0。 |
+| `git diff --check` | 返回 0。 |
+
+## 证据边界
+
+本轮没有执行真实窗口截图、鼠标命中探针、100%/125%/150% DPI、多行输入法预编辑、Linux Xorg/Wayland/XWayland 实机或真实双机互通。因此不能把本轮宿主机编译结果扩展为全环境验收；相关现场项已在 `CRDocs/STATUS.md` 和 `CRDocs/DEFERRED.md` 标明。
+
+## 请 Gemini 复核
+
+请按 `CRDocs/RULES.md` 独立读取实际代码与 diff，重点审查 `EM_SETRECTNP` 生命周期、输入区 Resize 初始化顺序、工具栏按钮命中与窄窗口边界、Enter/Shift+Enter 契约、设置页文字裁切、关于页文案和旧协议/历史兼容。审核完成后必须把完整结论回写到本文件顶部，并将 `CRDocs/STATUS.md` 改为 `APPROVED` 或 `REJECTED`；只有审核者可以使用这两个结论状态。
+
+---
+
 # LC-CC-007 — Round 3 独立复审（通过：`LC-CC-007-R2-P1-1` 已闭环）
 
 - **任务编号**：`LC-CC-007`

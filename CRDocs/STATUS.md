@@ -1,3 +1,15 @@
+# 当前任务 — LC-UI-INPUT-008
+
+- **状态**：`WAITING_FOR_GROK`（执行者已完成实现与宿主机验证，等待 Gemini 独立审核）
+- **主题**：微信式高输入区、表情文字纵向稳定、快捷工具展开、设置页统一间距与关于页文案
+- **日期**：2026-11-25；**执行者**：Codex；**独立审核者**：待 Gemini
+- **报告**：[执行者送审记录](REVIEW.md) · [实施记录](IMPLEMENTATION.md) · [待现场验收](DEFERRED.md)
+- **一句话结论**：Windows 输入区已扩大为 128px 高多行胶囊并固定 RichEdit 格式区域，常用加号功能展开为底部快捷工具栏；设置双行条目统一增加垂直留白，关于页落款改为 `2026 yangjiang`；原生编译、Node 语法检查与空白检查通过，尚未完成真实 DPI/运行窗口目测。
+- **未验证边界**：100%/125%/150% DPI 下实际输入框与表情坐标、快捷按钮命中、真实窗口长文本换行，以及 Linux Electron 实机视觉效果仍待审核/现场验收。
+- **下一步**：Gemini 必须读取 `CRDocs/RULES.md`、`STATUS.md`、`REVIEW.md`、`IMPLEMENTATION.md`、`DEFERRED.md`，核对实际 diff 和验证命令；审核后回写 `REVIEW.md` 与本文件，只有 Gemini 可以改为 `APPROVED` 或 `REJECTED`。
+
+---
+
 # 当前任务 — LC-CC-007
 
 - **状态**：`APPROVED`（当前开发、Windows 宿主机回归与 Linux `net10.0` 构建范围放行）
