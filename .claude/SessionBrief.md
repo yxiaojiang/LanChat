@@ -1,6 +1,6 @@
 # SessionBrief.md — 当前接手摘要
 
-> 2026-11-25 · 工作目录 `D:\TEmp\LanChat` · v2.0.22 已发布，重复接收气泡修复待 Gemini 复核
+> 2026-11-25 · 工作目录 `D:\TEmp\LanChat` · v2.0.23 已发布，重复接收气泡修复已审核并上线
 
 ## 当前状态
 
@@ -20,9 +20,9 @@ Windows 侧将大批量文件与群聊收件人限制在明确边界内，进度
 
 ## 发布与文档
 
-`Publish.bat 2.0.22` 已生成 Windows EXE/MSI、Linux amd64/arm64 deb、便携包、CLI 和 `SHA256SUMS.json`，并创建 GitHub Release。发布提交为 `d029ff9`，标签为 `v2.0.22`，更新日志已写入 `CHANGELOG.md`。随后发现异常提交 `5e8ac76 (aa)` 将 24 个历史 release 归档产物写成 0 字节，已从发布提交恢复，待以独立修复提交推送。
+`Publish.bat 2.0.23` 已生成 Windows EXE/MSI、Linux amd64/arm64 deb、便携包、CLI 和 `SHA256SUMS.json`，并创建 GitHub Release。发布提交为 `7bd84e5`，标签为 `v2.0.23`，更新日志已写入 `CHANGELOG.md`。`v2.0.22` 资产明确不包含 `4e8bbc4`，本轮修复仅随 v2.0.23 发布。
 
-本轮新增重复气泡回归已通过；`Compile.bat`、文件传输稳定性回归、好友刷新回归和缓存 .NET 10 SDK 的 Linux `dotnet build` 均通过。当前状态按 `CRDocs/RULES.md` 设为 `WAITING_FOR_GROK`，尚未重新打包或替换 v2.0.22 已发布资产。
+本轮新增重复气泡回归已通过；`Compile.bat`、文件传输稳定性回归、好友刷新回归和缓存 .NET 10 SDK 的 Linux `dotnet build` 均通过。Gemini 已将 `4e8bbc4` 标记为 `APPROVED`，v2.0.23 Release 资产已全部上传。
 
 ## 未关闭边界与下一步
 

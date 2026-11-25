@@ -4,6 +4,12 @@
 
 P0/P1/P2 已完成；本轮补修快速接收时的重复气泡竞态，Windows 回归、新增边界夹具、Linux net10.0 构建均通过；真实 Linux/ELF、双机 LAN 和桌面剪贴板仍未验证。
 
+## v2.0.23 发布结果
+
+- 用户明确要求将 `4e8bbc4` 修复与版本 `v2.0.23` 一起发布；`v2.0.22` 已发布资产保持不变，不包含本轮修复。
+- `Tools/Scripts/Publish.bat 2.0.23` 已完成 Windows EXE/MSI、Linux amd64/arm64 ELF、deb、便携包、CLI 和 `SHA256SUMS.json` 构建。
+- GitHub Release：[v2.0.23](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.23)；发布提交为 `7bd84e5`，标签为 `v2.0.23`，全部资产上传成功。
+
 ## 重复接收气泡修复
 
 - **现象**：对端只发送一次文件时，接收端偶发同时出现一个完成文件卡片和一个“接收完成 · 100%”进度卡片。

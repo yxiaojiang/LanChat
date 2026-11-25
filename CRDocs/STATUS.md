@@ -5,7 +5,7 @@
 - **日期**：2026-11-25；**执行者**：Codex（`4e8bbc4`）；**独立审核者**：Gemini
 - **报告**：[本轮独立审核](REVIEW.md#lc-file-transfer-stability-001--重复接收气泡修复独立审核commit-4e8bbc4) · [本轮执行记录](REVIEW.md#lc-file-transfer-stability-001--本轮重复接收气泡修复执行记录)
 - **一句话结论**：`FileTransferController.RemovePendingProgress` 在 `HandleFileReceived` 接管前按 `FileTransferId` 撤销未刷新的 50ms 延迟进度，彻底消除快速接收时的重复气泡竞态；普通顺序仍复用同一气泡且不误删其他传输，LANC/JSONL 零破坏，全部 6 项宿主机/构建/空白检查独立复跑通过；`v2.0.22` 已发布资产未包含本轮修复。
-- **下一步**：按用户指示执行 `v2.0.23` 双端构建与 GitHub Release；明确 `v2.0.22` 资产不包含 `4e8bbc4`。Linux 实机/ELF、Linux Xorg/Wayland/XWayland、真实双机 LAN 与 Windows 真实桌面截图工具/Excel/WPS 粘贴仍按 [DEFERRED.md](DEFERRED.md) 保留现场验收。
+- **下一步**：`v2.0.23` 双端构建与 GitHub Release 已完成；明确 `v2.0.22` 资产不包含 `4e8bbc4`。Linux 实机/ELF、Linux Xorg/Wayland/XWayland、真实双机 LAN 与 Windows 真实桌面截图工具/Excel/WPS 粘贴仍按 [DEFERRED.md](DEFERRED.md) 保留现场验收。
 
 ---
 

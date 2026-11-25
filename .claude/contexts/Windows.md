@@ -50,12 +50,12 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `ChatInputBox` 在 Ctrl+V、Shift+Insert 与 WM_PASTE 中识别系统 `FileDrop`；`MainForm.Files.cs` 按当前会话暂存附件，可移除，点击发送/Enter 才真正传输。普通文本仍交给 TextBox 原生粘贴。
 - 原生构建和隔离同名文件并发回环、UI/附件草稿回归及 MSI 内容核验已通过。用户尚未执行实际 MSI 覆盖安装或桌面剪贴板验收。
 
-### 文件传输稳定性加固（2026-11-25，基础批次已批准；重复气泡修复待复核）
+### 文件传输稳定性加固（2026-11-25，重复气泡修复已批准并随 v2.0.23 发布）
 
 - `NetworkService.Transfer.cs` 维持原 LANC 封包，修复小文件速率非有限值、文件长度 TOCTOU、收尾超时和流释放；出站队列按目标轮询，单目标 2 路、全局 6 路。
 - `MainForm.Files.cs` 统一单批 32 文件、群聊 16 名在线成员并提供超限提示；`FileTransferController` 以 50ms 合批进度刷新，托管截图群发使用引用计数共享清理，不再同步复制 N-1 份。
 - `tests/file_transfer_stability_regression.ps1` 覆盖 0 字节、64KB、约 1MB、入口上限和 6/2 并发；Windows 原生编译及既有回归已通过。真实双机与桌面工具链仍按延期清单执行。
-- `FileTransferController` 在完成消息接管前撤销同一传输号的待刷进度，修复快速接收时完成卡片与 100% 进度卡片重复显示；`ChatComposerRegression` 已加入该时序回归，待 Gemini 独立复核。
+- `FileTransferController` 在完成消息接管前撤销同一传输号的待刷进度，修复快速接收时完成卡片与 100% 进度卡片重复显示；`ChatComposerRegression` 已加入该时序回归，Gemini 已独立批准并随 v2.0.23 发布。
 
 1. **暗黑设计系统规范 (Rule 9 硬约束 - Zero White Scrollbar 契约)**：
    - 界面严格遵循暗黑纵深：主聊天区 `#121212`、工具栏底色 `#121212`、按钮与卡片底色 `#1C1C20`（悬停 `#2E2E34`）、选中高饱和魅紫 `#7946D7`、主色调 Grok 魅紫 `#8E64DC`；

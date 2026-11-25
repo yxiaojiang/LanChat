@@ -10,6 +10,7 @@
 - 新增 0 字节、64KB、约 1MB、入口边界和并发上限回归。Windows 编译、既有回归、新增夹具和 `ConcurrentReceive.cs` 均通过；正式 Linux net10 构建因宿主仅有 SDK 9.0.304 未完成。
 - Gemini 于 2026-11-25 独立审核 `APPROVED`，真实 Linux/ELF、双机 LAN、桌面剪贴板继续按 `CRDocs/DEFERRED.md` 延期。
 - v2.0.22 已由 `Publish.bat 2.0.22` 打包并上传 GitHub Release，发布提交 `d029ff9`、标签 `v2.0.22`；后续异常提交造成的 24 个 0 字节历史归档产物已从该发布提交恢复。
+- `4e8bbc4` 重复接收气泡修复已获 Gemini `APPROVED`，并随 `v2.0.23`（发布提交 `7bd84e5`）完成双端打包与 GitHub Release；`v2.0.22` 资产明确不包含该修复。
 - v2.0.22 已由 `Publish.bat 2.0.22` 打包并上传 GitHub Release，发布提交 `d029ff9`、标签 `v2.0.22`；后续异常提交造成的 24 个 0 字节历史归档产物已从该发布提交恢复。
 
 ## v2.0.18 文件传输体验与跨平台包准备（2026-11-23）
