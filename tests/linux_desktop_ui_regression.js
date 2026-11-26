@@ -6,6 +6,7 @@ const testDesktopLifecycle = require('./linux_desktop_lifecycle_regression.js');
 const testDesktopSync2A = require('./linux_desktop_sync2a_regression.js');
 const testDesktopSettings = require('./linux_desktop_settings_regression.js');
 const testDesktopUpdate = require('./linux_desktop_update_regression.js');
+const testDesktopComposer = require('./linux_desktop_composer_regression.js');
 const { makeNode, makeOverlayDom, makeSettingsDom, makeRendererDom, withGlobals } = require('./linux_desktop_test_helpers.js');
 const presentation = require('../src/linux/desktop/presentation.js'); const settingsModel = require('../src/linux/desktop/settings-model.js');
 const root = join(__dirname, '..'); const read = path => readFileSync(join(root, path), 'utf8');
@@ -132,13 +133,13 @@ assert.equal(service.includes('timestamp'), true);
 assert.equal(service.indexOf('Publish("peers")', service.indexOf('case "delete-session"')) > service.indexOf('case "quit"'), true);
 for (const path of [
   'src/linux/desktop/appearance.js', 'src/linux/desktop/presentation.js', 'src/linux/desktop/scrollbar.js', 'src/linux/desktop/overlay.js',
-  'src/linux/desktop/renderer.js', 'src/linux/desktop/settings-model.js', 'src/linux/desktop/settings-pages.js',
+  'src/linux/desktop/renderer.js', 'src/linux/desktop/composer-box.js', 'src/linux/desktop/settings-model.js', 'src/linux/desktop/settings-pages.js',
   'src/linux/desktop/session-sidebar.js', 'src/linux/desktop/conversation-view.js', 'tests/linux_desktop_ui_regression.js',
   'src/linux/desktop/settings.js', 'src/linux/desktop/desktop.css', 'src/linux/desktop/settings.css',
   'tests/linux_desktop_settings_regression.js',
   'src/linux/desktop/main.cjs', 'src/linux/desktop/preload.cjs', 'src/linux/desktop/service.cjs',
   'src/linux/LanChat.Linux/DesktopService.cs', 'tests/linux_desktop_test_helpers.js',
-  'tests/linux_desktop_lifecycle_regression.js', 'src/linux/desktop/tray-manager.cjs',
+  'tests/linux_desktop_lifecycle_regression.js', 'tests/linux_desktop_composer_regression.js', 'src/linux/desktop/tray-manager.cjs',
   'src/linux/desktop/update-service.cjs', 'tests/linux_desktop_update_regression.js'
 ]) {
   const lines = read(path).split(/\r?\n/).length;
@@ -684,6 +685,7 @@ Promise.resolve()
   .then(() => testDesktopSync2A())
   .then(() => testDesktopSettings())
   .then(() => testDesktopUpdate())
+  .then(() => testDesktopComposer())
   .then(() => testSettingsController())
   .then(() => testMainRendererRaceAndAppearance())
   .then(() => {

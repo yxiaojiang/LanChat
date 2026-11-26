@@ -2,6 +2,56 @@
 
 > 这里只记录已经明确不属于当前 P0/P1 修复批次、或需在 Linux 实机/虚拟机环境才能验收的条目。进入对应阶段时，应迁回 `REVIEW.md` 并改为 `OPEN`。
 
+## 阶段 5 Linux 实机与真实 LAN 总验收清单（准备版）
+
+> 本清单只定义现场执行顺序和证据要求，不改变下方延期项状态。每项核销必须记录日期、主机型号、发行版/桌面会话、架构、命令输出、日志和必要截图；Windows Mock、Node DOM/IPC 桩和交叉编译不能替代 Linux 实机或物理 LAN 证据。
+
+### 1. CP-0：Linux ELF 与共享后端基线
+
+- [ ] 在 Linux 网络命名空间或批准的 Linux 实机上使用候选包内最新 `lanchat`，记录 `uname -a`、`dpkg --print-architecture`、运行库信息和 `readelf -h`；确认 x86_64 为 ELF64 `Machine: Advanced Micro Devices X86-64`/62，ARM64 为 ELF64 `Machine: AArch64`/183。
+- [ ] 对两个架构分别运行 `tests/linux_desktop_regression.py <最新 lanchat ELF>` 全量用例：外观 6 项持久化重启、只读设置取消/确认、`clear-all-histories`、`history`（含冲突目标目录拒绝迁移）、`delete`、`transfer`、`crash`。
+- [ ] 核对启动/退出后端进程、端口和文件句柄释放；确认安装版/便携版/独立 CLI 不依赖 Python，保存 stdout/stderr 和退出码。
+
+### 2. CP-1：真实桌面集成、托盘与通知
+
+- [ ] 在 GNOME Xorg、原生 GNOME Wayland、GNOME XWayland 分别启动安装版和便携版；记录桌面会话、DPI、Electron 版本和窗口截图。
+- [ ] 验证 StatusNotifierItem 托盘可见、无 AppIndicator 时最小化不失联、关闭/恢复同一窗口、未读预览、通知点击激活、Xorg 闪烁/预览；不能用“进程仍在”替代托盘恢复证据。
+- [ ] 验证设置窗打开/居中/关闭回焦、GTK 目录选择器、主题/强调色/字体/字号即时变化与重启保持；补测 420px 常规侧栏和 260px 窄窗底栏刷新按钮布局。
+
+### 3. CP-2B：富文本、IME、剪贴板与 DPI
+
+- [ ] 在 Xorg、Wayland/XWayland 下分别使用 `fcitx5` 与 `ibus`，验证中文预编辑/确认期间 Backspace、Delete、Enter 不被编辑器抢占；记录输入法版本和会话环境。
+- [ ] 验证原生 textarea 默认路径与一键回退；显式启用富文本后验证 PNG 表情与 11pt 正文基线、点击表情左右收拢、Backspace/Delete 整枚删除、copy/cut 还原 `[表情名]`、嵌套多行光标/粘贴偏移。
+- [ ] 使用真实系统剪贴板验证普通文本、PNG/JPEG、文件管理器路径及右键“粘贴/粘贴附件”；确认系统权限拒绝不会阻断主进程受控 IPC，且渲染层不能提交任意本地路径。
+- [ ] 在 100%/125%/150% DPI 逐项复测输入基线、光标、表情尺寸、选区、滚动、焦点恢复；保存截图和复现步骤。
+
+### 4. `LC-LINUX-003-S4-ENV-001`：在线更新、安装、退锁与回退
+
+- [ ] 在物理 x86_64 与 ARM64 上分别核对安装版/便携版资产、`SHA256SUMS.json`、包内 ELF 机器码、`dpkg -l`、桌面入口和依赖；验证缺失/篡改摘要或资产时阻断，不得静默下载。
+- [ ] 验证 GitHub API 正常、403→302 降级、网络超时、失败清理、`.part` 删除、`XDG_CACHE_HOME`/`~/.cache/lanchat/updates` 权限与并发下载互斥。
+- [ ] 验证复制 `apt install` 命令后应用退出、apt/dpkg 配置锁释放；执行旧公开包/候选包 → 新 `.deb` 升级，再以 `apt install --allow-downgrades` 回退，核对设置、历史、接收目录、附件路径和普通卸载/重装。
+
+### 5. 双机真实 LAN、切网与多网卡/TUN
+
+- [ ] 使用物理 Windows、Linux x86_64、Linux ARM64 的至少两台端点逐项验证冷启动发现、群聊/私聊文字、时间条/气泡右键复制、表情与 PNG、文件双向 SHA-256、历史重开和退出端口释放；补测公开旧版 v2.0.18/Python 客户端互通。
+- [ ] 验证改昵称实时刷新、无 `BYE` 重启/断网下线分组、重新上线、非默认 TCP 端口；核对在线/离线分组、未读、滚动位置和焦点。
+- [ ] 在 Wi-Fi↔有线切换、休眠唤醒、多个物理网卡和 Clash/VPN TUN Metric 0 路由下，分别验证自动重绑与手动刷新、跨子网定向探测、无历史离线地址刷新；记录 `ip addr`、`ip route`、防火墙和实际出接口。
+
+### 6. 交付证据与关闭规则
+
+- [ ] 每个 CP 形成独立目录：环境清单、安装/包摘要、命令原文、退出码、Electron/ELF/服务日志、截图/录屏、网络拓扑和失败复现说明。
+- [ ] 只有在对应真实环境矩阵全部通过后，才将下方条目标为 `RESOLVED` 并迁回审核记录；任何未覆盖架构、桌面会话、输入法、DPI 或网络条件继续保持 `[OPEN]`，不得用本次 Windows 阶段 5.1 构建核销。
+
+---
+
+## LC-LINUX-003-CP-2B [OPEN] 真实 Linux fcitx5/ibus IME 与富文本输入验收
+
+- **来源阶段**：`LC-LINUX-003` 阶段 2B，2026-11-26；D3 = A。
+- **位置**：`src/linux/desktop/preload.cjs`、`src/linux/desktop/composer-box.js`、`src/linux/desktop/index.html`、`src/linux/desktop/renderer.js`。
+- **现状**：Windows 宿主机已通过 Node 语法、DOM/IPC 桩、令牌还原、光标收拢、原子删除、copy/cut、CRLF 粘贴裁剪、IME 保护和一键原生回退回归；富文本默认关闭，未把这些证据写成 Linux 实机通过。
+- **触发阶段**：接入真实 Linux Electron 后，阶段 2B 独立复审通过前后均需先完成 CP-2B 现场核销。
+- **验收条件**：在 Xorg、Wayland/XWayland 下分别使用 `fcitx5` 与 `ibus`，验证中文预编辑/确认期间不被 Backspace/Delete/Enter 抢占；PNG 表情基线与 11pt 正文一致；点击表情左右收拢；整枚退格/Delete；原生 textarea 一键回退；系统 PNG/JPEG/路径粘贴与暗色右键粘贴附件菜单；copy/cut 还原 `[表情名]`；100%/125%/150% DPI 与真实系统剪贴板均通过后，才允许评估默认开启富文本。
+
 ---
 
 ## LC-LINUX-003-S4-ENV-001 [OPEN] Linux 在线更新与 apt 退锁现场验收

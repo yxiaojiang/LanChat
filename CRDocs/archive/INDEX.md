@@ -5,6 +5,7 @@
 | 归档目录 | 内容 | 查找入口 |
 | --- | --- | --- |
 | [`2026-11-26_历史审核_阶段0-3与UI输入传输收口`](2026-11-26_历史审核_阶段0-3与UI输入传输收口/) | 压缩前完整快照：LC-LINUX-003 阶段 0/1、2A、3，LC-UI-INPUT-008～010，LC-CC-007、LC-FILE-TRANSFER-STABILITY-001 及更早交接 | 目录内 `INDEX.md`、`REVIEW.md`、`IMPLEMENTATION.md`、`STATUS.md` |
+| [`2026-11-26_LC-LINUX-003_阶段4在线更新审核`](2026-11-26_LC-LINUX-003_阶段4在线更新审核/) | LC-LINUX-003 阶段 4.1～4.3 完整活动记录；Round 2 独立复审 `APPROVED` | 目录内 `INDEX.md`、`REVIEW.md`、`IMPLEMENTATION.md`、`STATUS.md` |
 
 ## 检索规则
 

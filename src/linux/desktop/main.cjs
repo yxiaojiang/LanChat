@@ -773,6 +773,8 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       if (fallback.length) emojiPackCache = fallback;
       return fallback;
     });
+    handle('read-clipboard-text', () => clipboard.readText());
+    handle('stage-clipboard', () => trackPasteOperation(stagePastedFiles([], null, true)));
     handle('stage-paste', (...args) => trackPasteOperation(stagePastedFiles(...args)));
     handle('discard-paste', ids => {
       if (!Array.isArray(ids)) throw new Error('附件列表无效');

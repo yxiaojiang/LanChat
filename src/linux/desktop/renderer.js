@@ -10,6 +10,8 @@ const { createSessionSidebar } = typeof module === 'object' && module.exports
   ? require('./session-sidebar.js') : root.LanChatSessionSidebar;
 const { createConversationView } = typeof module === 'object' && module.exports
   ? require('./conversation-view.js') : root.LanChatConversationView;
+const { createComposerBox } = typeof module === 'object' && module.exports
+  ? require('./composer-box.js') : root.LanChatComposerBox;
 
 // 主窗协调通信服务、会话状态与输入草稿，视图通过回调触发主窗操作。
 function createMainController(deps = {}) {
@@ -30,7 +32,9 @@ const sending = new Set();
 const transfers = new Map();
 const peers = new Map();
 const historyLoads = new Map();
-const compose = byId('message');
+const compose = createComposerBox({
+  native: byId('message'), rich: byId('message-rich'), document: doc, window: win, maxLength: 32768
+});
 const feed = byId('messages');
 const dialog = byId('recipient');
 let active = group;
@@ -97,6 +101,37 @@ function syncComposeHeight() {
     compose.style.height = `${Math.min(115, Math.max(23, compose.scrollHeight))}px`;
   }
   composeScroll?.refresh();
+}
+
+async function pasteComposerText() {
+  try {
+    const text = await api.readClipboardText();
+    if (text) compose.insertText(text);
+  } catch (error) { status(error.message || '无法读取剪贴板文字', true); }
+}
+
+async function pasteComposerAttachment() {
+  try {
+    if (!api.stageClipboard) throw new Error('当前版本不支持粘贴附件');
+    const result = await api.stageClipboard();
+    if (!result?.length) throw new Error('剪贴板中没有可用图片或文件');
+    if (result?.length) compose.dispatchEvent(new CustomEvent('files-pasted', {
+      bubbles: true, detail: JSON.stringify({ chat: active, files: result })
+    }));
+  } catch (error) { status(error.message || '无法粘贴剪贴板附件', true); }
+}
+
+function openComposerMenu(anchor, point) {
+  overlay.openMenu([
+    { label: '粘贴', icon: 'Folder', run: () => { void pasteComposerText(); } },
+    { label: '粘贴附件', icon: 'Folder', run: () => { void pasteComposerAttachment(); } },
+    { separator: true },
+    { label: compose.isRich() ? '回退原生输入框' : '启用富文本输入框（实验）', icon: 'Emoji', run: () => {
+      compose.toggleRich();
+      syncComposeHeight();
+      updateHeader();
+    } }
+  ], point, anchor);
 }
 
 function updateHeader() {
@@ -517,6 +552,7 @@ byId('take-screenshot').addEventListener('click', async () => {
   }
 });
 byId('clear-chat').addEventListener('click', () => { void confirmForget(active, false); });
+compose.setContextMenu(openComposerMenu);
 byId('conversation').addEventListener('file-error', event => status(event.detail, true));
 byId('conversation').addEventListener('file-drop', async event => {
   try {
@@ -620,6 +656,7 @@ async function initialize(reconnect = false) {
       api.emojiPack ? api.emojiPack().catch(() => []) : []
     ]);
     presentation.setEmojiPack(emojiPack);
+    compose.setEmojiImages(presentation.emojiEntries());
     if (settingsData) {
       sendShortcutMode = Number(settingsData.sendShortcutMode) === 1 ? 1 : 0;
       presentation.setSendShortcutMode(sendShortcutMode);

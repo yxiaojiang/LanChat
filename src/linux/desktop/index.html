@@ -13,6 +13,7 @@
   <script src="overlay.js" defer></script>
   <script src="session-sidebar.js" defer></script>
   <script src="conversation-view.js" defer></script>
+  <script src="composer-box.js" defer></script>
   <script src="renderer.js" defer></script>
 </head>
 <body>
@@ -57,6 +58,8 @@
     <form id="compose" class="compose">
       <div class="scroll-host compose-scroll">
         <textarea id="message" class="scroll-view" maxlength="32768" rows="1" placeholder="给 局域网全员群聊 发消息" aria-label="消息" disabled></textarea>
+        <div id="message-rich" class="scroll-view composer-rich" contenteditable="true" role="textbox" aria-multiline="true"
+             aria-label="消息" data-composer-input="true" data-max-length="32768" hidden></div>
       </div>
       <div class="compose-tools" aria-label="快捷工具">
         <button id="attach" class="icon tool" type="button" title="插入表情" aria-label="插入表情" disabled><img src="assets/Emoji.png" alt=""></button>
