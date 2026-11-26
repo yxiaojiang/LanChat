@@ -1,6 +1,6 @@
 # SessionBrief.md — 当前接手摘要
 
-> 2026-11-26 · 工作目录 `D:\TEmp\LanChat` · `v2.0.26` 发布链路准备中，输入框 emoji 对齐与光标修复已通过宿主机回归
+> 2026-11-26 · 工作目录 `D:\TEmp\LanChat` · `v2.0.26` 已发布，输入框 emoji 对齐与光标修复已通过宿主机回归
 
 ## 当前状态
 
@@ -22,6 +22,6 @@ Linux 已具备主窗双栏、会话/未读/搜索、聊天气泡、Unicode/静�
 
 ## 提交与下一步
 
-版本元数据与 `CHANGELOG.md` 已更新；下一步完成 `v2.0.26` 打包、提交、push 和 GitHub Release。之后仅保留延期现场验收：真实多 DPI/输入法、Linux 三类桌面会话、Linux ELF、双机 LAN、截图工具/Excel/WPS 粘贴及长时间稳定性。
+版本元数据与 `CHANGELOG.md` 已更新；`v2.0.26` 已完成 Windows EXE/MSI、Linux amd64/arm64 deb/便携包/CLI 构建、提交、push 和 GitHub Release。之后仅保留延期现场验收：真实多 DPI/输入法、Linux 三类桌面会话、Linux ELF、双机 LAN、截图工具/Excel/WPS 粘贴及长时间稳定性。
 
 入口：`Plan.md`、`contexts/Windows.md`、`contexts/Linux.md`、`contexts/Protocol.md`、`CRDocs/STATUS.md`、`CRDocs/REVIEW.md`、`CRDocs/DEFERRED.md`。本轮新增的 `RichEditPaint.cs` 负责 TOM 基线查询和离屏缓冲，待发布脚本完成版本同步后提交并推送。

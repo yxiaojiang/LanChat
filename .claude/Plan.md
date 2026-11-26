@@ -4,7 +4,7 @@
 
 ## 当前活跃事项
 
-- [ ] 完成 `v2.0.26` Windows/Linux 候选包校验、提交、push 与 GitHub Release。
+- [x] 完成 `v2.0.26` Windows/Linux 包校验、提交、push 与 GitHub Release（Release 已发布）。
 - [ ] 由 Gemini 按 Linux 差异矩阵制定同步计划：托盘/通知/检查更新维护入口，以及关闭恢复语义。
 - [ ] 完成 Linux ELF、Xorg/Wayland/XWayland、fcitx5/ibus、多 DPI、双架构升级回退和真实双机 LAN 现场验收。
 
