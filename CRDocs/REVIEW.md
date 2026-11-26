@@ -1,3 +1,441 @@
+# LC-UI-INPUT-010 — Round 3 独立复审（通过：P1-1、P1-2 与 P2-1 已全部闭环）
+
+- **任务编号**：`LC-UI-INPUT-010`
+- **任务主题**：输入框内置表情与正文基线对齐、紧凑占位、清除原始令牌残留
+- **审核轮次**：Round 3 独立复审
+- **审核基线**：工作区 Round 3 整改代码（`src/UI/Controls/ChatInputBox.cs` 904 行、`tests/ChatComposerRegression.cs` 917 行）
+- **独立审核方**：独立审核者（Gemini）
+- **审核日期**：2026-11-26
+- **审核结论**：**APPROVED**（当前开发与 Windows 宿主机回归范围放行；实机多 DPI / 中文 IME / Linux / 双机验证边界继续保留于 `CRDocs/DEFERRED.md`）
+- **依据**：`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`、`.claude/Rules.md`，以及工作区实际代码、4 项独立复跑命令与独立探针 `Round2AuditProbe` 实测证据。
+
+## 一、Round 1 / Round 2 问题逐项复核结果
+
+| 问题 ID / 核对项 | 原级别 | Round 3 复核 | 复核依据与独立实测证据 |
+| --- | :---: | :---: | --- |
+| `LC-UI-INPUT-010-P1-1` | **P1** | **RESOLVED** | `ChatInputBox.cs:290-338` 与 `Round2AuditProbe` 复验无回归：Case 1（`InsertEmoji("[敲打]")` → `WM_CHAR 'H'/'i'`）插入点与正文均为 `11.0pt`；Case 2（移光标至 `[敲打]` 右侧键入 `'X'/'Y'`）正文恢复 `11.0pt`；Case 3（破坏令牌 `[敲1打]`）全段 9 字符恢复 `11.0pt`。 |
+| `LC-UI-INPUT-010-P1-2` | **P1** | **RESOLVED** | 核验 `ChatInputBox.cs:376-393`：`ApplyMinimumParagraphLineSpacing()` 已在发送 `EM_SETPARAFORMAT`（第 392 行）之前执行 `Select(0, TextLength);`（第 391 行），且处于 `WM_SETREDRAW(0)` 与 `_normalizingEmojiTokens = true` 保护内，归一化结束后由 `finally` 恢复原选区与插入点字体。<br>`tests/ChatComposerRegression.cs:240-251` 已新增 `input.Text = "第一行\n[敲打]\n第三行"` + `input.Select(0, 0)` 回归断言。<br>`Round2AuditProbe` 复验 Case 4c（光标位于首行索引 `0`）：`lineHeight=18.63px`、`row1.Y=6`、`row2([敲打]).Y=32`、`row3(第三行).Y=51`、**`delta23 = 19 >= 18.63`**，第 2 行擦除底边 `50.63 <= 51`，彻底消除向下越界擦除第 3 行文字像素。 |
+| `LC-UI-INPUT-010-P2-1` | **P2** | **RESOLVED** | `WM_SETREDRAW(0)/(1)` 冻结重绘、`_normalizingEmojiTokens` 抑制自身 `SelectionChanged` 重绘回调、`IsSameFont` 跳过无谓格式重排及 `WM_IME_STARTCOMPOSITION` / `WM_IME_ENDCOMPOSITION` 延迟标志均无回归。 |
+| 兼容性、调用链与行数门禁 | — | **PASS** | `GetMessageText()` 保持返回原始 `[表情名]`；未触碰 `Models.cs`、`NetworkService*.cs`、`ChatHistoryService.cs`、`SessionManager.cs` 及 Linux 端，LANC 协议、JSONL 历史与旧版互通零破坏；文件行数 `ChatInputBox.cs` 904 行、`ChatComposerRegression.cs` 917 行，均 `< 1000` 行软门禁（注：均已超 900 行，后续新增功能前须先评估拆分）；新增注释均为中文。 |
+
+## 二、Round 3 独立验证证据与边界区分
+
+### 1. 已在 Windows 宿主机独立复跑通过的内容
+
+| 验证命令 / 探针 | 退出码 | 实测结果 |
+| --- | :---: | --- |
+| `cmd.exe /d /s /c "call Tools\Scripts\Compile.bat < nul"` | 0 | Windows 原生 `csc.exe` 编译 `release\LanChat.exe` 成功 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 全部 8 组回归通过（含非首行纯表情段行距/像素断言、表情后输入与破坏令牌 `11pt` 恢复、紧凑占位 `16~24px`、`PrintWindow`、折行、滚动、剪贴板、LANC/JSONL 与附件回归） |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 0 | `Native Windows compile: ok` 及全部好友刷新/侧栏/组合表情/草稿回归通过 |
+| `git diff --check` | 0 | 无空白错误（仅有 Git LF→CRLF 提示） |
+| 独立 WinForms 探针（`Round2AuditProbe`） | 0 | Case 1/2/3 全部 `11.0pt`，Case 4a/4b/4c（含光标在首行索引 0 的 `"第一行\n[敲打]\n第三行"`）全部实测 `delta23 = 19 >= 18.63`，确认 `P1-1`、`P1-2` 彻底闭环 |
+
+### 2. 仍未验证的实机与跨环境边界（不得视为通过，继续保留于 `CRDocs/DEFERRED.md`）
+
+- 真实 Windows 100% / 125% / 150% DPI 窗口下的表情/正文基线目测、图片尺寸与鼠标命中；
+- 真实中文 IME（微软拼音/搜狗）预编辑组合态下的现场输入与删除手感；
+- Linux Xorg / Wayland / XWayland Electron 实机、Linux ELF 实跑与真实双机 LAN 互通（本轮未修改 Linux/ELF 与网络协议）。
+
+---
+
+# LC-UI-INPUT-010 — Round 3 整改执行记录（等待独立复审）
+
+- **任务编号**：`LC-UI-INPUT-010`
+- **整改轮次**：Round 3（Round 2 独立复审剩余唯一 P1 整改）
+- **执行日期**：2026-11-26
+- **执行者**：Codex
+- **当前状态**：`WAITING_FOR_GROK`；以下为执行者记录，不是独立审核结论
+- **本轮范围**：仅处理 `LC-UI-INPUT-010-P1-2`；P1-1 与 P2-1 未改动
+
+## 一、本轮整改
+
+`src/UI/Controls/ChatInputBox.cs` 的 `ApplyMinimumParagraphLineSpacing()` 现在在发送 `EM_SETPARAFORMAT` 之前执行 `Select(0, TextLength);`。该调用位于既有 `WM_SETREDRAW(0)` 与 `_normalizingEmojiTokens` 保护范围内，归一化结束后仍由原有 `finally` 恢复用户选区和插入点，确保最小行距覆盖全部段落。
+
+## 二、回归测试补充
+
+`tests/ChatComposerRegression.cs` 新增多段非首行纯表情场景：
+
+- 设置 `input.Text = "第一行\n[敲打]\n第三行"`；
+- 显式 `input.Select(0, 0)`，保持光标在首行索引 0；
+- 断言第 3 行与第 2 行的垂直间距不小于 `Math.Floor(lineHeight)`；
+- 通过离屏像素断言第 3 行文字未被第 2 行表情的擦除矩形遮挡。
+
+## 三、验证证据（Windows 宿主机）
+
+| 验证命令 | 退出码 | 实测结果 |
+| --- | :---: | --- |
+| `cmd.exe /d /s /c "call Tools\\Scripts\\Compile.bat < nul"` | 0 | Windows 原生 `csc.exe` 编译成功 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 非首行纯表情段落行距/像素断言及既有聊天、LANC/JSONL、剪贴板和附件回归通过 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 0 | 好友刷新、侧栏、组合表情、会话草稿和联合聊天回归通过 |
+| `git diff --check` | 0 | 无空白错误；仅有 Git 的 LF→CRLF 提示 |
+
+## 四、兼容性、行数与未验证边界
+
+- P1-1/P2-1、`GetMessageText()`、LANC/JSONL、网络协议及 Linux 代码均未修改。
+- `ChatInputBox.cs` 904 行、`ChatComposerRegression.cs` 917 行，均低于 1000 行软门禁；新增注释为中文。
+- 真实 Windows 多 DPI、真实中文 IME 现场、Linux/ELF 与真实双机 LAN 仍未验证，继续保留于 `CRDocs/DEFERRED.md`。
+
+## 五、交接
+
+请独立审核者按 `CRDocs/RULES.md` 读取 `CRDocs/STATUS.md`、`CRDocs/REVIEW.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`，直接核对 `Select(0, TextLength)` 的调用位置和新增多段回归证据。审核完成后必须保留 Round 1、Round 2 全部历史并回写 `CRDocs/REVIEW.md`、`CRDocs/STATUS.md`，只有独立审核者可以将状态改为 `APPROVED`。
+
+---
+
+# LC-UI-INPUT-010 — Round 2 独立复审结论（继续打回：P1-1 已闭环，P1-2 多段落 EM_SETPARAFORMAT 漏选全部段落）
+
+- **任务编号**：`LC-UI-INPUT-010`
+- **任务主题**：输入框内置表情与正文基线对齐、紧凑占位、清除原始令牌残留
+- **审核轮次**：Round 2 独立复审
+- **审核基线**：工作区 Round 2 整改代码（`src/UI/Controls/ChatInputBox.cs` 902 行、`tests/ChatComposerRegression.cs` 904 行）
+- **独立审核方**：独立审核者（Gemini）
+- **审核日期**：2026-11-26
+- **审核结论**：**REJECTED**（`LC-UI-INPUT-010-P1-1` 已复核 `RESOLVED`，`LC-UI-INPUT-010-P2-1` 已基本改善，但 **`LC-UI-INPUT-010-P1-2` 在多段落场景仍未闭环**：`ApplyMinimumParagraphLineSpacing()` 调用 `EM_SETPARAFORMAT` 前未 `Select(0, TextLength)`，仅对当前光标所在段落生效，非光标所在行的纯表情行仍坍塌至 `11px`）
+- **依据**：`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`、`.claude/Rules.md`，以及工作区实际代码、4 项独立复跑命令与独立探针 `Round2AuditProbe` 实测证据。
+
+## 一、Round 1 问题与 6 项重点复核结果
+
+| 核对维度 / 问题 ID | 复核结论 | 复核依据与独立实测证据 |
+| --- | :---: | --- |
+| 1. 正文/插入点字体恢复（`LC-UI-INPUT-010-P1-1`） | **RESOLVED** | 核验 `ChatInputBox.cs:290-338`：`NormalizePlainFontRange` 恢复有效令牌之外的普通区间，`finally` 在 `savedLength == 0` 时显式 `SelectionFont = Font`。`Round2AuditProbe` 实测：Case 1（`InsertEmoji("[敲打]")` → `WM_CHAR 'H'/'i'`）插入点与 `'H'/'i'` 均为 `11.0pt`；Case 2（移光标到 `[敲打]` 紧右侧键入 `'X'/'Y'`）最终 `'X'/'Y'` 均恢复 `11.0pt`。 |
+| 2. 破坏表情令牌后的字体恢复（`LC-UI-INPUT-010-P1-1`） | **RESOLVED** | `Round2AuditProbe` Case 3 实测：`"你好[敲打]世界"` 中间键入 `'1'` 变为 `"你好[敲1打]世界"` 后，全部 9 个字符均恢复为 `11.0pt Microsoft YaHei UI`。 |
+| 3. `EM_SETPARAFORMAT` 行距设置（`LC-UI-INPUT-010-P1-2`） | **OPEN (P1)** | `ChatInputBox.cs:376-391` `ApplyMinimumParagraphLineSpacing()` 注释声称“给所有段落设置不低于正文行高的最小行距”，但实际直接发送 `EM_SETPARAFORMAT`（`0x0447`）而**未先选中全部文本 `Select(0, TextLength)`**。Win32 RichEdit 的 `EM_SETPARAFORMAT` 只对当前选区覆盖的段落生效。<br>**`Round2AuditProbe` Case 4c 实测复现**：执行 `input.Text = "第一行\n[敲打]\n第三行"`（模拟切换会话恢复多行草稿、或光标在首行时触发 `FontChanged`/句柄重建，此时光标位于索引 0 即第 1 段），实测 `lineHeight=18.63px`、`row1.Y=6`、`row2([敲打]).Y=32`、`row3(第三行).Y=43`、**`delta23 = 11`（远小于 `18.63px`）**，第 2 行纯表情行高再次坍塌。 |
+| 4. `DrawEmojiPaint` 擦除边界 | **BLOCKED BY P1-2** | 混合行与已应用 `EM_SETPARAFORMAT` 的单段/两段纯表情行（Case 4a/4b，`delta23=19`）擦除边界正常；但触发 Case 4c 时，第 2 行 `tokenBounds`（`Y=32..50.63`）仍向下侵入第 3 行（`Y=43`）达 `7.63px`。补齐 `ApplyMinimumParagraphLineSpacing()` 全段选择后即一并闭环。 |
+| 5. IME 预编辑与归一化重入（`LC-UI-INPUT-010-P2-1`） | **RESOLVED (保留观察)** | 已增加 `WM_SETREDRAW(0)/(1)` 冻结重绘、`_normalizingEmojiTokens` 期间跳过自身 `SelectionChanged` 重绘回调，以及 `WM_IME_STARTCOMPOSITION` / `WM_IME_ENDCOMPOSITION` 延迟标志；无递归或资源泄漏。真实中文 IME 预编辑手感仍按未验证边界保留。 |
+| 6. `GetMessageText`、LANC、JSONL、旧版兼容与行数门禁 | **PASS** | `GetMessageText()` 保持不变；未触碰 `Models.cs`、`NetworkService*.cs`、`ChatHistoryService.cs`、`SessionManager.cs` 及 Linux 端，LANC 协议、JSONL 历史与旧版互通零破坏；`ChatInputBox.cs` 902 行、`ChatComposerRegression.cs` 904 行，均 `< 1000` 行软门禁（注：均已超 900 行，后续新增功能需留意拆分）；新增注释全中文。 |
+
+## 二、剩余唯一 P1 阻断项与修复要求
+
+| 问题 ID | 严重度 | 位置 | 复现条件与实测证据 | 修复要求 |
+| --- | :---: | --- | --- | --- |
+| `LC-UI-INPUT-010-P1-2` | **P1（仍 OPEN）** | `src/UI/Controls/ChatInputBox.cs:282, 376-391` | `input.Text = "第一行\n[敲打]\n第三行"`（光标在首行索引 0，未覆盖第 2 段），`ApplyMinimumParagraphLineSpacing()` 未执行 `Select(0, TextLength)`，仅对第 1 段设置 `PFM_LINESPACING`，导致第 2 段纯表情行高坍塌为 **`11px`**（`row2.Y=32`, `row3.Y=43`, `delta23=11 < 18.63`），向下侵入第 3 行 `7.63px`。 | 1. 在 `ApplyMinimumParagraphLineSpacing()` 调用 `SendMessage(Handle, SetParaFormatMessage, IntPtr.Zero, ref format)` 之前，先执行 `Select(0, TextLength);`（此时已处于 `WM_SETREDRAW(0)` 与 `_normalizingEmojiTokens = true` 保护内，且 `finally` 会恢复原选区与插入点字体），确保全部段落应用最小行距；<br>2. 在 `tests/ChatComposerRegression.cs` 补充多段非首行纯表情回归断言：`input.Text = "第一行\n[敲打]\n第三行"`（保持光标位于首行索引 `0`，不得先将选区移至末尾或第 2 行），断言 `row3.Y - row2.Y >= (int)Math.Floor(lineHeight)` 且第 3 行文字像素未被第 2 行表情擦除。 |
+
+## 三、Round 2 独立验证证据与未验证边界
+
+### 1. 已在 Windows 宿主机独立复跑的验证
+
+| 验证命令 / 探针 | 退出码 | 实测结果 |
+| --- | :---: | --- |
+| `cmd.exe /d /s /c "call Tools\Scripts\Compile.bat < nul"` | 0 | Windows 原生 `csc.exe` 编译 `release\LanChat.exe` 成功 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 8 组回归全部通过（注：现有纯表情换行用例仅测首行 `[敲打]\n...`，光标恰好在第 1 段，未覆盖非首行纯表情段） |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 0 | `Native Windows compile: ok` 及全部好友刷新/侧栏/组合表情/草稿回归通过 |
+| `git diff --check` | 0 | 无空白错误（仅有 Git LF→CRLF 提示） |
+| 独立 WinForms 探针（`Round2AuditProbe`） | 0 | 证实 `P1-1` 全部三场景（`InsertEmoji` 后打字、移光标至表情右侧打字、破坏令牌 `[敲1打]`）均恢复 `11.0pt`；同时**实证复现 `P1-2` 多段漏设行距**（Case 4c：`input.Text = "第一行\n[敲打]\n第三行"`，`delta23 = 11 < 18.63`） |
+
+### 2. 未验证边界（仍不得视为通过，继续保留于 `CRDocs/DEFERRED.md`）
+
+- 真实 Windows 100% / 125% / 150% DPI 窗口下的视觉基线、图片尺寸与鼠标命中目测；
+- 真实中文 IME（微软拼音/搜狗）预编辑组合态下的现场手感；
+- Linux Xorg / Wayland / XWayland Electron 实机、Linux ELF 实跑与真实双机 LAN 互通。
+
+---
+
+# LC-UI-INPUT-010 — Round 2 整改执行记录（等待独立复审）
+
+- **任务编号**：`LC-UI-INPUT-010`
+- **整改轮次**：Round 2（Round 1 独立审核打回后的执行整改）
+- **执行日期**：2026-11-26
+- **执行者**：Codex
+- **当前状态**：`WAITING_FOR_GROK`；以下为执行者记录，不是独立审核结论
+- **对应问题**：`LC-UI-INPUT-010-P1-1`、`LC-UI-INPUT-010-P1-2`、`LC-UI-INPUT-010-P2-1`
+
+## 一、本轮整改结果
+
+1. **`LC-UI-INPUT-010-P1-1`：正文与插入点字体污染**
+   - `NormalizeEmojiTokenFormatting()` 现在先把整段文本恢复为控件主字体 `Font`，再仅压缩有效内置表情令牌；因此普通正文和被编辑破坏的令牌（`[敲1打]`）不会遗留约 `4.95pt`。
+   - 归一化完成后恢复原选区；无选区时显式把插入点格式设为 `Font`，保证插入表情后紧接着输入中英文仍为 `11pt Microsoft YaHei UI`。
+   - 格式化期间使用 `WM_SETREDRAW(0)/(1)`，归一化期间抑制 `SelectionChanged` 副作用；跟踪 `WM_IME_STARTCOMPOSITION` / `WM_IME_ENDCOMPOSITION`，IME 组合期间延迟格式化到结束。
+
+2. **`LC-UI-INPUT-010-P1-2`：纯表情行行高坍塌与越界擦除**
+   - 使用 `EM_SETPARAFORMAT` + `PFM_LINESPACING` 按当前正文行高设置 RichEdit 段落最小行距，纯表情行不再按压缩字体的行高排版。
+   - 回归中验证 `[敲打]\n第二行文字` 与 `[敲打]\n[敲打]` 的行间距均不小于正文 `Font.GetHeight()`，并扫描离屏图像确认第二行文字和表情没有被上一行擦除/遮挡。
+
+3. **`LC-UI-INPUT-010-P2-1`：归一化重排与 IME 风险优化**
+   - 已匹配目标字体的令牌跳过重复 `SelectionFont` 写入；格式修改使用重绘冻结；归一化期间不触发选择变更重绘；IME 预编辑期间不调用选区归一化。
+
+## 二、回归测试补充
+
+`tests/ChatComposerRegression.cs` 已新增以下断言：
+
+- 插入 `[敲打]` 后继续输入 `Hi`，正文区字体为 `11pt Microsoft YaHei UI`；
+- `你好` → `[敲打]` → `Wo` 的前后正文均为 `11pt Microsoft YaHei UI`；
+- `[敲打]` 编辑为 `[敲1打]` 后，失效令牌字符恢复为 `11pt Microsoft YaHei UI`；
+- 两种纯表情换行的行间距、第二行文字亮像素和第二行表情像素均未越界/重叠。
+
+## 三、独立复跑证据（Windows 宿主机）
+
+| 验证命令 | 退出码 | 实测结果 |
+| --- | :---: | --- |
+| `cmd.exe /d /s /c "call Tools\\Scripts\\Compile.bat < nul"` | 0 | Windows 原生 `csc.exe` 编译 `LanChat.exe` 成功 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 字体恢复、纯表情换行行距/像素、PrintWindow、RichEdit 坐标、剪贴板、LANC/JSONL、附件及聊天回归通过 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 0 | 好友刷新、侧栏、组合表情、会话草稿和联合聊天回归通过 |
+| `git diff --check` | 0 | 无空白错误；仅有 Git 的 LF→CRLF 提示 |
+
+## 四、兼容性、行数与未验证边界
+
+- 未修改 `GetMessageText()`、LANC 魔数/字段/确认字节、JSONL 历史、`Models.cs`、`NetworkService*.cs` 或 Linux 代码；旧版互通路径保持原样。
+- `ChatInputBox.cs` 902 行、`ChatComposerRegression.cs` 904 行，均低于 1000 行软门禁；新增注释均为中文。
+- 真实 Windows 100%/125%/150% DPI 目测、真实中文 IME 现场手感、Linux Xorg/Wayland/XWayland、Linux/ELF 实跑与真实双机 LAN 仍未验证，继续保留于 `CRDocs/DEFERRED.md`；宿主机证据不替代实机验收。
+
+## 五、交接
+
+请独立审核者按 `CRDocs/RULES.md` 读取 `CRDocs/STATUS.md`、`CRDocs/REVIEW.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`，直接核对实际代码与上述证据。审核完成后必须保留本记录及 Round 1 审核历史，并回写 `CRDocs/REVIEW.md`、`CRDocs/STATUS.md`；只有独立审核者可以将状态改为 `APPROVED`。
+
+---
+
+# LC-UI-INPUT-010 — Round 1 独立审核结论（打回：存在 2 项 P1 阻断缺陷）
+
+- **任务编号**：`LC-UI-INPUT-010`
+- **任务主题**：输入框内置表情与正文基线对齐、紧凑占位、清除原始令牌残留
+- **审核轮次**：Round 1 独立审核
+- **审核基线**：工作区未提交改动（重点核对 `src/UI/Controls/ChatInputBox.cs`、`tests/ChatComposerRegression.cs` 及 `MainForm*.cs` 完整调用链）
+- **独立审核方**：独立审核者（Gemini）
+- **审核日期**：2026-11-26
+- **审核结论**：**REJECTED**（无 P0，但经代码审查与独立 WinForms/RichEdit 探针实测，核查出 **2 项 P1 阻断缺陷** `LC-UI-INPUT-010-P1-1`、`LC-UI-INPUT-010-P1-2` 及 1 项 P2 优化建议 `LC-UI-INPUT-010-P2-1`，打回执行者整改后复审）
+- **依据**：`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`、`.claude/Rules.md`，以及工作区实际 `git diff`、完整调用链、宿主机回归复跑与独立 WinForms 探针实测证据。
+
+## 一、分维度核对结论
+
+| 核对维度 | 结论 | 核对依据与实测证据 |
+| --- | :---: | --- |
+| 1. `NormalizeEmojiTokenFormatting()` 字体与交互保护 | **FAIL (P1)** | 仅压缩有效 `[表情名]` 选区字体（实测 `4.95pt`），无 GDI+ `Font`/`Graphics` 泄漏；但 **存在 P1 阻断缺陷 `LC-UI-INPUT-010-P1-1`**：压缩表情后仅恢复光标索引而未恢复插入点与非表情区字体，导致插入表情后紧接着打字（`InsertEmoji` -> 键入中英文）全部退化为 `4.95pt` 微缩字；在 `[敲打]` 中间插入字符破坏令牌后，失效字符永久停留在 `4.95pt` 无法恢复 `11pt`；且每次击键无 `WM_SETREDRAW` 保护并额外触发 3 次 `SelectionChanged`（`P2-1`）。 |
+| 2. `DrawEmojiPaint()` 基线、行高与擦除边界 | **FAIL (P1)** | 混合行（如 `"你好[敲打]世界"`）实测所有字符共用 `Y=6`、`[敲打]` 宽度压缩为 `18px`、`imageSize=16px`、无白色令牌残留；末尾/连续表情及自动折行行尾表情回归通过。但 **存在 P1 阻断缺陷 `LC-UI-INPUT-010-P1-2`**：当某一行仅含表情（如 `"[敲打]\n第二行文字"` 或 `"[敲打]\n[敲打]"`）时，整行全为 `4.95pt` 导致 RichEdit 行高坍塌至 **`11px`**，而 `DrawEmojiPaint()` 按主字体 `lineHeight=18.63px` 擦除背景并绘制 `16px` 图片，向下侵入第二行 `6~7.6px`，直接擦除并遮挡第二行首字顶部/第二行表情。 |
+| 3. 兼容性、调用链与行数门禁 | **PASS** | `GetMessageText()` 仍返回原始 `[表情名]`（仅剥离 `\uFFFC`）；未触碰 `Models.cs`、`NetworkService*.cs`、`ChatHistoryService.cs`、`SessionManager.cs` 及 Linux 端，LANC 协议、JSONL 历史与旧版互通零破坏；文件行数 `ChatInputBox.cs` 762 行、`ChatComposerRegression.cs` 816 行，均低于 1000 行软门禁；新增注释均为中文。 |
+
+## 二、问题分级清单（P0 / P1 / P2）
+
+| 问题 ID | 严重度 | 位置 | 问题描述与实测复现证据 | 修复要求 |
+| --- | :---: | --- | --- | --- |
+| `LC-UI-INPUT-010-P1-1` | **P1（阻断）** | `src/UI/Controls/ChatInputBox.cs:195-262, 299-305` | `NormalizeEmojiTokenFormatting()` 将有效 `[表情名]` 选区设为 `compactFont`（实测 `4.95pt`）后，在 `finally` 中仅执行 `Select(restoredStart, savedLength)`，未将无选区插入点及非有效表情区间的字体恢复为控件主字体 `Font`（`11pt Microsoft YaHei UI`）。由于 RichEdit 插入点默认继承左侧紧邻字符格式，导致用户最常见路径严重损坏。<br>**独立探针（`InputEmojiAuditProbe2`）实测复现**：<br>1) **Case 1（插入表情后直接打字）**：`InsertEmoji("[敲打]")` 后 `Caret=4, SelectionFont=Microsoft YaHei UI 4.95pt`；随后发送 `WM_CHAR` 键入 `"Hi"`，实测 `char[4]='H' font=4.95pt`、`char[5]='i' font=4.95pt`；<br>2) **Case 2（正文 -> 插入表情 -> 继续打字）**：`"你好"`（`11.25pt`）后插入 `[敲打]` 再键入 `"Wo"`，`'W'/'o'` 变为 `4.95pt`；<br>3) **Case 5（破坏令牌）**：在 `"你好[敲打]世界"` 中间插入 `'1'` 变为 `"你好[敲1打]世界"`，`[敲1打]` 5 个字符永久停留在 `4.95pt`。 | 1. 归一化时确保所有**非有效表情令牌**字符均保持为控件主字体 `Font`（破坏令牌或之前被污染的正文须自动恢复为 `11pt`）；<br>2. 在 `finally` 恢复光标后及 `SelectionChanged` 光标无选区落于表情右侧准备输入时，确保插入点 `SelectionFont = Font`，使紧接表情之后输入的中英文严格保持 `11pt Microsoft YaHei UI`；<br>3. 在 `tests/ChatComposerRegression.cs` 补充断言：覆盖「插入表情后继续输入正文保持 11pt」「正文-表情-正文保持 11pt」「破坏 `[敲打]` 为 `[敲1打]` 后恢复 11pt」。 |
+| `LC-UI-INPUT-010-P1-2` | **P1（阻断）** | `src/UI/Controls/ChatInputBox.cs:195-262, 374-396` | 当某一行仅包含内置表情（不含 11pt 普通文字）时，整行所有字符都被设为 `~4.95pt`，RichEdit 据此计算该行实际行高坍塌至 **`11px`**（正常 11pt 行高为 `18.63px`）。`DrawEmojiPaint()` 仍按主字体 `lineHeight=18.63px` 构造 `tokenBounds = (start.X, start.Y, tokenWidth, 18.63)` 并用 `BackColor` 擦除、绘制 `16px` 图片，导致第一行擦除区域（`Y=6..24.63`）与图片（`Y=7.31..23.31`）直接向下侵入第二行（`Y=17`），擦除并遮挡第二行首字顶部或重叠第二行表情。<br>**独立探针（`InputEmojiAuditProbe2` Case 3 & `InputEmojiAuditProbe3`）实测复现**：`input.Text = "[敲打]\n第二行文字"`（第二行字号 `11.25pt`），`lineHeight=18.63px`，`row1.Y=6`，`row2.Y=17`，**`rowDeltaY=11`（远小于 `18.63px` 与图片高度 `16px`）**，第一行 `tokenBounds.Bottom (24.63) > row2.Y (17)` 越界 `7.63px`。 | 1. 保证纯表情行与含表情行在 RichEdit 中的行高不坍塌（例如通过 `EM_SETPARAFORMAT` + `PFM_LINESPACING` 设置至少等于正文行高的行距规则，或等效机制），确保 `row2.Y - row1.Y >= Math.Floor(lineHeight)` 且第一行 `tokenBounds.Bottom <= row2.Y`；<br>2. 确认 `"[敲打]\n第二行文字"` 与 `"[敲打]\n[敲打]"` 两行均无越界擦除或重叠；<br>3. 在 `tests/ChatComposerRegression.cs` 补充纯表情换行行距与第二行文字不被擦除/遮挡的回归断言。 |
+| `LC-UI-INPUT-010-P2-1` | **P2（非阻断）** | `src/UI/Controls/ChatInputBox.cs:195-262` | 当输入框已含表情时，每次输入单个普通字符，`OnTextChanged` 均会无条件对所有表情先恢复 `Font` 再压缩为 `compactFont`，且未用 `WM_SETREDRAW(0)/(1)` 包裹，也未在 `_normalizingEmojiTokens` 期间抑制 `SelectionChanged` 副作用（探针实测单次键入触发 **3 次 `SelectionChanged`**），存在闪烁及在中文 IME 预编辑态下因 `Select(...)` 打断组合串的风险。 | 整改 P1 时建议顺手优化：1) 跳过已处于目标字体的区间，减少无谓重排；2) 实际修改格式时用 `WM_SETREDRAW(0)/(1)` 包裹并抑制归一化期间的 `SelectionChanged` 重绘；3) 跟踪 `WM_IME_STARTCOMPOSITION` / `WM_IME_ENDCOMPOSITION`，在 IME 预编辑组合期间延迟 `Select` 归一化至组合结束。 |
+
+## 三、独立验证证据与未验证边界
+
+### 1. 已在 Windows 宿主机独立运行的验证
+
+| 验证命令 / 探针 | 退出码 | 实测结果 |
+| --- | :---: | --- |
+| `cmd.exe /d /s /c "call Tools\Scripts\Compile.bat < nul"` | 0 | Windows 原生 `csc.exe` 编译 `release\LanChat.exe` 成功 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 8 组既有与新增回归通过（注：现有用例未覆盖表情后继续打字字体、破坏令牌恢复及纯表情换行行高） |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 0 | `Native Windows compile: ok` 及全部好友刷新/侧栏/组合表情/草稿回归通过 |
+| `git diff --check` | 0 | 无空白错误（仅有 Git LF→CRLF 提示） |
+| 独立 WinForms 探针（`InputEmojiAuditProbe` / `Probe2` / `Probe3`） | 0 | 证实混合行 `"你好[敲打]世界"` 共用 `Y=6`、宽度 `18px`、`Clear()` 后恢复 `11.25pt`；同时**实证复现 `LC-UI-INPUT-010-P1-1`**（表情后打字 `4.95pt`、破坏令牌永久 `4.95pt`）与 **`LC-UI-INPUT-010-P1-2`**（纯表情行 `rowDeltaY=11 < 18.63`，擦除并侵入第二行 `7.63px`） |
+
+### 2. 未验证边界（仍不得视为通过，后续继续保留于 `CRDocs/DEFERRED.md`）
+
+- 真实 Windows 100% / 125% / 150% DPI 窗口下的视觉基线、图片尺寸与鼠标命中目测；
+- 真实中文 IME（微软拼音/搜狗）预编辑组合态下插入、删除与格式重算手感；
+- Linux Xorg / Wayland / XWayland Electron 实机、Linux ELF 实跑及真实双机 LAN 互通（本轮未修改 Linux/ELF 与网络协议）。
+
+---
+
+# LC-UI-INPUT-010 — 输入框内联表情基线与占位修复执行记录（等待 Gemini 审核）
+
+- **任务编号**：`LC-UI-INPUT-010`
+- **任务主题**：输入框内置表情与正文基线对齐、紧凑占位、清除原始令牌残留
+- **执行日期**：2026-11-26
+- **执行者**：Codex
+- **状态**：`WAITING_FOR_GROK`；以下为执行者记录，不能视为独立审核结论
+- **审核依据**：`.claude/Rules.md`、`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`、`Docs/GrokBot_UI_Design_System.md` 与工作区实际 diff
+
+## 一、问题与整改
+
+1. **文字/表情垂直对齐**：原实现直接以 `Font.GetHeight()` 对图片做行内居中，但 RichEdit 仍按原始 `[表情名]` 字符字体排版，图片尺寸偏大且与正文视觉基线不一致。现按当前控件 Graphics 的正文行高计算图片尺寸，缩小为 `lineHeight - 4`（最低 16px），并使用同一 RichEdit 起始坐标绘制。
+2. **占位过宽与白色残留**：原始令牌仍占用完整中文文字宽度，且只擦除图片高度，导致表情间距过大并在下方露出原始字符。现对有效表情选区设置紧凑显示字体，使 advance width 收敛到图片宽度；叠绘时擦除完整行高，并对折行位置避免将图片居中到整段剩余宽度。
+3. **兼容性**：底层 `Text` 仍为可读 `[表情名]`，`GetMessageText()`、选区索引、删除、发送、历史和协议格式均未改变。
+
+## 二、改动文件
+
+- `src/UI/Controls/ChatInputBox.cs`
+- `tests/ChatComposerRegression.cs`
+
+## 三、验证证据
+
+| 验证命令 | 退出码 | 实测结果 |
+| --- | :---: | --- |
+| `cmd.exe /d /s /c "call D:\\TEmp\\LanChat\\Tools\\Scripts\\Compile.bat < nul"` | 0 | Windows 原生 `csc.exe` 编译成功 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 新增表情令牌 16~24px advance width 断言、PrintWindow、RichEdit 坐标、选区/滚动、剪贴板、LANC/JSONL、附件及聊天回归通过 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 0 | 好友刷新、侧栏、组合表情、会话草稿与联合聊天回归通过 |
+| `git diff --check` | 0 | 无空白错误；仅有 Git LF→CRLF 提示 |
+
+## 四、门禁与未验证边界
+
+- `ChatInputBox.cs` 760 行，`ChatComposerRegression.cs` 816 行，均低于 1000 行软门禁。
+- 未在真实 Windows 100%/125%/150% DPI 窗口进行目测和鼠标命中验收；未验证真实中文 IME 预编辑体感。
+- 本轮未修改 Linux/ELF 或通信协议；Linux Xorg/Wayland/XWayland、Linux ELF、真实双机 LAN 仍不得由宿主机证据替代，继续按 `DEFERRED.md` 处理。
+
+## 五、交接要求
+
+请 Gemini 独立检查实际 diff、`ChatInputBox` 的 RichEdit 格式重算重入、连续/折行表情、普通文字与选区/光标/删除/复制/IME 兼容、PrintWindow 像素结果及协议/历史零破坏。审核完成后必须按 `CRDocs/RULES.md` 回写 `CRDocs/REVIEW.md` 与 `CRDocs/STATUS.md`，不得由执行者预写 `APPROVED`。
+
+---
+
+# LC-UI-INPUT-009 — Round 2 独立复审（通过：P1-1 与 P2-1 已全部闭环）
+
+- **任务编号**：`LC-UI-INPUT-009`
+- **任务主题**：输入框去预览文字、主题色竖条光标、全窗防闪烁、高度调整为 214/188、WM_SETREDRAW 原子删表情、禁用 RichEdit 自动切换宋体恢复 Microsoft YaHei UI、去加号键与工具图标 1.5x 放大、Emoji 面板悬停框
+- **审核轮次**：Round 2 独立复审
+- **审核基线**：工作区未提交整改（改动 `src/UI/Controls/ChatInputBox.cs`、`src/MainForm.Designer.cs`、`src/MainForm.cs`、`src/MainForm.Chat.cs`、`src/MainForm.Tray.cs`、`src/UI/Controls/WeChatChatView.cs`、`src/UI/Controls/ChatEmojiPicker.cs`、`src/UI/Controls/WeChatButtons.cs`、`tests/ChatComposerRegression.cs`）
+- **独立审核方**：独立审核者（Antigravity / Gemini）
+- **审核日期**：2026-11-26
+- **审核结论**：**APPROVED**（当前开发与 Windows 宿主机回归范围放行；实机与跨环境验证边界继续保留）
+- **依据**：`CRDocs/RULES.md`、`CRDocs/STATUS.md`、`.claude/Rules.md`、工作区实际代码、Round 1 审核问题清单及宿主机独立复跑/探针实测证据。
+
+## 一、Round 1 问题逐项复核结果
+
+| 问题 ID | 原级别 | Round 2 复核 | 复核依据与实测证据 |
+| --- | :---: | :---: | --- |
+| `LC-UI-INPUT-009-P1-1` | **P1** | **RESOLVED** | 核验 `src/UI/Controls/ChatInputBox.cs:318-342`：`DrawThemeCaret` 在 `!Focused || SelectionLength > 0 || ReadOnly || !_caretVisible` 时直接 `return`，已彻底移除 `BackColor` 覆绘擦除路径，并在点亮绘制 2px 主题色竖条时记录 `_lastCaretRect`；`InvalidateLastCaretRect()`（第 239-245 行）在 `_caretTimer.Tick` 切为 `false`（第 103-107 行）、失焦或有选区停表（第 91-96 行）及 `LostFocus`（第 125-130 行）时，仅对 `Rectangle.Inflate(_lastCaretRect, 1, 1)` 局部 `Invalidate` 并清空 `_lastCaretRect`，由 RichEdit 干净还原底层字符像素；`tests/ChatComposerRegression.cs:371-409` 已新增 `"中中中中"` / `"MMMMMM"` 索引 2 光标熄灭态像素保留断言并通过；独立复跑 `CaretAuditProbe2` 实测 `"MMMMMM"` 非背景像素 `12 -> 12`（像素 `(pM.X+1,14)` 保持 `RGB(64,122,178)`）、`"中中中中"` 非背景像素 `13 -> 13`，零擦除。 |
+| `LC-UI-INPUT-009-P2-1` | **P2** | **RESOLVED** | `git grep -n "_inputPlaceholder\|KillFocusMessage" src/` 返回 0 匹配，死字段 `_inputPlaceholder` 与未引用常量 `KillFocusMessage` 已彻底移除；`ChatInputBox.cs:317` XML 注释已同步更正为 `2px`。 |
+| 协议/历史兼容与行数门禁 | — | **PASS** | 未修改 `Models.cs`、`NetworkService*.cs`、`ChatHistoryService.cs`、`SessionManager.cs`，LANC 协议与 JSONL 历史格式零破坏；全部 9 个改动源码与测试文件均低于 1000 行软门禁（`WeChatChatView.cs` 778、`ChatComposerRegression.cs` 749、`MainForm.Designer.cs` 622、`MainForm.Tray.cs` 618、`ChatInputBox.cs` 611、`MainForm.cs` 572、`MainForm.Chat.cs` 520、`WeChatButtons.cs` 395、`ChatEmojiPicker.cs` 314），新增注释为中文。 |
+
+## 二、Round 2 独立验证证据与边界区分
+
+### 1. 已在 Windows 宿主机独立复跑通过的内容
+
+| 验证命令 / 探针 | 退出码 | 实测结果 |
+| --- | :---: | --- |
+| `cmd /c "Tools\Scripts\Compile.bat < NUL"` | 0 | 原生 `csc.exe` 编译 `release\LanChat.exe` 成功 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests\chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 全部 8 组回归通过（含 `"中中中中"` / `"MMMMMM"` 正文中间光标熄灭态字形像素保留断言、空白输入框主题色竖条光标、禁用宋体、214/188 布局、`DoubleBufferedPanel`、48×48/1.5x 工具按钮、Backspace/Delete 原子删表情） |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests\friend_refresh_regression.ps1` | 0 | `Native Windows compile: ok` 及全部好友刷新/侧栏/组合表情/草稿回归通过 |
+| `git diff --check` | 0 | 无空白错误（仅有 Git LF→CRLF 提示） |
+| 独立 WinForms 探针（`CaretAuditProbe2`） | 0 | `"MMMMMM"` 失焦 vs 熄灭态非背景像素 `12 == 12`、`"中中中中"` 失焦 vs 熄灭态非背景像素 `13 == 13`，确认 `LC-UI-INPUT-009-P1-1` 彻底闭环 |
+
+### 2. 仍未验证的实机与跨环境边界（不得视为通过）
+
+- 真实 Windows 桌面 100% / 125% / 150% DPI 下点击主界面各区域的防闪烁目测与主题色竖条光标实际闪烁观感；
+- 真实中文输入法（IME，如微软拼音/搜狗）预编辑组合态及退格删表情手感；
+- Linux Electron 桌面与 Linux ARM64 / x86_64 ELF 实机（本轮仅修改 Windows 端代码与回归测试）。
+
+---
+
+# LC-UI-INPUT-009 — Round 1 整改执行记录（P1-1 与 P2-1 已修复）
+
+- **任务编号**：`LC-UI-INPUT-009`
+- **整改轮次**：Round 1 独立审核打回后的整改交接
+- **执行日期**：2026-11-26
+- **执行者**：Antigravity
+- **状态**：`WAITING_FOR_GROK`（以下为执行者记录，不能视为独立审核结论）
+
+## 一、整改内容
+
+1. **修复 `LC-UI-INPUT-009-P1-1`（`src/UI/Controls/ChatInputBox.cs`）**：
+   - `DrawThemeCaret` 在 `!_caretVisible` 时直接 `return`，彻底移除用 `BackColor` 填充 `caretRect` 的擦除路径；点亮绘制时记录 `_lastCaretRect`。
+   - 新增 `InvalidateLastCaretRect()`，在 `_caretTimer.Tick` 切为 `_caretVisible = false` 或 `LostFocus` 时，不再用 `GetDC` 涂底色，而是仅对 `Rectangle.Inflate(_lastCaretRect, 1, 1)` 调用 `Invalidate(invalidRect)`，交由 RichEdit 局部重绘干净还原原字符像素且避免全控重绘闪烁；切为 `true` 时再直接叠绘 2px 主题色竖条光标。
+   - 在 `tests/ChatComposerRegression.cs` 补充回归断言：在 `"中中中中"` 与 `"MMMMMM"` 正文中间（索引 2）将 `_caretVisible` 置为 `false` 并执行局部失效重绘后，验证 `caretRect` 内字形非背景像素保留（`glyphPixels > 0`），未被擦除。
+2. **清理 `LC-UI-INPUT-009-P2-1`**：
+   - 移除 `src/MainForm.Designer.cs` 中的死字段 `_inputPlaceholder` 及 `src/MainForm.Chat.cs` 中的对应赋值；
+   - 移除 `src/UI/Controls/ChatInputBox.cs` 中未引用的 `KillFocusMessage` 常量；
+   - 将 `DrawThemeCaret` XML 注释中的 `2.5px` 更正为 `2px`。
+
+## 二、验证命令与结果
+
+| 验证命令 | 退出码 | 实测结果 |
+| --- | :---: | --- |
+| `cmd /c "Tools\Scripts\Compile.bat < NUL"` | 0 | Windows 原生 `csc.exe` 编译 `release\LanChat.exe` 与 `release\uninstall.exe` 成功 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests\chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 全部 8 组回归通过（含正文 `"中中中中"` / `"MMMMMM"` 中间光标熄灭态像素完好性断言、主题色竖条光标、禁用宋体、214/188 布局、`DoubleBufferedPanel`、48×48/1.5x 工具按钮、Backspace/Delete 整枚删除表情） |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests\friend_refresh_regression.ps1` | 0 | `Native Windows compile: ok` 及全部好友刷新/侧栏/组合表情/草稿回归通过 |
+| `git diff --check` | 0 | 无空白错误（仅有 Git LF→CRLF 提示） |
+
+## 三、未验证边界（仍未跑环境）
+
+- 真实 Windows 桌面 100%/125%/150% DPI 下点击主界面各区域的防闪烁目测与主题色竖条光标实际闪烁观感；
+- 真实中文输入法（IME）预编辑组合态及退格删表情手感；
+- Linux Electron 桌面与 Linux ARM64/x86_64 ELF 实机（本轮未运行）。
+
+---
+
+# LC-UI-INPUT-009 — Round 1 独立审核结论（打回：主题光标熄灭分支擦除正文像素）
+
+- **任务编号**：`LC-UI-INPUT-009`
+- **任务主题**：输入框去预览文字、主题色竖条光标、全窗防闪烁、高度调整为 214/188、WM_SETREDRAW 原子删表情、禁用 RichEdit 自动切换宋体恢复 Microsoft YaHei UI、去加号键与工具图标 1.5x 放大、Emoji 面板悬停框
+- **审核轮次**：Round 1 独立审核
+- **审核基线**：工作区未提交改动（`src/UI/Controls/ChatInputBox.cs`、`src/MainForm.Designer.cs`、`src/MainForm.cs`、`src/MainForm.Chat.cs`、`src/MainForm.Tray.cs`、`src/UI/Controls/WeChatChatView.cs`、`src/UI/Controls/ChatEmojiPicker.cs`、`src/UI/Controls/WeChatButtons.cs`、`tests/ChatComposerRegression.cs`）
+- **独立审核方**：独立审核者（Antigravity / Gemini）
+- **审核日期**：2026-11-26
+- **审核结论**：**REJECTED**（无 P0，但存在 **1 项 P1 阻断缺陷 `LC-UI-INPUT-009-P1-1`** 与 1 项非阻断 P2 清理建议，打回执行者整改后复审）
+- **依据**：`CRDocs/RULES.md`、`CRDocs/STATUS.md`、`.claude/Rules.md`、工作区完整 `git diff`、相关源码全量阅读及宿主机独立编译/回归/WinForms 探针实测。
+
+## 一、分维度核对结论
+
+| 核对维度 | 结论 | 核对依据与实测证据 |
+| --- | :---: | --- |
+| 1. 去加号键与工具图标 1.5x 放大 | **PASS** | `MainForm.Designer.cs`、`MainForm.cs`、`MainForm.Chat.cs` 已彻底移除 `_btnToolSendFile` 与 `ShowInputPlusContextMenu()`（`git grep _btnToolSendFile src/` 0 匹配）；5 枚快捷按钮扩至 `48×48` 且 `IconScale = 1.5f`；核验 `WeChatIcon.cs` 中 `Emoji/Box/Folder/Scissors/Clear` 均为固定 ~16px 几何，1.5x 缩放后约 24px 居中于 `48×48` 无裁切；`WeChatButtons.cs` 正确保存/恢复 `GraphicsState`；`14 + 54*4 + 48 = 278px` 在最小窗宽下与右侧 `44×44` 发送圆钮无挤压。 |
+| 2. 高度 214/188 与去预览文字 | **PASS** | `BottomSendPanelBaseHeight = 214`（上 4 + 胶囊 188 + 底 22），`MainForm.Files.cs:208` 复用该常量，附件草稿高度为 `214 + 34 = 248`；`LayoutInputPanel()` 中 `toolbarY = 130`、`_txtInput.Top = 10`、`Height = 114`（`Bottom = 124 <= 130`）与初始值一致且宽度铺满胶囊；`_inputPanel.Paint` 已去除占位符绘制，`_txtInput.Visible` 恒为 `true`。 |
+| 3. 主题色竖条光标与资源泄漏 | **FAIL (P1)** | **无资源泄漏**：`HideCaret` 不分配 GDI/USER 对象；`_caretTimer` 在 `Dispose(bool)` 中已 `Stop()` 并 `Dispose()`；`GetDC/ReleaseDC` 配对在 `try/finally` 内；`SolidBrush` 与 `Graphics.FromHdc` 均有 `using`；尾随换行 `"abc\n"` 探针实测 `GetPositionFromCharIndex(4) = {X=0, Y=32}` 坐标正确。**但存在 P1 缺陷 `LC-UI-INPUT-009-P1-1`**：`DrawThemeCaret` 在 `_caretVisible == false` 时用 `BackColor` 实心矩形覆盖 `caretRect`，在文本中间闪烁熄灭时会直接擦除紧邻字符左缘 2px 笔画（见下方实测复现）。 |
+| 4. 全窗防闪烁路径排查 | **PASS** | `MainForm.Designer.cs` 全部可见容器（`_sessionsPanel`、`_searchHeaderPanel`、`_searchBoxContainer`、`_heroProfilePanel`、`_leftBottomBar`、`_chatPanel`、`_chatHeader`、`winCtrlPanel`、`_bottomSendPanel`、`_inputPanel`）均已使用 `DoubleBufferedPanel`（含 `WS_CLIPCHILDREN` 与 `WM_ERASEBKGND` 拦截）；`MainForm.Chat.cs` 移除冗余 `_inputPanel`/`_bottomSendPanel.Invalidate()`；`MainForm.Tray.cs:ClearActiveChatUnread()` 仅在未读数真实变化时重绘 `_listSessions`；`WeChatChatView.cs` 拦截 `WM_ERASEBKGND`；`ChatEmojiPicker.cs` 标题栏与分组标签已改为 `DoubleBufferedPanel`。 |
+| 5. `WM_SETREDRAW` 原子删表情 | **PASS** | `ProcessCmdKey` 拦截无选区时的 `Back` / `Shift+Back` / `Delete`（中文 IME 预编辑态下收到 `Keys.ProcessKey`，不误触发）；`TryDeleteAdjacentEmojiToken` 限制长度 `<= 26` 且遇 `\r/\n/]` 中断并校验 `ChatEmojiPicker.FindImage(token) != null`；`DeleteTokenRange` 使用 `WM_SETREDRAW(0)` -> `Select` + `SelectedText = ""` -> `finally` 恢复 `WM_SETREDRAW(1)` + `Invalidate()` + `Update()`，无重绘锁死风险。 |
+| 6. 禁用 RichEdit 自动切宋体 | **PASS** | 构造器设置 `LanguageOption = RichTextBoxLanguageOptions.AutoKeyboard`，`OnHandleCreated` 通过 `EM_GETLANGOPTIONS`/`EM_SETLANGOPTIONS`（`0x0479`/`0x0478`）清除 `IMF_AUTOFONT | IMF_DUALFONT | IMF_AUTOFONTSIZEADJUST`；回归及独立探针（`Clear()` 后写入 `"你好世界"`）均确认 `SelectionFont.Name == "Microsoft YaHei UI"`。 |
+| 7. Emoji 面板悬停框 | **PASS** | `ChatEmojiPicker.cs` 在 `MouseMove`/`MouseLeave` 正确切换 `Cursors.Hand`/`Cursors.Default`；`DrawRow` 为悬停或键盘聚焦单元格绘制 `GrokTheme.Level3Hot` 底衬 + `1.5px` `Color.FromArgb(200, GrokTheme.Accent)` 8px 圆角框，且鼠标悬停时抑制重复键盘焦点框。 |
+| 8. 协议/历史兼容与行数门禁 | **PASS** | 未触碰 `Models.cs`、`NetworkService*.cs`、`ChatHistoryService.cs`、`SessionManager.cs`，LANC 协议与 JSONL 历史格式零破坏；全部 9 个改动文件均远低于 1000 行预警线（最高 `WeChatChatView.cs` 778 行、`ChatComposerRegression.cs` 712 行、`MainForm.Designer.cs` 623 行、`MainForm.Tray.cs` 618 行、`ChatInputBox.cs` 596 行）；新增注释均为中文。 |
+
+## 二、问题分级清单（P0 / P1 / P2）
+
+| 问题 ID | 严重度 | 位置 | 问题描述与实测复现证据 | 整改要求 |
+| --- | :---: | --- | --- | --- |
+| `LC-UI-INPUT-009-P1-1` | **P1（阻断）** | `src/UI/Controls/ChatInputBox.cs:88-99, 299-324` | `DrawThemeCaret` 在 `_caretVisible == false`（闪烁熄灭周期）时，使用不透明 `BackColor` 实心填充 2px 宽的 `caretRect`（第 316-319 行）；且 `_caretTimer.Tick` 仅调用 `DrawEmojiOnWindow()` 直接在窗口 DC 上覆绘，未让 RichEdit 重绘底层文字。当光标位于正文任意字符之前或两字之间时，每 530ms 熄灭周期都会把紧邻右侧字符左缘 2px 笔画直接抹白（即使在 `WM_PAINT` 中也会二次抹除）。**独立 WinForms 探针（`CaretAuditProbe2` + `PrintWindow(..., 2)`）实测复现**：`"MMMMMM"` 光标在索引 2 时，失焦正常字形 `caretRect` 内非背景像素 `12` 个，聚焦且 `_caretVisible=false` 后骤降至 `2` 个（像素 `(pM.X+1, 14)` 被涂成 `RGB(30,30,34)` 背景色）；中文 `"中中中中"` 光标在索引 2 时，非背景像素从 **`13` 骤降至 `0`**（左竖笔画 100% 消失）。细窄字符（如 `i/l/1/|`）在熄灭周期将完全不可见。 | 1. 在 `DrawThemeCaret` 中改为 `if (!_caretVisible) return;`，严禁用 `BackColor` 覆盖 RichEdit 文本区域；<br>2. 在 `_caretTimer.Tick` 中：切为 `_caretVisible = true` 时可直接叠绘主题光标；切为 `_caretVisible = false` 时改用局部 `Invalidate(Rectangle.Inflate(caretRect, 1, 1))`（或基于当前光标矩形的最小失效区）通知 RichEdit 仅重绘该 4px 窄条，干净还原原字符像素且避免全控重绘闪烁；<br>3. 在 `tests/ChatComposerRegression.cs` 中补充回归断言：在中文/英文正文中间将 `_caretVisible` 置 `false` 并重绘后，`caretRect` 内字形非背景像素不得被擦除。 |
+| `LC-UI-INPUT-009-P2-1` | **P2（非阻断）** | `src/MainForm.Designer.cs:69`、`src/MainForm.Chat.cs:81`、`src/UI/Controls/ChatInputBox.cs:25, 299` | 1) `_inputPlaceholder` 字段已不再绘制，仅在 `MainForm.Chat.cs:81` 写入而从未读取（死代码）；2) `ChatInputBox.cs:25` 常量 `KillFocusMessage = 0x0008` 未被引用；3) `DrawThemeCaret` XML 注释仍写 `2.5px`，与代码 `int caretWidth = 2` 不一致。 | 整改 P1 时可顺手清理，非阻断。 |
+
+## 三、独立验证证据与未验证边界
+
+### 1. 已在 Windows 宿主机独立复跑的验证
+
+| 验证命令 / 探针 | 退出码 | 实测结果 |
+| --- | :---: | --- |
+| `cmd /c "Tools\Scripts\Compile.bat < NUL"` | 0 | 原生 `csc.exe` 编译 `release\LanChat.exe` 成功 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests\chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 8 组回归全部通过（注：现有用例仅测空白输入框光标点亮态，未覆盖正文中间光标熄灭态像素完好性） |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests\friend_refresh_regression.ps1` | 0 | `Native Windows compile: ok` 及全部好友刷新/侧栏/组合表情/草稿回归通过 |
+| `git diff --check` | 0 | 无空白错误（仅有 LF→CRLF 提示） |
+| 独立 WinForms 探针（`CaretAuditProbe2`） | 0 | 证实尾随换行 `"abc\n"` 坐标 `{X=0,Y=32}` 正确、`Clear()` 后中文选区字体保持 `Microsoft YaHei UI`；同时**实证复现 `LC-UI-INPUT-009-P1-1`**（`"MMMMMM"` `12 -> 2`、`"中中中中"` `13 -> 0`） |
+
+### 2. 未验证边界（仍不得视为通过，后续需实机确认）
+
+- 真实 Windows 桌面 100% / 125% / 150% DPI 下点击主界面各区域的防闪烁目测与主题色竖条光标闪烁观感；
+- 真实中文输入法（IME，如微软拼音/搜狗）预编辑组合态及退格删表情手感；
+- Linux Electron 桌面与 Linux ARM64 / x86_64 ELF 实机（本轮仅改动 Windows 端与测试夹具）。
+
+---
+
+# LC-UI-INPUT-009 — 执行记录（输入框去占位符、主题色竖条光标、全窗防闪烁、高度调整、原子删表情与字体恢复）
+
+- **任务编号**：`LC-UI-INPUT-009`
+- **任务主题**：去除加号键与放大工具图标、高度调整为 214/188、去预览文字、主题色竖条光标、全窗防闪烁、原子删除表情、恢复 Microsoft YaHei UI 字体及 Emoji 面板悬停框
+- **执行日期**：2026-11-26
+- **状态**：`WAITING_FOR_GROK`（以下为执行者记录，等待独立审核）
+
+## 一、改动清单
+
+1. **去除加号键、工具图标 1.5 倍放大、输入区高度调整（-40px 后为 214/188）与 Emoji 面板悬停框**
+   - `src/MainForm.Designer.cs`、`src/MainForm.cs`、`src/MainForm.Chat.cs`：移除 `_btnToolSendFile` 及 `ShowInputPlusContextMenu()`，5 枚快捷工具按钮热区扩至 `48×48` 并设置 `WeChatIconButton.IconScale = 1.5f`；`BottomSendPanelBaseHeight` 调整为 `214`（输入胶囊 `188px`）。
+   - `src/UI/Controls/WeChatButtons.cs`：新增 `IconScale` 属性围绕按钮中心应用 GDI+ 等比缩放。
+   - `src/UI/Controls/ChatEmojiPicker.cs`：鼠标悬停与键盘聚焦绘制 `GrokTheme.Level3Hot` 底衬 + `1.5px` `GrokTheme.Accent` 圆角方框，并切换 `Cursors.Hand`。
+2. **去除输入框预览文字 + 主题色闪烁竖条光标**
+   - `src/MainForm.Designer.cs`：移除 `_inputPanel.Paint` 中的 `_inputPlaceholder` 绘制，`_txtInput` 始终保持 `Visible = true`。
+   - `src/UI/Controls/ChatInputBox.cs`：通过 `HideCaret` 隐藏系统原生反色细线光标，内置 530ms `Timer` 在 `DrawThemeCaret` 中绘制 2px 整数像素对齐的 `GrokTheme.Accent` 主题色竖条光标（兼容 `WM_PAINT` 的 `WParam` 离屏 DC、`WM_PRINT` 与 `GetDC` 路径）。
+3. **消除主界面点击闪烁与全局闪烁风险排查**
+   - `src/MainForm.Designer.cs`：将 `_searchHeaderPanel`、`_searchBoxContainer`、`_leftBottomBar`、`winCtrlPanel`、`_bottomSendPanel`、`_inputPanel` 全部升级为 `DoubleBufferedPanel`（含 `WS_CLIPCHILDREN` 与 `WM_ERASEBKGND` 拦截）；移除 `GotFocus`/`LostFocus`/`MouseDown`/`TextChanged`/`OnActiveSessionChanged` 中冗余的 `_inputPanel.Invalidate()` 与 `_txtInput.Visible` 切换。
+   - `src/MainForm.Tray.cs`：`ClearActiveChatUnread()` 仅在实际清除了未读数时才刷新 `_listSessions`。
+   - `src/UI/Controls/WeChatChatView.cs`：在 `WndProc` 拦截 `WM_ERASEBKGND`（`0x0014`）；`src/UI/Controls/ChatEmojiPicker.cs`：标题栏与分组标签改为 `DoubleBufferedPanel`。
+4. **原子删除内置表情与恢复老版本字体**
+   - `src/UI/Controls/ChatInputBox.cs`：在 `ProcessCmdKey` 中拦截 `Backspace`/`Delete` 并通过 `DeleteTokenRange`（以 `WM_SETREDRAW` 冻结重绘后一次性 `Select` + `SelectedText = string.Empty`）整枚删除内置表情令牌，彻底消除先露 `[名称]` 再删除的两步视觉闪烁。
+   - `src/UI/Controls/ChatInputBox.cs`：设置 `LanguageOption = RichTextBoxLanguageOptions.AutoKeyboard`，并在 `OnHandleCreated` 通过 `EM_GETLANGOPTIONS`/`EM_SETLANGOPTIONS`（`0x0479`/`0x0478`）清除 `IMF_AUTOFONT | IMF_DUALFONT | IMF_AUTOFONTSIZEADJUST`，阻止 RichEdit 在输入中文时自动切换为宋体，恢复与老版本一致的 `Microsoft YaHei UI`。
+
+## 二、验证命令与结果
+
+| 验证命令 | 退出码 | 实测结果 |
+| --- | :---: | --- |
+| `cmd /c "Tools\Scripts\Compile.bat < NUL"` | 0 | Windows 原生 `csc.exe` 编译 `release\LanChat.exe` 与 `release\uninstall.exe` 成功 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests\chat_composer_regression.ps1` | 0 | 全部 8 组回归通过（含禁用宋体、`PrintWindow` 主题色竖条光标、214/188 布局、`DoubleBufferedPanel` 类型、48×48/1.5x 工具按钮、Backspace/Delete 整枚删除表情断言） |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests\friend_refresh_regression.ps1` | 0 | `Native Windows compile: ok` 及全部好友刷新/侧栏/组合表情/草稿回归通过 |
+| `git diff --check` | 0 | 无空白错误（仅有 Git LF→CRLF 提示） |
+
+## 三、未验证边界（未跑环境）
+
+- 真实 Windows 桌面 100%/125%/150% DPI 下点击主界面各区域的无闪烁目测、主题色竖条光标实际闪烁观感、中文输入法（IME）预编辑与删除体感仍需实机确认；
+- Linux Electron 桌面与 Linux ARM64/x86_64 ELF 未在本轮运行（本轮仅修改 Windows 客户端代码与回归夹具）。
+
+---
+
 # LC-UI-INPUT-008 — Round 2 独立复审（通过：P1-1 ~ P1-4 与 P2-1 已全部闭环）
 
 - **任务编号**：`LC-UI-INPUT-008`

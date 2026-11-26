@@ -444,13 +444,18 @@ namespace LanChat
         /// </summary>
         public void ClearActiveChatUnread()
         {
+            int beforeUnread = GetTotalUnreadCount();
             if (_sessionPresenter != null)
             {
                 _sessionPresenter.ClearActiveChatUnread();
             }
-            if (_listSessions != null) _listSessions.Invalidate();
-            CheckAndClearGlobalNotifications();
-            UpdateTrayTooltipText();
+            // 仅在实际清除了未读数时才重绘列表与托盘状态，避免每次点击界面都触发全表重绘
+            if (GetTotalUnreadCount() != beforeUnread)
+            {
+                if (_listSessions != null) _listSessions.Invalidate();
+                CheckAndClearGlobalNotifications();
+                UpdateTrayTooltipText();
+            }
         }
 
         /// <summary>

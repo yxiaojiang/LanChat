@@ -1,18 +1,18 @@
 # Plan.md — 当前活跃计划
 
-> 2026-11-25 · `LC-UI-INPUT-008` Round 2 已获 Gemini 独立审核 `APPROVED`；`v2.0.25` 发布候选包准备中。历史完成项见 `Plan-archive.md`。
+> 2026-11-26 · `LC-UI-INPUT-010` Windows 宿主机回归通过；Linux 功能差异已完成源码审计；`v2.0.26` 发布链路准备中。历史完成项见 `Plan-archive.md`。
 
 ## 当前活跃事项
 
-- [ ] 完成本轮 `v2.0.25` Windows/Linux 候选包校验、提交、push 与 GitHub Release。
-- [ ] 进行真实 Windows 多 DPI/中文输入法、Linux Xorg/Wayland/XWayland 与 Linux ELF 现场验收。
-- [ ] 进行真实双机新旧版本互通、截图工具/Excel/WPS 粘贴及长时间稳定性验收。
+- [ ] 完成 `v2.0.26` Windows/Linux 候选包校验、提交、push 与 GitHub Release。
+- [ ] 由 Gemini 按 Linux 差异矩阵制定同步计划：托盘/通知/检查更新维护入口，以及关闭恢复语义。
+- [ ] 完成 Linux ELF、Xorg/Wayland/XWayland、fcitx5/ibus、多 DPI、双架构升级回退和真实双机 LAN 现场验收。
 
 ## 当前发布基线
 
-- 版本：`v2.0.25`（发布候选包）
-- 审核：`LC-UI-INPUT-008` Round 2 `APPROVED`
-- 上一正式版本：`v2.0.24`
+- 版本：`v2.0.26`（发布候选包）
+- 审核：`LC-UI-INPUT-010` Round 3 `APPROVED`
+- 上一正式版本：`v2.0.25`
 - 更新日志：`CHANGELOG.md`
 - 审核记录：`CRDocs/STATUS.md`、`CRDocs/REVIEW.md`、`CRDocs/IMPLEMENTATION.md`
 - 延期边界：`CRDocs/DEFERRED.md`

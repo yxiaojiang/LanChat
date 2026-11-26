@@ -61,13 +61,13 @@ def start_action(action, payload):
     environment = os.environ.copy()
     if action == "link":
         environment["LANCHAT_RUN_AFTER_LINK"] = "Y" if payload.get("launchAfterLink") is True else "N"
-        command = [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", f'call "{script}"']
+        command = [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", "call", str(script)]
         encoding = "mbcs"
     elif action == "publish":
-        command = [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", f'call "{script}"']
+        command = [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", "call", str(script)]
         encoding = "mbcs"
     elif action == "compile":
-        command = [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", f'call "{script}"']
+        command = [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", "call", str(script)]
         encoding = "mbcs"
     else:
         command = [sys.executable, str(SCRIPTS_DIR / "BuildLinuxDeb.py")]

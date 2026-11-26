@@ -198,9 +198,9 @@ namespace LanChat
             }
         }
 
-        private Panel CreateTitleBar()
+        private DoubleBufferedPanel CreateTitleBar()
         {
-            var title = new Panel { Location = new Point(0, 0), Size = new Size(Width, 52), BackColor = GrokTheme.Level2 };
+            var title = new DoubleBufferedPanel { Location = new Point(0, 0), Size = new Size(Width, 52), BackColor = GrokTheme.Level2 };
             title.Paint += (sender, e) =>
             {
                 using (Font font = GrokTheme.UiFont(10.5f, FontStyle.Bold))
@@ -210,9 +210,9 @@ namespace LanChat
             return title;
         }
 
-        private Panel CreateSectionLabel(string text, int top)
+        private DoubleBufferedPanel CreateSectionLabel(string text, int top)
         {
-            var label = new Panel { Location = new Point(12, top), Size = new Size(Width - 24, 28), BackColor = GrokTheme.Level2 };
+            var label = new DoubleBufferedPanel { Location = new Point(12, top), Size = new Size(Width - 24, 28), BackColor = GrokTheme.Level2 };
             label.Paint += (sender, e) =>
             {
                 using (Font font = GrokTheme.UiFont(9.5f))
@@ -240,12 +240,18 @@ namespace LanChat
             grid.MouseMove += (sender, e) =>
             {
                 int index = FindCell(grid, entries, e.Location);
+                grid.Cursor = index >= 0 ? Cursors.Hand : Cursors.Default;
                 if (all ? index == _allHover : index == _recentHover) return;
                 if (all) _allHover = index; else _recentHover = index;
                 _tip.SetToolTip(grid, index >= 0 ? entries[index] : null);
                 grid.Invalidate();
             };
-            grid.MouseLeave += (sender, e) => { if (all) _allHover = -1; else _recentHover = -1; grid.Invalidate(); };
+            grid.MouseLeave += (sender, e) =>
+            {
+                grid.Cursor = Cursors.Default;
+                if (all) _allHover = -1; else _recentHover = -1;
+                grid.Invalidate();
+            };
             grid.MouseClick += (sender, e) =>
             {
                 if (e.Button == MouseButtons.Left)
@@ -304,7 +310,8 @@ namespace LanChat
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
             using (var background = new SolidBrush(GrokTheme.Level2))
-            using (var selected = new SolidBrush(GrokTheme.Level3))
+            using (var hoverFill = new SolidBrush(GrokTheme.Level3Hot))
+            using (var hoverBorder = new Pen(Color.FromArgb(200, GrokTheme.Accent), 1.5f))
             using (var font = new Font("Segoe UI Emoji", 16f))
             {
                 e.Graphics.FillRectangle(background, e.Bounds);
@@ -312,8 +319,15 @@ namespace LanChat
                 {
                     int index = first + i;
                     Rectangle cell = new Rectangle(i * Cell, e.Bounds.Top, Cell, Cell);
-                    if (index == hover || (grid.Focused && e.Index == grid.SelectedIndex && index == Math.Min(entries.Length - 1, first + column)))
-                        MainForm.DrawRoundedRectangle(e.Graphics, selected, Rectangle.Inflate(cell, -2, -2), 10);
+                    bool isKeyboardFocus = hover < 0 && grid.Focused && e.Index == grid.SelectedIndex &&
+                        index == Math.Min(entries.Length - 1, first + column);
+                    if (index == hover || isKeyboardFocus)
+                    {
+                        // 鼠标悬停或键盘聚焦时绘制圆角小方框（亮底 + 1.5px 强调色边框），确保选中态清晰可辨。
+                        Rectangle box = Rectangle.Inflate(cell, -2, -2);
+                        MainForm.DrawRoundedRectangle(e.Graphics, hoverFill, box, 8);
+                        MainForm.DrawRoundedRectangle(e.Graphics, hoverBorder, box, 8);
+                    }
                     Bitmap image = FindImage(entries[index]);
                     if (image != null) e.Graphics.DrawImage(image, Rectangle.Inflate(cell, -8, -8));
                     else TextRenderer.DrawText(e.Graphics, entries[index], font, cell, GrokTheme.TextPrimary,

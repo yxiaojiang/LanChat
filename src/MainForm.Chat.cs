@@ -78,7 +78,6 @@ namespace LanChat
             CheckAndClearGlobalNotifications();
 
             _lblChatTitle.Text = titleText;
-            _inputPlaceholder = placeholder;
             if (_chatView != null)
             {
                 _chatView.ShowGroupSenderName = showGroupSender;
@@ -88,7 +87,6 @@ namespace LanChat
             RefreshAttachmentDraft();
 
             if (_chatHeader != null) _chatHeader.Invalidate();
-            if (_inputPanel != null) _inputPanel.Invalidate();
             if (_listSessions != null) _listSessions.Invalidate();
         }
 
@@ -380,8 +378,6 @@ namespace LanChat
             {
                 _btnSendWave.IsActive = hasText;
             }
-            if (_inputPanel != null) _inputPanel.Invalidate();
-            if (_bottomSendPanel != null) _bottomSendPanel.Invalidate();
         }
 
         private void TxtInput_KeyDown(object sender, KeyEventArgs e)
@@ -448,7 +444,7 @@ namespace LanChat
 
         private void ShowEmojiPopup()
         {
-            Control anchor = _btnToolEmoji ?? _btnToolSendFile ?? (Control)this;
+            Control anchor = _btnToolEmoji ?? (Control)this;
             ChatEmojiPicker.Open(this, anchor, token =>
             {
                 _txtInput.Visible = true;

@@ -1,3 +1,152 @@
+# LC-UI-INPUT-010 — Round 3 P1-2 整改执行记录
+
+> 2026-11-26 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 本记录是执行者交接，不是独立审核结论
+> 工程：`D:/TEmp/LanChat`
+
+## 本轮范围
+
+只处理 Round 2 独立复审剩余的唯一问题 `LC-UI-INPUT-010-P1-2`。不修改已通过的 P1-1/P2-1，不修改 `GetMessageText()`、LANC 封包、JSONL 历史、Linux 代码或旧版互通路径。
+
+## 实际改动
+
+1. `src/UI/Controls/ChatInputBox.cs`
+   - 在 `ApplyMinimumParagraphLineSpacing()` 调用 `EM_SETPARAFORMAT` 前增加 `Select(0, TextLength);`，确保 RichEdit 全部段落而非仅当前光标所在段落应用正文最小行距。
+   - 该选择仍处于既有 `WM_SETREDRAW(0)` 和 `_normalizingEmojiTokens` 保护内，归一化结束时由原有 `finally` 恢复用户选区与插入点。
+
+2. `tests/ChatComposerRegression.cs`
+   - 新增 `input.Text = "第一行\n[敲打]\n第三行"` 回归场景，显式将光标保持在首行索引 `0`，不移至末尾或第二行。
+   - 断言第 2 行纯表情到第 3 行文字的行距不小于 `Math.Floor(lineHeight)`，并通过离屏像素确认第 3 行文字未被第 2 行擦除。
+
+## 兼容性与行数门禁
+
+- P1-1、P2-1 本轮未改动；`GetMessageText()`、LANC/JSONL、网络协议和 Linux 代码均未改动。
+- `src/UI/Controls/ChatInputBox.cs`：904 行；`tests/ChatComposerRegression.cs`：917 行，均低于 1000 行软门禁和 1500 行硬上限。
+- 本轮新增注释均为中文。
+
+## 实际验证
+
+| 命令 | 结果 |
+| --- | --- |
+| `cmd.exe /d /s /c "call Tools\\Scripts\\Compile.bat < nul"` | 退出码 0；Windows 原生 `csc.exe` 编译成功。 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 退出码 0；新增非首行纯表情段落行距/像素断言及既有聊天回归全部通过。 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 退出码 0；好友刷新、侧栏、组合表情、会话草稿及联合聊天回归通过。 |
+| `git diff --check` | 退出码 0；无空白错误，仅有 Git 的 LF→CRLF 提示。 |
+
+## 未验证边界
+
+- 真实 Windows 100%/125%/150% DPI 窗口目测、真实中文 IME 预编辑现场手感、Linux Xorg/Wayland/XWayland、Linux/ELF 实跑和真实双机 LAN 仍未验证，继续按 `CRDocs/DEFERRED.md` 保留。
+
+## Round 3 交接
+
+请独立审核者按 `CRDocs/RULES.md` 读取 `CRDocs/STATUS.md`、`CRDocs/REVIEW.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`，重点核对全段选择是否发生在 `EM_SETPARAFORMAT` 之前，以及首行光标下非首行纯表情的行距和像素证据。审核结束后必须保留全部历史并回写 `CRDocs/REVIEW.md`、`CRDocs/STATUS.md`；只有独立审核者可以写入 `APPROVED`。
+
+---
+
+# LC-UI-INPUT-010 — Round 2 P1 整改执行记录
+
+> 2026-11-26 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 本记录是执行者交接，不是独立审核结论
+> 工程：`D:/TEmp/LanChat`
+
+## 本轮范围
+
+按 `CRDocs/REVIEW.md` 顶部 Round 1 独立审核打回项，修复 `LC-UI-INPUT-010-P1-1`、`LC-UI-INPUT-010-P1-2`，并顺手完成 `LC-UI-INPUT-010-P2-1`。不修改 `GetMessageText()`、LANC 封包、JSONL 历史字段、Linux 代码或旧版互通路径。
+
+## 实际改动
+
+1. **`LC-UI-INPUT-010-P1-1`：正文和插入点字体恢复**
+   - `NormalizeEmojiTokenFormatting()` 先将整段 RichEdit 恢复为控件主字体 `Font`，因此普通正文以及已被压缩字体污染的失效令牌（例如 `[敲1打]`）都会回到 `11pt Microsoft YaHei UI`；随后仅对有效内置表情令牌应用紧凑字体。
+   - 在无选区恢复插入点时显式设置 `SelectionFont = Font`，覆盖“表情后继续输入”继承左侧压缩格式的路径；有效令牌的目标字体已匹配时跳过重复格式写入。
+   - 新增 `WM_SETREDRAW(0)/(1)` 格式化保护、归一化期间 `SelectionChanged` 抑制，以及 `WM_IME_STARTCOMPOSITION` / `WM_IME_ENDCOMPOSITION` 跟踪；中文 IME 预编辑期间只记录待处理状态，组合结束后再统一归一化。
+
+2. **`LC-UI-INPUT-010-P1-2`：纯表情行最小行距与绘制边界**
+   - 通过 RichEdit `EM_SETPARAFORMAT` + `PFM_LINESPACING` 为所有段落设置不低于当前正文 `Font.GetHeight()` 的行距（按 twips 传入），纯表情行不再因令牌压缩而坍塌。
+   - `DrawEmojiPaint()` 继续只擦除当前令牌所在的 RichEdit 行矩形；在行距恢复后，`[敲打]\n第二行文字` 与 `[敲打]\n[敲打]` 的行间距不小于正文行高，图片和擦除区域不侵入下一行。
+
+3. **`tests/ChatComposerRegression.cs` 回归补充**
+   - 增加插入表情后继续键入 `Hi`、正文-表情-正文 `Wo` 的 `11pt Microsoft YaHei UI` 断言。
+   - 增加破坏 `[敲打]` 为 `[敲1打]` 后原压缩字符恢复 `11pt` 的断言。
+   - 增加两种纯表情换行的 RichEdit 行距断言及离屏像素断言，确认第二行文字/表情未被第一行擦除或遮挡。
+
+## 兼容性与行数门禁
+
+- `GetMessageText()` 仍返回原始 `[表情名]`（只剥离既有 `\uFFFC`）；未修改 `Models.cs`、`NetworkService*.cs`、传输协议魔数、Type 1/Type 2 字段顺序、确认字节或 JSONL 历史格式。
+- `src/UI/Controls/ChatInputBox.cs`：902 行；`tests/ChatComposerRegression.cs`：904 行，均低于 1000 行软门禁和 1500 行硬上限。
+- 本轮新增和调整注释均为中文。
+
+## 实际验证
+
+| 命令 | 结果 |
+| --- | --- |
+| `cmd.exe /d /s /c "call Tools\\Scripts\\Compile.bat < nul"` | 退出码 0；Windows 原生 `csc.exe` 编译成功。 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 退出码 0；字体恢复、纯表情行距/像素、PrintWindow、RichEdit 坐标、剪贴板、LANC/JSONL、附件及既有聊天回归通过。 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 退出码 0；好友刷新、侧栏、组合表情、会话草稿及联合聊天回归通过。 |
+| `git diff --check` | 退出码 0；无空白错误，仅有 Git 的 LF→CRLF 提示。 |
+
+## 未验证边界
+
+- 尚未在真实 Windows 100%/125%/150% DPI 窗口目测输入文字/表情基线、图片尺寸和鼠标命中。
+- 尚未在微软拼音、搜狗等真实中文 IME 预编辑环境验证现场手感；本轮仅完成 Win32 IME 消息延迟逻辑与宿主机回归。
+- 本轮未修改 Linux/ELF 或网络协议；Linux Xorg/Wayland/XWayland、Linux ELF 实跑和真实双机 LAN/旧版互通仍未验证，继续按 `CRDocs/DEFERRED.md` 保留。
+
+## 交接审核重点
+
+请独立审核者按 `CRDocs/RULES.md` 完整读取 `CRDocs/STATUS.md`、`CRDocs/REVIEW.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`，直接核对 `ChatInputBox` 实际代码、RichEdit 段落行距、表情后输入字体、失效令牌恢复、纯表情换行像素与协议/历史调用链。审核结束后必须保留历史并回写 `CRDocs/REVIEW.md` 与 `CRDocs/STATUS.md`，只有独立审核者可以写入 `APPROVED`。
+
+---
+
+# LC-UI-INPUT-010 — 输入框内联表情基线与占位修复执行记录
+
+> 2026-11-26 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 本记录是执行者交接，不是独立审核结论
+> 工程：`D:/TEmp/LanChat`
+
+## 本轮范围
+
+处理用户反馈的两个 Windows 输入框问题：内置表情与正文垂直视觉不一致，以及表情令牌占位过宽、图片下方露出原始白色令牌。保留现有协议和历史格式，不修改 LANC 封包、JSONL 字段或 Linux 代码。
+
+## 实际改动
+
+1. `src/UI/Controls/ChatInputBox.cs`
+   - 新增 `NormalizeEmojiTokenFormatting()`：识别有效内置表情令牌后，仅压缩 RichEdit 该选区的显示字体，使其 advance width 接近表情图片宽度；`Text` 原文、字符索引、选区和发送文本仍保持 `[表情名]`。
+   - 在句柄创建、字体变化、文本变化和插入表情后重新归一化，使用当前控件 Graphics 的行高测量，避免重复编辑或 DPI/字号变化导致占位漂移。
+   - 表情图片尺寸从 `lineHeight - 1` 调整为与 11pt 正文更接近的 `lineHeight - 4`（最低 16px）；叠绘时擦除完整 RichEdit 行高，而不是只擦图片高度，消除原始令牌下半截残留。
+   - 自动折行的表情不再将图片居中到整行剩余宽度，避免行尾表情出现异常巨大占位。
+2. `tests/ChatComposerRegression.cs`
+   - 增加 `[敲打]` 输入令牌 advance width 断言，要求同一行内占位为 16~24px，防止回退到原始令牌宽度。
+   - 保留并复跑现有 `PrintWindow`、RichEdit 坐标、滚动、选区、粘贴、LANC/JSONL、附件及布局回归。
+
+## 兼容性判断
+
+- 只调整 RichEdit 显示层的选区字体和 GDI+ 叠绘，不替换底层文本，不改变 `GetMessageText()` 返回内容。
+- 未修改 `Models.cs`、`NetworkService*.cs`、传输协议魔数、Type 1/Type 2 字段顺序、确认字节或 JSONL 历史格式。
+- 相关手写源码行数：`ChatInputBox.cs` 760 行，`ChatComposerRegression.cs` 816 行，均低于 1000 行软门禁和 1500 行硬上限。
+
+## 实际验证
+
+| 命令 | 结果 |
+| --- | --- |
+| `cmd.exe /d /s /c "call D:\\TEmp\\LanChat\\Tools\\Scripts\\Compile.bat < nul"` | 退出码 0；Windows 原生 `csc.exe` 编译 `LanChat.exe` 与 `uninstall.exe` 成功 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 退出码 0；新增表情紧凑占位断言、PrintWindow、输入框坐标/选区/滚动、剪贴板、LANC/JSONL、附件和既有聊天回归全部通过 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 退出码 0；好友刷新、侧栏、组合表情、会话草稿与联合聊天回归通过 |
+| `git diff --check` | 退出码 0；无空白错误，仅有 Git 的 LF→CRLF 提示 |
+
+## 未验证边界
+
+- 尚未在真实 Windows 100%/125%/150% DPI 窗口中目测输入文字/表情基线、缩放后的实际图片尺寸和鼠标命中。
+- 尚未验证微软拼音/搜狗等中文 IME 预编辑状态下插入、删除和表情令牌格式重算的体感。
+- 本轮未修改 Linux/ELF，不宣称 Linux Xorg/Wayland/XWayland 或 Linux 实机通过；真实双机互通仍按 `DEFERRED.md` 保留。
+
+## 交接审核重点
+
+请 Gemini 独立核对：
+
+1. `NormalizeEmojiTokenFormatting()` 是否只改变有效表情令牌的显示字体，是否会破坏普通文字字体、选区、光标、删除、复制和 IME 输入。
+2. 表情令牌压缩后 `GetPositionFromCharIndex()` 的起止坐标、自动折行和多枚连续表情是否仍稳定，且表情实际 advance width 不再使用 `[名称]` 原始宽度。
+3. `DrawEmojiPaint()` 的完整行高擦除是否只覆盖当前令牌区域，未擦掉相邻正文；图片尺寸和垂直位置是否与 11pt Microsoft YaHei UI 正文保持一致。
+4. 句柄创建、FontChanged、TextChanged、插入表情和多行滚动路径是否存在重入、资源泄漏或选区丢失。
+5. 协议/历史兼容、文件行数门禁、宿主机回归证据和未验证边界是否准确；若发现 P0/P1，请在 `REVIEW.md` 写明复现条件、分级和修复要求，并保持 `STATUS.md` 为打回状态。
+
+---
+
 # LC-UI-INPUT-008 — Round 1 独立审核整改执行记录
 
 > 2026-11-25 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 本记录是整改交接，不是独立审核结论

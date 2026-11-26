@@ -1,3 +1,27 @@
+# 当前任务 — LC-UI-INPUT-010
+
+- **状态**：`APPROVED`（当前开发与 Windows 宿主机回归范围放行）
+- **主题**：输入框内置表情与正文基线对齐、表情令牌紧凑占位、清除原始令牌残留
+- **日期**：2026-11-26；**执行者**：Codex（Round 1–3）；**独立审核者**：Gemini（Round 3 独立复审通过）
+- **报告**：[Round 3 独立复审（通过）](REVIEW.md#lc-ui-input-010--round-3-独立复审通过p1-1p1-2-与-p2-1-已全部闭环) · [Round 3 整改执行记录](REVIEW.md#lc-ui-input-010--round-3-整改执行记录等待独立复审) · [Round 2 独立复审（打回）](REVIEW.md#lc-ui-input-010--round-2-独立复审结论继续打回p1-1-已闭环p1-2-多段落-em_setparaformat-漏选全部段落) · [Round 1 独立审核（打回）](REVIEW.md#lc-ui-input-010--round-1-独立审核结论打回存在-2-项-p1-阻断缺陷) · [实施与验证](IMPLEMENTATION.md) · [待现场验收](DEFERRED.md)
+- **一句话结论**：Round 1/2 全部问题（`LC-UI-INPUT-010-P1-1`、`LC-UI-INPUT-010-P1-2`、`LC-UI-INPUT-010-P2-1`）已复核 `RESOLVED`：表情令牌紧凑占位（`18px`）与正文/插入点/破坏令牌 `11pt Microsoft YaHei UI` 恢复成立，`ApplyMinimumParagraphLineSpacing()` 在 `EM_SETPARAFORMAT` 前已执行 `Select(0, TextLength)`（探针复验首行光标下 `"第一行\n[敲打]\n第三行"` `delta23 = 19 >= 18.63`，零越界擦除）；`GetMessageText()`、LANC/JSONL 与旧版互通零破坏，`ChatInputBox.cs`（904 行）与 `ChatComposerRegression.cs`（917 行）均低于 1000 行软门禁，4 项宿主机命令与独立探针全部退出码 `0`。
+- **未验证边界**：真实 Windows 100%/125%/150% DPI 窗口目测、真实中文 IME 预编辑手感、Linux Xorg/Wayland/XWayland、Linux/ELF 与真实双机 LAN 仍未验证，继续保留于 [DEFERRED.md](DEFERRED.md)。
+- **下一步**：`LC-UI-INPUT-010` 当前开发与 Windows 宿主机回归范围已闭环；由用户决定提交变更/打包发布，或安排 [DEFERRED.md](DEFERRED.md) 中的真实 Windows 多 DPI / 中文 IME 现场验收，或开启下一项开发任务（注意 `ChatInputBox.cs` 904 行、`ChatComposerRegression.cs` 917 行已接近 1000 行软门禁，后续新增功能前须先评估拆分）。
+
+---
+
+# 当前任务 — LC-UI-INPUT-009
+
+- **状态**：`APPROVED`（当前开发与 Windows 宿主机回归范围放行）
+- **主题**：输入框去预览文字、主题色竖条光标、全窗防闪烁、高度 214/188、原子删表情与恢复老版本字体
+- **日期**：2026-11-26；**执行者**：Antigravity（Round 1 整改）；**独立审核者**：Antigravity（Round 2 独立复审通过）
+- **报告**：[Round 2 独立复审（通过）](REVIEW.md#lc-ui-input-009--round-2-独立复审通过p1-1-与-p2-1-已全部闭环) · [Round 1 整改执行记录](REVIEW.md#lc-ui-input-009--round-1-整改执行记录p1-1-与-p2-1-已修复) · [Round 1 独立审核结论（打回）](REVIEW.md#lc-ui-input-009--round-1-独立审核结论打回主题光标熄灭分支擦除正文像素) · [待现场验收](DEFERRED.md)
+- **一句话结论**：Round 1 全部问题（`LC-UI-INPUT-009-P1-1`、`LC-UI-INPUT-009-P2-1`）已复核 `RESOLVED`：`DrawThemeCaret` 在 `!_caretVisible` 时直接 `return`，`_caretTimer.Tick` 与 `LostFocus` 改用 `Rectangle.Inflate(_lastCaretRect, 1, 1)` 局部失效还原原字形（探针实测 `"MMMMMM"` `12==12`、`"中中中中"` `13==13` 零擦除），死代码 `_inputPlaceholder`/`KillFocusMessage` 已清理且注释同步为 `2px`；LANC/JSONL 零破坏，全部改动文件 `< 1000` 行，编译、两套宿主机回归、`git diff --check` 与独立探针全部退出码 `0`。
+- **未验证边界**：真实 Windows 桌面多 DPI 点击防闪烁与光标目测、中文 IME 预编辑手感、Linux/ELF 实机仍未验证。
+- **下一步**：`LC-UI-INPUT-009` 当前开发与 Windows 宿主机回归范围已闭环；由用户决定提交变更/打包发布，或安排真实 Windows 多 DPI/中文 IME 与 Linux/ELF 现场验收，或开启下一项开发任务。
+
+---
+
 # 当前任务 — LC-UI-INPUT-008
 
 - **状态**：`APPROVED`（当前开发与 Windows 宿主机回归范围放行）

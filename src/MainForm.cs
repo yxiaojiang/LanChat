@@ -100,8 +100,8 @@ namespace LanChat
         /// <summary>GitHub 开源仓库标识</summary>
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
         private const string BROADCAST_TARGET = "📢 局域网全员群聊";
-        // 底部输入区包含 128px 多行胶囊、上方留白和底部工具栏留白。
-        private const int BottomSendPanelBaseHeight = 154;
+        // 底部输入区包含 188px 多行胶囊、上方留白(4px)和底部留白(22px)。
+        private const int BottomSendPanelBaseHeight = 214;
 
         // ==========================================
         // 核心服务与业务控制器依赖
@@ -498,19 +498,6 @@ namespace LanChat
             }
         }
 
-        /// <summary>弹出输入框左侧 (+) 附件与快捷功能暗黑菜单</summary>
-        private void ShowInputPlusContextMenu()
-        {
-            GrokPopupMenu menu = new GrokPopupMenu();
-            menu.AddItem("选择并发送文件...", WeChatIconType.Folder, () => BtnSendFile_Click(this, EventArgs.Empty))
-                .AddItem("插入 Emoji 表情...", WeChatIconType.Emoji, () => ShowEmojiPopup())
-                .AddItem("打开接收文件夹", WeChatIconType.Folder, () => OpenReceivedFolder())
-                .AddSeparator()
-                .AddItem("清空当前对话记录", WeChatIconType.Clear, () => ClearCurrentChat(), null, true);
-
-            menu.Show(_btnToolSendFile, new Point(0, -210));
-        }
-
         /// <summary>即时应用主界面主题、强调色与字体，并重新排版聊天正文。</summary>
         public void ApplyAppearanceSettings()
         {
@@ -524,8 +511,6 @@ namespace LanChat
             _attachmentList.BackColor = GrokTheme.Level05;
             _btnSearchToggle.FillColor = GrokTheme.Level2;
             _btnSearchToggle.HoverFillColor = GrokTheme.Level3Hot;
-            _btnToolSendFile.FillColor = GrokTheme.InputPlus;
-            _btnToolSendFile.HoverFillColor = GrokTheme.Surface(56, 56, 62);
             _btnToolEmoji.HoverFillColor = GrokTheme.Surface(56, 56, 62);
             _btnToolBox.HoverFillColor = GrokTheme.Surface(56, 56, 62);
             _btnToolFolder.HoverFillColor = GrokTheme.Surface(56, 56, 62);
@@ -549,27 +534,27 @@ namespace LanChat
         /// </summary>
         private void LayoutInputPanel()
         {
-            if (_inputPanel == null || _txtInput == null || _btnSendWave == null || _btnToolSendFile == null) return;
+            if (_inputPanel == null || _txtInput == null || _btnSendWave == null) return;
 
             int w = _inputPanel.Width;
             int h = _inputPanel.Height;
             int sendSize = 44;
-            int plusSize = 38;
-            int toolbarY = h - plusSize - 10;
+            // 底部快捷工具图标按钮统一放大 1.5 倍（32 -> 48），横向步进 54px（含 6px 间距）
+            int toolSize = 48;
+            int toolStep = 54;
+            int toolbarY = h - toolSize - 10;
 
-            _btnToolSendFile.Size = new Size(plusSize, plusSize);
-            _btnToolSendFile.Location = new Point(13, toolbarY);
-            if (_btnToolEmoji != null) _btnToolEmoji.Location = new Point(58, toolbarY + 3);
-            if (_btnToolBox != null) _btnToolBox.Location = new Point(94, toolbarY + 3);
-            if (_btnToolFolder != null) _btnToolFolder.Location = new Point(130, toolbarY + 3);
-            if (_btnToolScissors != null) _btnToolScissors.Location = new Point(166, toolbarY + 3);
-            if (_btnToolClear != null) _btnToolClear.Location = new Point(202, toolbarY + 3);
+            if (_btnToolEmoji != null) { _btnToolEmoji.Size = new Size(toolSize, toolSize); _btnToolEmoji.Location = new Point(14, toolbarY); }
+            if (_btnToolBox != null) { _btnToolBox.Size = new Size(toolSize, toolSize); _btnToolBox.Location = new Point(14 + toolStep, toolbarY); }
+            if (_btnToolFolder != null) { _btnToolFolder.Size = new Size(toolSize, toolSize); _btnToolFolder.Location = new Point(14 + toolStep * 2, toolbarY); }
+            if (_btnToolScissors != null) { _btnToolScissors.Size = new Size(toolSize, toolSize); _btnToolScissors.Location = new Point(14 + toolStep * 3, toolbarY); }
+            if (_btnToolClear != null) { _btnToolClear.Size = new Size(toolSize, toolSize); _btnToolClear.Location = new Point(14 + toolStep * 4, toolbarY); }
 
-            _txtInput.Location = new Point(60, 10);
-            _txtInput.Height = Math.Max(42, h - 58);
+            _txtInput.Location = new Point(18, 10);
+            _txtInput.Height = Math.Max(42, toolbarY - _txtInput.Top - 6);
             _btnSendWave.Size = new Size(sendSize, sendSize);
-            _btnSendWave.Location = new Point(w - sendSize - 10, toolbarY - 3);
-            _txtInput.Width = Math.Max(60, _btnSendWave.Left - _txtInput.Left - 16);
+            _btnSendWave.Location = new Point(w - sendSize - 12, toolbarY + (toolSize - sendSize) / 2);
+            _txtInput.Width = Math.Max(60, w - _txtInput.Left - 18);
             _inputPanel.Invalidate();
         }
 

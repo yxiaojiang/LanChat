@@ -81,6 +81,17 @@ namespace LanChat
             this.Resize += (s, e) => { RecalculateLayout(true); Invalidate(); };
         }
 
+        /// <summary>拦截 WM_ERASEBKGND，确保滚动或缩放时无白底闪烁。</summary>
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == 0x0014) // WM_ERASEBKGND
+            {
+                m.Result = (IntPtr)1;
+                return;
+            }
+            base.WndProc(ref m);
+        }
+
         /// <summary>
         /// 获取当前生效的聊天消息排版字体（结合用户设置的字体家族与字号大小）
         /// </summary>

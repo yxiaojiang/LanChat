@@ -4,6 +4,14 @@
 
 ---
 
+## LC-UI-INPUT-010-ENV-001 [OPEN] 输入框内联表情真实 DPI/IME 现场验收
+
+- **来源轮次**：`LC-UI-INPUT-010`，2026-11-26。
+- **位置**：`src/UI/Controls/ChatInputBox.cs`、`tests/ChatComposerRegression.cs`。
+- **现状**：Windows 原生编译、`PrintWindow`/RichEdit 坐标回归、表情紧凑占位断言和好友刷新联合回归均通过；尚未在真实 Windows 100%/125%/150% DPI 窗口目测表情基线、图片尺寸、鼠标命中及中文 IME 预编辑。
+- **触发阶段**：`LC-UI-INPUT-010` Gemini 独立审核通过后进行 Windows 桌面现场验收。
+- **验收条件**：连续表情、正文前后夹带表情、自动折行行尾表情在 100%/125%/150% DPI 下均与 11pt 正文共用视觉基线；表情无额外大段空白或原始令牌残留；普通输入、选区、复制、退格/Delete、Enter 发送、Shift+Enter 换行及微软拼音/搜狗 IME 预编辑均正常。
+
 ## LC-UI-INPUT-008-ENV-001 [OPEN] 输入区与设置页真实窗口验收
 
 - **来源轮次**：`LC-UI-INPUT-008`，2026-11-25。

@@ -15,7 +15,7 @@ namespace LanChat
         // Left Column Hero & Bottom Controls
         private Control _btnAvatar;
         private Panel _heroProfilePanel;
-        private Panel _leftBottomBar;
+        private DoubleBufferedPanel _leftBottomBar;
         private Button _btnBottomUser;
         private WeChatIconButton _btnRefreshFriends;
         private WeChatNavButton _btnNavChat;
@@ -26,8 +26,8 @@ namespace LanChat
         private WeChatNavButton _btnNavMenu;
 
         // Sessions Column Controls
-        private Panel _searchHeaderPanel;
-        private Panel _searchBoxContainer;
+        private DoubleBufferedPanel _searchHeaderPanel;
+        private DoubleBufferedPanel _searchBoxContainer;
         private TextBox _txtSearch;
         private WeChatIconButton _btnSearchClear;
         private WeChatIconButton _btnSearchToggle;
@@ -53,7 +53,6 @@ namespace LanChat
         private Panel _toolPanel; // 兼容占位（方案 A 工具栏已移除）
         private WeChatIconButton _btnToolEmoji; // 胶囊内 Emoji 快捷按钮
         private WeChatIconButton _btnToolBox; // 打开接收文件夹
-        private WeChatIconButton _btnToolSendFile; // 胶囊内 (+) 附件圆钮
         private WeChatIconButton _btnToolScissors; // 启动系统截图
         private WeChatIconButton _btnToolMic; // 预留语音入口，当前不展示
         private WeChatIconButton _btnToolCall; // 兼容占位
@@ -61,13 +60,12 @@ namespace LanChat
         private WeChatIconButton _btnToolClear; // 清空当前对话
         private Label _lblAutoAccept;
 
-        private Panel _inputPanel;
+        private DoubleBufferedPanel _inputPanel;
         private ChatInputBox _txtInput;
-        private Panel _bottomSendPanel;
+        private DoubleBufferedPanel _bottomSendPanel;
         private Label _lblSendTip;
         private Button _btnSend; // 兼容占位（发送改由 _btnSendWave）
         private WeChatIconButton _btnSendWave; // 魅紫 ↑ 发送圆钮
-        private string _inputPlaceholder = "给 局域网全员群聊 发消息";
 
         private void InitializeComponent()
         {
@@ -118,7 +116,7 @@ namespace LanChat
             };
 
             // 1.1 Top Search Action Row (Height: 60px) - Search Bar & Button occupy whole row
-            _searchHeaderPanel = new Panel
+            _searchHeaderPanel = new DoubleBufferedPanel
             {
                 Dock = DockStyle.Top,
                 Height = 60,
@@ -126,7 +124,7 @@ namespace LanChat
             };
             _searchHeaderPanel.MouseDown += DragWindow_MouseDown;
 
-            _searchBoxContainer = new Panel
+            _searchBoxContainer = new DoubleBufferedPanel
             {
                 Location = new Point(16, 9),
                 Size = new Size(330, 42),
@@ -219,7 +217,7 @@ namespace LanChat
             _btnAvatar = _heroProfilePanel;
 
             // 1.3 Bottom 3-Part Action Bar ([用户圆钮] [连接节点胶囊] [↑蓝圆钮]) (Height: 84px)
-            _leftBottomBar = new Panel
+            _leftBottomBar = new DoubleBufferedPanel
             {
                 Dock = DockStyle.Bottom,
                 Height = 84,
@@ -376,7 +374,7 @@ namespace LanChat
             _chatHeader.Resize += (s, e) => _chatHeader.Invalidate();
 
             // Window control buttons at top-right (— □ ×) (恢复为标准 56x64 尺寸，紧贴右上角)
-            Panel winCtrlPanel = new Panel
+            DoubleBufferedPanel winCtrlPanel = new DoubleBufferedPanel
             {
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 Location = new Point(_chatHeader.Width - 168, 0),
@@ -430,16 +428,16 @@ namespace LanChat
             };
             _chatView.OnFileActionClick += HandleFileActionClick;
 
-            // 2.4 微信式底部输入区：扩大 Y 轴编辑空间，快捷操作固定在底部工具栏。
-            _bottomSendPanel = new Panel
+            // 2.4 微信式底部输入区：扩大 Y 轴编辑空间，快捷操作固定在底部工具栏（全双缓冲防闪烁）。
+            _bottomSendPanel = new DoubleBufferedPanel
             {
                 Dock = DockStyle.Bottom,
-                Height = BottomSendPanelBaseHeight, // 上 4 + 胶囊 128 + 底 22
+                Height = BottomSendPanelBaseHeight, // 上 4 + 胶囊 188 + 底 22
                 BackColor = Color.FromArgb(18, 18, 18), // #121212 与聊天视口同色，呈浮动感
                 Padding = new Padding(28, 4, 28, 22)
             };
 
-            _inputPanel = new Panel
+            _inputPanel = new DoubleBufferedPanel
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(18, 18, 18)
@@ -447,7 +445,6 @@ namespace LanChat
             _inputPanel.Paint += (s, e) => {
                 Graphics g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
-                GrokTheme.PrepareSoftText(g);
                 Rectangle pillRect = new Rectangle(0, 0, _inputPanel.Width - 1, _inputPanel.Height - 1);
                 int radius = 18; // 多行输入区使用矩形圆角，避免底部按钮切出边框。
                 using (SolidBrush bg = new SolidBrush(GrokTheme.Level2))
@@ -456,22 +453,10 @@ namespace LanChat
                     DrawRoundedRectangle(g, bg, pillRect, radius);
                     DrawRoundedRectangle(g, border, pillRect, radius);
                 }
-
-                // 空输入时绘制占位符；占位区域与真实 RichEdit 的上内边距保持一致。
-                if (_txtInput != null && string.IsNullOrEmpty(_txtInput.GetMessageText()))
-                {
-                    using (Font pf = GrokTheme.UiFont(11.0f))
-                    {
-                        GrokTheme.DrawUiTextLeft(g, _inputPlaceholder, pf, GrokTheme.TextPlaceholder,
-                            64, 16, Math.Max(40, _inputPanel.Width - 64 - 56), 20);
-                    }
-                }
             };
             _inputPanel.Cursor = Cursors.IBeam;
             _inputPanel.MouseDown += (s, e) => {
-                _txtInput.Visible = true;
                 _txtInput.Focus();
-                _inputPanel.Invalidate();
                 if (e.Button == MouseButtons.Right)
                     _txtInput.ShowContextMenuAt(_inputPanel.PointToScreen(e.Location));
             };
@@ -479,63 +464,53 @@ namespace LanChat
             _inputPanel.DragEnter += MainForm_DragEnter;
             _inputPanel.DragDrop += MainForm_DragDrop;
 
-            // 左侧 (+) 按钮保留菜单入口，同时将菜单中的常用操作展开到下方工具栏。
-            _btnToolSendFile = new WeChatIconButton(WeChatIconType.Add, "附件与快捷操作 (点击打开菜单)", 36)
-            {
-                Location = new Point(14, 14),
-                IsCircle = true,
-                FillColor = Color.FromArgb(42, 42, 46), // #2A2A2E
-                HoverFillColor = Color.FromArgb(56, 56, 62), // #38383E
-                IconColor = Color.FromArgb(160, 160, 165) // #A0A0A5
-            };
-            _btnToolSendFile.Click += (s, e) => ShowInputPlusContextMenu();
-            _btnToolSendFile.MouseUp += (s, e) => {
-                if (e.Button == MouseButtons.Right)
-                {
-                    ShowInputPlusContextMenu();
-                }
-            };
-            _btnToolEmoji = new WeChatIconButton(WeChatIconType.Emoji, "插入 Emoji 表情", 32)
+            // 底部快捷工具栏按钮（已展开常用功能，去除冗余加号键；图标及热区等比放大 1.5 倍）
+            _btnToolEmoji = new WeChatIconButton(WeChatIconType.Emoji, "插入 Emoji 表情", 48)
             {
                 FillColor = Color.Transparent,
                 HoverFillColor = Color.FromArgb(56, 56, 62),
-                IconColor = Color.FromArgb(190, 190, 196)
+                IconColor = Color.FromArgb(190, 190, 196),
+                IconScale = 1.5f
             };
             _btnToolEmoji.Click += (s, e) => ShowEmojiPopup();
 
-            _btnToolBox = new WeChatIconButton(WeChatIconType.Box, "打开接收文件夹", 32)
+            _btnToolBox = new WeChatIconButton(WeChatIconType.Box, "打开接收文件夹", 48)
             {
                 FillColor = Color.Transparent,
                 HoverFillColor = Color.FromArgb(56, 56, 62),
-                IconColor = Color.FromArgb(190, 190, 196)
+                IconColor = Color.FromArgb(190, 190, 196),
+                IconScale = 1.5f
             };
             _btnToolBox.Click += (s, e) => OpenReceivedFolder();
 
-            _btnToolFolder = new WeChatIconButton(WeChatIconType.Folder, "选择并发送文件", 32)
+            _btnToolFolder = new WeChatIconButton(WeChatIconType.Folder, "选择并发送文件", 48)
             {
                 FillColor = Color.Transparent,
                 HoverFillColor = Color.FromArgb(56, 56, 62),
-                IconColor = Color.FromArgb(190, 190, 196)
+                IconColor = Color.FromArgb(190, 190, 196),
+                IconScale = 1.5f
             };
             _btnToolFolder.Click += (s, e) => BtnSendFile_Click(this, EventArgs.Empty);
 
-            _btnToolScissors = new WeChatIconButton(WeChatIconType.Scissors, "启动屏幕截图", 32)
+            _btnToolScissors = new WeChatIconButton(WeChatIconType.Scissors, "启动屏幕截图", 48)
             {
                 FillColor = Color.Transparent,
                 HoverFillColor = Color.FromArgb(56, 56, 62),
-                IconColor = Color.FromArgb(190, 190, 196)
+                IconColor = Color.FromArgb(190, 190, 196),
+                IconScale = 1.5f
             };
             _btnToolScissors.Click += (s, e) => TriggerScreenshot();
 
-            _btnToolClear = new WeChatIconButton(WeChatIconType.Clear, "清空当前对话记录", 32)
+            _btnToolClear = new WeChatIconButton(WeChatIconType.Clear, "清空当前对话记录", 48)
             {
                 FillColor = Color.Transparent,
                 HoverFillColor = Color.FromArgb(56, 56, 62),
-                IconColor = Color.FromArgb(190, 190, 196)
+                IconColor = Color.FromArgb(190, 190, 196),
+                IconScale = 1.5f
             };
             _btnToolClear.Click += (s, e) => ClearCurrentChat();
 
-            // 多行无边框输入框：固定格式区上内边距，避免插入表情后文字整体上移。
+            // 多行无边框输入框：始终保持可见，避免焦点切换时显隐抖动；固定格式区上内边距，避免插入表情后文字整体上移。
             _txtInput = new ChatInputBox
             {
                 Multiline = true,
@@ -547,24 +522,16 @@ namespace LanChat
                 BorderStyle = BorderStyle.None,
                 ScrollBars = RichTextBoxScrollBars.None,
                 WordWrap = true,
-                Location = new Point(60, 10),
+                Location = new Point(18, 10),
                 Width = 500,
-                Height = 70,
-                Visible = false,
+                Height = 114,
+                Visible = true,
                 AllowDrop = true
             };
             _txtInput.KeyDown += TxtInput_KeyDown;
             _txtInput.TextChanged += TxtInput_TextChanged;
             _txtInput.FilesPasted += StageClipboardFiles;
             _txtInput.ImagePasted += StageClipboardImage;
-            _txtInput.LostFocus += (s, e) => {
-                if (string.IsNullOrEmpty(_txtInput.GetMessageText())) _txtInput.Visible = false;
-                _inputPanel.Invalidate();
-            };
-            _txtInput.GotFocus += (s, e) => {
-                _txtInput.Visible = true;
-                _inputPanel.Invalidate();
-            };
             _txtInput.DragEnter += MainForm_DragEnter;
             _txtInput.DragDrop += MainForm_DragDrop;
 
@@ -584,7 +551,6 @@ namespace LanChat
 
             _inputPanel.Resize += (s, e) => LayoutInputPanel();
 
-            _inputPanel.Controls.Add(_btnToolSendFile);
             _inputPanel.Controls.Add(_btnToolEmoji);
             _inputPanel.Controls.Add(_btnToolBox);
             _inputPanel.Controls.Add(_btnToolFolder);
@@ -694,7 +660,7 @@ namespace LanChat
                     _btnBottomUser.Top + (_btnBottomUser.Height - _btnRefreshFriends.Height) / 2);
             }
 
-            // 4. 右侧微信式浮动输入胶囊（高 128 / 左右 28 / 底 22）。
+            // 4. 右侧微信式浮动输入胶囊（高 188 / 左右 28 / 底 22）。
             if (_bottomSendPanel != null)
             {
                 _bottomSendPanel.Padding = new Padding(28, 4, 28, 22);

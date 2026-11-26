@@ -1,6 +1,6 @@
 # Windows.md — Windows 客户端模块上下文
 
-> 2026-11-25 · LC-UI-INPUT-008 Round 2 已独立审核通过，`v2.0.25` 发布候选包准备中。组合 Emoji 的整段 GDI+ 测量/绘制、128px 多行输入区、`EM_SETRECTNP` 生命周期、PrintWindow 截图回归、原生构建和回环 Win32 交互隔离回归均通过；真实多机 LAN、实际 DPI、中文输入法、系统截图粘贴和 TUN 路由仍待现场验收。
+> 2026-11-26 · LC-UI-INPUT-010 追加修复已通过 Windows 宿主机回归，`v2.0.25` 发布候选包准备中。RichEdit 4.1 离屏合成、PNG 可见区域两倍高度、正文基线稳定、表情点击边界和原生编译均通过；真实多机 LAN、实际 DPI、中文输入法、系统截图粘贴和 TUN 路由仍待现场验收。
 
 ## 模块定位与职责
 Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装、无外部依赖、支持 MSI 标准向导安装与绿色单文件执行**的现代化桌面应用。
@@ -49,6 +49,12 @@ Windows 桌面客户端，采用原生 C# WinForms 开发，定位为**零安装
 - `ChatInputBox` 使用 RichEdit `EM_SETRECTNP` 固定格式区域内边距，避免插入表情令牌后原生文本行纵向漂移；普通 Enter 发送，Shift+Enter 换行。
 - `SettingsPanelBase` 提供统一 `SettingTitleOffset=7` 与 `SettingDescriptionOffset=32`，各 Windows 设置页的双行条目统一增加上下留白；关于页文案收敛为局域网即时通讯/文件协作描述，落款为 `2026 yangjiang`。Linux 桌面设置 CSS 与关于页同步文案/间距。
 - Gemini Round 2 已确认 4 项 P1 与 P2-1 RESOLVED；Windows 原生 `Compile.bat`、聊天/好友回归、Linux `settings-pages.js` `node --check`、Linux UI 模拟回归与 `git diff --check` 均通过。仍需在实际 DPI 和真实桌面窗口中目测输入框、表情坐标与工具栏命中区域。
+
+### LC-UI-INPUT-010 表情实际像素对齐与光标收敛（2026-11-26）
+
+- `ChatInputBox` 选用系统 `RICHEDIT50W`，`RichEditPaint` 通过 TOM 查询文字基线和行底，在同一离屏帧中绘制 RichEdit 文字、表情和主题色光标；原生白色 caret 在绘制前后隐藏。
+- 表情令牌只调整紧凑字号和宽度，不写入 `SelectionCharOffset`，避免插入和删除令牌改变正文基线；PNG 非透明区域按目标高度放大，图片可见底边按正文基线下方两个逻辑像素贴合。
+- 鼠标左键释放后检查插入点，落在 `[名称]` 内部时自动收拢到令牌左侧或右侧。回归覆盖表情令牌点击、插入删除基线、PrintWindow 和切会话输入区布局。
 
 ### LC-CC-007 内置表情包与微信比例选择器（2026-11-25）
 

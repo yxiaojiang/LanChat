@@ -171,6 +171,8 @@ namespace LanChat
         private bool _isActive = true;
         private Color _disabledFillColor = Color.FromArgb(44, 44, 50);
         private Color _disabledIconColor = Color.FromArgb(115, 115, 122);
+        // 矢量图标绘制倍率（默认 1.0f，用于工具栏等需要等比放大的场景）
+        private float _iconScale = 1.0f;
 
         /// <summary>获取或设置矢量图标类型</summary>
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
@@ -266,6 +268,22 @@ namespace LanChat
         {
             get { return _tooltipText; }
             set { _tooltipText = value; }
+        }
+
+        /// <summary>获取或设置矢量图标缩放倍率（围绕按钮中心等比缩放，最小 0.5f）</summary>
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public float IconScale
+        {
+            get { return _iconScale; }
+            set
+            {
+                float clamped = value < 0.5f ? 0.5f : value;
+                if (Math.Abs(_iconScale - clamped) > 0.001f)
+                {
+                    _iconScale = clamped;
+                    Invalidate();
+                }
+            }
         }
 
         /// <summary>
@@ -394,10 +412,25 @@ namespace LanChat
 
             // 3. 图标前景色与居中几何缩放绘制
             Color ic = !_isActive ? _disabledIconColor : ((_isHovered || _isPressed) ? Color.White : _iconColor);
-            // 圆纽内边距缩进 ~22%，确保搜索圆纽与加号圆纽视觉张力完全契合 Alis 设计规范
+            // 圆纽内边距缩进 ~22%，确保搜索圆纽视觉张力契合设计规范
             int pad = _isCircle ? Math.Max(6, this.Width * 22 / 100) : 0;
             Rectangle iconRect = new Rectangle(pad, pad, this.Width - pad * 2, this.Height - pad * 2);
-            WeChatIcon.Draw(g, _iconType, iconRect, false, ic);
+            if (Math.Abs(_iconScale - 1.0f) > 0.001f)
+            {
+                // 围绕图标绘制中心应用等比矢量缩放，避免影响全局图标默认尺寸
+                GraphicsState state = g.Save();
+                float cx = iconRect.X + iconRect.Width / 2f;
+                float cy = iconRect.Y + iconRect.Height / 2f;
+                g.TranslateTransform(cx, cy);
+                g.ScaleTransform(_iconScale, _iconScale);
+                g.TranslateTransform(-cx, -cy);
+                WeChatIcon.Draw(g, _iconType, iconRect, false, ic);
+                g.Restore(state);
+            }
+            else
+            {
+                WeChatIcon.Draw(g, _iconType, iconRect, false, ic);
+            }
         }
     }
 

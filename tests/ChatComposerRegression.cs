@@ -188,16 +188,103 @@ namespace LanChat
 
                 Require(input.Controls.Count == 0, "输入框不应创建覆盖子控件");
                 Require(input.MaxLength == 32767 && input.Multiline && input.WordWrap, "输入框多行或长度契约错误");
+                Require(input.LanguageOption == RichTextBoxLanguageOptions.AutoKeyboard, "输入框未禁用自动切换宋体");
+                Require(string.Equals(input.SelectionFont.Name, "Microsoft YaHei UI", StringComparison.OrdinalIgnoreCase),
+                    "输入框中文选区字体未保持 Microsoft YaHei UI：" + input.SelectionFont.Name);
                 RequireNativeTextRect(input, "创建后");
                 Require(input.GetMessageText() == "Hello [敲打] World", "输入框未保持原始令牌");
+                RequireFontRange(input, 0, 6, 11f, "表情前正文");
+                RequireFontRange(input, input.Text.IndexOf("World", StringComparison.Ordinal), 5, 11f, "表情后正文");
+                int emojiStart = input.Text.IndexOf("[敲打]", StringComparison.Ordinal);
+                Point emojiBegin = input.GetPositionFromCharIndex(emojiStart);
+                Point emojiEnd = input.GetPositionFromCharIndex(emojiStart + "[敲打]".Length);
+                float scale = input.DeviceDpi / 96f;
+                int imageSize = (int)Math.Round(2 * Math.Max(16 * scale, input.Font.GetHeight(input.DeviceDpi) - 4 * scale));
+                Require(emojiBegin.Y == emojiEnd.Y && emojiEnd.X - emojiBegin.X >= imageSize &&
+                    emojiEnd.X - emojiBegin.X <= imageSize + 8 * scale,
+                    string.Format("输入框表情占位与两倍图片宽度不匹配：{0}", emojiEnd.X - emojiBegin.X));
+
+                // LC-UI-INPUT-010-P1-1：表情后的插入点和后续正文必须回到 11pt 主字体。
+                input.Clear();
+                input.InsertEmoji("[敲打]");
+                RequireFontRange(input, input.TextLength, 0, 11f, "插入表情后的插入点");
+                input.SelectedText = "Hi";
+                RequireFontRange(input, input.TextLength - 2, 2, 11f, "插入表情后继续输入正文");
+
+                input.Text = "你好";
+                input.SelectionStart = input.TextLength;
+                int plainBaselineY = input.GetPositionFromCharIndex(0).Y;
+                input.InsertEmoji("[敲打]");
+                Require(input.GetPositionFromCharIndex(0).Y == plainBaselineY, "插入表情改变了正文基线");
+                input.SelectedText = "Wo";
+                RequireFontRange(input, 0, 2, 11f, "正文到表情前");
+                RequireFontRange(input, input.Text.IndexOf("Wo", StringComparison.Ordinal), 2, 11f, "正文到表情后");
+                input.Select(input.Text.IndexOf("Wo", StringComparison.Ordinal), 0);
+                Require((bool)typeof(ChatInputBox).GetMethod("ProcessCmdKey", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .Invoke(input, new object[] { Message.Create(input.Handle, 0, IntPtr.Zero, IntPtr.Zero), Keys.Back }),
+                    "删除表情的回归入口未命中");
+                Require(input.GetPositionFromCharIndex(0).Y == plainBaselineY, "删除表情后正文基线发生变化");
+
+                input.Text = "你好[敲打]世界";
+                int brokenStart = input.Text.IndexOf("[敲打]", StringComparison.Ordinal);
+                input.Select(brokenStart + 2, 0);
+                input.SelectedText = "1";
+                Require(input.Text == "你好[敲1打]世界", "破坏表情令牌的编辑结果错误");
+                RequireFontRange(input, brokenStart, "[敲1打]".Length, 11f, "破坏表情令牌后的原压缩字符");
+
+                // LC-UI-INPUT-010-P1-2：纯表情段落也必须保留正文行高，不能擦到下一行。
+                input.Text = "[敲打]\n第二行文字";
+                input.SelectionStart = input.TextLength;
+                Application.DoEvents();
+                Point firstRow = input.GetPositionFromCharIndex(0);
+                int secondRowIndex = input.Text.IndexOf("第二", StringComparison.Ordinal);
+                Point secondRow = input.GetPositionFromCharIndex(secondRowIndex);
+                float lineHeight;
+                using (Graphics measure = input.CreateGraphics()) lineHeight = input.Font.GetHeight(measure);
+                Require(secondRow.Y - firstRow.Y >= (int)Math.Floor(lineHeight),
+                    string.Format("纯表情行行高坍塌：delta={0}, lineHeight={1:0.00}", secondRow.Y - firstRow.Y, lineHeight));
+                using (var pureEmojiCanvas = CapturePrintWindow(input))
+                    Require(HasBrightPixel(pureEmojiCanvas, 0, pureEmojiCanvas.Width, secondRow.Y,
+                        secondRow.Y + (int)Math.Ceiling(lineHeight)), "纯表情行擦除或遮挡了第二行文字");
+
+                input.Text = "第一行\n[敲打]\n第三行";
+                input.Select(0, 0);
+                Application.DoEvents();
+                Point nonFirstEmojiRow = input.GetPositionFromCharIndex("第一行\n".Length);
+                Point nonFirstTextRow = input.GetPositionFromCharIndex("第一行\n[敲打]\n".Length);
+                Require(nonFirstTextRow.Y - nonFirstEmojiRow.Y >= (int)Math.Floor(lineHeight),
+                    string.Format("非首行纯表情行行高坍塌：delta={0}, lineHeight={1:0.00}",
+                        nonFirstTextRow.Y - nonFirstEmojiRow.Y, lineHeight));
+                using (var nonFirstEmojiCanvas = CapturePrintWindow(input))
+                    Require(HasBrightPixel(nonFirstEmojiCanvas, 0, nonFirstEmojiCanvas.Width, nonFirstTextRow.Y,
+                        nonFirstTextRow.Y + (int)Math.Ceiling(lineHeight)),
+                        "非首行纯表情擦除或遮挡了第三行文字");
+
+                input.Text = "[敲打]\n[敲打]";
+                input.SelectionStart = input.TextLength;
+                Application.DoEvents();
+                Point secondEmojiRow = input.GetPositionFromCharIndex("[敲打]\n".Length);
+                Require(secondEmojiRow.Y - input.GetPositionFromCharIndex(0).Y >= (int)Math.Floor(lineHeight),
+                    "连续纯表情行行高不足正文行高");
+                using (var twoEmojiCanvas = CapturePrintWindow(input))
+                    Require(HasEmojiPixel(twoEmojiCanvas, 0, twoEmojiCanvas.Width, secondEmojiRow.Y,
+                        secondEmojiRow.Y + (int)Math.Ceiling(lineHeight)), "第二行纯表情被第一行擦除区域覆盖");
+
+                input.Text = "Hello [敲打] World";
+                input.SelectionStart = input.TextLength;
                 using (var canvas = CapturePrintWindow(input))
                 {
                     Require(CountBlack(canvas) < canvas.Width * canvas.Height / 20, "输入区被绘制为大面积纯黑");
                     Require(HasBrightPixel(canvas, 0, 42), "输入区普通文字不可见");
-                    Require(HasEmojiPixel(canvas, input.GetPositionFromCharIndex(6).X,
-                        input.GetPositionFromCharIndex(13).X), "输入区微信表情未在 RichEdit 坐标绘制");
+                    Point emojiPaintStart = input.GetPositionFromCharIndex(6);
+                    Point emojiPaintEnd = input.GetPositionFromCharIndex(13);
+                    Require(HasEmojiPixel(canvas, emojiPaintStart.X, emojiPaintEnd.X),
+                        string.Format("输入区微信表情未在 RichEdit 坐标绘制 start=({0},{1}) end=({2},{3})",
+                            emojiPaintStart.X, emojiPaintStart.Y, emojiPaintEnd.X, emojiPaintEnd.Y));
                 }
 
+                input.Text = "Hello [敲打] World";
+                input.Select(input.TextLength, 0);
                 Point screenPoint = input.PointToScreen(new Point(10, 10));
                 Require(SendMessage(input.Handle, WmNchittest, IntPtr.Zero, MakeLParam(screenPoint.X, screenPoint.Y)) == (IntPtr)1,
                     "输入框 WM_NCHITTEST 未返回客户区");
@@ -209,6 +296,15 @@ namespace LanChat
                 SendMessage(input.Handle, WmLButtonDown, (IntPtr)1, MakeLParam(worldPosition.X, worldPosition.Y + 8));
                 SendMessage(input.Handle, WmLButtonUp, IntPtr.Zero, MakeLParam(worldPosition.X, worldPosition.Y + 8));
                 Require(input.SelectionStart >= world && input.SelectionStart <= world + 5, "左键点击未定位输入光标");
+                input.Text = "甲[敲打]乙";
+                input.Select(0, 0);
+                Point emojiTokenStart = input.GetPositionFromCharIndex(1);
+                Point emojiTokenEnd = input.GetPositionFromCharIndex(1 + "[敲打]".Length);
+                int emojiMidpoint = emojiTokenStart.X + (emojiTokenEnd.X - emojiTokenStart.X) / 2;
+                SendMessage(input.Handle, WmLButtonDown, (IntPtr)1, MakeLParam(emojiMidpoint, emojiTokenStart.Y + 4));
+                SendMessage(input.Handle, WmLButtonUp, IntPtr.Zero, MakeLParam(emojiMidpoint, emojiTokenStart.Y + 4));
+                Require(input.SelectionStart == 1 || input.SelectionStart == 1 + "[敲打]".Length,
+                    "鼠标点击表情内部不能把插入点放进令牌中");
                 SendMessage(input.Handle, WmRButtonDown, IntPtr.Zero, MakeLParam(worldPosition.X, worldPosition.Y + 8));
                 Require(input.Handle == ChildWindowFromPoint(host.Handle, new Point(input.Left + worldPosition.X, input.Top + worldPosition.Y + 8)),
                     "右键命中未落在输入框");
@@ -313,11 +409,118 @@ namespace LanChat
                     input.Clear();
                     keyArguments[1] = Keys.Shift | Keys.Insert;
                     Require((bool)processKey.Invoke(input, keyArguments), "Shift+Insert 未被输入框接管");
-                    Require(input.Text == "纯文本", "Shift+Insert 未强制转换为纯文本");
+                    Require(input.Text == "纯文本", "Shift+Insert 未强制转换为纯文本：" + input.Text);
                 }
                 finally { Clipboard.Clear(); }
 
+                // 验证退格与 Delete 整枚删除内置表情令牌，不退化为未闭合的 [名称 文本。
+                MethodInfo deleteKey = typeof(ChatInputBox).GetMethod("ProcessCmdKey",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                Message deleteMsg = Message.Create(input.Handle, 0, IntPtr.Zero, IntPtr.Zero);
+                input.Text = "甲[敲打]乙";
+                input.Select(input.Text.IndexOf("乙", StringComparison.Ordinal), 0);
+                Require((bool)deleteKey.Invoke(input, new object[] { deleteMsg, Keys.Back }), "退格未整枚拦截内置表情令牌");
+                Require(input.Text == "甲乙", "退格删除表情后残留令牌字符：" + input.Text);
+
+                input.Text = "甲[敲打]乙";
+                input.Select(1, 0);
+                Require((bool)deleteKey.Invoke(input, new object[] { deleteMsg, Keys.Delete }), "Delete 未整枚拦截内置表情令牌");
+                Require(input.Text == "甲乙", "Delete 删除表情后残留令牌字符：" + input.Text);
+
+                input.Text = "甲[不存在]";
+                input.Select(input.TextLength, 0);
+                Require(!(bool)deleteKey.Invoke(input, new object[] { deleteMsg, Keys.Back }), "非内置表情文本不应被整枚拦截");
+
                 input.Clear();
+                host.Activate();
+                input.Focus();
+                Application.DoEvents();
+                Require(input.Focused, "测试窗口未成功聚焦输入框");
+                int previousAccent = AppSettings.AccentPreset;
+                AppSettings.AccentPreset = 3; // 橙色主题
+                input.Refresh();
+                Application.DoEvents();
+                try
+                {
+                    using (var caretCanvas = CapturePrintWindow(input))
+                    {
+                        Color accent = GrokTheme.Accent;
+                        bool hasThemeCaret = false;
+                        for (int y = 6; y < 32 && !hasThemeCaret; y++)
+                        {
+                            for (int x = 0; x < 12; x++)
+                            {
+                                Color px = caretCanvas.GetPixel(x, y);
+                                if (Math.Abs(px.R - accent.R) <= 25 && Math.Abs(px.G - accent.G) <= 25 && Math.Abs(px.B - accent.B) <= 25)
+                                {
+                                    hasThemeCaret = true;
+                                    break;
+                                }
+                            }
+                        }
+                        Require(hasThemeCaret, "空白输入框聚焦时未绘制主题色竖条光标");
+                    }
+
+                    // LC-UI-INPUT-009-P1-1：正文中间闪烁熄灭时不得用底色擦除紧邻字符像素
+                    FieldInfo caretVisibleField = typeof(ChatInputBox).GetField("_caretVisible", BindingFlags.Instance | BindingFlags.NonPublic);
+                    FieldInfo lastCaretRectField = typeof(ChatInputBox).GetField("_lastCaretRect", BindingFlags.Instance | BindingFlags.NonPublic);
+                    MethodInfo invalidateLastCaret = typeof(ChatInputBox).GetMethod("InvalidateLastCaretRect", BindingFlags.Instance | BindingFlags.NonPublic);
+                    Require(caretVisibleField != null && lastCaretRectField != null && invalidateLastCaret != null, "找不到光标闪烁内部成员");
+                    input.Text = "对齐[敲打]对齐";
+                    input.Select(input.TextLength, 0);
+                    caretVisibleField.SetValue(input, true);
+                    input.Refresh();
+                    using (var caretOn = CapturePrintWindow(input))
+                    {
+                        caretVisibleField.SetValue(input, false);
+                        invalidateLastCaret.Invoke(input, null);
+                        using (var caretOff = CapturePrintWindow(input))
+                        {
+                            Point start = input.GetPositionFromCharIndex("对齐".Length);
+                            Point end = input.GetPositionFromCharIndex("对齐[敲打]".Length);
+                            Require(HasEmojiPixel(caretOff, start.X, end.X), "闪烁期间表情丢失");
+                            for (int y = 0; y < caretOn.Height; y++)
+                                for (int x = start.X; x < end.X; x++)
+                                    Require(caretOn.GetPixel(x, y) == caretOff.GetPixel(x, y), "闪烁重绘改变了表情像素");
+                        }
+                    }
+                    foreach (string sample in new[] { "中中中中", "MMMMMM" })
+                    {
+                        input.Text = sample;
+                        input.Select(2, 0);
+                        host.Activate();
+                        input.Focus();
+                        Application.DoEvents();
+                        caretVisibleField.SetValue(input, true);
+                        input.Refresh();
+                        Application.DoEvents();
+                        Rectangle caretRect = (Rectangle)lastCaretRectField.GetValue(input);
+                        Require(!caretRect.IsEmpty && caretRect.Width == 2, "正文中间未记录 2px 光标矩形：" + sample);
+
+                        caretVisibleField.SetValue(input, false);
+                        invalidateLastCaret.Invoke(input, null);
+                        input.Update();
+                        Application.DoEvents();
+                        using (var offCanvas = CapturePrintWindow(input))
+                        {
+                            int glyphPixels = 0;
+                            for (int y = caretRect.Top; y < caretRect.Bottom; y++)
+                            {
+                                for (int x = caretRect.Left; x < caretRect.Right; x++)
+                                {
+                                    Color px = offCanvas.GetPixel(x, y);
+                                    if (Math.Abs(px.R - input.BackColor.R) > 12 ||
+                                        Math.Abs(px.G - input.BackColor.G) > 12 ||
+                                        Math.Abs(px.B - input.BackColor.B) > 12)
+                                        glyphPixels++;
+                                }
+                            }
+                            Require(glyphPixels > 0, "光标熄灭周期擦除了正文紧邻字符像素：" + sample);
+                        }
+                    }
+                }
+                finally { AppSettings.AccentPreset = previousAccent; }
+
                 input.Text = new string('x', 32767);
                 input.AppendText("z");
                 Require(input.TextLength == 32767, "MaxLength=32767 未限制插入长度");
@@ -328,6 +531,8 @@ namespace LanChat
 
         private static Bitmap CapturePrintWindow(Control control)
         {
+            // 带完整内容标志的 PrintWindow 可以读取已提交的窗口帧，先处理待刷区域。
+            control.Update();
             var bitmap = new Bitmap(control.Width, control.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             bool printed;
             using (Graphics graphics = Graphics.FromImage(bitmap))
@@ -362,9 +567,16 @@ namespace LanChat
 
         private static bool HasBrightPixel(Bitmap bitmap, int left, int right)
         {
+            return HasBrightPixel(bitmap, left, right, 0, bitmap.Height);
+        }
+
+        private static bool HasBrightPixel(Bitmap bitmap, int left, int right, int top, int bottom)
+        {
             left = Math.Max(0, left);
             right = Math.Min(bitmap.Width, right);
-            for (int y = 0; y < bitmap.Height; y++)
+            top = Math.Max(0, top);
+            bottom = Math.Min(bitmap.Height, bottom);
+            for (int y = top; y < bottom; y++)
                 for (int x = left; x < right; x++)
                 {
                     Color pixel = bitmap.GetPixel(x, y);
@@ -375,15 +587,42 @@ namespace LanChat
 
         private static bool HasEmojiPixel(Bitmap bitmap, int left, int right)
         {
+            return HasEmojiPixel(bitmap, left, right, 0, bitmap.Height);
+        }
+
+        private static bool HasEmojiPixel(Bitmap bitmap, int left, int right, int top, int bottom)
+        {
             left = Math.Max(0, left);
             right = Math.Min(bitmap.Width, right);
-            for (int y = 0; y < bitmap.Height; y++)
+            top = Math.Max(0, top);
+            bottom = Math.Min(bitmap.Height, bottom);
+            for (int y = top; y < bottom; y++)
                 for (int x = left; x < right; x++)
                 {
                     Color pixel = bitmap.GetPixel(x, y);
                     if (pixel.R > pixel.B + 25 && pixel.G > 35) return true;
                 }
             return false;
+        }
+
+        private static void RequireFontRange(ChatInputBox input, int start, int length, float expectedSize, string label)
+        {
+            input.Select(start, length);
+            Font font = input.SelectionFont;
+            bool valid = font != null && string.Equals(font.Name, "Microsoft YaHei UI", StringComparison.OrdinalIgnoreCase) &&
+                Math.Abs(font.SizeInPoints - expectedSize) < 0.1f;
+            if (!valid)
+            {
+                string details = string.Empty;
+                for (int index = start; index < start + length; index++)
+                {
+                    input.Select(index, 1);
+                    Font charFont = input.SelectionFont;
+                    details += " [" + index + ":" + (charFont == null ? "null" : charFont.SizeInPoints.ToString("0.00")) + "]";
+                }
+                throw new InvalidOperationException(label + "字体错误：" + (font == null ? "null" : font.Name + " " + font.SizeInPoints.ToString("0.00") + "pt") +
+                    "，控件字体=" + input.Font.Name + " " + input.Font.SizeInPoints.ToString("0.00") + "pt，逐字=" + details);
+            }
         }
 
         private static IntPtr MakeLParam(int x, int y)
@@ -395,7 +634,7 @@ namespace LanChat
         {
             NativeRect rect = new NativeRect();
             SendMessage(input.Handle, EmGetRect, IntPtr.Zero, ref rect);
-            Require(rect.Left == 0 && rect.Top == 6 && rect.Right == input.ClientSize.Width &&
+            Require(rect.Left == 0 && rect.Top == 10 && rect.Right == input.ClientSize.Width &&
                 rect.Bottom == Math.Max(7, input.ClientSize.Height - 4),
                 phase + " 未保持 EM_SETRECTNP 格式矩形");
         }
@@ -413,17 +652,39 @@ namespace LanChat
                 FieldInfo panelField = typeof(MainForm).GetField("_inputPanel", BindingFlags.Instance | BindingFlags.NonPublic);
                 FieldInfo inputField = typeof(MainForm).GetField("_txtInput", BindingFlags.Instance | BindingFlags.NonPublic);
                 FieldInfo emojiField = typeof(MainForm).GetField("_btnToolEmoji", BindingFlags.Instance | BindingFlags.NonPublic);
+                FieldInfo boxField = typeof(MainForm).GetField("_btnToolBox", BindingFlags.Instance | BindingFlags.NonPublic);
+                FieldInfo folderField = typeof(MainForm).GetField("_btnToolFolder", BindingFlags.Instance | BindingFlags.NonPublic);
+                FieldInfo scissorsField = typeof(MainForm).GetField("_btnToolScissors", BindingFlags.Instance | BindingFlags.NonPublic);
+                FieldInfo clearField = typeof(MainForm).GetField("_btnToolClear", BindingFlags.Instance | BindingFlags.NonPublic);
+                FieldInfo plusField = typeof(MainForm).GetField("_btnToolSendFile", BindingFlags.Instance | BindingFlags.NonPublic);
                 FieldInfo draftsField = typeof(MainForm).GetField("_attachmentDrafts", BindingFlags.Instance | BindingFlags.NonPublic);
                 var bottom = (Panel)bottomField.GetValue(form);
                 var panel = (Panel)panelField.GetValue(form);
                 var input = (ChatInputBox)inputField.GetValue(form);
-                var emoji = (Control)emojiField.GetValue(form);
+                var emoji = (WeChatIconButton)emojiField.GetValue(form);
+                var toolButtons = new[]
+                {
+                    emoji,
+                    (WeChatIconButton)boxField.GetValue(form),
+                    (WeChatIconButton)folderField.GetValue(form),
+                    (WeChatIconButton)scissorsField.GetValue(form),
+                    (WeChatIconButton)clearField.GetValue(form)
+                };
                 var drafts = (System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<string>>)draftsField.GetValue(form);
+
+                Require(plusField == null, "输入框加号按钮字段应已移除");
+                Require(bottom is DoubleBufferedPanel && panel is DoubleBufferedPanel, "底部输入区容器必须为 DoubleBufferedPanel 防闪烁");
+                Require(input.Visible, "去掉预览文字后输入框应始终保持可见");
+                foreach (WeChatIconButton btn in toolButtons)
+                {
+                    Require(btn.Width == 48 && btn.Height == 48 && Math.Abs(btn.IconScale - 1.5f) < 0.01f,
+                        "输入区快捷工具按钮未放大 1.5 倍");
+                }
 
                 Action assertLayout = () =>
                 {
-                    Require(bottom.Height >= 154, "输入区底部基准高度被压缩");
-                    Require(panel.Height == 128, "输入胶囊高度未保持 128px");
+                    Require(bottom.Height >= 214, "输入区底部基准高度被压缩");
+                    Require(panel.Height == 188, "输入胶囊高度未保持 188px");
                     Require(input.Bottom <= emoji.Top, "输入框与快捷工具栏发生重叠");
                 };
 
@@ -435,7 +696,7 @@ namespace LanChat
                 drafts[SessionManager.BROADCAST_KEY] = new System.Collections.Generic.List<string> { "附件-广播.txt" };
                 InvokePrivate(form, "RefreshAttachmentDraft");
                 Application.DoEvents();
-                Require(bottom.Height == 154 + 34, "附件草稿刷新未保留输入区基准高度");
+                Require(bottom.Height == 214 + 34, "附件草稿刷新未保留输入区基准高度");
                 assertLayout();
 
                 PropertyInfo activeKey = typeof(MainForm).GetProperty("_activeChatKey", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -446,7 +707,7 @@ namespace LanChat
                 drafts["layout-peer"] = new System.Collections.Generic.List<string> { "附件-私聊.txt" };
                 InvokePrivate(form, "RefreshAttachmentDraft");
                 Application.DoEvents();
-                Require(bottom.Height == 154 + 34, "切换会话后附件草稿刷新压缩了输入区");
+                Require(bottom.Height == 214 + 34, "切换会话后附件草稿刷新压缩了输入区");
                 form.ApplyAppearanceSettings();
                 Application.DoEvents();
                 assertLayout();
