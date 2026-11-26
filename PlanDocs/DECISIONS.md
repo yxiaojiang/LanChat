@@ -181,3 +181,23 @@ OCCT 8.0 在清空环境变量后无隐式资源文件依赖，第 2 步沙盒�
 **待验证**　同名包跨架构升级和回退、真实 Wayland 恢复行为及中文输入、并发同名收件、两架构物理设备与承诺的网络兼容矩阵。
 
 **定稿与执行**　[采纳定稿](LC-LINUX-002/FINAL.md) · [第 2 轮审核](LC-LINUX-002/REVIEW-R2.md) · [采纳状态](LC-LINUX-002/STATUS.md) · [执行计划](../.claude/Plan.md)
+
+---
+
+## LC-LINUX-003（2026-11-26）Windows 当前功能同步到 Linux（V4.0 双端功能统一）
+
+**状态**　`ADOPTED`。Gemini 第 2 轮审核收敛，用户明确采纳第 2 轮提案、第 2 轮审核 4 条护栏，并拍板 **D1=A、D2=A、D3=A**。开发分支为 `codex/v4.0-cross-platform-unification`（基线 `V3.0` / `v2.0.26`）。
+
+**决定**　继续复用共享 C# 网络核心与 `LANC`/`JSONL` 协议，不在 Node.js 重写局域网套接字；全部手写 JS/CSS/C# 文件遵守 1000 行预警、1500 行硬上限与全中文注释规范。
+
+- **D1 = A**：R2 B 类 4 项设置（`TunFilter`、`UnicastProbe`、`AutoLoadHistory`、`SendShortcutMode`）在阶段 3 于 Windows `AppSettings.cs` 与 Linux `LinuxProfile.cs` 使用统一 JSON 键名、保持与现行行为一致的默认值，并同步双端设置面板真实接线持久化。
+- **D2 = A**：轻量“手动输入 IPv4 直连握手（`probe-ip`）”入口放入设置中心“设备连接”页卡片顶部，不改动主窗左侧栏现有视觉布局。
+- **D3 = A**：阶段 2A 交付 214/188px 微信式高输入区外壳、展开工具栏、496×548 表情面板与群聊 1～16 人多选并保留原生 `<textarea>`；阶段 2B 作为独立高风险专项重构 `preload.cjs` 粘贴适配器与 `composer-box.js` 内联 PNG 表情编辑，须通过真实 Linux `fcitx5`/`ibus` 实测（`CP-2B`）后才默认开启并保留一键回退开关。
+- **随采纳生效 4 条护栏**：1）`Ctrl+L` 清空当前聊天必须经过二次确认弹窗；2）阶段 1 查询 D-Bus `org.kde.StatusNotifierWatcher` (`IsStatusNotifierHostRegistered`) 必须使用 `execFile` 固定参数数组与 1500ms 超时，失败/超时按 `false` 保守回退为最小化；3）独立 CLI（`Program.cs`）落盘历史必须共用 `SessionManager.GetLanKey(peerId, peerIp)` / `SessionManager.BROADCAST_KEY`；4）阶段 4 更新复制命令采用单引号包裹规范化绝对路径 `sudo apt install '<normalizedAbsoluteSavePath>'`，且 `CP-0` 在暂缺 Linux 环境时允许保持 `[OPEN]` 不阻塞阶段 1 编码但绝不以宿主机测试核销。
+- **明确不做**：Windows 废弃“新建节点（14 形态）”空壳窗、R2 C 类 4 项（三语 i18n、内置网页预览、接收流 `fs.Flush(true)`、复杂协议通道切换）以及非 root 静默覆盖安装 `.deb`。
+
+**顺序**　阶段 0（基线冻结与测试拆分 + CP-0）→ 阶段 1（托盘/通知/关闭恢复 + A 类开关 + CP-1）→ 阶段 2A（11 色 Bug 修复、probe-ip、LC-FR-007、CLI 历史、群聊 1～16 人多选、解除串行发文件、496×548 表情面板、214/188px 工具栏外壳、Ctrl+F/Ctrl+L）→ 阶段 3（B 类 4 项双端同键接线）→ 阶段 4（Linux 更新检查、嵌套 `SHA256SUMS.json` 校验与 `0o700` 独占下载）→ 阶段 2B（受 `CP-2B` 门禁的内联表情富文本专项）→ 阶段 5（双架构构建与物理实机/真网总验）。
+
+**待验证**　`CP-0`（Linux 命名空间 `v2.0.26` ELF 回归）、`CP-1`（GNOME Xorg/Wayland/XWayland 与银河麒麟 ARM64 D-Bus 托盘与通知点击实测）、`CP-2B`（`fcitx5`/`ibus` 在 `contenteditable` 中的预编辑与粘贴实测）、阶段 5 物理双架构升级回退与真实双机 LAN 互通矩阵。
+
+**定稿与执行**　[采纳定稿](LC-LINUX-003/FINAL.md) · [第 2 轮审核](LC-LINUX-003/REVIEW-R2.md) · [采纳状态](LC-LINUX-003/STATUS.md) · [执行计划](../.claude/Plan.md)

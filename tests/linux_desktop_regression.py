@@ -133,16 +133,16 @@ def settings_regression(executable, bundle, home):
         service.call("save-settings", nickname="accepted", autoAcceptFiles=False)
         result = service.call(
             "save-settings", nickname="accepted", autoAcceptFiles=False, confirmOverride=True,
-            themeMode=2, accentPreset=3, uiFontFamily="SimHei", uiFontSize=12.0,
+            themeMode=2, accentPreset=10, uiFontFamily="SimHei", uiFontSize=12.0,
             chatFontFamily="Consolas", chatFontSize=13.0,
         )
         assert result["settingsPath"] == str(override) and result["autoAcceptFiles"] is False
-        assert result["themeMode"] == 2 and result["accentPreset"] == 3
+        assert result["themeMode"] == 2 and result["accentPreset"] == 10
         assert result["uiFontFamily"] == "SimHei" and result["uiFontSize"] == 12.0
         assert result["chatFontFamily"] == "Consolas" and result["chatFontSize"] == 13.0
         saved = json.loads(override.read_bytes())
         assert saved["Unknown"] is True
-        assert saved["ThemeMode"] == 2 and saved["AccentPreset"] == 3
+        assert saved["ThemeMode"] == 2 and saved["AccentPreset"] == 10
         assert saved["UiFontFamily"] == "SimHei" and saved["UiFontSize"] == 12.0
         assert saved["ChatFontFamily"] == "Consolas" and saved["ChatFontSize"] == 13.0
 
@@ -150,10 +150,20 @@ def settings_regression(executable, bundle, home):
         result = service.call("settings")
         assert result["settingsPath"] == str(override) and result["nickname"] == "accepted"
         assert result["autoAcceptFiles"] is False and original.read_bytes() == backup.read_bytes() == seed
-        assert result["themeMode"] == 2 and result["accentPreset"] == 3
+        assert result["themeMode"] == 2 and result["accentPreset"] == 10
         assert result["uiFontFamily"] == "SimHei" and result["uiFontSize"] == 12.0
         assert result["chatFontFamily"] == "Consolas" and result["chatFontSize"] == 13.0
     print("只读设置备份、取消、确认、外观持久化、锁互斥、重启及原字节通过")
+
+
+def probe_ip_regression(executable, bundle, home):
+    with Service(executable, bundle, home) as service:
+        invalid = service.reply(service.send("probe-ip", ip="300.1.1.1"))
+        assert "无效的 IPv4" in invalid["error"]
+        result = service.call("probe-ip", ip="127.0.0.2")
+        assert result["ok"] is False and "无法连接" in result["message"]
+        service.call("refresh")
+    print("probe-ip 输入校验、异步回执与刷新入口通过；未宣称真实 Linux 实机互通")
 
 
 def transfer_regression(executable, bundle, home):
@@ -411,7 +421,8 @@ def delete_session_regression(executable, bundle, home):
 
 def main():
     executable = str(Path(sys.argv[1]).resolve(strict=True))
-    cases = {"settings": settings_regression, "history": history_regression,
+    cases = {"settings": settings_regression, "probe": probe_ip_regression,
+             "history": history_regression,
              "transfer": transfer_regression, "crash": crash_regression,
              "delete": delete_session_regression}
     selected = sys.argv[2:] or list(cases)

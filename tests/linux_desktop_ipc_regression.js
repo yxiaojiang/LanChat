@@ -260,6 +260,7 @@ async function testPasteLifecycle() {
           });
         }
         isDestroyed() { return false; }
+        isFocused() { return false; }
         removeMenu() {}
         async loadFile() {}
       }
@@ -268,10 +269,17 @@ async function testPasteLifecycle() {
         request(method, args, operation) {
           return new Promise((resolve, reject) => calls.push({ method, args, operation, resolve, reject }));
         }
-        stop() { notifyStopping(); return stopped; }
+        stop() {
+          notifyStopping();
+          for (const call of calls.splice(0)) {
+            if (call.method === 'file') call.reject(new Error('通信服务已断开，操作结果未确认'));
+            else calls.push(call);
+          }
+          return stopped;
+        }
       }
       const electron = {
-        app, BrowserWindow: Window, ipcMain: { handle: (name, handler) => handlers.set(name, handler) },
+        app, BrowserWindow: Window, ipcMain: { handle: (name, handler) => handlers.set(name, handler), on() {} },
         session: { defaultSession: session },
         nativeImage: { createFromBuffer: () => ({
           isEmpty: () => false, toPNG: () => png, getSize: () => ({ width: 1, height: 1 }),
@@ -280,6 +288,10 @@ async function testPasteLifecycle() {
       };
       runInNewContext(source, {
         require: name => name === 'electron' ? electron : name === './service.cjs' ? Service :
+          name === './tray-manager.cjs' ? { createTrayManager: () => ({
+            setSettings() {}, initialize: async () => {}, canHideToTray: () => false,
+            notifyMessage() {}, notifyMinimized() {}, windowRestored() {}, destroy() {}
+          }) } :
           name === './appearance.js' ? {} : require(name),
         __dirname: join(__dirname, '../src/linux/desktop'),
         process: { env: {}, resourcesPath: directory },
@@ -360,8 +372,13 @@ async function testPasteLifecycle() {
         await waitFor(() => finalQuit === 1, '主进程未等待清理后退出');
         if (scenario === '退出时传输未完成') assert.equal(existsSync(path), false);
         else assert.deepEqual(readFileSync(path), png);
-        assert.equal(existsSync(pathOf(queued)), false);
-        assert.equal(existsSync(pathOf(unsent)), false);
+        if (scenario === '后端异常退出') {
+          assert.equal(existsSync(pathOf(queued)), true);
+          assert.equal(existsSync(pathOf(unsent)), false);
+        } else {
+          assert.equal(existsSync(pathOf(queued)), false, `${scenario} queued 未清理`);
+          assert.equal(existsSync(pathOf(unsent)), false, `${scenario} unsent 未清理`);
+        }
         assert.equal(calls.length, 0, '退出后不得继续向后端派发排队附件');
       } else {
         const send = invoke('send-paste', peer.id, [image.id, user.id]);

@@ -145,12 +145,15 @@ h1 { margin: 0; font-size: calc(20pt + var(--ui-font-delta)); font-weight: 700; 
 .attachment button:hover { background: var(--hover); color: var(--text); }
 .status { margin: 0 28px 6px; color: var(--muted); font-size: calc(9.5pt + var(--ui-font-delta)); min-height: 20px; }
 .status.error { color: var(--danger); }
-.compose { min-height: 64px; margin: 0 28px 22px; padding: 8px 10px 8px 14px; border-radius: 32px; border: 1px solid var(--border); background: var(--capsule); display: flex; align-items: center; gap: 14px; }
-.compose-scroll { flex: 1; min-width: 0; }
-.compose textarea { flex: none; width: 100%; height: 23px; min-height: 23px; max-height: 115px; padding: 0 10px 0 0; background: transparent; resize: none; border: 0; font-size: calc(11pt + var(--ui-font-delta)); line-height: 23px; overflow-y: auto; }
+.compose { height: 188px; min-height: 188px; margin: 0 28px 26px; padding: 14px 16px 12px; border-radius: 26px; border: 1px solid var(--border); background: var(--capsule); display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(72px, 1fr) 54px; align-items: center; gap: 8px 12px; }
+/* 外层输入区保持 214px（含底部留白），胶囊本体保持 188px。 */
+.compose-scroll { min-width: 0; min-height: 0; grid-column: 1 / -1; }
+.compose textarea { width: 100%; height: 100%; min-height: 23px; max-height: 115px; padding: 0 10px 0 0; background: transparent; resize: none; border: 0; font-size: calc(11pt + var(--ui-font-delta)); line-height: 23px; overflow-y: auto; }
 .compose textarea:focus-visible { outline: none; }
-.attach { width: 36px; height: 36px; background: var(--input-plus); }
-.attach:hover:not(:disabled) { background: var(--input-plus-hover); }
+.compose-tools { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tool { width: 48px; height: 48px; background: var(--input-plus); }
+.tool:hover:not(:disabled) { background: var(--input-plus-hover); }
+.tool img { width: 24px; height: 24px; }
 .send { width: 44px; height: 44px; background: var(--send-bg); }
 .send:hover:not(:disabled) { background: var(--send-hover); }
 dialog, #menu, #emoji { color: var(--text); background: var(--card); border: 1px solid var(--border); border-radius: 16px; }
@@ -165,11 +168,13 @@ dialog::backdrop { background: #0009; }
 #menu button.danger { color: var(--danger); }
 #menu button.danger:hover:not(:disabled), #menu button.danger:focus-visible { background: var(--danger-bg); color: var(--danger-hot); }
 #menu hr { border: 0; border-top: 1px solid var(--separator); margin: 4px 8px; }
-#emoji { width: min(384px, calc(100vw - 16px)); }
-#emoji-grid { max-height: min(396px, calc(100vh - 28px)); padding: 8px; display: flex; flex-wrap: wrap; align-content: start; }
+#emoji { width: min(496px, calc(100vw - 16px)); height: min(548px, calc(100vh - 16px)); }
+#emoji-grid { height: 100%; padding: 16px; overflow: auto; }
+#emoji-grid h3 { margin: 0 0 8px; color: var(--muted); font-size: 10pt; font-weight: 700; }
+.emoji-section { display: grid; grid-template-columns: repeat(8, 48px); gap: 4px; margin-bottom: 16px; }
 #emoji[hidden], #menu[hidden] { display: none; }
-.emoji { width: 32px; height: 32px; margin: 2px; border-radius: 8px; font: 11pt/32px "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
-.emoji:hover, .emoji:focus-visible { background: var(--hover); }
+.emoji { width: 48px; height: 48px; border: 1.5px solid transparent; border-radius: 8px; font: 16pt/48px "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+.emoji:hover, .emoji:focus-visible { background: var(--hover); border-color: var(--accent); }
 .emoji img { width: 26px; height: 26px; vertical-align: middle; }
 .message-emoji { display: inline-block; position: relative; width: 1.25em; height: 1.25em; color: transparent; vertical-align: -.24em; overflow: hidden; white-space: nowrap; }
 .message-emoji img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
@@ -181,6 +186,7 @@ h2 { margin: 0 0 12px; font-size: 18pt; font-weight: 700; color: #fff; }
 .recipients-host { max-height: 45vh; margin-bottom: 16px; }
 #recipients { display: grid; gap: 6px; padding-right: 10px; }
 #recipients button { min-height: 44px; text-align: start; }
+#recipients button[aria-pressed="true"] { background: var(--selection); border-color: var(--accent); }
 #settings-title { font-size: 14pt; }
 #settings-form { display: grid; gap: 12px; }
 #settings-nickname { background: var(--capsule); border: 1px solid var(--border); border-radius: 16px; padding: 6px 12px; }

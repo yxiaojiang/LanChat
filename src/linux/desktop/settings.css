@@ -244,6 +244,39 @@ body.settings-body {
   gap: 16px;
 }
 
+.device-probe-row {
+  align-items: flex-start;
+}
+
+.device-probe-controls {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 430px;
+}
+
+.settings-text-input {
+  width: 176px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--capsule);
+}
+
+.settings-text-input:focus {
+  outline: 1px solid var(--accent);
+}
+
+.device-probe-status {
+  flex-basis: 100%;
+  color: var(--muted);
+  text-align: right;
+}
+
+.device-probe-status.error {
+  color: var(--danger);
+}
+
 .pill-dropdown {
   min-height: 32px;
   height: 32px;

@@ -1,3 +1,27 @@
+﻿# 当前任务 — LC-LINUX-003（阶段 2A · 低风险核心功能同步与现存缺陷修复，含 D2 = A）
+
+- **状态**：`APPROVED`（仅代表 Windows 宿主机编译、源码审查与静态/桩回归验证范围放行；Linux 实机与 ELF 运行环境仍未验证）
+- **日期**：2026-11-26；**分支**：`codex/v4.0-cross-platform-unification`；**执行者**：Codex（Round 1 整改）；**独立审核者**：Antigravity（Round 2 独立复审通过）
+- **范围**：仅 `.claude/Plan.md` 阶段 2A.1～2A.6；未进入 2B、阶段 3 或阶段 4。
+- **一句话结论**：Round 1 全部 2 项 P0（`LC-LINUX-003-2A-P0-1`、`P0-2`）、4 项 P1（`P1-1`～`P1-4`）与 2 项 P2（`P2-1`、`P2-2`）已复核 `RESOLVED`：UI/2A/生命周期 Node 回归全部退出码 `0`（`linux_desktop_ui_regression.js` 688 行、`sync2a` 126 行含真实控制器/DOM 断言），4 个新增工具按钮随会话可用同步启用，多选取消返回 `null` + 单好友免弹窗直发 + 16 人超限提示，`sendPastedFiles` 恢复后台并发与正常停服清理语义，`#clear-chat`/`Ctrl+L` 只清当前会话历史不删好友；全部 12 项宿主机核验命令退出码 `0`，所有手写文件 `< 1000` 行，红线零触碰。
+- **未验证边界**：Windows 宿主机无 Linux/WSL 与 .NET 10 SDK，Linux `net10.0` ELF 实跑（`tests/linux_desktop_regression.py`）、Xorg/Wayland/XWayland 实机、真实截图工具/Portal、中文 IME 与真实双机 LAN 继续保留于 [DEFERRED.md](DEFERRED.md)，不视为 Linux 实机通过。
+- **下一步**：`LC-LINUX-003` 阶段 2A 的 Windows 宿主机开发与审核范围已闭环；执行者可按 [.claude/Plan.md](../.claude/Plan.md) 进入 **阶段 3（设置页收口：B 类 4 项双端同键同步接线，D1 = A，及 C 类 4 项诚实只读收口）**。
+- **报告**：[Round 2 独立复审（通过）](REVIEW.md#lc-linux-003阶段-2a--低风险核心功能同步与现存缺陷修复-round-2-独立复审通过2-项-p04-项-p1-与-2-项-p2-全部闭环) · [Round 1 整改执行记录](REVIEW.md#round-1-打回整改执行记录等待独立复审) · [Round 1 独立审核（打回）](REVIEW.md#lc-linux-003阶段-2a--低风险核心功能同步与现存缺陷修复-round-1-独立审核结论打回2-项-p0-回归失败--4-项-p1-阻断缺陷) · [阶段 2A 执行记录](IMPLEMENTATION.md) · [待现场验收](DEFERRED.md)
+
+---
+
+# 当前任务 — LC-LINUX-003（阶段 0 & 阶段 1）
+
+- **状态**：`APPROVED`（仅代表 Windows 宿主机编译、源码审查与静态/桩回归验证范围放行；Linux 实机与 ELF 运行环境仍未验证）
+- **主题**：阶段 0（基线冻结与测试拆分）与阶段 1（Linux 桌面生命周期、托盘、通知与 A 类托盘开关）
+- **日期**：2026-11-26；**分支**：`codex/v4.0-cross-platform-unification`；**执行者**：Codex（Round 1 整改）；**独立审核者**：Antigravity（Round 2 独立复审通过）
+- **报告**：[Round 2 独立复审（通过）](REVIEW.md#lc-linux-003阶段-0--阶段-1-round-2-独立复审通过p1-1p1-2p1-3-与-p2-1p2-2-已全部闭环) · [Round 1 整改执行记录](REVIEW.md#lc-linux-003阶段-0--阶段-1-round-1-整改执行记录等待独立复审) · [Round 1 独立审核（打回）](REVIEW.md#lc-linux-003阶段-0--阶段-1-round-1-独立审核结论打回存在-3-项-p1-阻断缺陷) · [实施记录](IMPLEMENTATION.md) · [定稿文档](../PlanDocs/LC-LINUX-003/FINAL.md) · [待现场验收](DEFERRED.md)
+- **一句话结论**：Round 1 全部 3 项 P1（`LC-LINUX-003-P1-1`、`P1-2`、`P1-3`）与 2 项 P2（`P2-1`、`P2-2`）已复核 `RESOLVED`：`main.cjs` `bindWindowLifecycle` 在 `keepAliveInTray=false` 时显式 `preventDefault + app.quit()` 且 `tray-manager.cjs` `destroy()` 销毁 `previewWindow`；`renderer.js` 后台/失焦当前活跃会话计入 `unread` 并与 `restore`/`focus -> window-restored` 闭环；`openSettingsWindow` 凭 `did-finish-load` 排队派发 `open-update-check` 且消除主窗重复转发；新增真实 Electron 桩生命周期回归通过，全部 10 项宿主机核验命令退出码 `0`，`tests/linux_desktop_ui_regression.js` 保持 700 行，所有手写文件 `< 1000` 行，红线零触碰。
+- **未验证边界**：Windows 宿主机无可用 Linux/WSL 环境，**CP-0**（`LC-LINUX-002-ENV-001`）与 **CP-1**（`LC-LINUX-002-GUI-001`、`LC-LINUX-002-SLICE-3`）继续保持 `[OPEN]` 待 Linux 实机核销；宿主机当前仅有 .NET SDK 9.0.304，`net10.0` 构建受环境门槛限制未在此轮复跑。
+- **下一步**：`LC-LINUX-003` 阶段 0 与阶段 1 的 Windows 宿主机开发与审核范围已闭环；执行者可按 [.claude/Plan.md](../.claude/Plan.md) 进入 **阶段 2A（低风险核心功能同步与现存缺陷修复，含 D2 = A）**，或在接入 Linux 环境时优先核销 [DEFERRED.md](DEFERRED.md) 中的 `CP-0` 与 `CP-1`。
+
+---
+
 # 当前任务 — LC-UI-INPUT-010
 
 - **状态**：`APPROVED`（当前开发与 Windows 宿主机回归范围放行）

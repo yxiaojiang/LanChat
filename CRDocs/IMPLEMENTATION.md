@@ -1,3 +1,92 @@
+﻿# LC-LINUX-003（阶段 2A · 低风险核心功能同步与现存缺陷修复）— 执行交接记录
+
+## Round 1 打回整改执行记录（等待独立复审）
+
+> 2026-11-26 · 执行者 Codex · 分支 `codex/v4.0-cross-platform-unification` · 本节不是独立审核结论
+
+### 本轮整改范围
+
+严格按 `CRDocs/REVIEW.md` 顶部 Round 1 结论修复全部 2 项 P0、4 项 P1，并顺手闭环 P2-1、P2-2。仍只在阶段 2A 边界内修改，未进入 2B、阶段 3 或阶段 4；未修改 LANC/Type 1/Type 2/JSONL、版本号、安装目录和发布链，未执行 `Publish.bat`、`git commit` 或 `git push`。
+
+### 实际整改
+
+1. **P0-1 / P0-2**：UI 回归改按“最近使用 / 所有表情”分组 DOM 断言，执行 13 项选择验证去重与最多 12 项；`overlay.js` 将表情清单显式转数组，修复 `Map.length` 导致分组为空。2A 回归行数统计去除末尾换行。
+2. **P1-1**：`renderer.js:updateHeader()` 对 `#open-downloads`、`#send-file`、`#take-screenshot`、`#clear-chat` 与会话可用状态同步设置 `disabled`。
+3. **P1-2**：选人取消/无在线节点返回 `null`；仅一名在线好友时免弹窗直发；第 17 个选择提示最多 16 人；发送、拖拽等调用方拦截空数组。
+4. **P1-3**：`sendPastedFiles` 恢复 `dispatchFiles(chatIds, files, false)` 后台并发，IPC 只等待预检；引用归零时保留映射到退出停服结算，正常 `await child.stop()` 成功后清理未落盘截图，异常退出保守保留未知引用。
+5. **P1-4 / P2-2**：`#clear-chat`、`Ctrl+L` 均使用 `confirmForget(active, false)`，并区分群聊/私聊清空文案；`.emoji` 增加 `1.5px` 强调色悬停/焦点边框。
+6. **P2-1**：2A 回归新增真实渲染控制器/DOM 断言，覆盖工具按钮启用、单好友直发、私聊清空文案、取消选人不触发 IPC、17 人上限提示。
+
+### Windows 宿主机验证
+
+| 命令 | 结果 |
+| --- | --- |
+| `git branch --show-current` | 退出码 0；目标分支 |
+| `cmd /c "Tools\\Scripts\\Compile.bat < NUL"` | 退出码 0；Windows 原生编译成功 |
+| UI、2A、生命周期 Node 回归 | 全部退出码 0；2A 回归独立通过 |
+| 聊天、好友刷新、文件传输 PowerShell 回归 | 全部退出码 0 |
+| 全部桌面 JS/CJS `node --check`、Python `py_compile` | 退出码 0 |
+| `git diff --check`、行数门禁 | 退出码 0；UI 回归 688 行、2A 回归 126 行，所有本轮代码文件 `< 1000` 行 |
+
+正式 `dotnet build ... LanChat.Linux.csproj --no-restore` 因宿主仅有 .NET SDK 9.0.304 返回 `NETSDK1045`；项目缓存 dotnet 对同一工程构建退出码 0（0 警告、0 错误）。Windows 宿主机无 Linux/WSL，Linux ELF、桌面会话、真实截图工具/Portal、中文 IME 与真实双机 LAN 仍未验证，继续保留于 `CRDocs/DEFERRED.md`。
+
+---
+
+> 以下为此前交接记录，完整保留。
+
+> 2026-11-26 · 执行者 Codex · 分支 `codex/v4.0-cross-platform-unification` · 状态 `WAITING_FOR_GROK` · 本记录不是独立审核结论
+
+## 本轮范围
+
+严格按 `.claude/Plan.md` 只实施 2A.1～2A.6（含 D2 = A），未进入阶段 2B、阶段 3 或阶段 4。保留 LANC 魔数/字段、JSONL 格式、严格 CSP、版本号、安装目录与发布链；Electron 主进程没有新增 LAN UDP/TCP Socket；未执行 `Publish.bat`，未执行 `git commit`/`git push`。
+
+## 实际改动
+
+1. **2A.1 R1**：`LinuxProfile.SaveSettings` 与 Electron `save-settings` 均把强调色上限改为 11，合法范围为 `0..10`。
+2. **2A.2 后端与 CLI**：`DesktopService` 新增 `probe-ip` 请求，严格 IPv4 校验；运行期 IPv4 地址进入刷新探测集合，并以快照方式避免并发枚举；独立 CLI 在启动时接入 `ChatHistoryService.ProfileStorageDirectory`，收发文字/文件落盘时私聊使用 `SessionManager.GetLanKey(peerId, peerIp)`，群聊使用 `SessionManager.BROADCAST_KEY`。
+3. **2A.3 文件发送**：Electron `dispatchFiles` 改为目标×文件并发提交；接收人校验支持 1～16 个在线好友，单目标仍直接发送；托管粘贴文件按目标引用计数，所有目标结算且未被历史引用后才清理。
+4. **2A.4 D2 = A**：设置中心“设备连接”页顶部增加 IPv4 输入、连接按钮与异步结果状态，不改变主窗左侧栏布局。
+5. **2A.5 输入与工具栏**：Linux 主窗保留原生 `<textarea id="message">`，输入胶囊维持 188px、底部输入区留白契约维持 214px；新增 5 个 48×48 工具入口；表情面板为 496×548，含最多 12 个最近使用和 8 列 48px 全部表情；加入 `Scissors.png` 资产、`trigger-screenshot` 固定命令数组 `execFile` 探测、Ctrl+F 聚焦搜索、Ctrl+L 经 `confirmForget` 二次确认。
+6. **2A.6 回归**：新增 `tests/linux_desktop_sync2a_regression.js`（64 行），注册至 `tests/linux_desktop_ui_regression.js`（700 行门禁）；`tests/linux_desktop_regression.py` 增加 `probe` 用例，并将设置持久化回归提升至强调色索引 10。
+
+## Windows 宿主机实际执行记录
+
+| 命令 | 结果 | 证据边界 |
+| --- | --- | --- |
+| `git branch --show-current` | 0；`codex/v4.0-cross-platform-unification` | 仅分支核对 |
+| `dotnet build src/LanChat.csproj --configuration Release --no-restore` | 0；1 个既有 `CS9191` 警告、0 错误 | Windows WinForms 编译 |
+| `dotnet build src/linux/LanChat.Linux/LanChat.Linux.csproj --configuration Release --no-restore` | 失败；`NETSDK1045` | 宿主仅有 .NET SDK 9.0.304，正式 net10.0 未构建 |
+| `dotnet restore/build ... -p:TargetFramework=net9.0 -p:TargetFrameworks=net9.0` | 0；0 警告、0 错误 | 同代码 net9.0 宿主编译替代验证，不等同 net10.0/Linux ELF |
+| `node tests/linux_desktop_ui_regression.js` | 0 | Node 桩 UI、IPC、生命周期及 2A 静态回归；非 Linux 桌面实机 |
+| `node tests/linux_desktop_sync2a_regression.js` | 0 | 2A 契约静态回归 |
+| `node --check`（本轮 JS/CJS 文件） | 0 | Node 语法 |
+| `python -m py_compile tests/linux_desktop_regression.py tests/test_linux_flow.py` | 0 | Python 语法 |
+| `powershell ... tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | Windows 聊天/表情/剪贴板/LANC/JSONL 回归 |
+| `powershell ... tests/friend_refresh_regression.ps1` | 0 | Windows 原生编译、好友刷新、侧栏与草稿回归 |
+| `powershell ... tests/file_transfer_stability_regression.ps1` | 0 | Windows 文件传输稳定性边界 |
+| `python tests/linux_desktop_regression.py <net9 lanchat.exe> settings probe` | 未通过 | ELF/桌面服务明确返回“Linux 配置锁需要 Linux”；这是 Windows 宿主边界，严禁记录为 Linux 实机通过 |
+| `git diff --check` | 0 | 无空白错误；Git 的 LF→CRLF 提示不计为失败 |
+
+## 行数与未验证边界
+
+本轮手写文件均低于 1000 行；`tests/linux_desktop_ui_regression.js` 为 700 行，`tests/linux_desktop_sync2a_regression.js` 为 64 行。Windows 宿主机没有可用 Linux/WSL，缺少 .NET 10 SDK；Linux ARM64/x86_64 ELF、真实 Xorg/Wayland/XWayland、真实截图工具、中文输入法、真实双机 LAN 与 Linux `tests/linux_desktop_regression.py` 仍未验证，继续交由现场门禁核销。
+
+请独立审核者重新读取规则、计划、实际代码与本轮命令证据，复核 2A.1～2A.6、红线、历史兼容和上述边界，并将结论回写 `CRDocs/REVIEW.md` 与 `CRDocs/STATUS.md`。
+
+---
+
+# LC-LINUX-003（阶段 0 & 阶段 1）— Round 1 整改执行记录
+
+> 2026-11-26 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 详细交接记录见 `CRDocs/REVIEW.md` 顶部
+
+本轮修复 `LC-LINUX-003-P1-1`、`P1-2`、`P1-3`：主窗 `keepAliveInTray=false` 关窗显式 `preventDefault + app.quit`，托盘 `destroy()` 显式销毁预览窗；后台/失焦当前会话消息计入未读并接通 `restore/focus -> window-restored`；托盘检查更新等待设置窗 `did-finish-load` 后只向设置窗派发事件。顺手完成 P2-1 的主进程/托盘真实桩生命周期断言、通知点击切会话断言，以及 P2-2 中文注释与预览 CSP `style-src data:` 收紧。
+
+宿主机 `Compile.bat`、Linux UI/生命周期 Node 回归、聊天回归、好友刷新回归、Node/Python 语法检查和 `git diff --check` 全部退出码 0；`tests/linux_desktop_ui_regression.js` 保持 700 行。正式 Linux `net10.0` 构建因机器仅有 .NET SDK 9.0.304 返回 `NETSDK1045`，Linux/ELF/桌面实机仍未验证，不以宿主机证据替代现场验收。
+
+请独立审核者读取 `CRDocs/RULES.md`、`STATUS.md`、`REVIEW.md`、`IMPLEMENTATION.md`、`DEFERRED.md` 后复核代码与证据，并回写 `REVIEW.md` 与 `STATUS.md`。
+
+---
+
 # LC-UI-INPUT-010 — Round 3 P1-2 整改执行记录
 
 > 2026-11-26 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 本记录是执行者交接，不是独立审核结论

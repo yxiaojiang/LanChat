@@ -22,7 +22,7 @@ internal static class ExportLinuxDesktopAssets
         var accent = ColorTranslator.FromHtml("#8E64DC");
         foreach (var icon in new[] { WeChatIconType.Search, WeChatIconType.Refresh, WeChatIconType.Logout,
             WeChatIconType.Add, WeChatIconType.UpArrow, WeChatIconType.Folder, WeChatIconType.Box,
-            WeChatIconType.Emoji, WeChatIconType.Clear, WeChatIconType.Copy, WeChatIconType.User,
+            WeChatIconType.Emoji, WeChatIconType.Scissors, WeChatIconType.Clear, WeChatIconType.Copy, WeChatIconType.User,
             WeChatIconType.Settings, WeChatIconType.Menu, WeChatIconType.Contacts,
             WeChatIconType.WinClose, WeChatIconType.WinMin, WeChatIconType.WinMax, WeChatIconType.WinRestore })
         {
@@ -50,6 +50,17 @@ internal static class ExportLinuxDesktopAssets
             WeChatIcon.DrawMascotAvatar(g, bounds, ColorTranslator.FromHtml("#FF9F0A"), true, false, Color.Transparent));
         Draw(output, "group", 48, (g, bounds) =>
             WeChatIcon.DrawMascotAvatar(g, bounds, ColorTranslator.FromHtml("#8E64DC"), false, false, Color.Transparent));
+        Draw(output, "tray", 32, (g, bounds) =>
+            WeChatIcon.DrawMascotAvatar(g, bounds, ColorTranslator.FromHtml("#FC2C3E"), false, false, Color.Transparent));
+        Draw(output, "tray-unread", 32, (g, bounds) =>
+        {
+            WeChatIcon.DrawMascotAvatar(g, bounds, ColorTranslator.FromHtml("#FC2C3E"), false, false, Color.Transparent);
+            using (var badge = new SolidBrush(ColorTranslator.FromHtml("#FF3B30")))
+            {
+                g.FillEllipse(badge, 21, 1, 10, 10);
+            }
+        });
+        Draw(output, "tray-blank", 32, (g, bounds) => g.Clear(Color.Transparent));
         return 0;
     }
 

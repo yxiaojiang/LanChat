@@ -42,7 +42,9 @@
       uiFontFamily: 'Microsoft YaHei UI',
       uiFontSize: 10.0,
       chatFontFamily: 'Microsoft YaHei UI',
-      chatFontSize: 10.5
+      chatFontSize: 10.5,
+      keepAliveInTray: true,
+      trayPreview: true
     };
 
     const runtime = {
@@ -61,8 +63,6 @@
     const display = {
       languagePill: model.LANGUAGES[0].pill,
       linkPill: model.LINK_MODES[0].pill,
-      trayPreview: true,
-      keepAlive: true,
       chunkCheck: true,
       autoLoadHistory: true,
       tunFilter: true,
@@ -90,7 +90,9 @@
       accentLabels: [],
       uiFontLabels: [],
       chatFontLabels: [],
-      nickLabels: []
+      nickLabels: [],
+      traySwitches: [],
+      previewSwitches: []
     };
 
     function showBanner(message, isError = false, autoHideMs = 0) {
@@ -238,9 +240,12 @@
       const nextAuto = patch.autoAcceptFiles !== undefined ? patch.autoAcceptFiles : committed.autoAcceptFiles;
       const nextDownload = patch.downloadDirectory !== undefined ? patch.downloadDirectory : null;
       const nextHistory = patch.historyDirectory !== undefined ? patch.historyDirectory : null;
+      const nextKeepAlive = patch.keepAliveInTray !== undefined ? Boolean(patch.keepAliveInTray) : committed.keepAliveInTray;
+      const nextTrayPreview = patch.trayPreview !== undefined ? Boolean(patch.trayPreview) : committed.trayPreview;
       const appearancePayload = appearance.normalizeSettings({ ...committed, ...patch });
+      const trayPayload = { keepAliveInTray: nextKeepAlive, trayPreview: nextTrayPreview };
       try {
-        let result = await api.saveSettings(nextNick, nextAuto, nextDownload, false, nextHistory, appearancePayload);
+        let result = await api.saveSettings(nextNick, nextAuto, nextDownload, false, nextHistory, appearancePayload, trayPayload);
         if (result?.overridePath) {
           const confirmed = await openConfirmModal({
             title: '原设置只读',
@@ -256,7 +261,7 @@
             showBanner('已取消更改，原只读设置保持不变', false, 3500);
             return { ok: false, cancelled: true };
           }
-          result = await api.saveSettings(nextNick, nextAuto, nextDownload, true, nextHistory, appearancePayload);
+          result = await api.saveSettings(nextNick, nextAuto, nextDownload, true, nextHistory, appearancePayload, trayPayload);
         }
         Object.assign(committed, result);
         pendingAppearance = null;
@@ -322,6 +327,12 @@
       for (const el of syncRefs.nickLabels) {
         el.textContent = committed.nickname || 'LanChat';
       }
+      for (const el of syncRefs.traySwitches) {
+        el.setAttribute('aria-checked', String(Boolean(committed.keepAliveInTray)));
+      }
+      for (const el of syncRefs.previewSwitches) {
+        el.setAttribute('aria-checked', String(Boolean(committed.trayPreview)));
+      }
       syncAppearanceControls(pendingAppearance || committed);
     }
 
@@ -342,6 +353,45 @@
     async function toggleAutoAccept(next) {
       const res = await persistSettings({ autoAcceptFiles: next });
       if (!res.ok) syncBoundControls();
+    }
+
+    async function toggleKeepAlive(next) {
+      const res = await persistSettings({ keepAliveInTray: next });
+      if (!res.ok) syncBoundControls();
+    }
+
+    async function toggleTrayPreview(next) {
+      const res = await persistSettings({ trayPreview: next });
+      if (!res.ok) syncBoundControls();
+    }
+
+    async function probeIp(input, output, button) {
+      const value = String(input.value || '').trim();
+      const parts = value.split('.');
+      const valid = parts.length === 4 && parts.every(part => /^\d{1,3}$/.test(part) && Number(part) <= 255);
+      if (!valid) {
+        output.textContent = '请输入有效的 IPv4 地址';
+        output.classList.add('error');
+        return;
+      }
+      if (!api?.probeIp) {
+        output.textContent = '当前桌面桥接不可用';
+        output.classList.add('error');
+        return;
+      }
+      button.disabled = true;
+      output.classList.remove('error');
+      output.textContent = '正在探测…';
+      try {
+        const result = await api.probeIp(value);
+        output.textContent = result?.message || '探测请求已发送';
+        output.classList.toggle('error', result?.ok === false);
+      } catch (error) {
+        output.textContent = error.message;
+        output.classList.add('error');
+      } finally {
+        button.disabled = false;
+      }
     }
 
     async function openDownloads() {
@@ -437,6 +487,8 @@
       syncRefs.uiFontLabels = [];
       syncRefs.chatFontLabels = [];
       syncRefs.nickLabels = [];
+      syncRefs.traySwitches = [];
+      syncRefs.previewSwitches = [];
       const built = pages.buildAll({
         committed,
         runtime,
@@ -451,6 +503,9 @@
           openDownloads: () => { void openDownloads(); },
           openHistory: () => { void openHistory(); },
           toggleAutoAccept: next => { void toggleAutoAccept(next); },
+          toggleKeepAlive: next => { void toggleKeepAlive(next); },
+          toggleTrayPreview: next => { void toggleTrayPreview(next); },
+          probeIp: (input, output, button) => { void probeIp(input, output, button); },
           clearAllHistories: btn => { void clearAllHistories(btn); },
           openNickDialog,
           openFeedbackDialog,
@@ -661,6 +716,9 @@
       renderNav();
       renderAllPanels();
       if (!api) return;
+      api.onEvent?.(event => {
+        if (event?.event === 'open-update-check') showUpdateNotice();
+      });
       try {
         const [settingsData, stateData, sysData] = await Promise.all([
           api.settings(),

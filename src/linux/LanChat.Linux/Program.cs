@@ -54,6 +54,7 @@ namespace LanChat.Linux
             try
             {
                 using var profile = new LinuxProfile();
+                ChatHistoryService.ProfileStorageDirectory = profile.HistoryDirectory;
                 LogToFile("INFO", string.Format("=== LanChat Linux (.NET Native) 启动 (PID: {0}) ===", Environment.ProcessId));
                 try { RunMain(args, profile); }
                 finally { _netService?.Dispose(); }
@@ -96,6 +97,7 @@ namespace LanChat.Linux
 
             _netService.OnMessageReceived += msg =>
             {
+                SaveCliMessage(msg);
                 if (msg.IsBroadcast)
                 {
                     PrintColored(ConsoleColor.Cyan, string.Format("\n[{0}] [📢 广播] {1}: ", msg.Timestamp.ToString("HH:mm:ss"), msg.SenderNick));
@@ -111,6 +113,7 @@ namespace LanChat.Linux
 
             _netService.OnFileReceived += msg =>
             {
+                SaveCliMessage(msg);
                 PrintColored(ConsoleColor.Green, string.Format("\n[{0}] 📎 收到文件: {1} ({2})", msg.Timestamp.ToString("HH:mm:ss"), msg.FileName, FormatSize(msg.FileSize)));
                 PrintColored(ConsoleColor.DarkGreen, string.Format("    来自: {0} | 保存路径: {1}", msg.SenderNick, msg.FilePath));
                 PrintPrompt();
@@ -234,10 +237,16 @@ namespace LanChat.Linux
 
                 new Thread(() =>
                 {
+                    bool confirmed = false;
                     foreach (var p in peers)
                     {
-                        _netService.SendTextMessage(p, text, true);
+                        confirmed |= _netService.SendTextMessage(p, text, true);
                     }
+                    if (confirmed) SaveCliMessage(new ChatMessage
+                    {
+                        IsSelf = true, IsBroadcast = true, SenderId = _netService.LocalId,
+                        SenderNick = _netService.NickName, Content = text, Timestamp = DateTime.Now
+                    });
                 }) { IsBackground = true }.Start();
             }
             else
@@ -249,6 +258,12 @@ namespace LanChat.Linux
                 new Thread(() =>
                 {
                     bool ok = _netService.SendTextMessage(target, text, false);
+                    if (ok) SaveCliMessage(new ChatMessage
+                    {
+                        IsSelf = true, TargetId = target.Id, SenderId = _netService.LocalId,
+                        SenderNick = _netService.NickName, PeerNick = target.NickName,
+                        RemoteAddress = target.IP, Content = text, Timestamp = DateTime.Now
+                    });
                     if (!ok)
                     {
                         PrintColored(ConsoleColor.Red, string.Format("\n  [x] 向 {0} 发送私聊消息失败，对方可能已离线", target.NickName));
@@ -497,6 +512,14 @@ namespace LanChat.Linux
                     Console.WriteLine();
                     if (success)
                     {
+                        SaveCliMessage(new ChatMessage
+                        {
+                            IsSelf = true, IsFile = true, TargetId = target.Id,
+                            SenderId = _netService.LocalId, SenderNick = _netService.NickName,
+                            PeerNick = target.NickName, RemoteAddress = target.IP,
+                            Content = fi.Name, FilePath = filePath, FileName = fi.Name,
+                            FileSize = fi.Length, Timestamp = DateTime.Now
+                        });
                         PrintColored(ConsoleColor.Green, string.Format("文件 {0} 发送成功！", fi.Name));
                     }
                     else
@@ -506,6 +529,15 @@ namespace LanChat.Linux
                     PrintPrompt();
                 }
             );
+        }
+
+        // CLI 与桌面服务共用同一套会话键，保证私聊历史不会按节点 ID 分叉。
+        private static void SaveCliMessage(ChatMessage message)
+        {
+            if (message == null) return;
+            string key = message.IsBroadcast ? SessionManager.BROADCAST_KEY
+                : SessionManager.GetLanKey(message.IsSelf ? message.TargetId : message.SenderId, message.RemoteAddress);
+            ChatHistoryService.SaveMessage(key, message);
         }
 
         private static void AddPeerByIp(string ip)

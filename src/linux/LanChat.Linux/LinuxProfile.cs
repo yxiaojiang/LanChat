@@ -27,6 +27,8 @@ namespace LanChat.Linux
         internal bool AutoAcceptFiles =>
             (_settings["AutoAcceptFiles"] ?? _settings["auto_accept"]) is not JsonValue accept ||
             !accept.TryGetValue(out bool enabled) || enabled;
+        internal bool KeepAliveInTray => ReadBool("KeepAliveInTray", "keepAliveInTray", true);
+        internal bool TrayPreview => ReadBool("TrayPreview", "trayPreview", true);
         internal int ThemeMode => ReadPreset("ThemeMode", 3);
         internal int AccentPreset => ReadPreset("AccentPreset", 11);
         internal string UiFontFamily => ReadNonEmpty("UiFontFamily") ?? "Microsoft YaHei UI";
@@ -94,7 +96,8 @@ namespace LanChat.Linux
             bool confirmOverride = false, string historyDirectory = null,
             int? themeMode = null, int? accentPreset = null,
             string uiFontFamily = null, double? uiFontSize = null,
-            string chatFontFamily = null, double? chatFontSize = null)
+            string chatFontFamily = null, double? chatFontSize = null,
+            bool? keepAliveInTray = null, bool? trayPreview = null)
         {
             if (string.IsNullOrWhiteSpace(nickname) || nickname.Length > 80 || nickname.Contains('|') ||
                 nickname.Contains('\r') || nickname.Contains('\n'))
@@ -102,6 +105,8 @@ namespace LanChat.Linux
             var next = (JsonObject)_settings.DeepClone();
             next["NickName"] = nickname;
             if (autoAccept.HasValue) next["AutoAcceptFiles"] = autoAccept.Value;
+            if (keepAliveInTray.HasValue) next["KeepAliveInTray"] = keepAliveInTray.Value;
+            if (trayPreview.HasValue) next["TrayPreview"] = trayPreview.Value;
             if (themeMode.HasValue)
             {
                 if (themeMode.Value < 0 || themeMode.Value >= 3) throw new ArgumentException("主题模式无效");
@@ -109,7 +114,7 @@ namespace LanChat.Linux
             }
             if (accentPreset.HasValue)
             {
-                if (accentPreset.Value < 0 || accentPreset.Value >= 5) throw new ArgumentException("强调色预设无效");
+                if (accentPreset.Value < 0 || accentPreset.Value >= 11) throw new ArgumentException("强调色预设无效");
                 next["AccentPreset"] = accentPreset.Value;
             }
             if (uiFontFamily != null)
@@ -308,6 +313,12 @@ namespace LanChat.Linux
 
         private string ReadString(string key) =>
             _settings[key] is JsonValue value && value.TryGetValue(out string text) ? text : null;
+
+        private bool ReadBool(string primaryKey, string fallbackKey, bool fallback)
+        {
+            JsonNode node = _settings[primaryKey] ?? _settings[fallbackKey];
+            return node is JsonValue value && value.TryGetValue(out bool enabled) ? enabled : fallback;
+        }
 
         private string ReadNonEmpty(string key)
         {

@@ -226,13 +226,17 @@
       const card2 = createCard();
       const autoSwitch = createToggleSwitch(committed.autoAcceptFiles, actions.toggleAutoAccept, '自动接收好友文件');
       syncRefs.autoSwitches.push(autoSwitch);
+      const trayPreviewSwitch = createToggleSwitch(committed.trayPreview, actions.toggleTrayPreview, '托盘未读悬浮预览');
+      syncRefs.previewSwitches.push(trayPreviewSwitch);
+      const keepAliveSwitch = createToggleSwitch(committed.keepAliveInTray, actions.toggleKeepAlive, '后台网络驻留运行');
+      syncRefs.traySwitches.push(keepAliveSwitch);
       card2.append(
         createRow('托盘未读悬浮预览', '新消息闪烁时鼠标悬停在托盘图标上显示发送人与摘要浮窗。', [
-          createToggleSwitch(display.trayPreview, () => {}, '托盘未读悬浮预览')
+          trayPreviewSwitch
         ]).row,
         createRow('自动接收好友文件', '局域网好友发送文件时自动保存到默认目录，无需手动逐一确认。', [autoSwitch]).row,
         createRow('后台网络驻留运行', '关闭主窗口后保持在系统托盘静默运行，随时响应局域网呼叫。', [
-          createToggleSwitch(display.keepAlive, () => {}, '后台网络驻留运行')
+          keepAliveSwitch
         ]).row,
         createRow('网络协议通道', '物理网卡直连通信，多节点广播穿透加速。', [
           createDropdownPill('直接连接 (LAN)', null, actions.openMenu)
@@ -406,6 +410,47 @@
     }
 
     function buildDevicePage(page) {
+      page.append(createSection('设备连接'));
+      const probeCard = createCard();
+      const probeRow = document.createElement('div');
+      probeRow.className = 'settings-row device-probe-row';
+      const probeCopy = document.createElement('div');
+      probeCopy.className = 'settings-row-copy';
+      const probeTitle = document.createElement('div');
+      probeTitle.className = 'settings-row-title';
+      probeTitle.textContent = '手动连接 IPv4 节点';
+      const probeDesc = document.createElement('div');
+      probeDesc.className = 'settings-row-desc';
+      probeDesc.textContent = '输入局域网节点地址并发起轻量握手探测，不改变主窗会话布局。';
+      probeCopy.append(probeTitle, probeDesc);
+      const probeControls = document.createElement('div');
+      probeControls.className = 'settings-row-controls device-probe-controls';
+      const probeInput = document.createElement('input');
+      probeInput.className = 'settings-text-input';
+      probeInput.type = 'text';
+      probeInput.inputMode = 'numeric';
+      probeInput.placeholder = '例如 192.168.1.20';
+      probeInput.maxLength = 15;
+      probeInput.setAttribute('aria-label', '要探测的 IPv4 地址');
+      const probeButton = document.createElement('button');
+      probeButton.type = 'button';
+      probeButton.className = 'pill';
+      probeButton.textContent = '连接';
+      const probeStatus = document.createElement('small');
+      probeStatus.className = 'device-probe-status';
+      probeStatus.setAttribute('role', 'status');
+      probeButton.addEventListener('click', () => actions.probeIp(probeInput, probeStatus, probeButton));
+      probeInput.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          actions.probeIp(probeInput, probeStatus, probeButton);
+        }
+      });
+      probeControls.append(probeInput, probeButton, probeStatus);
+      probeRow.append(probeCopy, probeControls);
+      probeCard.append(probeRow);
+      page.append(probeCard);
+
       page.append(createSection('物理网络与设备'));
       const card = createCard();
       const dot = document.createElement('span');

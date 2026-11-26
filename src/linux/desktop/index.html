@@ -55,9 +55,15 @@
       <div id="attachments" class="scroll-view" aria-label="待发送附件"></div>
     </div>
     <form id="compose" class="compose">
-      <button id="attach" class="icon attach" type="button" title="附件与快捷操作 (点击打开菜单)" aria-label="附件与快捷操作" disabled><img src="assets/Add.png" alt=""></button>
       <div class="scroll-host compose-scroll">
         <textarea id="message" class="scroll-view" maxlength="32768" rows="1" placeholder="给 局域网全员群聊 发消息" aria-label="消息" disabled></textarea>
+      </div>
+      <div class="compose-tools" aria-label="快捷工具">
+        <button id="attach" class="icon tool" type="button" title="插入表情" aria-label="插入表情" disabled><img src="assets/Emoji.png" alt=""></button>
+        <button id="open-downloads" class="icon tool" type="button" title="打开接收目录" aria-label="打开接收目录" disabled><img src="assets/Folder.png" alt=""></button>
+        <button id="send-file" class="icon tool" type="button" title="选择文件" aria-label="选择文件" disabled><img src="assets/Folder.png" alt=""></button>
+        <button id="take-screenshot" class="icon tool" type="button" title="屏幕截图" aria-label="屏幕截图" disabled><img src="assets/Scissors.png" alt=""></button>
+        <button id="clear-chat" class="icon tool" type="button" title="清空当前对话" aria-label="清空当前对话" disabled><img src="assets/ClearDanger.png" alt=""></button>
       </div>
       <button id="send" class="icon send" title="发送消息" aria-label="发送消息" disabled><img src="assets/UpArrow.png" alt=""></button>
     </form>
@@ -72,6 +78,7 @@
       <div class="scroll-host recipients-host">
         <div id="recipients" class="scroll-view"></div>
       </div>
+      <button id="recipient-confirm" type="button" class="pill" hidden>发送到选中节点</button>
       <button id="recipient-cancel" value="" class="pill">取消</button>
     </form>
   </dialog>

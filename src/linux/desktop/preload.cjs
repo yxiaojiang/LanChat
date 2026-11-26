@@ -5,11 +5,13 @@ contextBridge.exposeInMainWorld('lanchat', {
   history: chat => ipcRenderer.invoke('lanchat:history', chat),
   peers: () => ipcRenderer.invoke('lanchat:peers'),
   refresh: () => ipcRenderer.invoke('lanchat:refresh'),
+  probeIp: ip => ipcRenderer.invoke('lanchat:probe-ip', ip),
   reconnect: () => ipcRenderer.invoke('lanchat:reconnect'),
   settings: () => ipcRenderer.invoke('lanchat:settings'),
   openSettings: () => ipcRenderer.invoke('lanchat:open-settings'),
   closeSettings: () => ipcRenderer.invoke('lanchat:close-settings'),
   systemInfo: () => ipcRenderer.invoke('lanchat:system-info'),
+  syncUnreadState: state => ipcRenderer.send('lanchat:unread-state', state),
   saveSettings: (...args) => ipcRenderer.invoke('lanchat:save-settings', ...args),
   selectSettingsDirectory: kind => ipcRenderer.invoke('lanchat:select-settings-directory', kind),
   sendText: (chat, text) => ipcRenderer.invoke('lanchat:send-text', chat, text),
@@ -23,6 +25,7 @@ contextBridge.exposeInMainWorld('lanchat', {
   openPath: (target, kind) => ipcRenderer.invoke('lanchat:open-path', target, kind),
   openDownloads: () => ipcRenderer.invoke('lanchat:open-downloads'),
   openHistory: () => ipcRenderer.invoke('lanchat:open-history'),
+  triggerScreenshot: () => ipcRenderer.invoke('lanchat:trigger-screenshot'),
   quit: () => { void ipcRenderer.invoke('lanchat:quit'); },
   onEvent: callback => { ipcRenderer.on('lanchat:event', (_event, frame) => callback(frame)); }
 });

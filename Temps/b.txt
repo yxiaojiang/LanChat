@@ -1,0 +1,204 @@
+你是本项目的独立代码审核员。请在仓库 D:\TEmp\LanChat 中审核本轮修改，并严格按照项目 CRDocs 规则完成记录写入。
+
+一、先读取并遵守以下文件
+
+1. .claude/Rules.md
+2. .claude/SessionBrief.md
+3. .claude/Plan.md
+4. PlanDocs/LC-LINUX-003/FINAL.md
+5. CRDocs/RULES.md
+6. CRDocs/README.md
+7. CRDocs/STATUS.md
+8. CRDocs/REVIEW.md
+9. CRDocs/DEFERRED.md
+
+CRDocs 的具体格式、状态值、任务编号和追加规则，以 CRDocs/RULES.md 与 CRDocs/README.md 为准。不要自行发明格式，不要重写历史记录。
+
+二、审核范围
+
+当前分支必须是：
+
+codex/v4.0-cross-platform-unification
+
+本轮仅审核 .claude/Plan.md 中阶段 0 和阶段 1 的实现，不审核阶段 2A 及之后内容。
+
+重点核查：
+
+1. 阶段 0
+
+- 基线回归是否实际执行并通过。
+- tests/linux_desktop_ui_regression.js 是否已拆分到不超过 700 行。
+- 新增的 tests/linux_desktop_test_helpers.js 是否保持职责清晰。
+- CP-0 是否被正确标记为仅待 Linux 实机验证。
+
+2. 阶段 1.1
+
+- packaging/ExportLinuxDesktopAssets.cs
+- packaging/build-electron.py
+- assets/LinuxDesktop/tray.png
+- assets/LinuxDesktop/tray-unread.png
+- assets/LinuxDesktop/tray-blank.png
+
+3. 阶段 1.2
+
+- src/linux/LanChat.Linux/LinuxProfile.cs
+- src/linux/LanChat.Linux/DesktopService.cs
+- src/linux/desktop/settings.js
+- src/linux/desktop/settings-pages.js
+
+重点检查 KeepAliveInTray、TrayPreview 的默认值、持久化、读取回退、未知字段保留、只读备份链。
+
+4. 阶段 1.3
+
+- src/linux/desktop/tray-manager.cjs
+
+重点检查：
+
+- busctl 是否通过 execFile 调用；
+- 参数是否固定；
+- 是否设置超时；
+- 错误和超时时是否保守返回 false；
+- canHide 是否只在 D-Bus 状态或真实托盘交互成立时返回 true；
+- 菜单、tooltip、Notification、Xorg 闪烁、预览逻辑是否符合计划；
+- 是否引入了未计划的协议或网络行为。
+
+5. 阶段 1.4
+
+- src/linux/desktop/main.cjs
+- src/linux/desktop/preload.cjs
+- src/linux/desktop/renderer.js
+
+重点检查：
+
+- 关闭、隐藏、最小化、退出逻辑；
+- 未读状态同步；
+- 通知点击激活窗口；
+- window-restored 和 open-update-check 事件；
+- IPC 白名单和 CSP 是否保持安全；
+- 是否存在新的本地 LAN UDP/TCP 通道。
+
+6. 阶段 1.5
+
+- tests/linux_desktop_lifecycle_regression.js
+- tests/linux_desktop_ui_regression.js
+
+重点检查生命周期回归是否注册、可独立运行，以及 Electron 依赖调整是否合理。
+
+三、必须检查的红线
+
+确认本轮没有越界实现以下内容：
+
+- 新建节点空壳；
+- 三语切换；
+- 内置网页预览；
+- fs.Flush(true)；
+- 复杂协议通道；
+- 静默 deb 安装；
+- LANC、Type1、Type2、JSONL 协议变更；
+- Electron 主进程新增局域网 UDP/TCP socket；
+- 放宽 CSP；
+- 修改版本号；
+- 覆盖安装；
+- 执行 Publish.bat；
+- git commit；
+- git push。
+
+所有手写文件必须少于 1000 行，新增注释必须为中文。
+
+四、必须自行核验的命令
+
+请先检查 git status、当前分支和本轮 diff，区分本轮修改与既有用户修改。不要仅相信本提示中的结论。
+
+至少执行并记录以下命令的真实输出：
+
+1. 分支：
+
+git branch --show-current
+
+预期：
+
+codex/v4.0-cross-platform-unification
+
+2. Windows 编译基线：
+
+cmd /c "Tools\Scripts\Compile.bat < NUL"
+
+3. Linux UI 回归：
+
+"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ui_regression.js
+
+4. Linux 生命周期回归：
+
+"C:\Program Files\nodejs\node.exe" tests/linux_desktop_lifecycle_regression.js
+
+5. Windows 聊天输入回归：
+
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack
+
+6. Windows 好友刷新回归：
+
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1
+
+7. JavaScript 语法检查：
+
+对本轮涉及的 .js/.cjs 文件执行 node --check。
+
+8. Python 语法检查：
+
+python -m py_compile packaging/build-electron.py
+
+9. 补丁空白检查：
+
+git diff --check
+
+10. 检查文件行数：
+
+确认本轮所有新增或手写文件均小于 1000 行，并确认 tests/linux_desktop_ui_regression.js 不超过 700 行。
+
+如果某个命令在当前环境无法执行，必须记录真实错误输出，不得伪造通过。
+
+五、Linux 验证边界
+
+当前 Windows 宿主机没有可用 Linux 实机环境。请严格区分：
+
+- Windows 主机上的静态检查、Node 回归、C# 构建、资源导出；
+- Linux Xorg/Wayland/XWayland、真实 StatusNotifierItem、真实托盘交互、Linux 打包和运行时验证。
+
+不得把 Windows 宿主机测试写成 Linux 实机通过。
+
+CP-0 和 CP-1 必须保持待现场验证状态。如果 CRDocs/DEFERRED.md 已有对应条目，沿用原条目，不要重复创建；只有在 CRDocs 规则要求时才更新状态或补充证据。
+
+六、CRDocs 写入要求
+
+完成审核后，按照 CRDocs/RULES.md 和 CRDocs/README.md 的规则追加记录：
+
+- 在 CRDocs/REVIEW.md 追加本轮独立审核结论；
+- 在 CRDocs/STATUS.md 更新当前任务状态；
+- 仅当确有新的独立待验证事项，或现有条目需要准确修订时，才更新 CRDocs/DEFERRED.md；
+- 不要删除或改写历史记录；
+- 不要修改源代码、测试代码、.claude/Plan.md、版本号或发布文件；
+- 只允许写入 CRDocs 相关记录；
+- 日期使用 2026-11-26；
+- 任务编号使用项目现有 CRDocs 规则认可的 LC-LINUX-003 编号体系。
+
+审核结论必须明确区分：
+
+- APPROVED：仅表示 Windows 宿主机、源码审查和静态/回归验证范围通过；
+- REJECTED 或 CHANGES_REQUESTED：存在阻断问题；
+- WAITING_FOR_*：只有 CRDocs 规则明确要求时使用。
+
+即使所有 Windows 检查通过，也不得写成 Linux 实机已通过。
+
+七、审核报告必须包含
+
+1. 审核结论及适用范围；
+2. 实际修改文件清单；
+3. 每条验收命令的真实输出和退出码；
+4. 发现的问题，按 P0/P1/P2/P3 分级；
+5. 红线检查结果；
+6. CP-0、CP-1 当前待现场验证状态；
+7. 实际写入的 CRDocs 文件清单；
+8. 如未能通过审核，说明阻断原因和建议整改项；
+9. git diff --check 和文件行数检查结果。
+
+完成后先展示 CRDocs 修改 diff，再说明最终审核结论。不要执行 git commit、git push、Publish.bat、覆盖安装或任何发布动作。

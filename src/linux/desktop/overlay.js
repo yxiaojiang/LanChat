@@ -17,6 +17,7 @@
   let attachResetTimer = 0;
   let releaseArmed = false;
   let pickEmoji = null;
+  const recentOrder = [];
   const emojiScroll = root.LanChatScroll?.bind(emojiGrid, { keyboard: false });
 
   function clearAttachToggle() {
@@ -249,7 +250,19 @@
 
   function drawEmojiGrid() {
     emojiGrid.replaceChildren();
-    for (const [symbol, imageUrl] of presentation.emojiEntries()) {
+    const entries = [...presentation.emojiEntries()];
+    const bySymbol = new Map(entries);
+    const sections = [
+      ['最近使用', recentOrder.map(symbol => [symbol, bySymbol.get(symbol) || null])],
+      ['所有表情', entries]
+    ];
+    for (const [title, items] of sections) {
+      const heading = document.createElement('h3');
+      heading.textContent = title;
+      emojiGrid.append(heading);
+      const section = document.createElement('div');
+      section.className = 'emoji-section';
+      for (const [symbol, imageUrl] of items) {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'emoji';
@@ -264,11 +277,17 @@
         button.textContent = symbol;
       }
       button.addEventListener('click', () => {
+        const index = recentOrder.indexOf(symbol);
+        if (index >= 0) recentOrder.splice(index, 1);
+        recentOrder.unshift(symbol);
+        recentOrder.splice(12);
         const choose = pickEmoji;
         closeEmoji();
         if (choose) choose(symbol);
       });
-      emojiGrid.append(button);
+        section.append(button);
+      }
+      if (items.length) emojiGrid.append(section);
     }
   }
 

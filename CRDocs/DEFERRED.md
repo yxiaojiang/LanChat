@@ -38,6 +38,7 @@
 - **现状**：宿主机为 Windows，本轮仅完成 `linux-x64` 与 `linux-arm64` ELF 零警告编译及 ELF64 机器码校验，尚未在 Linux 仅回环网络命名空间运行最新 ELF。
 - **触发阶段**：下一次进入 QEMU / Linux 实机验证时。
 - **验收条件**：在 Linux 网络命名空间对最新 ELF 跑通 `tests/linux_desktop_regression.py` 全量用例，包含外观 6 项持久化重启、只读设置取消与确认、`clear-all-histories`、`history`（含冲突目标目录拒绝迁移）、`delete`、`transfer` 与 `crash`。
+- **LC-LINUX-003 CP-0 补充（2026-11-26）**：`LC-LINUX-003` 阶段 0 检查点 `CP-0`（在 Linux 网络命名空间对现存 `v2.0.26` ELF 摸底）沿用本条目保持 `[OPEN]`，Windows 宿主机编译与 Node 回归不得核销。
 
 ## LC-LINUX-002-GUI-001 [OPEN] Linux Xorg / Wayland / XWayland 实机桌面联调
 
@@ -58,6 +59,7 @@
 - **现状**：当前桌面关闭窗口仍直接退出，托盘恢复、未读预览、通知点击与检查更新维护入口按切片计划未在切片 1/2 接入。
 - **触发阶段**：第 3 步切片 3 实施阶段。
 - **验收条件**：仅在实测托盘可稳定将同一窗口唤回前台后才启用关闭隐藏，其余未读入口、通知点击与更新入口对照 `BASELINE.md` 逐项验收。
+- **LC-LINUX-003 CP-1 补充（2026-11-26）**：`LC-LINUX-003` 阶段 1 检查点 `CP-1`（GNOME Xorg / 原生 Wayland / XWayland 真实 StatusNotifierItem 托盘可见性、无 AppIndicator 最小化不失联、通知点击激活与 Xorg 闪烁/预览）沿用本条目及 `LC-LINUX-002-GUI-001` 保持 `[OPEN]`，待阶段 1 整改放行并接入 Linux 实机后现场核销。
 
 ## LC-S3-003 [OPEN] `ChatHistoryService.ClearAllHistories()` 删除失败被静默忽略（P2）
 

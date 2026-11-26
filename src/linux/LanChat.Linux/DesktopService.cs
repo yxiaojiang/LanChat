@@ -25,6 +25,8 @@ namespace LanChat.Linux
             new UnboundedChannelOptions { SingleReader = true });
         private readonly object _gate = new object();
         private readonly Dictionary<(bool Sending, string Id, string Chat), JsonObject> _progress = new();
+        // 记录运行期间见过的 IPv4，即使对端尚未产生聊天历史，后续刷新也继续定向探测。
+        private readonly HashSet<IPAddress> _runtimeAddresses = new();
         private readonly SessionManager _sessions = new();
         private long _sequence;
         private bool _stopping;
@@ -180,6 +182,20 @@ namespace LanChat.Linux
                         _network.RefreshPeers(KnownAddresses());
                         Reply(id, PeerList());
                         break;
+                    case "probe-ip":
+                        string probeIp = Required(request, "ip", 15);
+                        if (!IPAddress.TryParse(probeIp, out IPAddress parsedIp) ||
+                            parsedIp.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+                            throw new ArgumentException("无效的 IPv4 地址");
+                        lock (_gate) _runtimeAddresses.Add(parsedIp);
+                        _network.ProbeIp(probeIp, (success, message) =>
+                        {
+                            Reply(id, new JsonObject
+                            {
+                                ["ok"] = success, ["message"] = message, ["peers"] = PeerList()
+                            });
+                        });
+                        break;
                     case "text":
                         string chat = Required(request, "chat", 256);
                         string message = Required(request, "text", 32768);
@@ -265,6 +281,14 @@ namespace LanChat.Linux
             throw new ArgumentException("无效的 " + name);
         }
 
+        private static bool? OptionalBool(JsonObject request, string name)
+        {
+            JsonNode node = request[name];
+            if (node == null) return null;
+            if (node is JsonValue value && value.TryGetValue(out bool flag)) return flag;
+            throw new ArgumentException("无效的 " + name);
+        }
+
         private static int? OptionalInt(JsonObject request, string name)
         {
             JsonNode node = request[name];
@@ -300,7 +324,9 @@ namespace LanChat.Linux
             ["uiFontFamily"] = _profile.UiFontFamily,
             ["uiFontSize"] = _profile.UiFontSize,
             ["chatFontFamily"] = _profile.ChatFontFamily,
-            ["chatFontSize"] = _profile.ChatFontSize
+            ["chatFontSize"] = _profile.ChatFontSize,
+            ["keepAliveInTray"] = _profile.KeepAliveInTray,
+            ["trayPreview"] = _profile.TrayPreview
         };
 
         private JsonObject SaveSettings(JsonObject request)
@@ -317,11 +343,14 @@ namespace LanChat.Linux
             double? uiFontSize = OptionalDouble(request, "uiFontSize");
             string chatFontFamily = OptionalString(request, "chatFontFamily", 128);
             double? chatFontSize = OptionalDouble(request, "chatFontSize");
+            bool? keepAliveInTray = OptionalBool(request, "keepAliveInTray");
+            bool? trayPreview = OptionalBool(request, "trayPreview");
             // 复制历史与切换写入位置期间，接收线程等待同一把锁。
             lock (_gate)
             {
                 if (!_profile.SaveSettings(nickname, autoAccept, directory, confirm, historyDirectory,
-                    themeMode, accentPreset, uiFontFamily, uiFontSize, chatFontFamily, chatFontSize))
+                    themeMode, accentPreset, uiFontFamily, uiFontSize, chatFontFamily, chatFontSize,
+                    keepAliveInTray, trayPreview))
                     return new JsonObject
                     {
                         ["backupPath"] = _profile.BackupPath,
@@ -337,8 +366,14 @@ namespace LanChat.Linux
             return SettingsFrame();
         }
 
-        private IEnumerable<IPAddress> KnownAddresses() => _sessions.GetAllSessionKeys()
-            .Select(SessionManager.GetArchivedAddress).Where(ip => ip != null);
+        private IEnumerable<IPAddress> KnownAddresses()
+        {
+            lock (_gate)
+            {
+                return _sessions.GetAllSessionKeys().Select(SessionManager.GetArchivedAddress).Where(ip => ip != null)
+                    .Concat(_runtimeAddresses).Distinct().ToArray();
+            }
+        }
 
         private JsonArray PeerList() => new JsonArray(_network.GetActivePeers().OrderBy(peer => peer.LastSeen).Select(peer => new JsonObject
         {
@@ -428,6 +463,8 @@ namespace LanChat.Linux
         {
             lock (_gate)
             {
+                if (peer?.IP != null && peer.IP.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                    _runtimeAddresses.Add(peer.IP);
                 if (_sessions.LinkPeer(peer.Id, peer.IP))
                     Publish("linked", new JsonObject
                     {

@@ -82,6 +82,12 @@ function setPeers(list) {
 
 function drawChats() {
   sidebar.render({ peers, messages, unread, active });
+  const count = [...unread.values()].reduce((total, value) => total + value, 0);
+  const first = unread.keys().next().value;
+  api?.syncUnreadState?.({
+    count,
+    summary: first ? (first === group ? '局域网全员群聊' : peers.get(first)?.nick || '局域网节点') : ''
+  });
 }
 
 function syncComposeHeight() {
@@ -103,6 +109,8 @@ function updateHeader() {
   const available = online && (active === group || peer?.online);
   byId('conversation').dataset.fileChat = !online ? '' : active === group ? group : peer?.online ? peer.id : 'OFFLINE';
   byId('attach').disabled = !online;
+  for (const id of ['open-downloads', 'send-file', 'take-screenshot', 'clear-chat'])
+    byId(id).disabled = !available;
   byId('refresh').disabled = !api || connecting;
   byId('refresh').title = byId('refresh').ariaLabel = online ? '刷新好友列表' : '重连通信服务';
   byId('open-settings').disabled = !online;
@@ -148,7 +156,9 @@ function remember(message) {
     appendMessage(message);
   }
   if (pending) transfers.delete(key);
-  if (message.chat !== active && !message.self) {
+  // 窗口隐藏、最小化或失焦时，即使是当前会话的新消息也必须进入托盘未读链。
+  const windowInactive = Boolean(doc.hidden) || (typeof doc.hasFocus === 'function' && !doc.hasFocus());
+  if (!message.self && (message.chat !== active || windowInactive)) {
     unread.set(message.chat, (unread.get(message.chat) ?? 0) + 1);
   }
   if (message.storageError) status(message.storageError, true);
@@ -286,8 +296,8 @@ async function sendCompose() {
   updateHeader();
   try {
     if (files.length) {
-      const recipient = chat === group ? await pickRecipient() : peers.get(chat)?.id;
-      if (!recipient) return;
+      const recipient = chat === group ? await pickRecipient(true) : peers.get(chat)?.id;
+      if (!recipient || (Array.isArray(recipient) && !recipient.length)) return;
       await api.sendPastedFiles(recipient, files.map(file => file.id));
       removeAttachments(chat, files);
     }
@@ -307,38 +317,74 @@ async function sendCompose() {
   }
 }
 
-function pickRecipient() {
-  if (dialog.open) return Promise.resolve('');
+function pickRecipient(multiple = false) {
+  if (dialog.open) return Promise.resolve(null);
   const options = byId('recipients');
+  const confirm = byId('recipient-confirm');
+  const selected = new Set();
+  confirm.hidden = !multiple;
+  confirm.disabled = true;
   options.replaceChildren();
   for (const peer of peers.values()) {
     if (!peer.online) continue;
     const button = doc.createElement('button');
     button.value = peer.id;
     button.className = 'pill';
+    button.setAttribute('aria-pressed', 'false');
     button.textContent = peer.nick + ' · ' + peer.ip;
+    button.addEventListener('click', event => {
+      if (!multiple) {
+        dialog.returnValue = peer.id;
+        dialog.close();
+        return;
+      }
+      event.preventDefault();
+      if (selected.has(peer.id)) selected.delete(peer.id);
+       else if (selected.size < 16) selected.add(peer.id);
+       else status('最多选择 16 个在线节点', true);
+      button.setAttribute('aria-pressed', String(selected.has(peer.id)));
+      confirm.disabled = selected.size === 0;
+      confirm.textContent = selected.size ? `发送到 ${selected.size} 个节点` : '发送到选中节点';
+    });
     options.append(button);
   }
   if (!options.childElementCount) {
     status('没有在线节点', true);
-    return Promise.resolve('');
+    return Promise.resolve(null);
   }
+  const onlinePeers = [...peers.values()].filter(peer => peer.online);
+  if (multiple && onlinePeers.length === 1) return Promise.resolve([onlinePeers[0].id]);
   const previousFocus = doc.activeElement;
+  confirm.hidden = !multiple;
+  confirm.disabled = multiple;
+  confirm.textContent = '发送到选中节点';
   dialog.returnValue = '';
   dialog.showModal();
-  (options.querySelector('button') || byId('recipient-cancel')).focus();
+  (options.querySelector('button') || (multiple ? confirm : byId('recipient-cancel'))).focus();
+  if (multiple) {
+    confirm.addEventListener('click', event => {
+      if (selected.size === 0) return;
+      event.preventDefault();
+      dialog.returnValue = JSON.stringify([...selected]);
+      dialog.close();
+    }, { once: true });
+  }
   return new Promise(resolve => dialog.addEventListener('close', () => {
+    confirm.hidden = true;
     if (previousFocus && previousFocus.isConnected) previousFocus.focus();
-    resolve(dialog.returnValue);
+    if (!multiple) resolve(dialog.returnValue);
+    else {
+       try { resolve(dialog.returnValue ? JSON.parse(dialog.returnValue) : null); }
+       catch { resolve(null); }
+    }
   }, { once: true }));
 }
 
-// 群聊菜单沿用 Windows 文案。WinForms 实际仍先选一个接收人，并不把文件广播给所有节点。
 async function sendFilesFor(chatKey) {
   try {
     let chat = '';
     if (chatKey === group) {
-      chat = await pickRecipient();
+      chat = await pickRecipient(true);
     } else {
       const peer = peers.get(chatKey);
       if (!peer?.online || !peer?.id) {
@@ -347,7 +393,7 @@ async function sendFilesFor(chatKey) {
       }
       chat = peer.id;
     }
-    if (!chat) return;
+    if (!chat || (Array.isArray(chat) && !chat.length)) return;
     const results = await api.selectFiles(chat);
     const failure = results.find(item => !item.ok);
     if (failure) status(failure.error, true);
@@ -409,13 +455,14 @@ async function openDownloads() {
 
 async function confirmForget(key, removePeer) {
   const name = peers.get(key)?.nick || '未知节点';
+  const target = key === group ? '局域网全员群聊' : `好友“${name}”的当前会话`;
   const accepted = await overlay.confirmAction(removePeer ? {
     title: '删除确认',
     message: `确定要删除好友“${name}”及全部历史消息吗？\n删除后历史记录将无法恢复。`,
     confirmLabel: '删除'
   } : {
     title: '清空确认',
-    message: '确定要清空局域网全员群聊的全部历史消息吗？\n删除后历史记录将无法恢复。',
+    message: `确定要清空${target}的全部历史消息吗？\n好友不会被删除。`,
     confirmLabel: '清空'
   });
   if (accepted) await forgetChat(key, removePeer);
@@ -456,15 +503,26 @@ async function forgetChat(key, removePeer) {
 }
 
 byId('attach').addEventListener('click', () => {
-  if (overlay.consumeAttachToggle()) return;
-  attachMenu(byId('attach'));
+  overlay.openEmoji(byId('attach'), insertEmoji, byId('attach'));
 });
+byId('open-downloads').addEventListener('click', () => { void openDownloads(); });
+byId('send-file').addEventListener('click', () => { void sendFilesFor(active); });
+byId('take-screenshot').addEventListener('click', async () => {
+  try {
+    const result = await api.triggerScreenshot();
+    status(result.message, !result.ok);
+  } catch (error) {
+    status(error.message, true);
+  }
+});
+byId('clear-chat').addEventListener('click', () => { void confirmForget(active, false); });
 byId('conversation').addEventListener('file-error', event => status(event.detail, true));
 byId('conversation').addEventListener('file-drop', async event => {
   try {
-    const chat = await pickRecipient();
+    const chat = await pickRecipient(true);
+    if (!chat || (Array.isArray(chat) && !chat.length)) return;
     const results = await api.confirmDrop(chat, event.detail);
-    if (!chat || !results?.length) return;
+    if (!results?.length) return;
     const failure = results.find(item => !item.ok);
     if (failure) status(failure.error, true);
   } catch (error) {
@@ -504,6 +562,18 @@ compose.addEventListener('keydown', event => {
   if (!presentation.shouldSendOnEnter(event)) return;
   event.preventDefault();
   void sendCompose();
+});
+doc.addEventListener('keydown', event => {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+  if (event.key.toLowerCase() === 'f') {
+    event.preventDefault();
+    byId('search').focus();
+    byId('search').select();
+  } else if (event.key.toLowerCase() === 'l') {
+    event.preventDefault();
+    // Ctrl+L 必须复用现有二次确认，不允许静默清空当前会话。
+    void confirmForget(active, false);
+  }
 });
 byId('quit').addEventListener('click', () => api?.quit());
 
@@ -583,6 +653,17 @@ function handleEvent(event) {
   if (event.event === 'peers' && online) {
     const generation = connectionGeneration;
     api.peers().then(list => { if (online && generation === connectionGeneration) setPeers(list); }, () => {});
+  }
+  else if (event.event === 'activate-chat') {
+    const key = event.data?.chat || event.data?.key;
+    if (key) switchChat(key, true, true);
+    else compose.focus();
+  }
+  else if (event.event === 'window-restored') {
+    if (unread.delete(active)) drawChats();
+  }
+  else if (event.event === 'open-update-check') {
+    void api?.openSettings?.();
   }
   else if (event.event === 'message') remember(event.data);
   else if (event.event === 'linked') {

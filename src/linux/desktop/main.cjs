@@ -1,4 +1,5 @@
-const { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, screen, session, shell } = require('electron');
+const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, screen, session, shell, Tray } = require('electron');
+const { execFile } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
 const { mkdir, open, readFile, realpath, stat, unlink } = require('node:fs/promises');
 const os = require('node:os');
@@ -6,6 +7,7 @@ const { basename, dirname, isAbsolute, join, resolve } = require('node:path');
 const { fileURLToPath, pathToFileURL } = require('node:url');
 const appearance = require('./appearance.js');
 const Service = require('./service.cjs');
+const { createTrayManager } = require('./tray-manager.cjs');
 
 const page = join(__dirname, 'index.html');
 const pageUrl = pathToFileURL(page).href;
@@ -28,6 +30,10 @@ let restarting;
 let exiting = false;
 let stopped = false;
 let windowBackground = '#121212';
+let trayManager;
+let traySettings = { keepAliveInTray: true, trayPreview: true };
+let settingsWindowLoaded = false;
+let pendingSettingsEvent = null;
 
 function recordMessagePaths(message) {
   if (message?.file && typeof message.path === 'string' && isAbsolute(message.path)) {
@@ -50,6 +56,7 @@ function startService() {
       const paste = sendingPastes.get(event.data.path);
       if (paste && event.data.historySaved === true) paste.saved = true;
       recordMessagePaths(event.data);
+      if ((!window || !window.isFocused()) && trayManager) trayManager.notifyMessage(event.data);
     }
     forward(event);
   });
@@ -76,12 +83,12 @@ function showWindow() {
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.webContents.on('will-navigate', event => event.preventDefault());
     window.webContents.on('will-attach-webview', event => event.preventDefault());
-    window.once('ready-to-show', () => window.show());
-    window.on('close', event => {
-      if (stopped) return;
-      event.preventDefault();
-      app.quit();
+    window.once('ready-to-show', () => {
+      window.show();
+      trayManager?.windowRestored();
+      forward({ event: 'window-restored' });
     });
+    bindWindowLifecycle(window);
     window.loadFile(page).catch(error => {
       console.error(error);
       app.quit();
@@ -90,7 +97,41 @@ function showWindow() {
     if (window.isMinimized()) window.restore();
     window.show();
     window.focus();
+    trayManager?.windowRestored();
+    forward({ event: 'window-restored' });
   }
+}
+
+// 绑定主窗生命周期：后台驻留只拦截普通关窗，显式退出仍必须进入 app.quit() 清理链。
+function bindWindowLifecycle(targetWindow, lifecycle = {}) {
+  const getStopped = lifecycle.getStopped || (() => stopped);
+  const getTraySettings = lifecycle.getTraySettings || (() => traySettings);
+  const getTrayManager = lifecycle.getTrayManager || (() => trayManager);
+  const send = lifecycle.forward || forward;
+  const notifyRestored = () => {
+    getTrayManager()?.windowRestored?.();
+    send({ event: 'window-restored' });
+  };
+
+  targetWindow.on('close', event => {
+    if (getStopped()) return;
+    if (getTraySettings()?.keepAliveInTray === false) {
+      event.preventDefault();
+      if (lifecycle.quit) lifecycle.quit();
+      else app.quit();
+      return;
+    }
+    event.preventDefault();
+    if (getTrayManager()?.canHideToTray?.()) {
+      targetWindow.hide();
+      getTrayManager()?.notifyMinimized?.();
+    } else {
+      targetWindow.minimize();
+    }
+  });
+  targetWindow.on('restore', notifyRestored);
+  targetWindow.on('focus', notifyRestored);
+  return targetWindow;
 }
 
 // 按 1260×820 基准计算设置窗口客户区尺寸，并适配当前显示器工作区与居中位置。
@@ -117,11 +158,21 @@ function computeSettingsMinSize(bounds) {
   };
 }
 
-function openSettingsWindow() {
+function dispatchSettingsEvent(event) {
+  if (!settingsWindow || settingsWindow.isDestroyed()) return;
+  if (!settingsWindowLoaded) {
+    pendingSettingsEvent = event;
+    return;
+  }
+  settingsWindow.webContents.send('lanchat:event', event);
+}
+
+function openSettingsWindow(event = null) {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     if (settingsWindow.isMinimized()) settingsWindow.restore();
     settingsWindow.show();
     settingsWindow.focus();
+    if (event) dispatchSettingsEvent(event);
     return;
   }
   const hasParent = window && !window.isDestroyed();
@@ -129,6 +180,8 @@ function openSettingsWindow() {
   const display = parentBounds ? screen.getDisplayMatching(parentBounds) : screen.getPrimaryDisplay();
   const bounds = computeSettingsBounds(display.workArea, parentBounds);
   const minSize = computeSettingsMinSize(bounds);
+  settingsWindowLoaded = false;
+  if (event) pendingSettingsEvent = event;
   settingsWindow = new BrowserWindow({
     parent: hasParent ? window : undefined,
     modal: Boolean(hasParent),
@@ -156,6 +209,13 @@ function openSettingsWindow() {
   settingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   settingsWindow.webContents.on('will-navigate', event => event.preventDefault());
   settingsWindow.webContents.on('will-attach-webview', event => event.preventDefault());
+  settingsWindow.webContents.once('did-finish-load', () => {
+    settingsWindowLoaded = true;
+    const pending = pendingSettingsEvent;
+    pendingSettingsEvent = null;
+    if (pending && settingsWindow && !settingsWindow.isDestroyed())
+      settingsWindow.webContents.send('lanchat:event', pending);
+  });
   settingsWindow.once('ready-to-show', () => {
     if (!settingsWindow || settingsWindow.isDestroyed()) return;
     const wa = display.workArea;
@@ -172,6 +232,8 @@ function openSettingsWindow() {
   });
   settingsWindow.on('closed', () => {
     settingsWindow = null;
+    settingsWindowLoaded = false;
+    pendingSettingsEvent = null;
     if (window && !window.isDestroyed() && !exiting) {
       window.focus();
       forward({ event: 'settings-closed' });
@@ -200,9 +262,17 @@ function text(value, limit) {
   return value;
 }
 
-function fileRecipient(chat) {
-  if (chat === 'BROADCAST') throw new Error('请选择文件接收节点');
-  return text(chat, 256);
+function fileRecipients(chat) {
+  const list = Array.isArray(chat) ? chat : [chat];
+  if (!list.length || list.length > 16 || new Set(list).size !== list.length)
+    throw new Error('请选择 1 至 16 个文件接收节点');
+  if (list.some(item => item === 'BROADCAST')) throw new Error('请选择文件接收节点');
+  return list.map(item => text(item, 256));
+}
+
+function isIpv4(value) {
+  const parts = typeof value === 'string' ? value.trim().split('.') : [];
+  return parts.length === 4 && parts.every(item => /^\d{1,3}$/.test(item) && Number(item) <= 255);
 }
 
 async function validateLocalFiles(paths) {
@@ -340,49 +410,62 @@ async function readEmojiPack(directory = join(app.getPath('userData'), 'WeChatEm
 }
 
 async function dispatchFiles(chat, files, waitForResult = true) {
-  fileRecipient(chat);
+  const chatIds = fileRecipients(chat);
   const child = service;
-  const peer = (await child.request('peers')).find(item => item.id === chat);
+  const onlinePeers = await child.request('peers');
+  const peers = chatIds.map(id => onlinePeers.find(item => item.id === id));
   if (exiting) throw new Error('应用正在退出');
   if (service !== child || child.disconnected) throw new Error('通信服务已断开，请重新连接后发送');
-  if (!peer) throw new Error('好友当前离线，暂时无法发送文件');
-  const batch = files.map(file => ({ file, progress: {
-    event: 'progress', operation: randomUUID(), chat: peer.key, peerNick: peer.nick,
-    name: file.name, total: file.size, sending: true
-  } }));
-  // 先显示整批的待发送气泡，仍沿用逐个发送，避免一次打开多条大文件流。
-  for (const { progress } of batch) forward({ ...progress, queued: true, received: 0 });
-  const send = async () => {
-    const results = [];
-    for (const { file, progress } of batch) {
-      const { path, managed } = file;
-      try {
-        if (exiting) throw new Error('应用正在退出');
-        if (managed) sendingPastes.set(path, file);
-        const result = await child.request('file', managed ? { chat, path, managedPaste: true } : { chat, path }, progress.operation);
-        if (managed && result?.historySaved === true) file.saved = true;
-        if (!managed || file.saved) allowedFilePaths.add(resolve(path));
-        results.push({ ok: true });
-      } catch (error) {
-        // 文件在排队时被删除等失败可能发生在通信服务发出首帧之前。
-        if (service === child && !child.disconnected)
-          forward({ ...progress, queued: false, failed: true, error: error.message });
-        results.push({ ok: false, error: error.message });
-      } finally {
-        if (managed) {
-          // 请求可能先被断开，管道仍有已经落盘的消息事件，等子进程关闭后再清理。
-          // 子进程异常退出时无法确认落盘与回执之间的状态，保留可能已被引用的图片。
-          const canDelete = !sendingPastes.has(path) || !child.disconnected || await child.stop();
-          sendingPastes.delete(path);
-          if (canDelete) await deleteOwnedPaste(file);
-        }
-      }
+  if (peers.some(peer => !peer)) throw new Error('好友当前离线，暂时无法发送文件');
+  for (const file of files) {
+    if (file.managed) {
+      file.remaining = (file.remaining || 0) + peers.length;
+      sendingPastes.set(file.path, file);
     }
-    return results;
-  };
-  const result = send();
+  }
+  const jobs = peers.flatMap(peer => files.map(file => {
+    const progress = {
+      event: 'progress', operation: randomUUID(), chat: peer.key, peerNick: peer.nick,
+      name: file.name, total: file.size, sending: true
+    };
+    forward({ ...progress, queued: true, received: 0 });
+    return sendOneFile(child, peer, file, progress);
+  }));
+  const result = Promise.all(jobs);
   if (waitForResult) return result;
   void trackPasteOperation(result).catch(error => forward({ event: 'file-error', data: error.message }));
+}
+
+async function sendOneFile(child, peer, file, progress) {
+  const { path, managed } = file;
+  try {
+    if (exiting) throw new Error('应用正在退出');
+    const request = managed ? { chat: peer.id, path, managedPaste: true } : { chat: peer.id, path };
+    const result = await child.request('file', request, progress.operation);
+    if (managed && result?.historySaved === true) file.saved = true;
+    if (!managed || file.saved) allowedFilePaths.add(resolve(path));
+    return { ok: true, chat: peer.id, operation: progress.operation };
+  } catch (error) {
+    // 文件在并发提交时被删除等失败仍只影响当前目标。
+    if (service === child && !child.disconnected)
+      forward({ ...progress, queued: false, failed: true, error: error.message });
+    return { ok: false, chat: peer.id, operation: progress.operation, error: error.message };
+  } finally {
+    if (managed) {
+      file.remaining = Math.max(0, (file.remaining || 1) - 1);
+      // 所有目标均已结算且没有历史引用时才删除托管截图；服务异常退出则保守保留。
+      if (file.remaining === 0) {
+        if (exiting) {
+          // 正常退出要等后端排空并确认历史结果；异常崩溃则保守保留托管截图。
+          const stoppedNormally = await child.stop();
+          if (stoppedNormally && !file.saved) await deleteOwnedPaste(file);
+        } else if (!child.disconnected && !file.saved) {
+          await deleteOwnedPaste(file);
+        }
+        sendingPastes.delete(path);
+      }
+    }
+  }
 }
 
 async function sendPastedFiles(chat, ids) {
@@ -390,9 +473,11 @@ async function sendPastedFiles(chat, ids) {
     throw new Error(`一次最多发送 ${maxFiles} 个文件`);
   const files = ids.map(id => pendingPastes.get(id));
   if (files.some(file => !file)) throw new Error('粘贴的文件已不可用，请重新粘贴');
+  const chatIds = fileRecipients(chat);
   for (const id of ids) pendingPastes.delete(id);
   try {
-    await dispatchFiles(chat, files, false);
+    await dispatchFiles(chatIds, files, false);
+    return { ok: true };
   } catch (error) {
     // 退出后不能重新登记草稿，预检已接管的图片在这里结算。
     if (exiting) await Promise.all(files.map(deleteOwnedPaste));
@@ -402,8 +487,38 @@ async function sendPastedFiles(chat, ids) {
 }
 
 async function sendFiles(chat, paths) {
-  fileRecipient(chat);
+  fileRecipients(chat);
   return dispatchFiles(chat, await validateLocalFiles(paths));
+}
+
+// 使用固定命令和固定参数探测截图工具，避免把用户输入拼接进 Shell。
+function triggerScreenshot() {
+  const candidates = [
+    ['gnome-screenshot', ['--help'], []],
+    ['spectacle', ['--help'], []],
+    ['xfce4-screenshooter', ['--help'], ['-r']],
+    ['flameshot', ['--version'], ['gui']],
+    ['mate-screenshot', ['--help'], []]
+  ];
+  return new Promise(resolve => {
+    const probe = index => {
+      if (index >= candidates.length) {
+        resolve({ ok: false, message: '未找到系统截图工具，请使用系统截图快捷键截图后，在输入框按 Ctrl+V 粘贴' });
+        return;
+      }
+      const [command, probeArgs, launchArgs] = candidates[index];
+      execFile(command, probeArgs, { timeout: 1500, windowsHide: true }, error => {
+        if (error) {
+          probe(index + 1);
+          return;
+        }
+        const child = execFile(command, launchArgs, { detached: true, windowsHide: true }, () => {});
+        child.unref?.();
+        resolve({ ok: true, message: '已启动系统截图工具，请完成截图后在输入框按 Ctrl+V 粘贴' });
+      });
+    };
+    probe(0);
+  });
 }
 
 async function reveal(target) {
@@ -442,12 +557,14 @@ async function openPath(target, kind) {
 
 if (process.env.LANCHAT_TEST_MODE === '1') {
   module.exports = { openPath, recordMessagePaths, allowedFilePaths, computeSettingsBounds, computeSettingsMinSize,
-    readClipboardPaths, stagePastedFiles, discardPastedFiles, readEmojiPack };
+    readClipboardPaths, stagePastedFiles, discardPastedFiles, readEmojiPack, bindWindowLifecycle, openSettingsWindow,
+    dispatchFiles, triggerScreenshot, isIpv4 };
 } else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.enableSandbox();
   app.on('second-instance', () => { if (app.isReady() && !exiting) showWindow(); });
+  app.on('activate', () => { if (!exiting) showWindow(); });
   app.on('before-quit', event => {
     if (stopped || !service) return;
     event.preventDefault();
@@ -457,6 +574,7 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       service.stop(), discardPastedFiles([...pendingPastes.keys()]), ...pasteOperations
     ]).finally(() => {
       stopped = true;
+      trayManager?.destroy();
       app.quit();
     });
   });
@@ -464,6 +582,25 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, decide) => decide(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
     session.defaultSession.on('will-download', event => event.preventDefault());
+    trayManager = createTrayManager({
+      Tray, Menu, Notification, BrowserWindow, screen,
+      createImage: name => nativeImage.createFromPath(join(__dirname, 'assets', `${name}.png`)),
+      onActivateChat: chat => {
+        showWindow();
+        if (chat) forward({ event: 'activate-chat', data: { chat } });
+      },
+      onOpenSettings: () => openSettingsWindow(),
+      onOpenUpdate: () => openSettingsWindow({ event: 'open-update-check' }),
+      onQuit: () => app.quit()
+    });
+    trayManager.setSettings(traySettings);
+    void trayManager.initialize();
+    ipcMain.on('lanchat:unread-state', (event, state) => {
+      const fromMain = event.sender === window?.webContents && event.senderFrame === event.sender.mainFrame &&
+        event.senderFrame.url === pageUrl;
+      if (!fromMain || exiting || !state || typeof state !== 'object') return;
+      trayManager?.setUnreadState(state);
+    });
     handle('state', () => service.request('state'), true);
     handle('history', async chat => {
       const result = await service.request('history', { chat: text(chat, 256) });
@@ -498,10 +635,15 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       const current = await service.request('settings');
       if (current) {
         windowBackground = appearance.surfaceHex(18, 18, 18, appearance.normalizeThemeMode(current.themeMode));
+        traySettings = {
+          keepAliveInTray: current.keepAliveInTray !== false,
+          trayPreview: current.trayPreview !== false
+        };
+        trayManager?.setSettings(traySettings);
       }
       return current;
     }, true);
-    handle('save-settings', async (nickname, autoAcceptFiles, downloadDirectory, confirmOverride, historyDirectory, appearanceInput = null) => {
+    handle('save-settings', async (nickname, autoAcceptFiles, downloadDirectory, confirmOverride, historyDirectory, appearanceInput = null, trayInput = null) => {
       if (typeof autoAcceptFiles !== 'boolean' || typeof confirmOverride !== 'boolean')
         throw new Error('设置值无效');
       if (downloadDirectory !== null && !isAbsolute(text(downloadDirectory, 4096)))
@@ -511,6 +653,13 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       const payload = {
         nickname: text(nickname, 80), autoAcceptFiles, downloadDirectory, confirmOverride, historyDirectory
       };
+      if (trayInput !== null && trayInput !== undefined) {
+        if (typeof trayInput !== 'object' || Array.isArray(trayInput)) throw new Error('托盘设置无效');
+        for (const key of ['keepAliveInTray', 'trayPreview']) {
+          if (trayInput[key] !== undefined && typeof trayInput[key] !== 'boolean') throw new Error('托盘设置无效');
+          if (trayInput[key] !== undefined) payload[key] = trayInput[key];
+        }
+      }
       if (appearanceInput !== null && appearanceInput !== undefined) {
         if (typeof appearanceInput !== 'object' || Array.isArray(appearanceInput))
           throw new Error('外观设置无效');
@@ -520,7 +669,7 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
           payload.themeMode = appearanceInput.themeMode;
         }
         if (appearanceInput.accentPreset !== undefined && appearanceInput.accentPreset !== null) {
-          if (!Number.isInteger(appearanceInput.accentPreset) || appearanceInput.accentPreset < 0 || appearanceInput.accentPreset >= 5)
+          if (!Number.isInteger(appearanceInput.accentPreset) || appearanceInput.accentPreset < 0 || appearanceInput.accentPreset >= 11)
             throw new Error('强调色预设无效');
           payload.accentPreset = appearanceInput.accentPreset;
         }
@@ -544,6 +693,11 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       const result = await service.request('save-settings', payload);
       if (result && !result.overridePath) {
         windowBackground = appearance.surfaceHex(18, 18, 18, appearance.normalizeThemeMode(result.themeMode));
+        traySettings = {
+          keepAliveInTray: result.keepAliveInTray !== false,
+          trayPreview: result.trayPreview !== false
+        };
+        trayManager?.setSettings(traySettings);
         forward({ event: 'settings-updated', data: result });
       }
       return result;
@@ -556,9 +710,13 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       return selection.canceled ? null : selection.filePaths[0];
     }, true);
     handle('clear-all-histories', () => service.request('clear-all-histories'), true);
+    handle('probe-ip', ip => {
+      if (!isIpv4(ip)) throw new Error('无效的 IPv4 地址');
+      return service.request('probe-ip', { ip: ip.trim() });
+    }, true);
     handle('send-text', (chat, message) => service.request('text', { chat: text(chat, 256), text: text(message, 32768) }));
     handle('select-files', async chat => {
-      fileRecipient(chat);
+      fileRecipients(chat);
       const selection = await dialog.showOpenDialog(window, {
         title: '选择要发送的文件', properties: ['openFile', 'multiSelections']
       });
@@ -598,6 +756,7 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       if (!files || !chat) return [];
       return dispatchFiles(chat, files);
     });
+    handle('trigger-screenshot', triggerScreenshot);
     handle('delete-session', (chat, removePeer) => {
       if (typeof removePeer !== 'boolean') throw new Error('删除参数无效');
       return service.request('delete-session', { chat: text(chat, 256), removePeer });

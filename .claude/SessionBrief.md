@@ -1,29 +1,19 @@
 # SessionBrief.md — 当前接手摘要
 
-> 2026-11-26 · 工作目录 `D:\TEmp\LanChat` · `V3.0` 封版准备中，程序输出版本保持 `2.0.26`
+> 2026-11-26 · 分支 `codex/v4.0-cross-platform-unification` · `LC-LINUX-003` 阶段 0、阶段 1（1.1～1.5）已完成，未提交未 push
 
 ## 当前状态
 
-`LC-UI-INPUT-008` 的 4 项 P1 与 P2-1 已由 Gemini Round 2 复核为 RESOLVED。当前输入区继续使用 188px 多行胶囊和 214px 底部基准高度，切会话、附件草稿和外观刷新不会压缩输入区。`ChatInputBox` 使用系统 RichEdit 4.1，将原生文字、内置表情和主题色光标合成到同一离屏帧。表情令牌不再设置 RichEdit 字符上移量，避免插入或删除表情时正文基线跳动；图片按 PNG 非透明内容放大到两倍高度，并按实际可见内容底边贴合正文。原生白色光标通过绘制前后隐藏，鼠标点击表情内部时插入点收拢到令牌两侧，令牌原文仍用于发送和历史。
+基线仍为 `V3.0`（程序输出版本 `2.0.26`）。本轮完成阶段 0：四套宿主机基线全绿，将 `tests/linux_desktop_ui_regression.js` 从 924 行拆至 700 行，并抽出 `tests/linux_desktop_test_helpers.js`；核对基线和延期清单后确认 Windows 宿主机没有可用 Linux/WSL 发行版，`LC-LINUX-002-ENV-001` 继续 `[OPEN]`，没有用宿主机结果核销 CP-0。
 
-回归夹具覆盖多行 `EM_SETRECTNP` 的创建、Resize、FontChanged、RecreateHandle 生命周期、多行滚动、行尾表情像素绘制、选区、鼠标点击令牌、插入删除后的正文基线、Shift+Enter，以及切会话/附件/外观后的输入区布局断言。Windows 原生编译、聊天和好友回归、Node 语法/UI 模拟回归、`git diff --check` 均通过。未改变 LANC 魔数、Type 1/Type 2 字段顺序、确认字节或 JSONL 历史格式；`ChatInputBox.cs` 964 行、`ChatComposerRegression.cs` 958 行，已接近 1000 行预警线，下一轮继续增加行为前应先评估拆分。
+阶段 1 已完成 1.1～1.5：导出 `tray.png`、`tray-unread.png`、`tray-blank.png`；LinuxProfile/DesktopService、Electron 设置桥接和设置页已持久化 `KeepAliveInTray` / `TrayPreview`；新增 `tray-manager.cjs`，用固定参数 `execFile(busctl, ..., timeout=1500)` 探测 D-Bus，失败或超时保守最小化；主进程接入托盘隐藏、通知、未读 Tooltip、Xorg 闪烁/预览、恢复和显式退出，渲染层接入未读同步与通知点击切会话；新增生命周期回归并纳入 UI 行数门禁。
 
-`LC-CC-007` 与 `LC-FILE-TRANSFER-STABILITY-001` 保持已审核通过状态。内置微信表情资源、RichEdit 坐标叠绘、PrintWindow 截图回归和文件传输并发/竞态修复已进入 v2.0.24 基线。本轮 v2.0.26 收录 UI-INPUT-010 的 RichEdit 基线、表情实际像素对齐与光标收敛修复，候选包包含 Windows EXE/MSI、Linux amd64/arm64 Electron deb、便携包、CLI 与校验摘要。
+## 兼容性与红线
 
-## 兼容性与验证边界
+未改 `LANC` 魔数、Type 1/Type 2 字段、`JSONL` 历史格式、版本号、安装目录、发布脚本或 Release；Electron 主进程没有新增局域网 UDP/TCP Socket。所有本轮新增/修改的手写源码与测试文件均低于 1000 行，新增注释使用中文。明确不做的节点空壳、三语切换、内置网页预览、`fs.Flush(true)`、复杂协议通道和非 root 静默安装仍未实现。系统编译会生成 `release` 二进制，但本轮已恢复到任务开始前状态。
 
-项目保持纯局域网边界。真实 Windows 100%/125%/150% DPI 目测和鼠标命中、中文输入法预编辑、Linux Xorg/Wayland/XWayland Electron 实机、Linux/ELF 实跑、真实双机 LAN 与新旧版本互通仍未验证，全部保留在 `CRDocs/DEFERRED.md`，不得由宿主机回归替代。
+## 验证与下一步
 
-## Linux 同步审计
+`Compile.bat`、`linux_desktop_ui_regression.js`（含生命周期回归）、`chat_composer_regression.ps1 -ExpectLocalPack`、`friend_refresh_regression.ps1` 均退出码 0；Linux C# 工程用项目缓存的 .NET 10.0.404 在 Windows 宿主机构建为 0 警告/0 错误，但不是 Linux 实跑。当前下一步是按 `.claude/Plan.md` 进入阶段 2A；CP-0、CP-1、CP-2B 及真实 Linux 桌面、多 DPI/IME、双架构和物理 LAN 仍待现场验证。当前工作树仍有用户原有的 `.claude`、`PlanDocs/LC-LINUX-003` 与 `Temps` 改动，未覆盖。
 
-Linux 已具备主窗双栏、会话/未读/搜索、聊天气泡、Unicode/静态表情回显、文件选择/拖放/剪贴板附件、逐文件进度、历史与删除、八页设置、主题/字体持久化及共享 C# 通信服务。
-
-已确认的功能缺口是：关闭窗口仍直接退出，托盘恢复、未读托盘预览、系统通知点击和检查更新维护入口尚未接入；Linux 的 ELF `delete`/`history`/`clear-all-histories`、Electron 实机设置与焦点、Xorg/原生 Wayland/XWayland、fcitx5/ibus、多 DPI、2000 条历史、物理 x86_64/ARM64 升级回退及真实 Windows LAN 联测尚未验收。具体矩阵见 `PlanDocs/LC-LINUX-002/STATUS.md`、`BASELINE.md`、`CRDocs/DEFERRED.md`。
-
-## 提交与下一步
-
-版本元数据与 `CHANGELOG.md` 已更新；`v2.0.26` 已完成 Windows EXE/MSI、Linux amd64/arm64 deb/便携包/CLI 构建、提交、push 和 GitHub Release。`V3.0` 封版标签已推送，程序输出版本保持不变；当前分支 `codex/v4.0-cross-platform-unification` 已从主线创建并推送，作为 Windows/Linux 功能统一的后续开发分支。
-
-V4.0 计划基线已写入 `PlanDocs/V4.0-UNIFICATION.md`：补齐 Linux 托盘/通知/关闭恢复、连接节点 GUI、设置页展示性开关的真实业务接线、更新维护入口，并完成 Linux ELF、Xorg/Wayland/XWayland、fcitx5/ibus、多 DPI、双架构升级回退和真实双机 LAN 验收。之后仅保留延期现场验收：截图工具/Excel/WPS 粘贴及长时间稳定性。
-
-入口：`Plan.md`、`contexts/Windows.md`、`contexts/Linux.md`、`contexts/Protocol.md`、`CRDocs/STATUS.md`、`CRDocs/REVIEW.md`、`CRDocs/DEFERRED.md`。本轮新增的 `RichEditPaint.cs` 负责 TOM 基线查询和离屏缓冲，待发布脚本完成版本同步后提交并推送。
+入口：`Plan.md`、`PlanDocs/LC-LINUX-003/FINAL.md`、`CRDocs/STATUS.md`、`CRDocs/DEFERRED.md`。当前工作树缺少 `contexts/Linux.md`，不可据此声称已读取 Linux 上下文。
