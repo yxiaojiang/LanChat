@@ -31,9 +31,6 @@ namespace LanChat
             Panel cardNet = CreateCardPanel(CARD_W, 162);
             cardNet.Location = new Point(0, curY);
 
-            string ipStr = Context.NetService != null ? Context.NetService.GetPrimaryPhysicalIp().ToString() : "127.0.0.1";
-            int port = Context.NetService != null ? Context.NetService.LocalTcpPort : 38889;
-
             cardNet.Paint += (s, e) =>
             {
                 Graphics g = e.Graphics;
@@ -46,7 +43,7 @@ namespace LanChat
                 {
                     // Row 1
                     g.DrawString("物理以太网 / Wi-Fi IP 绑定", f, tb, new PointF(20, SettingTitleOffset));
-                    g.DrawString("IP: " + ipStr + ":" + port + "  ·  UDP 38888 广播服务就绪", sf, sb, new PointF(20, SettingDescriptionOffset));
+                    g.DrawString(GetNetworkSummary(), sf, sb, new PointF(20, SettingDescriptionOffset));
                     g.DrawLine(sep, 16, 54, CARD_W - 16, 54);
 
                     // Row 2
@@ -60,19 +57,46 @@ namespace LanChat
                 }
             };
 
-            Button btnStatus = CreateDropdownPill("● 局域网在线  ∨", 126, 28, null);
+            Button btnStatus = CreateActionLink("刷新绑定 >", 104, 28, () =>
+            {
+                if (Context.OnRefreshNetwork != null) Context.OnRefreshNetwork();
+                cardNet.Invalidate();
+            });
             btnStatus.Location = new Point(CARD_W - btnStatus.Width - 20, (54 - 32) / 2);
             cardNet.Controls.Add(btnStatus);
 
-            ModernToggleSwitch swTun = new ModernToggleSwitch(true, null);
+            bool tunFilter = Context.NetService != null ? Context.NetService.EnableTunFilter : AppSettings.TunFilter;
+            ModernToggleSwitch swTun = new ModernToggleSwitch(tunFilter, (val) =>
+            {
+                AppSettings.TunFilter = val;
+                AppSettings.Save();
+                if (Context.NetService != null) Context.NetService.EnableTunFilter = val;
+                if (Context.OnNetworkSettingsChanged != null) Context.OnNetworkSettingsChanged();
+            });
             swTun.Location = new Point(CARD_W - swTun.Width - 24, 54 + (54 - 22) / 2);
             cardNet.Controls.Add(swTun);
 
-            ModernToggleSwitch swUnicast = new ModernToggleSwitch(true, null);
+            bool unicastProbe = Context.NetService != null ? Context.NetService.EnableSubnetSweep : AppSettings.UnicastProbe;
+            ModernToggleSwitch swUnicast = new ModernToggleSwitch(unicastProbe, (val) =>
+            {
+                AppSettings.UnicastProbe = val;
+                AppSettings.Save();
+                if (Context.NetService != null) Context.NetService.EnableSubnetSweep = val;
+                if (Context.OnNetworkSettingsChanged != null) Context.OnNetworkSettingsChanged();
+            });
             swUnicast.Location = new Point(CARD_W - swUnicast.Width - 24, 108 + (54 - 22) / 2);
             cardNet.Controls.Add(swUnicast);
 
             this.Controls.Add(cardNet);
+        }
+
+        private string GetNetworkSummary()
+        {
+            if (Context.NetService == null) return "未启动网络服务 · TCP 38889 / UDP 38888";
+            var interfaces = Context.NetService.GetActiveInterfacesSnapshot();
+            if (interfaces.Length == 0) return "未发现活动网卡 · TCP " + Context.NetService.LocalTcpPort + " / UDP 38888";
+            string ip = string.Join(", ", Array.ConvertAll(interfaces, item => item.IP.ToString()));
+            return "绑定: " + ip + " · TCP " + Context.NetService.LocalTcpPort + " / UDP 38888";
         }
     }
 }

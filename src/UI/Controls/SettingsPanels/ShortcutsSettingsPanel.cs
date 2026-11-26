@@ -28,7 +28,7 @@ namespace LanChat
             this.Controls.Add(lblKey);
             curY += 28;
 
-            Panel cardKey = CreateCardPanel(CARD_W, 216);
+            Panel cardKey = CreateCardPanel(CARD_W, 270);
             cardKey.Location = new Point(0, curY);
 
             cardKey.Paint += (s, e) =>
@@ -41,16 +41,23 @@ namespace LanChat
                 using (SolidBrush kb = new SolidBrush(Color.FromArgb(170, 170, 185)))
                 using (Pen sep = new Pen(ColCardDivider, 1f))
                 {
-                    string[] titles = new string[] { "发送消息", "多行换行输入", "快速搜索联系人", "清空当前聊天" };
-                    string[] shortcuts = new string[] { "Enter", "Shift + Enter", "Ctrl + F", "Ctrl + L" };
+                    string modeTitle = AppSettings.SendShortcutMode == 1
+                        ? "使用 Ctrl + Enter 发送消息"
+                        : "使用 Enter 发送消息";
+                    string[] titles = new string[] { "发送消息", "多行换行输入", "快速搜索联系人", "清空当前聊天", modeTitle };
+                    string[] shortcuts = AppSettings.SendShortcutMode == 1
+                        ? new string[] { "Ctrl + Enter", "Enter", "Ctrl + F", "Ctrl + L" }
+                        : new string[] { "Enter", "Shift + Enter", "Ctrl + F", "Ctrl + L" };
 
-                    for (int i = 0; i < 4; i++)
+                    for (int i = 0; i < 5; i++)
                     {
                         int y = i * 54;
                         g.DrawString(titles[i], f, tb, new PointF(20, y + (54 - f.GetHeight(g)) / 2f));
-                        if (i < 3) g.DrawLine(sep, 16, y + 54, CARD_W - 16, y + 54);
+                        if (i < 4) g.DrawLine(sep, 16, y + 54, CARD_W - 16, y + 54);
 
-                        // 快捷键芯片徽章
+                        if (i >= shortcuts.Length) continue;
+
+                        // 前四行显示快捷键芯片，第五行只显示模式说明并避开右侧开关。
                         SizeF ssz = g.MeasureString(shortcuts[i], kf);
                         int bw = (int)ssz.Width + 16;
                         Rectangle br = new Rectangle(CARD_W - bw - 20, y + (54 - 24) / 2, bw, 24);
@@ -64,6 +71,15 @@ namespace LanChat
                     }
                 }
             };
+
+            ModernToggleSwitch modeSwitch = new ModernToggleSwitch(AppSettings.SendShortcutMode == 1, (val) =>
+            {
+                AppSettings.SendShortcutMode = val ? 1 : 0;
+                AppSettings.Save();
+                cardKey.Invalidate();
+            });
+            modeSwitch.Location = new Point(CARD_W - modeSwitch.Width - 24, 4 * 54 + (54 - 22) / 2);
+            cardKey.Controls.Add(modeSwitch);
 
             this.Controls.Add(cardKey);
         }

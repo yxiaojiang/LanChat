@@ -44,7 +44,11 @@
       chatFontFamily: 'Microsoft YaHei UI',
       chatFontSize: 10.5,
       keepAliveInTray: true,
-      trayPreview: true
+      trayPreview: true,
+      tunFilter: true,
+      unicastProbe: true,
+      autoLoadHistory: true,
+      sendShortcutMode: 0
     };
 
     const runtime = {
@@ -56,6 +60,7 @@
       arch: 'x64',
       version: '2.0.18',
       electronVersion: '45.4.1',
+      interfaces: [],
       connected: false
     };
 
@@ -63,10 +68,7 @@
     const display = {
       languagePill: model.LANGUAGES[0].pill,
       linkPill: model.LINK_MODES[0].pill,
-      chunkCheck: true,
-      autoLoadHistory: true,
-      tunFilter: true,
-      unicastProbe: true
+      chunkCheck: true
     };
 
     let activeTab = 0;
@@ -92,7 +94,12 @@
       chatFontLabels: [],
       nickLabels: [],
       traySwitches: [],
-      previewSwitches: []
+      previewSwitches: [],
+      discoverySwitches: [],
+      unicastSwitches: [],
+      historyLoadSwitches: [],
+      shortcutModeLabels: [],
+      shortcutBadges: []
     };
 
     function showBanner(message, isError = false, autoHideMs = 0) {
@@ -242,10 +249,18 @@
       const nextHistory = patch.historyDirectory !== undefined ? patch.historyDirectory : null;
       const nextKeepAlive = patch.keepAliveInTray !== undefined ? Boolean(patch.keepAliveInTray) : committed.keepAliveInTray;
       const nextTrayPreview = patch.trayPreview !== undefined ? Boolean(patch.trayPreview) : committed.trayPreview;
+      const nextTunFilter = patch.tunFilter !== undefined ? Boolean(patch.tunFilter) : committed.tunFilter;
+      const nextUnicastProbe = patch.unicastProbe !== undefined ? Boolean(patch.unicastProbe) : committed.unicastProbe;
+      const nextAutoLoadHistory = patch.autoLoadHistory !== undefined ? Boolean(patch.autoLoadHistory) : committed.autoLoadHistory;
+      const nextSendShortcutMode = patch.sendShortcutMode !== undefined ? Number(patch.sendShortcutMode) : committed.sendShortcutMode;
       const appearancePayload = appearance.normalizeSettings({ ...committed, ...patch });
       const trayPayload = { keepAliveInTray: nextKeepAlive, trayPreview: nextTrayPreview };
+      const networkPayload = {
+        tunFilter: nextTunFilter, unicastProbe: nextUnicastProbe,
+        autoLoadHistory: nextAutoLoadHistory, sendShortcutMode: nextSendShortcutMode
+      };
       try {
-        let result = await api.saveSettings(nextNick, nextAuto, nextDownload, false, nextHistory, appearancePayload, trayPayload);
+        let result = await api.saveSettings(nextNick, nextAuto, nextDownload, false, nextHistory, appearancePayload, trayPayload, networkPayload);
         if (result?.overridePath) {
           const confirmed = await openConfirmModal({
             title: '原设置只读',
@@ -261,7 +276,7 @@
             showBanner('已取消更改，原只读设置保持不变', false, 3500);
             return { ok: false, cancelled: true };
           }
-          result = await api.saveSettings(nextNick, nextAuto, nextDownload, true, nextHistory, appearancePayload, trayPayload);
+          result = await api.saveSettings(nextNick, nextAuto, nextDownload, true, nextHistory, appearancePayload, trayPayload, networkPayload);
         }
         Object.assign(committed, result);
         pendingAppearance = null;
@@ -333,6 +348,23 @@
       for (const el of syncRefs.previewSwitches) {
         el.setAttribute('aria-checked', String(Boolean(committed.trayPreview)));
       }
+      for (const el of syncRefs.discoverySwitches) {
+        el.setAttribute('aria-checked', String(Boolean(committed.tunFilter)));
+      }
+      for (const el of syncRefs.unicastSwitches) {
+        el.setAttribute('aria-checked', String(Boolean(committed.unicastProbe)));
+      }
+      for (const el of syncRefs.historyLoadSwitches) {
+        el.setAttribute('aria-checked', String(Boolean(committed.autoLoadHistory)));
+      }
+      for (const el of syncRefs.shortcutModeLabels) {
+        el.textContent = committed.sendShortcutMode === 1 ? 'Ctrl + Enter 发送' : 'Enter 发送';
+      }
+      for (const [index, el] of syncRefs.shortcutBadges.entries()) {
+        el.textContent = index === 0
+          ? (committed.sendShortcutMode === 1 ? 'Ctrl + Enter' : 'Enter')
+          : (committed.sendShortcutMode === 1 ? 'Enter' : 'Ctrl + Enter / Shift + Enter');
+      }
       syncAppearanceControls(pendingAppearance || committed);
     }
 
@@ -362,6 +394,26 @@
 
     async function toggleTrayPreview(next) {
       const res = await persistSettings({ trayPreview: next });
+      if (!res.ok) syncBoundControls();
+    }
+
+    async function toggleTunFilter(next) {
+      const res = await persistSettings({ tunFilter: next });
+      if (!res.ok) syncBoundControls();
+    }
+
+    async function toggleUnicastProbe(next) {
+      const res = await persistSettings({ unicastProbe: next });
+      if (!res.ok) syncBoundControls();
+    }
+
+    async function toggleAutoLoadHistory(next) {
+      const res = await persistSettings({ autoLoadHistory: next });
+      if (!res.ok) syncBoundControls();
+    }
+
+    async function setSendShortcutMode(mode) {
+      const res = await persistSettings({ sendShortcutMode: mode });
       if (!res.ok) syncBoundControls();
     }
 
@@ -489,6 +541,11 @@
       syncRefs.nickLabels = [];
       syncRefs.traySwitches = [];
       syncRefs.previewSwitches = [];
+      syncRefs.discoverySwitches = [];
+      syncRefs.unicastSwitches = [];
+      syncRefs.historyLoadSwitches = [];
+      syncRefs.shortcutModeLabels = [];
+      syncRefs.shortcutBadges = [];
       const built = pages.buildAll({
         committed,
         runtime,
@@ -505,6 +562,25 @@
           toggleAutoAccept: next => { void toggleAutoAccept(next); },
           toggleKeepAlive: next => { void toggleKeepAlive(next); },
           toggleTrayPreview: next => { void toggleTrayPreview(next); },
+          toggleTunFilter: next => { void toggleTunFilter(next); },
+          toggleUnicastProbe: next => { void toggleUnicastProbe(next); },
+          toggleAutoLoadHistory: next => { void toggleAutoLoadHistory(next); },
+          setSendShortcutMode: mode => { void setSendShortcutMode(mode); },
+          refreshNetwork: async () => {
+            if (!api?.refresh) return;
+            try {
+              await api.refresh();
+              const state = await api.state();
+              if (state) {
+                runtime.ip = state.ip || runtime.ip;
+                runtime.tcpPort = state.tcpPort || runtime.tcpPort;
+                runtime.interfaces = Array.isArray(state.interfaces) ? state.interfaces : [];
+              }
+              renderAllPanels();
+            } catch (error) {
+              showBanner(error.message, true);
+            }
+          },
           probeIp: (input, output, button) => { void probeIp(input, output, button); },
           clearAllHistories: btn => { void clearAllHistories(btn); },
           openNickDialog,
@@ -730,6 +806,7 @@
           runtime.id = stateData.id || runtime.id;
           runtime.ip = stateData.ip || runtime.ip;
           runtime.tcpPort = stateData.tcpPort || runtime.tcpPort;
+            runtime.interfaces = Array.isArray(stateData.interfaces) ? stateData.interfaces : [];
           runtime.connected = true;
         }
         if (sysData) {
@@ -750,6 +827,7 @@
     return {
       ready,
       committed,
+      runtime,
       persistSettings,
       updateAppearance,
       pickDirectory,

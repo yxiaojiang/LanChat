@@ -58,7 +58,7 @@ namespace LanChat
 
                     // Row 3
                     g.DrawString("64KB 分块极速传输校验", f, tb, new PointF(20, 108 + SettingTitleOffset));
-                    g.DrawString("纯原生 LANC 协议流式流转，零中转零依赖。", sf, sb, new PointF(20, 108 + SettingDescriptionOffset));
+                    g.DrawString("固定 64KB 分块并校验，当前版本没有独立开关。", sf, sb, new PointF(20, 108 + SettingDescriptionOffset));
                 }
             };
 
@@ -99,6 +99,7 @@ namespace LanChat
             cardFile.Controls.Add(btnOpenDir);
 
             ModernToggleSwitch swChunk = new ModernToggleSwitch(true, null);
+            swChunk.Enabled = false;
             swChunk.Location = new Point(CARD_W - swChunk.Width - 24, 108 + (54 - 22) / 2);
             cardFile.Controls.Add(swChunk);
 

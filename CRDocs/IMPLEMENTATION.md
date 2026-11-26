@@ -1,4 +1,74 @@
-﻿# LC-LINUX-003（阶段 2A · 低风险核心功能同步与现存缺陷修复）— 执行交接记录
+﻿# LC-LINUX-003（阶段 3）— Round 1 打回整改执行记录（等待独立复审）
+
+> 2026-11-26 · 执行者 Codex · 分支 `codex/v4.0-cross-platform-unification` · 本节仅记录本轮整改与真实命令结果，不是独立审核结论。
+
+## 本轮范围与逐项整改
+
+严格限定在阶段 3.1～3.4，未进入阶段 2B 或阶段 4；未修改 LANC/JSONL、版本号、发布链或安装目录，未执行 `Publish.bat`、覆盖安装或 `git push`。
+
+1. `LC-LINUX-003-S3-P1-1`：`main.cjs` 将 `lanchat:refresh` 对设置窗放行；`settings.js` 的 `refreshNetwork` 增加异常捕获并用错误 banner 提示。
+2. `LC-LINUX-003-S3-P1-2`：Windows 快捷键面板第五行只显示明确的模式说明，快捷键芯片仅绘制前四行；切换开关后失效重绘，避免第五行芯片与开关重叠。
+3. `LC-LINUX-003-S3-P1-3`：Windows 私聊 `Ctrl+L` 改为“仅清空当前聊天历史（不删除好友）”二次确认，确认调用 `ClearCurrentChat()`；群聊仍调用 `ConfirmDeleteBroadcastSession()`。
+4. `LC-LINUX-003-S3-P1-4`：Linux 快捷键页前两枚徽章根据 `committed.sendShortcutMode` 渲染，并在保存成功后的统一同步路径更新。
+5. `LC-LINUX-003-S3-P2-1`：Windows 通用页语言与链接只读项去掉 `∨`，补充语言只读说明并使用诚实文案。
+6. `LC-LINUX-003-S3-P2-2`：设置回归新增真实设置控制器/DOM 桩、主进程 IPC 来源校验桩，覆盖刷新、`runtime.interfaces`、徽章联动和 `networkPayload` 透传。
+
+## Windows 宿主机真实验证
+
+| 命令 | 退出码 | 真实结果 |
+| --- | ---: | --- |
+| `cmd.exe /d /s /c "call Tools\\Scripts\\Compile.bat < nul"` | 0 | Windows 原生 C# 编译成功，仅编译未发布或覆盖安装 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 聊天、剪贴板、LANC/JSONL、截图清理等回归通过 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 0 | 原生编译、好友刷新、侧栏、组合表情与草稿回归通过 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/file_transfer_stability_regression.ps1` | 0 | 0 字节、64KB、全局 6 路、单目标 2 路边界通过 |
+| `C:\\Program Files\\nodejs\\node.exe tests/linux_desktop_{ipc,lifecycle,sync2a,settings,ui}_regression.js` | 0 | 全部 Node 回归通过；设置回归实际执行刷新放行、网卡状态、徽章联动与 payload 断言 |
+| `C:\\Program Files\\nodejs\\node.exe --check`（桌面源文件与 tests JS/CJS，共 20 个） | 0 | 全部语法检查通过 |
+| `python tests/test_linux_flow.py` | 0 | Windows 宿主机 Python 纯逻辑测试 22 项通过 |
+| `python -m py_compile tests/linux_desktop_regression.py tests/test_linux_flow.py Tools/Scripts/import-wechat-emoji.py` | 0 | Python 语法检查通过 |
+| 行数门禁 | 0 | 所有本轮手写代码文件 `<1000` 行；`tests/linux_desktop_ui_regression.js` 为 691 行 |
+| `git diff --check` | 0 | 无空白错误；仅有 Git 的 LF→CRLF 提示 |
+
+以上 Linux 命名的 Node/Python 回归均是在 Windows 宿主机运行的模拟 DOM、桩 IPC 或纯逻辑测试，不代表 Linux/ELF 实机通过。当前宿主机没有可执行 Linux ELF，因此未执行且未宣称通过 `tests/linux_desktop_regression.py <elf>`；真实 Linux 桌面、网络命名空间和双机 LAN 继续保留到 `CRDocs/DEFERRED.md`。
+
+---
+
+# LC-LINUX-003（阶段 3）— 实施交接记录（等待独立审核）
+
+> 2026-11-26 · 执行者 Codex · 分支 `codex/v4.0-cross-platform-unification` · 本节是执行记录，不是独立审核结论。
+
+## 本轮范围
+
+严格按 `.claude/Plan.md` 阶段 3.1～3.4 实施，未进入阶段 4 或阶段 2B。先将任务开始前工作树全部提交为基线 `108ff85 chore: 提交阶段2A与审核交接基线`；阶段 3 实现保持未提交、未 push。
+
+## 实际实现
+
+1. 共享 `NetworkService` 新增默认开启的 `EnableTunFilter`、`EnableSubnetSweep` 与 `GetActiveInterfacesSnapshot()`；虚拟网卡过滤与子网扫描可由设置控制，快照返回不含套接字的副本；未修改 `NetworkService.Transfer.cs`，未加入 `fs.Flush(true)`。
+2. Windows/Linux 统一使用 `TunFilter`、`UnicastProbe`、`AutoLoadHistory`、`SendShortcutMode`。Windows 接通配置、启动历史加载、网络发现、输入快捷键、Ctrl+F 搜索与 Ctrl+L 二次确认；Linux 接通 `LinuxProfile`、DesktopService JSONL IPC、Electron 设置保存、状态网卡快照和主窗即时快捷键更新。
+3. C 类四项改为诚实只读：语言与链接打开方式明确未接入；64KB 分块校验标为固定原生能力；网络协议通道展示绑定 IP/端口并可触发刷新，不再提供空壳选择。
+4. 新增 `tests/linux_desktop_settings_regression.js`，补充 Python 桌面设置断言，并纳入 UI 回归入口；同步修正现有保存参数契约断言。
+
+## 宿主机真实验证
+
+| 命令 | 退出码 | 真实结果 |
+| --- | ---: | --- |
+| `cmd /c "call Tools\\Scripts\\Compile.bat < nul"` | 0 | Windows 原生编译成功，仅编译未发布 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1` | 0 | Windows 宿主机回归通过 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 0 | Windows 宿主机回归通过 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tests/file_transfer_stability_regression.ps1` | 0 | Windows 宿主机回归通过 |
+| `"C:\\Program Files\\nodejs\\node.exe" tests/linux_desktop_ipc_regression.js` | 0 | Windows 宿主机 Node 回归通过 |
+| `"C:\\Program Files\\nodejs\\node.exe" tests/linux_desktop_lifecycle_regression.js` | 0 | Windows 宿主机 Node 回归通过 |
+| `"C:\\Program Files\\nodejs\\node.exe" tests/linux_desktop_sync2a_regression.js` | 0 | Windows 宿主机 Node 回归通过 |
+| `"C:\\Program Files\\nodejs\\node.exe" tests/linux_desktop_settings_regression.js` | 0 | Windows 宿主机设置/快捷键回归通过 |
+| `"C:\\Program Files\\nodejs\\node.exe" tests/linux_desktop_ui_regression.js` | 0 | Windows 宿主机全套 Node UI 回归通过 |
+| `python tests/test_linux_flow.py` | 0 | Windows 宿主机 Python 纯逻辑回归 22 项通过 |
+| `python -m py_compile tests/linux_desktop_regression.py tests/test_linux_flow.py` | 0 | Python 语法通过 |
+| JS `--check`、`git diff --check`、行数门禁 | 0 | 通过；UI 回归 691 行，手写文件均小于 1000 行 |
+
+以上 Node/Python/PowerShell 均为 Windows 宿主机执行结果；没有 Linux/ELF 实机、Linux 桌面或真实双机 LAN 证据，`tests/linux_desktop_regression.py <elf>` 未宣称通过。未执行 `Publish.bat`、安装覆盖或 `git push`。
+
+---
+
+# LC-LINUX-003（阶段 2A · 低风险核心功能同步与现存缺陷修复）— 执行交接记录
 
 ## Round 1 打回整改执行记录（等待独立复审）
 

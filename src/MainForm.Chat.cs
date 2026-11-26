@@ -384,14 +384,17 @@ namespace LanChat
         {
             if (e.KeyCode == Keys.Enter)
             {
-                if (!e.Control && !e.Shift)
+                bool send = AppSettings.SendShortcutMode == 1
+                    ? e.Control && !e.Shift
+                    : !e.Control && !e.Shift;
+                if (send)
                 {
                     e.SuppressKeyPress = true;
                     SendMessage();
                 }
-                else if (e.Shift)
+                else if (!e.Control || e.Shift)
                 {
-                    // 微信式输入区：Shift+Enter 保留换行，普通 Enter 继续发送。
+                    // 非发送模式保留输入框的换行行为。
                     e.SuppressKeyPress = false;
                 }
                 else
@@ -573,6 +576,21 @@ namespace LanChat
                 ClearAttachmentDraft(SessionManager.GetLanKey(peer.Id, peer.IP));
                 _sessionPresenter.DeletePeerSession(peer);
             }
+        }
+
+        private void ConfirmClearPeerChat()
+        {
+            if (_selectedPeer == null) return;
+            string peerNick = !string.IsNullOrEmpty(_selectedPeer.NickName) ? _selectedPeer.NickName : "未知节点";
+
+            DialogResult dr = GrokMessageBox.Show(
+                this,
+                string.Format("确定要仅清空与“{0}”的当前聊天历史吗？\n仅清空当前聊天历史（不删除好友），此操作无法恢复。", peerNick),
+                "清空确认",
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Question);
+
+            if (dr == DialogResult.OK) ClearCurrentChat();
         }
 
         private void ConfirmDeleteBroadcastSession()

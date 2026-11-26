@@ -192,21 +192,13 @@
     function buildGeneralPage(page) {
       page.append(createSection('常规'));
       const card1 = createCard();
+      const language = createActionLink('简体中文（只读）', () => {});
+      language.disabled = true;
+      const linkMode = createActionLink('系统默认浏览器', () => {});
+      linkMode.disabled = true;
       card1.append(
-        createRow('语言', null, [
-          createDropdownPill(display.languagePill, labelEl => model.LANGUAGES.map(item => ({
-            label: item.label,
-            checked: display.languagePill === item.pill,
-            run: () => { display.languagePill = item.pill; labelEl.textContent = item.pill; }
-          })), actions.openMenu)
-        ]).row,
-        createRow('链接打开方式', '设置 LanChat 对话中链接的默认打开策略。', [
-          createDropdownPill(display.linkPill, labelEl => model.LINK_MODES.map(item => ({
-            label: item.label,
-            checked: display.linkPill === item.pill,
-            run: () => { display.linkPill = item.pill; labelEl.textContent = item.pill; }
-          })), actions.openMenu)
-        ]).row
+        createRow('语言', '当前版本仅提供简体中文，语言切换尚未接入。', [language]).row,
+        createRow('链接打开方式', '当前版本统一交给系统默认浏览器打开，内置预览尚未接入。', [linkMode]).row
       );
       const uiSlider = createSteppedSlider(model.UI_FONT_SIZES, committed.uiFontSize, value => {
         actions.updateAppearance({ uiFontSize: value });
@@ -238,9 +230,9 @@
         createRow('后台网络驻留运行', '关闭主窗口后保持在系统托盘静默运行，随时响应局域网呼叫。', [
           keepAliveSwitch
         ]).row,
-        createRow('网络协议通道', '物理网卡直连通信，多节点广播穿透加速。', [
-          createDropdownPill('直接连接 (LAN)', null, actions.openMenu)
-        ]).row
+         createRow('网络协议通道', formatNetworkSummary(runtime), [
+           createActionLink('刷新绑定 >', actions.refreshNetwork)
+         ]).row
       );
       page.append(card2);
 
@@ -358,12 +350,25 @@
     function buildShortcutsPage(page) {
       page.append(createSection('快捷操作'));
       const card = createCard();
-      for (const item of model.SHORTCUTS) {
+      const shortcuts = model.SHORTCUTS.map((item, index) => ({
+        ...item,
+        keys: index === 0
+          ? (committed.sendShortcutMode === 1 ? 'Ctrl + Enter' : 'Enter')
+          : (index === 1 && committed.sendShortcutMode === 1 ? 'Enter' : item.keys)
+      }));
+      for (const [index, item] of shortcuts.entries()) {
         const badge = document.createElement('span');
         badge.className = 'shortcut-badge';
         badge.textContent = item.keys;
+        if (index < 2) syncRefs.shortcutBadges.push(badge);
         card.append(createRow(item.title, null, [badge]).row);
       }
+      const modeLabel = committed.sendShortcutMode === 1 ? 'Ctrl + Enter 发送' : 'Enter 发送';
+      const mode = createDropdownPill(modeLabel, () => [
+        { label: 'Enter 发送 / Shift + Enter 换行', checked: committed.sendShortcutMode === 0, run: () => actions.setSendShortcutMode(0) },
+        { label: 'Ctrl + Enter 发送 / Enter 换行', checked: committed.sendShortcutMode === 1, run: () => actions.setSendShortcutMode(1) }
+      ], actions.openMenu, null, syncRefs.shortcutModeLabels);
+      card.append(createRow('发送快捷键模式', '双端使用相同模式；设置后主窗输入区即时采用。', [mode]).row);
       page.append(card);
     }
 
@@ -381,8 +386,8 @@
       card.append(
         createRow('自动接收好友文件', '局域网内接收文件时无需手动逐一确认保存。', [autoSwitch]).row,
         dirRow.row,
-        createRow('64KB 分块极速传输校验', '纯原生 LANC 协议流式流转，零中转零依赖。', [
-          createToggleSwitch(display.chunkCheck, () => {}, '64KB 分块极速传输校验')
+        createRow('64KB 分块极速传输校验', '固定 64KB 分块并校验，当前版本没有独立开关。', [
+          (() => { const control = createToggleSwitch(true, () => {}, '64KB 分块极速传输校验'); control.disabled = true; return control; })()
         ]).row
       );
       page.append(card);
@@ -400,7 +405,7 @@
       card.append(
         histRow.row,
         createRow('自动加载历史消息', '重启或更新覆盖安装后，自动读取历史会话与消息流。', [
-          createToggleSwitch(display.autoLoadHistory, () => {}, '自动加载历史消息')
+           (() => { const control = createToggleSwitch(committed.autoLoadHistory, actions.toggleAutoLoadHistory, '自动加载历史消息'); syncRefs.historyLoadSwitches.push(control); return control; })()
         ]).row,
         createRow('彻底清空所有本地聊天记录', '彻底清除本机保存的所有广播与好友聊天历史文件。', [
           createActionLink('立即清空 >', btn => actions.clearAllHistories(btn), true)
@@ -456,19 +461,26 @@
       const dot = document.createElement('span');
       dot.className = runtime.connected || !hasBridge ? 'status-dot' : 'status-dot offline';
       const statusLabel = runtime.connected || !hasBridge ? '局域网在线' : '服务已断开';
-      const statusDesc = `IP: ${runtime.ip}:${runtime.tcpPort}  ·  UDP 38888 广播服务就绪`;
+      const statusDesc = formatNetworkSummary(runtime);
       card.append(
         createRow('物理以太网 / Wi-Fi IP 绑定', statusDesc, [
           createDropdownPill(statusLabel, null, actions.openMenu, dot)
         ]).row,
         createRow('TUN / TAP 虚拟网卡穿透过滤', '智能识别并过滤 Clash / WireGuard 虚拟网卡，防止广播风暴。', [
-          createToggleSwitch(display.tunFilter, () => {}, 'TUN / TAP 虚拟网卡穿透过滤')
+          (() => { const control = createToggleSwitch(committed.tunFilter, actions.toggleTunFilter, 'TUN / TAP 虚拟网卡穿透过滤'); syncRefs.discoverySwitches.push(control); return control; })()
         ]).row,
         createRow('多网卡并发单播探测', '在局域网复杂交换机拓扑下并发向物理子网各节点单播探测。', [
-          createToggleSwitch(display.unicastProbe, () => {}, '多网卡并发单播探测')
+          (() => { const control = createToggleSwitch(committed.unicastProbe, actions.toggleUnicastProbe, '多网卡并发单播探测'); syncRefs.unicastSwitches.push(control); return control; })()
         ]).row
       );
       page.append(card);
+    }
+
+    function formatNetworkSummary(info) {
+      const interfaces = Array.isArray(info.interfaces) ? info.interfaces : [];
+      const addresses = interfaces.map(item => item.ip).filter(Boolean);
+      const binding = addresses.length ? addresses.join(', ') : '未发现活动网卡';
+      return `${binding} · TCP ${info.tcpPort || 38889} / UDP 38888`;
     }
 
     function buildAboutPage(page) {

@@ -130,21 +130,30 @@ def settings_regression(executable, bundle, home):
 
     with Service(executable, bundle, home) as service:
         assert service.call("settings")["nickname"] == "original"
-        service.call("save-settings", nickname="accepted", autoAcceptFiles=False)
+        defaults = service.call("settings")
+        assert defaults["tunFilter"] is True and defaults["unicastProbe"] is True
+        assert defaults["autoLoadHistory"] is True and defaults["sendShortcutMode"] == 0
+        service.call("save-settings", nickname="accepted", autoAcceptFiles=False,
+                     tunFilter=False, unicastProbe=False, autoLoadHistory=False, sendShortcutMode=1)
         result = service.call(
             "save-settings", nickname="accepted", autoAcceptFiles=False, confirmOverride=True,
             themeMode=2, accentPreset=10, uiFontFamily="SimHei", uiFontSize=12.0,
             chatFontFamily="Consolas", chatFontSize=13.0,
+            tunFilter=False, unicastProbe=False, autoLoadHistory=False, sendShortcutMode=1,
         )
         assert result["settingsPath"] == str(override) and result["autoAcceptFiles"] is False
         assert result["themeMode"] == 2 and result["accentPreset"] == 10
         assert result["uiFontFamily"] == "SimHei" and result["uiFontSize"] == 12.0
         assert result["chatFontFamily"] == "Consolas" and result["chatFontSize"] == 13.0
+        assert result["tunFilter"] is False and result["unicastProbe"] is False
+        assert result["autoLoadHistory"] is False and result["sendShortcutMode"] == 1
         saved = json.loads(override.read_bytes())
         assert saved["Unknown"] is True
         assert saved["ThemeMode"] == 2 and saved["AccentPreset"] == 10
         assert saved["UiFontFamily"] == "SimHei" and saved["UiFontSize"] == 12.0
         assert saved["ChatFontFamily"] == "Consolas" and saved["ChatFontSize"] == 13.0
+        assert saved["TunFilter"] is False and saved["UnicastProbe"] is False
+        assert saved["AutoLoadHistory"] is False and saved["SendShortcutMode"] == 1
 
     with Service(executable, bundle, home) as service:
         result = service.call("settings")
@@ -153,6 +162,8 @@ def settings_regression(executable, bundle, home):
         assert result["themeMode"] == 2 and result["accentPreset"] == 10
         assert result["uiFontFamily"] == "SimHei" and result["uiFontSize"] == 12.0
         assert result["chatFontFamily"] == "Consolas" and result["chatFontSize"] == 13.0
+        assert result["tunFilter"] is False and result["unicastProbe"] is False
+        assert result["autoLoadHistory"] is False and result["sendShortcutMode"] == 1
     print("只读设置备份、取消、确认、外观持久化、锁互斥、重启及原字节通过")
 
 

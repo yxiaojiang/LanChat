@@ -64,7 +64,7 @@ namespace LanChat.Linux
         {
             using var input = new StreamReader(Console.OpenStandardInput(), Encoding.UTF8);
             using var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
-            _sessions.LoadPersistedHistories();
+            if (_profile.AutoLoadHistory) _sessions.LoadPersistedHistories();
             _network.Start(KnownAddresses());
 
             // 启动时网络回调可能已入队，就绪帧必须先写。
@@ -142,6 +142,7 @@ namespace LanChat.Linux
                             {
                                 ["id"] = _network.LocalId, ["nick"] = _network.NickName,
                                 ["ip"] = _network.GetPrimaryPhysicalIp().ToString(), ["tcpPort"] = _network.LocalTcpPort,
+                                ["interfaces"] = InterfaceList(),
                                 ["peers"] = PeerList(),
                                 ["sequence"] = _sequence,
                                 ["sessions"] = new JsonArray(_sessions.GetAllSessionKeys().Select(key => new JsonObject
@@ -326,8 +327,21 @@ namespace LanChat.Linux
             ["chatFontFamily"] = _profile.ChatFontFamily,
             ["chatFontSize"] = _profile.ChatFontSize,
             ["keepAliveInTray"] = _profile.KeepAliveInTray,
-            ["trayPreview"] = _profile.TrayPreview
+            ["trayPreview"] = _profile.TrayPreview,
+            ["tunFilter"] = _profile.TunFilter,
+            ["unicastProbe"] = _profile.UnicastProbe,
+            ["autoLoadHistory"] = _profile.AutoLoadHistory,
+            ["sendShortcutMode"] = _profile.SendShortcutMode
         };
+
+        private JsonArray InterfaceList() => new JsonArray(_network.GetActiveInterfacesSnapshot().Select(item => new JsonObject
+        {
+            ["name"] = item.Name,
+            ["description"] = item.Description,
+            ["ip"] = item.IP.ToString(),
+            ["mask"] = item.Mask.ToString(),
+            ["virtual"] = item.IsVirtualOrTun
+        }).ToArray());
 
         private JsonObject SaveSettings(JsonObject request)
         {
@@ -345,12 +359,19 @@ namespace LanChat.Linux
             double? chatFontSize = OptionalDouble(request, "chatFontSize");
             bool? keepAliveInTray = OptionalBool(request, "keepAliveInTray");
             bool? trayPreview = OptionalBool(request, "trayPreview");
+            bool? tunFilter = OptionalBool(request, "tunFilter");
+            bool? unicastProbe = OptionalBool(request, "unicastProbe");
+            bool? autoLoadHistory = OptionalBool(request, "autoLoadHistory");
+            int? sendShortcutMode = OptionalInt(request, "sendShortcutMode");
+            bool oldTunFilter = _network.EnableTunFilter;
+            bool oldUnicastProbe = _network.EnableSubnetSweep;
             // 复制历史与切换写入位置期间，接收线程等待同一把锁。
             lock (_gate)
             {
                 if (!_profile.SaveSettings(nickname, autoAccept, directory, confirm, historyDirectory,
                     themeMode, accentPreset, uiFontFamily, uiFontSize, chatFontFamily, chatFontSize,
-                    keepAliveInTray, trayPreview))
+                    keepAliveInTray, trayPreview, tunFilter, unicastProbe, autoLoadHistory,
+                    sendShortcutMode))
                     return new JsonObject
                     {
                         ["backupPath"] = _profile.BackupPath,
@@ -362,7 +383,10 @@ namespace LanChat.Linux
             _network.NickName = nickname;
             _network.AutoAcceptFiles = _profile.AutoAcceptFiles;
             _network.SaveDirectory = _profile.DownloadDirectory;
-            if (changedNick) _network.RefreshPeers(KnownAddresses());
+            _network.EnableTunFilter = _profile.TunFilter;
+            _network.EnableSubnetSweep = _profile.UnicastProbe;
+            if (changedNick || oldTunFilter != _network.EnableTunFilter || oldUnicastProbe != _network.EnableSubnetSweep)
+                _network.RefreshPeers(KnownAddresses());
             return SettingsFrame();
         }
 

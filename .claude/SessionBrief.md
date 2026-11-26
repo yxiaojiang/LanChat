@@ -1,19 +1,19 @@
-# SessionBrief.md — 当前接手摘要
+# 当前接手摘要（LC-LINUX-003 阶段 3 已审核通过）
 
-> 2026-11-26 · 分支 `codex/v4.0-cross-platform-unification` · `LC-LINUX-003` 阶段 0、阶段 1（1.1～1.5）已完成，未提交未 push
+> 2026-11-26 · 分支 `codex/v4.0-cross-platform-unification` · 本轮阶段 3 已完成整改、独立审核通过，代码与文档随本次记忆保存提交并推送。
 
 ## 当前状态
 
-基线仍为 `V3.0`（程序输出版本 `2.0.26`）。本轮完成阶段 0：四套宿主机基线全绿，将 `tests/linux_desktop_ui_regression.js` 从 924 行拆至 700 行，并抽出 `tests/linux_desktop_test_helpers.js`；核对基线和延期清单后确认 Windows 宿主机没有可用 Linux/WSL 发行版，`LC-LINUX-002-ENV-001` 继续 `[OPEN]`，没有用宿主机结果核销 CP-0。
+LC-LINUX-003 阶段 3.1～3.4 已闭环。共享 `NetworkService` 保持 LANC/JSONL 与旧协议兼容；Windows/Linux 已统一持久化 `TunFilter`、`UnicastProbe`、`AutoLoadHistory`、`SendShortcutMode`。设置页的语言、链接、64KB 分块能力与网络协议通道均按真实能力诚实展示。Round 1 打回的 4 项 P1 已修复：设置窗刷新 IPC 放行并捕获错误、Windows 快捷键第五行不再与开关重叠、私聊 `Ctrl+L` 只清当前历史不删好友、Linux 前两枚快捷键徽章随模式保存同步。两项 P2 也已收口，设置回归新增真实控制器/DOM 桩和 IPC 来源校验。
 
-阶段 1 已完成 1.1～1.5：导出 `tray.png`、`tray-unread.png`、`tray-blank.png`；LinuxProfile/DesktopService、Electron 设置桥接和设置页已持久化 `KeepAliveInTray` / `TrayPreview`；新增 `tray-manager.cjs`，用固定参数 `execFile(busctl, ..., timeout=1500)` 探测 D-Bus，失败或超时保守最小化；主进程接入托盘隐藏、通知、未读 Tooltip、Xorg 闪烁/预览、恢复和显式退出，渲染层接入未读同步与通知点击切会话；新增生命周期回归并纳入 UI 行数门禁。
+## 验证与边界
 
-## 兼容性与红线
+Windows 原生 `Compile.bat`、三套 PowerShell 回归、全部 Node 回归、Python `tests/test_linux_flow.py` 22 项、Python/JS 语法检查、行数门禁和 `git diff --check` 均退出码 0。`tests/linux_desktop_ui_regression.js` 为 691 行，所有本轮手写代码文件低于 1000 行。以上 Linux 命名测试均为 Windows 宿主机上的模拟 DOM、桩 IPC 或纯逻辑验证，不代表 Linux/ELF 实机通过。Windows 宿主机没有可用 Linux/WSL 与 .NET 10 环境，Linux ELF、真实 Electron 桌面、Xorg/Wayland、fcitx5/ibus、真实多网卡/TUN、双机 LAN、升级回退和多 DPI/IME 仍按 `CRDocs/DEFERRED.md` 延期。
 
-未改 `LANC` 魔数、Type 1/Type 2 字段、`JSONL` 历史格式、版本号、安装目录、发布脚本或 Release；Electron 主进程没有新增局域网 UDP/TCP Socket。所有本轮新增/修改的手写源码与测试文件均低于 1000 行，新增注释使用中文。明确不做的节点空壳、三语切换、内置网页预览、`fs.Flush(true)`、复杂协议通道和非 root 静默安装仍未实现。系统编译会生成 `release` 二进制，但本轮已恢复到任务开始前状态。
+## 关键约束
 
-## 验证与下一步
+继续保持 `codex/v4.0-cross-platform-unification` 分支；不得擅自改版本号、LANC/JSONL、发布链或安装目录。除非用户明确要求，不执行 `Publish.bat`、覆盖安装或推送到其他分支。所有新增注释使用中文，代码文件遵守 1000 行门禁；不能把 Windows 宿主机桩结果写成 Linux 实机通过。
 
-`Compile.bat`、`linux_desktop_ui_regression.js`（含生命周期回归）、`chat_composer_regression.ps1 -ExpectLocalPack`、`friend_refresh_regression.ps1` 均退出码 0；Linux C# 工程用项目缓存的 .NET 10.0.404 在 Windows 宿主机构建为 0 警告/0 错误，但不是 Linux 实跑。当前下一步是按 `.claude/Plan.md` 进入阶段 2A；CP-0、CP-1、CP-2B 及真实 Linux 桌面、多 DPI/IME、双架构和物理 LAN 仍待现场验证。当前工作树仍有用户原有的 `.claude`、`PlanDocs/LC-LINUX-003` 与 `Temps` 改动，未覆盖。
+## 下一步
 
-入口：`Plan.md`、`PlanDocs/LC-LINUX-003/FINAL.md`、`CRDocs/STATUS.md`、`CRDocs/DEFERRED.md`。当前工作树缺少 `contexts/Linux.md`，不可据此声称已读取 Linux 上下文。
+阶段 3 已归档，下一步由用户决定进入阶段 4 在线更新、安排 Linux/ELF 与真实桌面现场验收，或先核销 `CRDocs/DEFERRED.md` 中的环境项。新会话先读取本文件、`.claude/Plan.md` 和 `CRDocs/STATUS.md`；当前审核状态记录在 `CRDocs/STATUS.md`，阶段 3 证据记录在 `CRDocs/IMPLEMENTATION.md` 与 `CRDocs/REVIEW.md`。

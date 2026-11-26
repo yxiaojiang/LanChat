@@ -311,6 +311,8 @@ namespace LanChat
                 if (_peersToCheck.Length > 0 && !_checkingPresence)
                     _presenceCheckTimer.Change(300, Timeout.Infinite);
 
+                if (!EnableSubnetSweep) return;
+
                 // 快速刷新总会立即发包。重复刷新同一网段时，后台兜底扫描共用一轮。
                 if (_sweepingInterfaces == interfaces) return;
                 _sweepingInterfaces = interfaces;

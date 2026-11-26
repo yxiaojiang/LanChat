@@ -27,6 +27,18 @@ namespace LanChat
         /// <summary>是否自动接收来自好友的文件</summary>
         public static bool AutoAcceptFiles { get; set; }
 
+        /// <summary>是否过滤 TUN/TAP 与其他虚拟网卡。</summary>
+        public static bool TunFilter { get; set; }
+
+        /// <summary>是否启用物理子网单播探测。</summary>
+        public static bool UnicastProbe { get; set; }
+
+        /// <summary>是否启动时自动加载历史会话。</summary>
+        public static bool AutoLoadHistory { get; set; }
+
+        /// <summary>发送快捷键模式：0 为 Enter 发送，1 为 Ctrl+Enter 发送。</summary>
+        public static int SendShortcutMode { get; set; }
+
         /// <summary>文件接收保存的默认物理目录</summary>
         public static string SaveDirectory { get; set; }
 
@@ -58,6 +70,10 @@ namespace LanChat
         static AppSettings()
         {
             AutoAcceptFiles = true;
+            TunFilter = true;
+            UnicastProbe = true;
+            AutoLoadHistory = true;
+            SendShortcutMode = 0;
             UiFontFamily = "Microsoft YaHei UI";
             UiFontSize = 10.0f;
             ChatFontFamily = "Microsoft YaHei UI";
@@ -118,6 +134,11 @@ namespace LanChat
                     {
                         AutoAcceptFiles = bool.Parse(mAuto.Groups[1].Value);
                     }
+
+                    TunFilter = ReadBool(json, "TunFilter", true);
+                    UnicastProbe = ReadBool(json, "UnicastProbe", true);
+                    AutoLoadHistory = ReadBool(json, "AutoLoadHistory", true);
+                    SendShortcutMode = ReadPreset(json, "SendShortcutMode", 2);
 
                     Match mSaveDir = Regex.Match(json, "\"SaveDirectory\"\\s*:\\s*\"([^\"]*)\"");
                     if (mSaveDir.Success)
@@ -189,6 +210,10 @@ namespace LanChat
                     sb.AppendLine("{");
                     sb.AppendLine(string.Format("  \"NickName\": \"{0}\",", EscapeJson(NickName ?? string.Empty)));
                     sb.AppendLine(string.Format("  \"AutoAcceptFiles\": {0},", AutoAcceptFiles ? "true" : "false"));
+                    sb.AppendLine(string.Format("  \"TunFilter\": {0},", TunFilter ? "true" : "false"));
+                    sb.AppendLine(string.Format("  \"UnicastProbe\": {0},", UnicastProbe ? "true" : "false"));
+                    sb.AppendLine(string.Format("  \"AutoLoadHistory\": {0},", AutoLoadHistory ? "true" : "false"));
+                    sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  \"SendShortcutMode\": {0},", SendShortcutMode == 1 ? 1 : 0));
                     sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  \"ThemeMode\": {0},", ThemeMode));
                     sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  \"AccentPreset\": {0},", AccentPreset));
                     sb.AppendLine(string.Format("  \"SaveDirectory\": \"{0}\",", EscapeJson(SaveDirectory ?? string.Empty)));
@@ -210,6 +235,12 @@ namespace LanChat
             Match match = Regex.Match(json, "\"" + key + "\"\\s*:\\s*([0-9]+)\\s*[,}]");
             int value;
             return match.Success && int.TryParse(match.Groups[1].Value, out value) && value < count ? value : 0;
+        }
+
+        private static bool ReadBool(string json, string key, bool fallback)
+        {
+            Match match = Regex.Match(json, "\"" + key + "\"\\s*:\\s*(true|false)", RegexOptions.IgnoreCase);
+            return match.Success ? bool.Parse(match.Groups[1].Value) : fallback;
         }
 
         private static string EscapeJson(string s)

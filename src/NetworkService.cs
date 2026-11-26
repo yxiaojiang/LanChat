@@ -42,6 +42,12 @@ namespace LanChat
         /// <summary>是否免确认自动接收来自局域网对端的文件</summary>
         public bool AutoAcceptFiles { get; set; }
 
+        /// <summary>是否过滤 TUN/TAP、VPN 与其他虚拟网卡。</summary>
+        public bool EnableTunFilter { get; set; }
+
+        /// <summary>是否启用物理子网的单播兜底探测。</summary>
+        public bool EnableSubnetSweep { get; set; }
+
         // 监听线程和出站请求共享已绑定的网卡快照，切网时整体替换。
         private volatile NetworkInterfaceDetail[] _activeInterfaces = new NetworkInterfaceDetail[0];
         private Socket _udpAnySocket;
@@ -110,6 +116,8 @@ namespace LanChat
             NickName = string.IsNullOrEmpty(nickName) ? Environment.UserName : nickName;
             HostName = Environment.MachineName;
             AutoAcceptFiles = true;
+            EnableTunFilter = true;
+            EnableSubnetSweep = true;
 
             SaveDirectory = saveDirectory ?? DetermineDefaultSaveDirectory();
         }

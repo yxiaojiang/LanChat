@@ -84,7 +84,11 @@ namespace LanChat
             btnOpenHist.Location = new Point(CARD_W - btnOpenHist.Width - 20, (54 - 32) / 2);
             cardHist.Controls.Add(btnOpenHist);
 
-            ModernToggleSwitch swAutoLoad = new ModernToggleSwitch(true, null);
+            ModernToggleSwitch swAutoLoad = new ModernToggleSwitch(AppSettings.AutoLoadHistory, (val) =>
+            {
+                AppSettings.AutoLoadHistory = val;
+                AppSettings.Save();
+            });
             swAutoLoad.Location = new Point(CARD_W - swAutoLoad.Width - 24, 54 + (54 - 22) / 2);
             cardHist.Controls.Add(swAutoLoad);
 

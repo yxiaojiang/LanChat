@@ -241,3 +241,10 @@
 - Windows 原生构建、同名文件并发回环、UI 草稿/粘贴格式回归和 MSI 内容校验通过；Linux UI 回归、双架构 ELF 构建和 Electron 包结构核验通过。未运行虚拟机；ARM64 Linux 与 Windows 安装/真实剪贴板仍由用户验收。系统图形后端、输入法、托盘及长历史测试仍在 LC-LINUX-002 计划中。
 - 本节记录实现与验证边界；版本、发布资产、commit/tag URL 与摘要在发布成功后补录。
 
+## LC-LINUX-003 阶段 3 设置页收口（2026-11-26，已完成并审核通过）
+
+- 完成共享 NetworkService 网卡/TUN 开关与四项双端同键持久化：`TunFilter`、`UnicastProbe`、`AutoLoadHistory`、`SendShortcutMode`；完成 C 类只读设置诚实收口。
+- 完成 Round 1 打回整改：设置窗 refresh IPC 放行与错误提示、Windows 快捷键第五行布局、私聊 Ctrl+L 仅清历史、Linux 快捷键徽章联动；同时收口 Windows 只读文案和真实设置桩回归。
+- Windows 编译、三套 PowerShell、Node 全套回归、Python 22 项纯逻辑测试、语法、行数和 `git diff --check` 均通过。证据写入 `CRDocs/IMPLEMENTATION.md` 与 `CRDocs/REVIEW.md`，状态为 `WAITING_FOR_GROK` 后经独立审核通过。
+- Linux/ELF、真实 Electron 桌面、双机 LAN、多网卡/TUN、升级回退等现场边界仍保留在 `CRDocs/DEFERRED.md`，不得用 Windows 宿主机桩结果替代。
+

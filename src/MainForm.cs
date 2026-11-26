@@ -181,7 +181,7 @@ namespace LanChat
 
             // 加载持久化设置 (保证升级覆盖后昵称与偏好不丢失)
             AppSettings.Load();
-            _sessionManager.LoadPersistedHistories();
+            if (AppSettings.AutoLoadHistory) _sessionManager.LoadPersistedHistories();
 
             InitializeComponent();
             ApplyAppearanceSettings();
@@ -476,6 +476,27 @@ namespace LanChat
             {
                 _chatPresenter.ClearCurrentChat();
             }
+        }
+
+        /// <summary>处理设置页公开的主窗快捷键：搜索与二次确认清空当前聊天。</summary>
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == (Keys.Control | Keys.F))
+            {
+                if (_txtSearch != null)
+                {
+                    _txtSearch.Focus();
+                    _txtSearch.SelectAll();
+                }
+                return true;
+            }
+            if (keyData == (Keys.Control | Keys.L))
+            {
+                if (_selectedPeer != null) ConfirmClearPeerChat();
+                else ConfirmDeleteBroadcastSession();
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         /// <summary>启动 Windows 系统截图工具</summary>

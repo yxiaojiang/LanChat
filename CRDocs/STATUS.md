@@ -1,4 +1,16 @@
-﻿# 当前任务 — LC-LINUX-003（阶段 2A · 低风险核心功能同步与现存缺陷修复，含 D2 = A）
+﻿# 当前任务 — LC-LINUX-003（阶段 3 · 设置页收口：B 类双端同键同步与 C 类诚实只读）
+
+- **状态**：`APPROVED`（仅代表 Windows 宿主机编译、源码审查与静态/桩回归验证范围放行；Linux 实机与 ELF 运行环境仍未验证）
+- **日期**：2026-11-26；**分支**：`codex/v4.0-cross-platform-unification`；**执行者**：Codex（Round 1 整改）；**独立审核者**：Antigravity（Gemini，Round 2 独立复审通过）
+- **范围**：仅 `.claude/Plan.md` 阶段 3.1～3.4（含 D1 = A）；未进入阶段 4、阶段 2B。
+- **一句话结论**：Round 1 全部 4 项 P1（`LC-LINUX-003-S3-P1-1`～`P1-4`）与 2 项 P2（`P2-1`、`P2-2`）已复核 `RESOLVED`：`main.cjs` 对设置窗放行 `lanchat:refresh` 且 `refreshNetwork` 具备异常提示；Windows 快捷键第 5 行无芯片重叠、私聊 `Ctrl+L` 仅二次确认清空历史不删好友、通用页只读项去掉 `∨` 并补齐语言说明；Linux 快捷键前两枚徽章随 `sendShortcutMode` 与保存结果同步；设置回归已补齐真实控制器/IPC 桩断言；全部 12 项宿主机验证命令退出码 `0`，所有手写文件 `< 1000` 行，红线零触碰。
+- **未验证边界**：Windows 宿主机无 Linux/WSL 与 .NET 10 SDK，Linux `net10.0` ELF 实跑（`tests/linux_desktop_regression.py`）、Linux 桌面实机、真实多网卡/TUN 路由与真实双机 LAN 继续保留于 [DEFERRED.md](DEFERRED.md)，不视为 Linux 实机通过。
+- **下一步**：`LC-LINUX-003` 阶段 3 的 Windows 宿主机开发与审核范围已闭环；执行者可按 [.claude/Plan.md](../.claude/Plan.md) 进入 **阶段 4（Linux 在线更新与维护入口，含 R5 + 审核护栏 4）**。
+- **交接记录**：[Round 2 独立复审（通过）](REVIEW.md#lc-linux-003阶段-3--设置页收口b-类双端同键同步与-c-类诚实只读-round-2-独立复审通过4-项-p1-与-2-项-p2-全部闭环) · [Round 1 整改交接](REVIEW.md#lc-linux-003阶段-3--round-1-打回整改交接等待独立复审) · [Round 1 独立审核（打回）](REVIEW.md#lc-linux-003阶段-3--设置页收口b-类双端同键同步与-c-类诚实只读-round-1-独立审核结论打回存在-4-项-p1-阻断缺陷--2-项-p2-建议) · [阶段 3 实施记录](IMPLEMENTATION.md) · [待现场验收](DEFERRED.md)
+
+---
+
+# 当前任务 — LC-LINUX-003（阶段 2A · 低风险核心功能同步与现存缺陷修复，含 D2 = A）
 
 - **状态**：`APPROVED`（仅代表 Windows 宿主机编译、源码审查与静态/桩回归验证范围放行；Linux 实机与 ELF 运行环境仍未验证）
 - **日期**：2026-11-26；**分支**：`codex/v4.0-cross-platform-unification`；**执行者**：Codex（Round 1 整改）；**独立审核者**：Antigravity（Round 2 独立复审通过）

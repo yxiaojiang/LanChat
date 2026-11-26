@@ -46,12 +46,13 @@ namespace LanChat
                 using (Pen sep = new Pen(ColCardDivider, 1f))
                 {
                     // Row 1: 语言 (y=0..54)
-                    g.DrawString("语言", f, tb, new PointF(20, (54 - f.GetHeight(g)) / 2f));
+                    g.DrawString("语言", f, tb, new PointF(20, SettingTitleOffset));
+                    g.DrawString("当前版本仅提供简体中文，语言切换尚未接入。", sf, sb, new PointF(20, SettingDescriptionOffset));
                     g.DrawLine(sep, 16, 54, CARD_W - 16, 54);
 
                     // Row 2: 链接打开方式 (y=54..108)
                     g.DrawString("链接打开方式", f, tb, new PointF(20, 54 + SettingTitleOffset));
-                    g.DrawString("设置 LanChat 对话中链接的默认打开策略。", sf, sb, new PointF(20, 54 + SettingDescriptionOffset));
+                    g.DrawString("当前版本统一交给系统默认浏览器打开，内置预览尚未接入。", sf, sb, new PointF(20, 54 + SettingDescriptionOffset));
                     g.DrawLine(sep, 16, 108, CARD_W - 16, 108);
 
                     // Row 3: 字体大小 (y=108..162)
@@ -67,14 +68,14 @@ namespace LanChat
             };
 
             // Row 1 语言下拉胶囊
-            Button btnLang = CreateDropdownPill("跟随系统 (简体中文)  ∨", 156, 28, null);
-            btnLang.Click += (s, e) => ShowLanguagePicker(btnLang);
+            Button btnLang = CreateDropdownPill("简体中文（只读）", 128, 28, null);
+            btnLang.Enabled = false;
             btnLang.Location = new Point(CARD_W - btnLang.Width - 20, (54 - 32) / 2);
             card1.Controls.Add(btnLang);
 
             // Row 2 链接打开方式下拉胶囊
-            Button btnLink = CreateDropdownPill("智能打开  ∨", 112, 28, null);
-            btnLink.Click += (s, e) => ShowLinkOpenPicker(btnLink);
+            Button btnLink = CreateDropdownPill("系统默认浏览器", 128, 28, null);
+            btnLink.Enabled = false;
             btnLink.Location = new Point(CARD_W - btnLink.Width - 20, 54 + (54 - 32) / 2);
             card1.Controls.Add(btnLink);
 
@@ -162,7 +163,7 @@ namespace LanChat
 
                     // Row 4: 网络协议通道 (y=162..216)
                     g.DrawString("网络协议通道", f, tb, new PointF(20, 162 + SettingTitleOffset));
-                    g.DrawString("物理网卡直连通信，多节点广播穿透加速。", sf, sb, new PointF(20, 162 + SettingDescriptionOffset));
+                    g.DrawString(GetNetworkSummary(), sf, sb, new PointF(20, 162 + SettingDescriptionOffset));
                 }
             };
 
@@ -188,7 +189,11 @@ namespace LanChat
             card2.Controls.Add(swKeepAlive);
 
             // Row 4 协议模式下拉胶囊
-            Button btnProtocol = CreateDropdownPill("直接连接 (LAN)  ∨", 136, 28, null);
+            Button btnProtocol = CreateActionLink("刷新绑定 >", 104, 28, () =>
+            {
+                if (Context.OnRefreshNetwork != null) Context.OnRefreshNetwork();
+                card2.Invalidate();
+            });
             btnProtocol.Location = new Point(CARD_W - btnProtocol.Width - 20, 162 + (54 - 32) / 2);
             card2.Controls.Add(btnProtocol);
 
@@ -247,23 +252,12 @@ namespace LanChat
             this.Controls.Add(card3);
         }
 
-        private void ShowLanguagePicker(Button anchor)
+        private string GetNetworkSummary()
         {
-            Point pt = anchor.PointToScreen(new Point(0, anchor.Height + 4));
-            GrokPopupMenu menu = new GrokPopupMenu();
-            menu.AddItem("跟随系统 (简体中文)", WeChatIconType.None, () => { anchor.Text = "跟随系统 (简体中文)  ∨"; }, "✓")
-                .AddItem("English (US)", WeChatIconType.None, () => { anchor.Text = "English (US)  ∨"; })
-                .AddItem("繁体中文 (中国香港)", WeChatIconType.None, () => { anchor.Text = "繁体中文  ∨"; });
-            menu.ShowAt(pt);
-        }
-
-        private void ShowLinkOpenPicker(Button anchor)
-        {
-            Point pt = anchor.PointToScreen(new Point(0, anchor.Height + 4));
-            GrokPopupMenu menu = new GrokPopupMenu();
-            menu.AddItem("智能打开 (默认浏览器)", WeChatIconType.None, () => { anchor.Text = "智能打开  ∨"; }, "✓")
-                .AddItem("内置极速预览", WeChatIconType.None, () => { anchor.Text = "内置极速预览  ∨"; });
-            menu.ShowAt(pt);
+            if (Context.NetService == null) return "网络服务未启动 · 协议端口待定";
+            var interfaces = Context.NetService.GetActiveInterfacesSnapshot();
+            string ip = interfaces.Length == 0 ? "未发现活动网卡" : string.Join(", ", Array.ConvertAll(interfaces, item => item.IP.ToString()));
+            return ip + " · TCP " + Context.NetService.LocalTcpPort + " / UDP 38888";
         }
     }
 }

@@ -4,6 +4,7 @@ const { join } = require('node:path');
 const testDesktopIpc = require('./linux_desktop_ipc_regression.js');
 const testDesktopLifecycle = require('./linux_desktop_lifecycle_regression.js');
 const testDesktopSync2A = require('./linux_desktop_sync2a_regression.js');
+const testDesktopSettings = require('./linux_desktop_settings_regression.js');
 const { makeNode, makeOverlayDom, makeSettingsDom, makeRendererDom, withGlobals } = require('./linux_desktop_test_helpers.js');
 const presentation = require('../src/linux/desktop/presentation.js'); const settingsModel = require('../src/linux/desktop/settings-model.js');
 const root = join(__dirname, '..'); const read = path => readFileSync(join(root, path), 'utf8');
@@ -133,6 +134,7 @@ for (const path of [
   'src/linux/desktop/renderer.js', 'src/linux/desktop/settings-model.js', 'src/linux/desktop/settings-pages.js',
   'src/linux/desktop/session-sidebar.js', 'src/linux/desktop/conversation-view.js', 'tests/linux_desktop_ui_regression.js',
   'src/linux/desktop/settings.js', 'src/linux/desktop/desktop.css', 'src/linux/desktop/settings.css',
+  'tests/linux_desktop_settings_regression.js',
   'src/linux/desktop/main.cjs', 'src/linux/desktop/preload.cjs', 'src/linux/desktop/service.cjs',
   'src/linux/LanChat.Linux/DesktopService.cs', 'tests/linux_desktop_test_helpers.js',
   'tests/linux_desktop_lifecycle_regression.js', 'src/linux/desktop/tray-manager.cjs'
@@ -678,6 +680,7 @@ Promise.resolve()
   .then(() => testDesktopIpc())
   .then(() => testDesktopLifecycle())
   .then(() => testDesktopSync2A())
+  .then(() => testDesktopSettings())
   .then(() => testSettingsController())
   .then(() => testMainRendererRaceAndAppearance())
   .then(() => {

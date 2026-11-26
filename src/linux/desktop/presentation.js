@@ -21,6 +21,11 @@
     attach: ['选择并发送文件...', '插入 Emoji 表情...', '打开接收文件夹', '清空当前对话记录']
   };
   let emojiImages = new Map();
+  let sendShortcutMode = 0;
+
+  function setSendShortcutMode(value) {
+    sendShortcutMode = Number(value) === 1 ? 1 : 0;
+  }
 
   function setEmojiPack(entries) {
     emojiImages = new Map(entries);
@@ -177,14 +182,14 @@
     };
   }
 
-  // Ctrl+Enter 换行是第 3 步采纳的输入契约；WinForms 单行框会吞掉组合键，这里不照搬。
   function shouldSendOnEnter(event) {
     return event.key === 'Enter' && !event.isComposing && event.keyCode !== 229 &&
-      !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey;
+      !event.shiftKey && !event.altKey && !event.metaKey &&
+      (sendShortcutMode === 1 ? Boolean(event.ctrlKey) : !event.ctrlKey);
   }
 
   function shouldNewlineOnCtrlEnter(event) {
-    return event.key === 'Enter' && Boolean(event.ctrlKey) && !event.isComposing && event.keyCode !== 229 &&
+    return sendShortcutMode === 0 && event.key === 'Enter' && Boolean(event.ctrlKey) && !event.isComposing && event.keyCode !== 229 &&
       !event.shiftKey && !event.altKey && !event.metaKey;
   }
 
@@ -194,7 +199,7 @@
 
   return {
     GROUP, EMOJIS, MENUS, setEmojiPack, emojiEntries, drawMessageText, clip, formatFileSize, unreadText, groupTitle, displayName, chipText,
-    snippet, sessionRows, showTime, formatTimestamp, decorate, shouldSendOnEnter,
+    snippet, sessionRows, showTime, formatTimestamp, decorate, setSendShortcutMode, shouldSendOnEnter,
     shouldNewlineOnCtrlEnter, composePlaceholder
   };
 });

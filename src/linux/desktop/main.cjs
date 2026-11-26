@@ -247,13 +247,21 @@ function openSettingsWindow(event = null) {
 
 function handle(name, operation, allowSettings = false) {
   ipcMain.handle('lanchat:' + name, async (event, ...args) => {
-    const fromMain = event.sender === window?.webContents && event.senderFrame === event.sender.mainFrame &&
-      event.senderFrame.url === pageUrl;
-    const fromSettings = allowSettings && event.sender === settingsWindow?.webContents &&
-      event.senderFrame === event.sender.mainFrame && event.senderFrame.url === settingsPageUrl;
-    if ((!fromMain && !fromSettings) || exiting) throw new Error('无效的桌面请求');
+    if (!isAllowedRequest(event, window, settingsWindow, pageUrl, settingsPageUrl, allowSettings) || exiting) {
+      throw new Error('无效的桌面请求');
+    }
     return operation(...args);
   });
+}
+
+// 统一校验主窗与设置窗的 IPC 来源，避免设置窗误用未放行的请求。
+function isAllowedRequest(event, mainWindow, settingsWindowRef, mainUrl, settingsUrl, allowSettings) {
+  const sender = event?.sender;
+  const frame = event?.senderFrame;
+  const fromMain = sender === mainWindow?.webContents && frame === sender?.mainFrame && frame?.url === mainUrl;
+  const fromSettings = allowSettings && sender === settingsWindowRef?.webContents &&
+    frame === sender?.mainFrame && frame?.url === settingsUrl;
+  return Boolean(fromMain || fromSettings);
 }
 
 function text(value, limit) {
@@ -558,7 +566,7 @@ async function openPath(target, kind) {
 if (process.env.LANCHAT_TEST_MODE === '1') {
   module.exports = { openPath, recordMessagePaths, allowedFilePaths, computeSettingsBounds, computeSettingsMinSize,
     readClipboardPaths, stagePastedFiles, discardPastedFiles, readEmojiPack, bindWindowLifecycle, openSettingsWindow,
-    dispatchFiles, triggerScreenshot, isIpv4 };
+    dispatchFiles, triggerScreenshot, isIpv4, isAllowedRequest };
 } else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -608,7 +616,7 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       return result;
     });
     handle('peers', () => service.request('peers'));
-    handle('refresh', () => service.request('refresh'));
+    handle('refresh', () => service.request('refresh'), true);
     handle('reconnect', async () => {
       if (!restarting && service.disconnected) {
         restarting = (async () => {
@@ -643,7 +651,7 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       }
       return current;
     }, true);
-    handle('save-settings', async (nickname, autoAcceptFiles, downloadDirectory, confirmOverride, historyDirectory, appearanceInput = null, trayInput = null) => {
+    handle('save-settings', async (nickname, autoAcceptFiles, downloadDirectory, confirmOverride, historyDirectory, appearanceInput = null, trayInput = null, networkInput = null) => {
       if (typeof autoAcceptFiles !== 'boolean' || typeof confirmOverride !== 'boolean')
         throw new Error('设置值无效');
       if (downloadDirectory !== null && !isAbsolute(text(downloadDirectory, 4096)))
@@ -658,6 +666,18 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
         for (const key of ['keepAliveInTray', 'trayPreview']) {
           if (trayInput[key] !== undefined && typeof trayInput[key] !== 'boolean') throw new Error('托盘设置无效');
           if (trayInput[key] !== undefined) payload[key] = trayInput[key];
+        }
+      }
+      if (networkInput !== null && networkInput !== undefined) {
+        if (typeof networkInput !== 'object' || Array.isArray(networkInput)) throw new Error('网络设置无效');
+        for (const key of ['tunFilter', 'unicastProbe', 'autoLoadHistory']) {
+          if (networkInput[key] !== undefined && typeof networkInput[key] !== 'boolean') throw new Error('网络设置无效');
+          if (networkInput[key] !== undefined) payload[key] = networkInput[key];
+        }
+        if (networkInput.sendShortcutMode !== undefined) {
+          if (!Number.isInteger(networkInput.sendShortcutMode) || networkInput.sendShortcutMode < 0 || networkInput.sendShortcutMode > 1)
+            throw new Error('发送快捷键模式无效');
+          payload.sendShortcutMode = networkInput.sendShortcutMode;
         }
       }
       if (appearanceInput !== null && appearanceInput !== undefined) {

@@ -57,6 +57,12 @@
 
 ## 三、TUN 代理 / 多网卡穿透准则
 
+### 阶段 3 统一配置契约（2026-11-26）
+
+- Windows `AppSettings` 与 Linux `LinuxProfile` 使用同名 JSON 键：`TunFilter`、`UnicastProbe`、`AutoLoadHistory`、`SendShortcutMode`；默认值分别为 `true`、`true`、`true`、`0`。
+- `NetworkService.EnableTunFilter` 控制虚拟网卡过滤，`EnableSubnetSweep` 控制物理子网单播探测；`GetActiveInterfacesSnapshot()` 只返回不含套接字的活动网卡副本。
+- Linux DesktopService 的 `state` 可携带只读 `interfaces` 快照；设置窗通过受限 IPC 触发 `refresh`，不改变 LANC/JSONL 协议。
+
 1. **虚拟网卡自动识别过滤**：通过网卡描述符、名称关键字（`tun`、`tap`、`vpn`、`virtual`、`wsl`、`vmware`）以及物理 MAC 地址是否为空，准确区分物理网卡（如无线 WLAN、有线以太网）与虚拟网卡。
 2. **多套接字绑定**：UDP 监听除绑定 `0.0.0.0` 外，必须同时为每个物理网卡单独绑定套接字，防止 TUN 驱动在底层吞噬物理网络广播。
 3. **出站定向绑定（Bypass TUN）**：发起 TCP 连接和文件发送时，`TcpClient` 必须先调用 `GetLocalEndpointForTarget` 显式绑定到与目标同一子网的物理网卡 IP，强制绕过 TUN 抢占的 Metric 0 默认路由。

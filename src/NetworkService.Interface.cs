@@ -27,6 +27,11 @@ namespace LanChat
 
         private static List<NetworkInterfaceDetail> DiscoverInterfaces()
         {
+            return DiscoverInterfaces(true);
+        }
+
+        private static List<NetworkInterfaceDetail> DiscoverInterfaces(bool filterVirtual)
+        {
             var interfaces = new List<NetworkInterfaceDetail>();
 
             foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
@@ -35,6 +40,7 @@ namespace LanChat
                 if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
 
                 bool isVirt = IsVirtualOrTun(ni);
+                if (filterVirtual && isVirt) continue;
                 var ipProps = ni.GetIPProperties();
 
                 foreach (var u in ipProps.UnicastAddresses)
@@ -83,7 +89,7 @@ namespace LanChat
             if (_udpAnySocket == null) _udpAnySocket = BindUdpListener(IPAddress.Any);
 
             List<NetworkInterfaceDetail> current;
-            try { current = DiscoverInterfaces(); }
+            try { current = DiscoverInterfacesForService(); }
             catch (Exception ex)
             {
                 Log("网卡探测异常: " + ex.Message);
@@ -110,6 +116,35 @@ namespace LanChat
                 if (old.UdpSocket != null && !current.Exists(adapter => adapter.IP.Equals(old.IP)))
                     old.UdpSocket.Close();
             }
+        }
+
+        private List<NetworkInterfaceDetail> DiscoverInterfacesForService()
+        {
+            return EnableTunFilter ? DiscoverInterfaces() : DiscoverInterfaces(false);
+        }
+
+        /// <summary>
+        /// 获取当前已绑定网卡的只读快照，供设置页和诊断界面展示。
+        /// </summary>
+        /// <returns>网卡详情数组副本，不包含可变的 UDP 套接字引用。</returns>
+        public NetworkInterfaceDetail[] GetActiveInterfacesSnapshot()
+        {
+            var current = _activeInterfaces;
+            var snapshot = new NetworkInterfaceDetail[current.Length];
+            for (int i = 0; i < current.Length; i++)
+            {
+                var item = current[i];
+                snapshot[i] = new NetworkInterfaceDetail
+                {
+                    Name = item.Name,
+                    Description = item.Description,
+                    IP = item.IP,
+                    Mask = item.Mask,
+                    BroadcastAddress = item.BroadcastAddress,
+                    IsVirtualOrTun = item.IsVirtualOrTun
+                };
+            }
+            return snapshot;
         }
 
         /// <summary>

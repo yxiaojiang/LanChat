@@ -1,5 +1,7 @@
 # Protocol.md — 网络协议与多网卡/TUN穿透上下文
 
+> 2026-11-26 · `LC-LINUX-003` 阶段 3 已审核通过。新增网卡/TUN 行为由 `EnableTunFilter`、`EnableSubnetSweep` 控制，`GetActiveInterfacesSnapshot()` 只返回不含套接字的只读快照；LANC 帧、确认字节与 JSONL 历史格式未改变。宿主机验证不替代 Linux/ELF 或真实 LAN 验收。
+
 > 2026-11-24 · `LC-FRIEND-REFRESH-001` Round 2 已审核通过并随 v2.0.19 发布。刷新先重绑接口，身份公告按 IPv4 和 TCP 端口归并同端点节点，TCP `0x01` 仅在刷新快照和端点身份未冲突时用于续期。LANC 帧、UDP 六段字段和确认字节保持兼容。真实多机切网、TUN 和 Linux 实机验收仍待完成，见 `CRDocs/DEFERRED.md`。
 
 ## 模块定位与职责

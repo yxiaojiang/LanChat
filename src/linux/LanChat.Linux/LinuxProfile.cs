@@ -29,6 +29,10 @@ namespace LanChat.Linux
             !accept.TryGetValue(out bool enabled) || enabled;
         internal bool KeepAliveInTray => ReadBool("KeepAliveInTray", "keepAliveInTray", true);
         internal bool TrayPreview => ReadBool("TrayPreview", "trayPreview", true);
+        internal bool TunFilter => ReadBool("TunFilter", "tunFilter", true);
+        internal bool UnicastProbe => ReadBool("UnicastProbe", "unicastProbe", true);
+        internal bool AutoLoadHistory => ReadBool("AutoLoadHistory", "autoLoadHistory", true);
+        internal int SendShortcutMode => ReadPreset("SendShortcutMode", 2);
         internal int ThemeMode => ReadPreset("ThemeMode", 3);
         internal int AccentPreset => ReadPreset("AccentPreset", 11);
         internal string UiFontFamily => ReadNonEmpty("UiFontFamily") ?? "Microsoft YaHei UI";
@@ -89,6 +93,8 @@ namespace LanChat.Linux
         {
             var service = new NetworkService(nickname ?? ReadString("NickName") ?? ReadString("nickname"), DownloadDirectory);
             service.AutoAcceptFiles = AutoAcceptFiles;
+            service.EnableTunFilter = TunFilter;
+            service.EnableSubnetSweep = UnicastProbe;
             return service;
         }
 
@@ -97,7 +103,9 @@ namespace LanChat.Linux
             int? themeMode = null, int? accentPreset = null,
             string uiFontFamily = null, double? uiFontSize = null,
             string chatFontFamily = null, double? chatFontSize = null,
-            bool? keepAliveInTray = null, bool? trayPreview = null)
+            bool? keepAliveInTray = null, bool? trayPreview = null,
+            bool? tunFilter = null, bool? unicastProbe = null, bool? autoLoadHistory = null,
+            int? sendShortcutMode = null)
         {
             if (string.IsNullOrWhiteSpace(nickname) || nickname.Length > 80 || nickname.Contains('|') ||
                 nickname.Contains('\r') || nickname.Contains('\n'))
@@ -107,6 +115,15 @@ namespace LanChat.Linux
             if (autoAccept.HasValue) next["AutoAcceptFiles"] = autoAccept.Value;
             if (keepAliveInTray.HasValue) next["KeepAliveInTray"] = keepAliveInTray.Value;
             if (trayPreview.HasValue) next["TrayPreview"] = trayPreview.Value;
+            if (tunFilter.HasValue) next["TunFilter"] = tunFilter.Value;
+            if (unicastProbe.HasValue) next["UnicastProbe"] = unicastProbe.Value;
+            if (autoLoadHistory.HasValue) next["AutoLoadHistory"] = autoLoadHistory.Value;
+            if (sendShortcutMode.HasValue)
+            {
+                if (sendShortcutMode.Value < 0 || sendShortcutMode.Value > 1)
+                    throw new ArgumentException("发送快捷键模式无效");
+                next["SendShortcutMode"] = sendShortcutMode.Value;
+            }
             if (themeMode.HasValue)
             {
                 if (themeMode.Value < 0 || themeMode.Value >= 3) throw new ArgumentException("主题模式无效");

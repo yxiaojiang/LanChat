@@ -41,6 +41,7 @@ let connecting = true;
 let deferredEvents = [];
 let connectionGeneration = 0;
 let composeScroll = null;
+let sendShortcutMode = 0;
 const sidebar = createSessionSidebar({
   doc, presentation, overlay, switchChat, redraw: drawChats,
   menuFor: entry => entry.key === group ? groupMenu() : peerMenu(entry)
@@ -619,7 +620,11 @@ async function initialize(reconnect = false) {
       api.emojiPack ? api.emojiPack().catch(() => []) : []
     ]);
     presentation.setEmojiPack(emojiPack);
-    if (settingsData) applyAppearance(settingsData);
+    if (settingsData) {
+      sendShortcutMode = Number(settingsData.sendShortcutMode) === 1 ? 1 : 0;
+      presentation.setSendShortcutMode(sendShortcutMode);
+      applyAppearance(settingsData);
+    }
     address = state.ip + ':' + state.tcpPort;
     paintNick(state.nick);
     online = true;
@@ -710,6 +715,10 @@ function handleEvent(event) {
   else if (event.event === 'file-error') status(event.data, true);
   else if (event.event === 'settings-updated') {
     if (event.data?.nickname) paintNick(event.data.nickname);
+    if (event.data) {
+      sendShortcutMode = Number(event.data.sendShortcutMode) === 1 ? 1 : 0;
+      presentation.setSendShortcutMode(sendShortcutMode);
+    }
     if (event.data) applyAppearance(event.data);
     status('设置已保存');
   } else if (event.event === 'histories-cleared') {

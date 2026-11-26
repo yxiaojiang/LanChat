@@ -22,6 +22,8 @@ namespace LanChat
                 string initialNick = !string.IsNullOrEmpty(AppSettings.NickName) ? AppSettings.NickName : Environment.UserName;
                 _netService = new NetworkService(initialNick);
                 _netService.AutoAcceptFiles = AppSettings.AutoAcceptFiles;
+                _netService.EnableTunFilter = AppSettings.TunFilter;
+                _netService.EnableSubnetSweep = AppSettings.UnicastProbe;
                 if (!string.IsNullOrEmpty(AppSettings.SaveDirectory))
                 {
                     _netService.SaveDirectory = AppSettings.SaveDirectory;

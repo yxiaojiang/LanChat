@@ -19,6 +19,10 @@ namespace LanChat
         public Action OnOpenFolder { get; set; }
         /// <summary>主题、强调色或字体变更后刷新宿主外观的回调。</summary>
         public Action OnAppearanceChanged { get; set; }
+        /// <summary>网络发现开关变更后的回调。</summary>
+        public Action OnNetworkSettingsChanged { get; set; }
+        /// <summary>请求刷新网络绑定与好友发现的回调。</summary>
+        public Action OnRefreshNetwork { get; set; }
         /// <summary>宿主窗体引用（作为模态弹窗的父级 Owner 窗口）</summary>
         public IWin32Window OwnerWindow { get; set; }
 

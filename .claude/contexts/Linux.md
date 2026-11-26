@@ -1,5 +1,14 @@
 # Linux.md — Linux 客户端模块上下文
 
+> 2026-11-26 · `LC-LINUX-003` 阶段 3 已完成并通过独立审核。Windows 宿主机上的 Node/Python 回归、设置控制器桩和共享 C# 编译均通过；Linux/ELF、真实 Electron 桌面、网卡/TUN 与双机 LAN 仍未验证，不能把宿主机桩结果写成 Linux 实机证据。
+
+## 当前阶段 3 关键状态
+
+- Linux 设置页已持久化 `TunFilter`、`UnicastProbe`、`AutoLoadHistory`、`SendShortcutMode`，网络状态包含只读 `interfaces` 快照。
+- 设置窗 `lanchat:refresh` 已纳入 IPC 来源白名单；刷新失败在设置页 banner 提示。
+- 快捷键页前两枚徽章按 `committed.sendShortcutMode` 动态同步；语言、链接、64KB 分块能力与网络协议通道保持诚实只读。
+- 真实 Linux 桌面、Xorg/Wayland/XWayland、fcitx5/ibus、双架构 ELF 和物理 LAN 现场门禁继续按 `CRDocs/DEFERRED.md` 执行。
+
 > 2026-11-26 · Windows `LC-UI-INPUT-010` 已闭环；本次完成 Windows→Linux 功能差异审计。Linux 已有主窗聊天、会话分组/未读/搜索、文件选择/拖放/剪贴板附件、逐文件进度、表情资源、历史/删除、八页设置与共享 C# 通信服务。明确未接入或未验收项：关闭窗口仍直接退出，托盘恢复/未读预览、系统通知点击、检查更新维护入口未接入；最新 ELF 的 `delete`/`history`/`clear-all-histories`、Electron 实机、Xorg/原生 Wayland/XWayland、fcitx5/ibus、多 DPI、长历史、物理 x86_64/ARM64 升级回退及真实 Windows LAN 仍未取证。同步计划应先处理桌面集成，再按 `CRDocs/DEFERRED.md` 完成现场矩阵。
 
 > 2026-11-25 · LC-CHAT-COMPOSER-001 Round 2 已审核通过，v2.0.20 已发布。桌面 deb 包含 Electron runtime、资源、同架构自包含 ELF 和启动器，体积主要由 Electron runtime 构成。`lanchat-cli_<版本>_<架构>` 仅含同架构自包含 ELF，可直接放到对应 Linux 架构运行，但只提供终端/无头入口。Windows 宿主 Node 回归和后端编译通过，Linux ELF 实跑及 Electron 实机验收仍待用户环境。旧版状态见 [LC-LINUX-001](../../PlanDocs/LC-LINUX-001/STATUS.md)。

@@ -249,7 +249,7 @@ async function run() {
   assert.match(main, /trayPreview/);
   assert.match(profile, /KeepAliveInTray/);
   assert.match(profile, /TrayPreview/);
-  assert.match(settings, /api\.saveSettings\(nextNick, nextAuto, nextDownload, false, nextHistory, appearancePayload, trayPayload\)/);
+  assert.match(settings, /api\.saveSettings\(nextNick, nextAuto, nextDownload, false, nextHistory, appearancePayload, trayPayload, networkPayload\)/);
   console.log('linux desktop lifecycle regression: ok');
 }
 

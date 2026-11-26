@@ -1,4 +1,165 @@
-﻿# LC-LINUX-003（阶段 2A · 低风险核心功能同步与现存缺陷修复）— Round 2 独立复审（通过：2 项 P0、4 项 P1 与 2 项 P2 全部闭环）
+﻿# LC-LINUX-003（阶段 3 · 设置页收口：B 类双端同键同步与 C 类诚实只读）— Round 2 独立复审（通过：4 项 P1 与 2 项 P2 全部闭环）
+
+- **任务编号**：`LC-LINUX-003`（阶段 3.1～3.4，含 D1 = A）
+- **审核轮次**：Round 2 独立复审
+- **审核分支**：`codex/v4.0-cross-platform-unification`
+- **独立审核方**：独立审核者（Antigravity / Gemini）
+- **审核日期**：2026-11-26
+- **审核结论**：**APPROVED**（仅代表 Windows 宿主机编译、源码调用链审查与静态/桩回归验证范围放行；Linux `net10.0` ELF 实跑、Linux 桌面实机、真实多网卡/TUN 路由与真实双机 LAN 仍未验证，继续保留于 `CRDocs/DEFERRED.md`）
+- **审核依据**：`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`、`.claude/Plan.md`，以及工作区实际源码调用链与 12 项独立复跑实证。
+
+## 一、Round 1 问题逐项复核结果
+
+| 问题 ID | 原级别 | Round 2 复核 | 复核依据与独立核验证据 |
+| --- | :---: | :---: | --- |
+| `LC-LINUX-003-S3-P1-1` | **P1** | **RESOLVED** | 核验 `src/linux/desktop/main.cjs:619`：`handle('refresh', () => service.request('refresh'), true);` 已对设置窗放行；`src/linux/desktop/settings.js:569-583` `refreshNetwork` 已包裹 `try/catch`，成功刷新 `runtime.ip`/`tcpPort`/`interfaces` 并重绘，失败调用 `showBanner(error.message, true)`。 |
+| `LC-LINUX-003-S3-P1-2` | **P1** | **RESOLVED** | 核验 `src/UI/Controls/SettingsPanels/ShortcutsSettingsPanel.cs:44-82`：第 5 行改为清晰模式文案（`"使用 Ctrl + Enter 发送消息"` / `"使用 Enter 发送消息"`），第 58 行 `if (i >= shortcuts.Length) continue;` 跳过第 5 行芯片绘制，彻底消除与右侧 `modeSwitch` 重叠；前 4 行保留芯片，切换后 `cardKey.Invalidate()` 即时重绘。 |
+| `LC-LINUX-003-S3-P1-3` | **P1** | **RESOLVED** | 核验 `src/MainForm.cs:493-498` 与 `src/MainForm.Chat.cs:581-594`：私聊 `Ctrl+L` 调用 `ConfirmClearPeerChat()`，弹出明确“仅清空当前聊天历史（不删除好友）”二次确认，确认后调用 `ClearCurrentChat()` 不删好友；群聊继续走 `ConfirmDeleteBroadcastSession()`。 |
+| `LC-LINUX-003-S3-P1-4` | **P1** | **RESOLVED** | 核验 `src/linux/desktop/settings-pages.js:353-364` 与 `src/linux/desktop/settings.js:363-367, 548`：前两枚快捷键徽章按 `committed.sendShortcutMode` 动态渲染并登记至 `syncRefs.shortcutBadges`，保存成功后由 `syncBoundControls()` 同步更新为 `Ctrl + Enter` / `Enter` 或 `Enter` / `Ctrl + Enter / Shift + Enter`。 |
+| `LC-LINUX-003-S3-P2-1` | **P2** | **RESOLVED** | 核验 `src/UI/Controls/SettingsPanels/GeneralSettingsPanel.cs:48-80`：语言行已补齐双行只读说明，两个禁用只读胶囊已去掉 `∨` 并改为 `"简体中文（只读）"` 与 `"系统默认浏览器"`。 |
+| `LC-LINUX-003-S3-P2-2` | **P2** | **RESOLVED** | 核验 `tests/linux_desktop_settings_regression.js`（156 行）与 `tests/linux_desktop_ui_regression.js:683`：已执行真实设置控制器/DOM 桩与主进程 `isAllowedRequest` 来源校验桩，完整断言设置窗 `refresh` 放行、`runtime.interfaces`、切换模式联动前两枚徽章与 `networkPayload` 透传。 |
+
+## 二、Round 2 独立复跑命令与门禁结果（Windows 宿主机）
+
+| # | 验证命令 | 退出码 | 实测结果 |
+| :---: | --- | :---: | --- |
+| 1 | `git branch --show-current` | `0` | `codex/v4.0-cross-platform-unification` |
+| 2 | `cmd /c "Tools\Scripts\Compile.bat < NUL"` | `0` | `LanChat.exe compiled successfully.` |
+| 3 | `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | `0` | 全部 8 组回归通过 |
+| 4 | `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | `0` | `Native Windows compile: ok` 及全部回归通过 |
+| 5 | `powershell -NoProfile -ExecutionPolicy Bypass -File tests/file_transfer_stability_regression.ps1` | `0` | `文件传输稳定性边界回归通过：0 字节、64KB、全局 6、单目标 2` |
+| 6 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ipc_regression.js` | `0` | 通过 |
+| 7 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_lifecycle_regression.js` | `0` | `linux desktop lifecycle regression: ok` |
+| 8 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_sync2a_regression.js` | `0` | `linux desktop sync 2A regression: ok` |
+| 9 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_settings_regression.js` | `0` | `linux desktop settings regression: ok` |
+| 10 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ui_regression.js` | `0` | `LC-CC-004`、lifecycle、ui 全部通过 |
+| 11 | `node --check`（20 个 `.js`/`.cjs`）+ `python tests/test_linux_flow.py`（22 项）+ `py_compile`（3 文件）+ `git diff --check` | `0` | 全部通过 |
+| 12 | 文件行数门禁 | `0` | 全部 `< 1000` 行：`settings.js` 836、`main.cjs` 787、`renderer.js` 772、`tests/linux_desktop_ui_regression.js` **691**（按编辑器行号 `<= 700`）、`MainForm.Tray.cs` 689、`MainForm.cs` 661、`NetworkService.Discovery.cs` 641、`MainForm.Chat.cs` 613、`settings-pages.js` 556、`DesktopService.cs` 552、`GrokSettingsDialog.cs` 455、`tests/linux_desktop_regression.py` 443、`LinuxProfile.cs` 425、`NetworkService.Interface.cs` 282、`NetworkService.cs` 273、`GeneralSettingsPanel.cs` 263、`AppSettings.cs` 258、`presentation.js` 200、`tests/linux_desktop_settings_regression.js` 156、`ShortcutsSettingsPanel.cs` 87 |
+
+## 三、红线与未验证边界声明
+
+- **红线守恒**：未越界进入阶段 4/2B；未修改 `NetworkService.Transfer.cs`、LANC / Type 1 / Type 2 / JSONL、版本号（`2.0.26`）或发布链；Electron 主进程无新增 LAN UDP/TCP Socket；未执行 `Publish.bat`、安装覆盖或 `git push`。
+- **未验证边界**：Windows 宿主机无 Linux/WSL 与 .NET 10 SDK，上述全部“Linux”命名回归均为宿主机 Node DOM/IPC 桩或 Python 纯逻辑验证；Linux `net10.0` ELF 实跑（`tests/linux_desktop_regression.py`）、Linux 桌面实机、真实多网卡/TUN 路由与真实双机 LAN 继续保留于 `CRDocs/DEFERRED.md`，不得视为已核销。
+
+---
+
+# LC-LINUX-003（阶段 3）— Round 1 打回整改交接（等待独立复审）
+
+- **整改日期**：2026-11-26；**执行分支**：`codex/v4.0-cross-platform-unification`；**执行者**：Codex。
+- **范围**：仅阶段 3.1～3.4；未进入阶段 2B/4，未改 LANC/JSONL/版本号，未执行 `Publish.bat`、覆盖安装或 `git push`。
+- **整改结论**：Round 1 顶部列出的 4 项 P1 已逐项修复；建议项 `S3-P2-1`、`S3-P2-2` 也已收口，现交独立审核者复审。此处不是 `APPROVED`，不替代独立审核结论。
+
+## 逐项整改核对
+
+| 问题 | 本轮结果 | 核对摘要 |
+| --- | :---: | --- |
+| `LC-LINUX-003-S3-P1-1` | **已修复** | `main.cjs` 的 `refresh` handler 对设置窗传入 `true`；`settings.js` 的 `refreshNetwork` 捕获异常并显示错误 banner；桩执行校验设置窗来源放行与刷新路径。 |
+| `LC-LINUX-003-S3-P1-2` | **已修复** | Windows 第五行不再绘制芯片，只显示明确模式说明；前四行保留芯片，开关回调后 `Invalidate()` 重绘。 |
+| `LC-LINUX-003-S3-P1-3` | **已修复** | 私聊 `Ctrl+L` 进入仅清空历史且不删好友的二次确认，确认调用 `ClearCurrentChat()`；群聊路径不变。 |
+| `LC-LINUX-003-S3-P1-4` | **已修复** | Linux 前两枚快捷键徽章按 `committed.sendShortcutMode` 动态渲染，保存成功后的 `syncBoundControls()` 更新文本。 |
+| `LC-LINUX-003-S3-P2-1` | **已收口** | Windows 语言/链接只读项去掉 `∨`，语言行补齐“语言切换尚未接入”说明。 |
+| `LC-LINUX-003-S3-P2-2` | **已收口** | `linux_desktop_settings_regression.js` 实际执行生产设置控制器、设置窗来源校验、刷新状态更新、徽章切换与 `networkPayload` 断言。 |
+
+## 本轮独立可复跑命令结果（Windows 宿主机）
+
+| 命令 | 退出码 | 结果 |
+| --- | :---: | --- |
+| `cmd.exe /d /s /c "call Tools\\Scripts\\Compile.bat < nul"` | 0 | Windows 原生编译成功；仅编译，未发布/安装。 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | 0 | 聊天/剪贴板/LANC/JSONL/截图清理回归通过。 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | 0 | `Native Windows compile: ok` 及好友刷新相关回归通过。 |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/file_transfer_stability_regression.ps1` | 0 | 文件传输稳定性边界回归通过。 |
+| `C:\\Program Files\\nodejs\\node.exe tests/linux_desktop_ipc_regression.js` | 0 | Node IPC 回归通过。 |
+| `C:\\Program Files\\nodejs\\node.exe tests/linux_desktop_lifecycle_regression.js` | 0 | 生命周期回归通过。 |
+| `C:\\Program Files\\nodejs\\node.exe tests/linux_desktop_sync2a_regression.js` | 0 | 阶段 2A 同步回归通过。 |
+| `C:\\Program Files\\nodejs\\node.exe tests/linux_desktop_settings_regression.js` | 0 | 设置桩回归通过，含本轮 P1/P2 行为断言。 |
+| `C:\\Program Files\\nodejs\\node.exe tests/linux_desktop_ui_regression.js` | 0 | 全套 UI 回归通过。 |
+| JS/CJS `--check`（20 个文件） | 0 | 全部语法通过。 |
+| `python tests/test_linux_flow.py` | 0 | 22 项 Python 纯逻辑测试通过。 |
+| `python -m py_compile tests/linux_desktop_regression.py tests/test_linux_flow.py Tools/Scripts/import-wechat-emoji.py` | 0 | Python 语法通过。 |
+| 行数门禁 | 0 | 所有本轮手写文件 `<1000` 行；`tests/linux_desktop_ui_regression.js` 691 行。 |
+| `git diff --check` | 0 | 无空白错误；仅有换行转换提示。 |
+
+## 复审边界
+
+上述“Linux”命名测试均为 Windows 宿主机上的 Node 模拟 DOM/桩 IPC 或 Python 纯逻辑验证，不能替代 Linux/ELF 实机。当前没有 Linux ELF 可执行文件，未运行 `tests/linux_desktop_regression.py` 实机回归；Linux Electron 真实桌面、网络命名空间、真实网卡/TUN 和双机 LAN 仍按 `CRDocs/DEFERRED.md` 保留。
+
+---
+
+# LC-LINUX-003（阶段 3 · 设置页收口：B 类双端同键同步与 C 类诚实只读）— Round 1 独立审核结论（打回：存在 4 项 P1 阻断缺陷 + 2 项 P2 建议）
+
+- **任务编号**：`LC-LINUX-003`（阶段 3.1～3.4，含 D1 = A）
+- **审核轮次**：Round 1 独立审核
+- **审核分支**：`codex/v4.0-cross-platform-unification`
+- **独立审核方**：独立审核者（Antigravity / Gemini）
+- **审核日期**：2026-11-26
+- **审核结论**：**REJECTED**（对应 `CRDocs/README.md` 中的 `CHANGES_REQUESTED`；仅针对 Windows 宿主机编译、源码调用链审查与静态/桩回归范围，发现 **4 项 P1 阻断缺陷**与 **2 项 P2 优化建议**，打回执行者整改复审）
+- **审核依据**：`.claude/Rules.md`、`.claude/Plan.md`、`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`，以及工作区实际代码、完整 `git diff` 与 11 项独立复跑实证。
+
+## 一、阶段 3 分项核查结论
+
+| 阶段 / 事项 | 结论 | 核对依据与实测证据 |
+| --- | :---: | --- |
+| 3.1 共享 `NetworkService` 最小扩展 | **PASS** | `NetworkService.cs:46, 49, 119-120`、`NetworkService.Interface.cs:28-43, 121-148`、`NetworkService.Discovery.cs:314` 已新增默认 `true` 的 `EnableTunFilter`、`EnableSubnetSweep` 与只读 `GetActiveInterfacesSnapshot()`（不暴露可变 `UdpSocket`）；未修改 `NetworkService.Transfer.cs`，未加入 `fs.Flush(true)`。 |
+| 3.2 双端同键持久化与业务接线（D1 = A） | **FAIL (P1)** | 4 个统一 JSON 键名（`TunFilter`、`UnicastProbe`、`AutoLoadHistory`、`SendShortcutMode`）与默认值（`true, true, true, 0`）在 Windows `AppSettings.cs`、Linux `LinuxProfile.cs`、`DesktopService.cs`、`main.cjs`、`settings.js`、`preload.cjs`（`...args` 透传）及双端启动/发送逻辑均一致；但存在 **`LC-LINUX-003-S3-P1-2`**（Windows 快捷键面板第 5 行芯片与开关坐标重叠遮挡）、**`LC-LINUX-003-S3-P1-3`**（Windows `Ctrl+L` 在私聊下误调用删好友而非只清聊天历史）与 **`LC-LINUX-003-S3-P1-4`**（Linux 快捷键页前两行徽章写死静态值，切换模式后与真实行为矛盾）。 |
+| 3.3 C 类 4 项诚实只读收口 | **FAIL (P1/P2)** | 文件传输 `64KB 分块传输校验` 禁用只读、Linux 语言与链接只读禁用已达标；但存在 **`LC-LINUX-003-S3-P1-1`**（Linux 设置窗点击通用页“刷新绑定 >”调用 `api.refresh()`，因 `main.cjs:611` 未传 `allowSettings = true` 被 IPC 白名单拒绝必抛异常，且 `refreshNetwork` 无错误处理）与 **`LC-LINUX-003-S3-P2-1`**（Windows 通用页禁用按钮仍保留 `∨` 下拉箭头且语言行缺少说明文案）。 |
+| 3.4 宿主机回归与行数门禁 | **PARTIAL (P2)** | 全部 11 项宿主机命令独立复跑退出码 `0`，所有手写文件 `< 1000` 行（`tests/linux_desktop_ui_regression.js` 674 行，`tests/linux_desktop_settings_regression.js` 51 行）；但 **`LC-LINUX-003-S3-P2-2`** 新建设置回归几乎全为正则匹配，未通过真实控制器/IPC 桩执行，导致上述 4 项 P1 全部漏测。 |
+
+## 二、问题分级清单（P0 / P1 / P2）
+
+> 本轮无 P0 问题；存在 **4 项 P1 阻断缺陷**（当前阶段必须修复后复审）及 **2 项 P2 建议**（建议顺手收口）。
+
+| 问题 ID | 严重度 | 位置 | 问题描述与代码证据 | 整改要求 |
+| --- | :---: | --- | --- | --- |
+| `LC-LINUX-003-S3-P1-1` | **P1（阻断）** | `src/linux/desktop/main.cjs:611`<br>`src/linux/desktop/settings.js:562-572`<br>`src/linux/desktop/settings-pages.js:233-235` | Linux 通用页“网络协议通道”右侧按钮“刷新绑定 >”在**设置窗**调用 `actions.refreshNetwork` -> `await api.refresh()`（通道 `lanchat:refresh`），但 `main.cjs:611` 注册为 `handle('refresh', () => service.request('refresh'));`，**未传第三个参数 `allowSettings = true`**。`handle()` 校验 `allowSettings` 为假时会直接拒绝来自 `settingsWindow` 的请求并抛错，且 `refreshNetwork` 无 `try/catch`，按钮在设置窗内完全不可用。 | 1. 将 `src/linux/desktop/main.cjs:611` 改为 `handle('refresh', () => service.request('refresh'), true);`；<br>2. 在 `src/linux/desktop/settings.js` 的 `refreshNetwork` 中增加 `try/catch`（出错时通过 `showBanner(error.message, true)` 提示）；<br>3. 在回归中补充真实 IPC/设置窗来源调用 `lanchat:refresh` 放行并刷新 `runtime.interfaces` 的断言。 |
+| `LC-LINUX-003-S3-P1-2` | **P1（阻断）** | `src/UI/Controls/SettingsPanels/ShortcutsSettingsPanel.cs:44-77` | `ShortcutsSettingsPanel.cs` 第 49-66 行循环 `i = 0..4` 对第 5 行（`i = 4`，“发送快捷键模式”）在右侧 `CARD_W - bw - 20` 处绘制了 `"模式 0"` / `"模式 1"` 芯片徽章，同时第 76 行又在同一行右侧 `CARD_W - modeSwitch.Width - 24` 处放置了 `ModernToggleSwitch modeSwitch`，导致开关直接叠盖在芯片徽章正上方，造成明显 UI 遮挡穿帮；且“模式 0/模式 1”不够直观。 | 第 5 行取消与开关重叠的右侧芯片徽章（循环只对前 4 行 `i < 4` 绘制快捷键芯片），将第 5 行文案调整为清晰语义（如标题“使用 Ctrl + Enter 发送消息”或将当前模式说明绘制在左侧/副标题行，与右侧 `modeSwitch` 彻底分离无重叠），切换后同步重绘前两行徽章。 |
+| `LC-LINUX-003-S3-P1-3` | **P1（阻断）** | `src/MainForm.cs:493-498`<br>`src/MainForm.Chat.cs:562-579` | `MainForm.cs:495` 在处理主窗快捷键 `Ctrl + L`（设置页标题明确为“清空当前聊天”）时，若当前处于私聊会话（`_selectedPeer != null`）调用了 `ConfirmDeletePeerSession(_selectedPeer)`——该弹窗文案为“确定要删除好友……”，确认后会执行 `_sessionPresenter.DeletePeerSession(peer)` 直接**删除好友**，而非仅清空当前会话历史（与阶段 2A 曾打回的 `LC-LINUX-003-2A-P1-4` 同源）。 | 在 Windows 私聊会话下，`Ctrl + L` 改为弹出**仅清空当前聊天历史**的二次确认弹窗（如“确定要清空与“{0}”的全部历史消息吗？\n清空后历史记录将无法恢复。”），确认后调用 `ClearCurrentChat()`（不删除好友）；群聊继续走 `ConfirmDeleteBroadcastSession()`。 |
+| `LC-LINUX-003-S3-P1-4` | **P1（阻断）** | `src/linux/desktop/settings-pages.js:350-366`<br>`src/linux/desktop/settings-model.js:44-49`<br>`src/linux/desktop/settings.js:350-366` | Linux 快捷键页 `buildShortcutsPage` 直接使用静态数组 `model.SHORTCUTS` 渲染前两行（永远显示 `发送消息: Enter`、`多行换行输入: Ctrl + Enter / Shift + Enter`）。当用户切换 `SendShortcutMode` 为模式 `1`（`Ctrl + Enter 发送 / Enter 换行`）后，上面两行快捷键徽章不更新，与主窗实际行为及 Windows 快捷键页自相矛盾。 | 根据 `committed.sendShortcutMode` 动态渲染前两行快捷键徽章（模式 `0`：`Enter` / `Ctrl + Enter / Shift + Enter`；模式 `1`：`Ctrl + Enter` / `Enter`），并在 `syncBoundControls()`（或切换保存成功后）同步刷新这两枚徽章文本。 |
+| `LC-LINUX-003-S3-P2-1` | **P2（建议）** | `src/UI/Controls/SettingsPanels/GeneralSettingsPanel.cs:48-79` | Windows 通用页“语言”与“链接打开方式”禁用胶囊仍保留下拉符号 `∨`（`"跟随系统 (简体中文)  ∨"`、`"智能打开  ∨"`），且“语言”行缺少“当前版本仅提供简体中文，语言切换尚未接入”说明，视觉上仍略像未解锁下拉框。 | 建议去掉两个禁用只读胶囊的 `∨` 符号并改为诚实只读文案（如 `"简体中文（只读）"`、`"系统默认浏览器"`），同时为“语言”行补上双行说明文案，与 Linux 端对齐。 |
+| `LC-LINUX-003-S3-P2-2` | **P2（建议）** | `tests/linux_desktop_settings_regression.js:1-51` | 当前设置回归以正则匹配源码为主，未通过真实 `settings.js` / `main.cjs` 桩验证 `save-settings` 的 `networkPayload`、设置窗调用 `lanchat:refresh` 放行与快捷键页徽章联动，导致上述 P1 漏测。 | 建议在 `tests/linux_desktop_settings_regression.js` 中补充真实桩执行断言：覆盖设置窗触发 `lanchat:refresh` 放行并更新网卡摘要、切换 `sendShortcutMode` 后快捷键页前两行徽章联动更新及 `networkPayload` 透传。 |
+
+## 三、独立复跑命令与门禁实测（Windows 宿主机）
+
+| # | 验证命令 | 退出码 | 实测结果 |
+| :---: | --- | :---: | --- |
+| 1 | `git branch --show-current` | `0` | `codex/v4.0-cross-platform-unification` |
+| 2 | `cmd /c "Tools\Scripts\Compile.bat < NUL"` | `0` | `LanChat.exe compiled successfully.` |
+| 3 | `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | `0` | 全部 8 组回归通过 |
+| 4 | `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | `0` | `Native Windows compile: ok` 及全部回归通过 |
+| 5 | `powershell -NoProfile -ExecutionPolicy Bypass -File tests/file_transfer_stability_regression.ps1` | `0` | `文件传输稳定性边界回归通过：0 字节、64KB、全局 6、单目标 2` |
+| 6 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ipc_regression.js` | `0` | 通过 |
+| 7 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_lifecycle_regression.js` | `0` | `linux desktop lifecycle regression: ok` |
+| 8 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_sync2a_regression.js` | `0` | `linux desktop sync 2A regression: ok` |
+| 9 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_settings_regression.js` | `0` | `linux desktop settings regression: ok` |
+| 10 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ui_regression.js` | `0` | `LC-CC-004`、lifecycle、ui 全部通过 |
+| 11 | `python tests/test_linux_flow.py` + `py_compile` + `node --check`（8 文件）+ `git diff --check` | `0` | 22 tests OK；语法与空白检查全部通过 |
+| 12 | 文件行数门禁 | `0` | 全部 `< 1000` 行：`settings.js` 824、`main.cjs` 780、`renderer.js` 772、`MainForm.Tray.cs` 689、`tests/linux_desktop_ui_regression.js` **674**、`MainForm.cs` 661、`NetworkService.Discovery.cs` 641、`MainForm.Chat.cs` 598、`DesktopService.cs` 552、`settings-pages.js` 549、`GrokSettingsDialog.cs` 455、`tests/linux_desktop_regression.py` 443、`LinuxProfile.cs` 425、`NetworkService.Interface.cs` 282、`NetworkService.cs` 273、`GeneralSettingsPanel.cs` 262、`AppSettings.cs` 258、`presentation.js` 200、`ShortcutsSettingsPanel.cs` 82、`tests/linux_desktop_settings_regression.js` 51 |
+
+## 四、红线与未验证边界声明
+
+- **红线检查**：PASS（未越界进入阶段 4/2B；未修改 `NetworkService.Transfer.cs`、LANC / Type 1 / Type 2 / JSONL、版本号或发布链；Electron 主进程无新增 LAN UDP/TCP Socket；未执行 `Publish.bat`、安装覆盖或 `git push`）。
+- **未验证边界**：Windows 宿主机无 Linux/WSL 与 .NET 10 SDK，Linux `net10.0` ELF 实跑（`tests/linux_desktop_regression.py`）、Linux 桌面实机、真实多网卡/TUN 路由与真实双机 LAN 仍未验证，继续保留于 `CRDocs/DEFERRED.md`。
+
+---
+
+# LC-LINUX-003（阶段 3）— 执行交接记录（等待独立审核）
+
+> 2026-11-26 · 执行者 Codex · 分支 `codex/v4.0-cross-platform-unification` · 本节仅记录实现与真实宿主机验证，不是 Grok 的审核结论。
+
+## 本轮执行范围
+
+只实施 `.claude/Plan.md` 阶段 3.1～3.4：共享 NetworkService 最小扩展、B 类四项双端同键同步、C 类四项诚实只读收口和回归门禁；未进入阶段 4 或阶段 2B。任务开始前工作树已提交为 `108ff85 chore: 提交阶段2A与审核交接基线`，本轮代码未提交、未 push。
+
+## 交接要点
+
+- `EnableTunFilter`、`EnableSubnetSweep` 默认均为 `true`；`GetActiveInterfacesSnapshot()` 返回不含套接字的活动网卡副本。没有在 `NetworkService.Transfer.cs` 增加刷盘调用。
+- `TunFilter`、`UnicastProbe`、`AutoLoadHistory`、`SendShortcutMode` 在两端配置文件使用同名 Pascal JSON 键；Linux state 附带只读 `interfaces`，网络设置变更会更新服务并按需刷新；模式 0/1 的输入契约在两端均已接线。
+- 语言、链接打开方式、64KB 分块传输校验、网络协议通道不再伪装为可配置业务；网络协议通道仅展示绑定接口/端口并触发 refresh。
+- 宿主机实测：Compile.bat、三套 Windows PowerShell 回归、Linux IPC/lifecycle/sync2A/settings/UI 五套 Node 回归、Python `tests/test_linux_flow.py` 22 项、Python 语法、JS 语法、空白与行数门禁均退出码 0。
+- 真实边界：以上“Linux”命名测试均是在 Windows 宿主机运行的 Node/Python 静态、桩或纯逻辑回归；没有 Linux/ELF、Linux 桌面或真实双机 LAN 通过证据，待独立审核者和后续现场门禁处理。
+
+---
+
+# LC-LINUX-003（阶段 2A · 低风险核心功能同步与现存缺陷修复）— Round 2 独立复审（通过：2 项 P0、4 项 P1 与 2 项 P2 全部闭环）
 
 - **任务编号**：`LC-LINUX-003`（阶段 2A.1～2A.6，含 D2 = A）
 - **审核轮次**：Round 2 独立复审

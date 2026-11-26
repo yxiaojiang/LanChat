@@ -1,5 +1,13 @@
 # Windows.md — Windows 客户端模块上下文
 
+> 2026-11-26 · `LC-LINUX-003` 阶段 3 已完成并通过独立审核。Windows 设置面板已接通四项统一配置；私聊 `Ctrl+L` 仅清空当前聊天历史，不删除好友；快捷键模式第五行不再与开关重叠。原生编译与三套 PowerShell 回归通过，真实多 DPI/IME、双机 LAN 和安装覆盖仍待现场验收。
+
+## 当前阶段 3 关键状态
+
+- `ShortcutsSettingsPanel.cs` 仅为前四行绘制快捷键芯片，第五行显示模式语义并由开关触发重绘。
+- `MainForm.cs` 私聊 `Ctrl+L` 走清空历史确认和 `ClearCurrentChat()`；群聊仍走 `ConfirmDeleteBroadcastSession()`。
+- `GeneralSettingsPanel.cs` 的语言/链接控件为无下拉箭头的只读文案；`AppSettings` 四项配置继续使用统一 JSON 键名。
+
 > 2026-11-26 · LC-UI-INPUT-010 追加修复已通过 Windows 宿主机回归，`v2.0.25` 发布候选包准备中。RichEdit 4.1 离屏合成、PNG 可见区域两倍高度、正文基线稳定、表情点击边界和原生编译均通过；真实多机 LAN、实际 DPI、中文输入法、系统截图粘贴和 TUN 路由仍待现场验收。
 
 ## 模块定位与职责

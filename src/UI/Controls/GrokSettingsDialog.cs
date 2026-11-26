@@ -105,6 +105,14 @@ namespace LanChat
                 ApplyAppearance();
                 if (onAppearanceChanged != null) onAppearanceChanged();
             }, this);
+            _context.OnNetworkSettingsChanged = () =>
+            {
+                if (netService != null) netService.RefreshPeers(null);
+            };
+            _context.OnRefreshNetwork = () =>
+            {
+                if (netService != null) netService.RefreshPeers(null);
+            };
             _activeTabId = (initialTab < 0 || initialTab > 7) ? 0 : initialTab;
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.CenterParent;
