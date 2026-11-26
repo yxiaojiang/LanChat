@@ -7,6 +7,7 @@ const { basename, dirname, isAbsolute, join, resolve } = require('node:path');
 const { fileURLToPath, pathToFileURL } = require('node:url');
 const appearance = require('./appearance.js');
 const Service = require('./service.cjs');
+const { createUpdateService } = require('./update-service.cjs');
 const { createTrayManager } = require('./tray-manager.cjs');
 
 const page = join(__dirname, 'index.html');
@@ -26,6 +27,7 @@ const maxPastedImageBytes = 64 * 1024 * 1024;
 let window;
 let settingsWindow;
 let service;
+let updateService;
 let restarting;
 let exiting = false;
 let stopped = false;
@@ -590,6 +592,15 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, decide) => decide(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
     session.defaultSession.on('will-download', event => event.preventDefault());
+    updateService = createUpdateService({
+      currentVersion: app.getVersion(),
+      arch: process.arch,
+      env: process.env,
+      onProgress: data => {
+        forward({ event: 'update-progress', data });
+        dispatchSettingsEvent({ event: 'update-progress', data });
+      }
+    });
     trayManager = createTrayManager({
       Tray, Menu, Notification, BrowserWindow, screen,
       createImage: name => nativeImage.createFromPath(join(__dirname, 'assets', `${name}.png`)),
@@ -734,6 +745,12 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       if (!isIpv4(ip)) throw new Error('无效的 IPv4 地址');
       return service.request('probe-ip', { ip: ip.trim() });
     }, true);
+    handle('check-update', () => updateService.checkUpdate(), true);
+    handle('download-update', () => updateService.downloadUpdate(), true);
+    handle('open-update-location', savePath => updateService.openUpdateLocation(savePath,
+      path => shell.showItemInFolder(path)), true);
+    handle('open-release-page', url => updateService.openReleasePage(url,
+      safeUrl => shell.openExternal(safeUrl)), true);
     handle('send-text', (chat, message) => service.request('text', { chat: text(chat, 256), text: text(message, 32768) }));
     handle('select-files', async chat => {
       fileRecipients(chat);
@@ -796,7 +813,7 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       await mkdir(directory, { recursive: true });
       await reveal(await realpath(directory));
     }, true);
-    handle('quit', () => { setImmediate(() => app.quit()); });
+    handle('quit', () => { setImmediate(() => app.quit()); }, true);
     startService();
     showWindow();
   }).catch(error => { console.error(error); app.quit(); });

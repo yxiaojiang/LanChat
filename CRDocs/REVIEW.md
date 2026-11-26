@@ -1,4 +1,145 @@
-﻿# LC-LINUX-003（阶段 3 · 设置页收口：B 类双端同键同步与 C 类诚实只读）— Round 2 独立复审（通过：4 项 P1 与 2 项 P2 全部闭环）
+﻿# LC-LINUX-003（阶段 4 · Linux 在线更新与维护入口）— Round 2 独立复审（通过：2 项 P1 与 2 项 P2 全部闭环）
+
+- **任务编号**：`LC-LINUX-003`（阶段 4.1～4.3，含 R5 与审核护栏 4）
+- **审核轮次**：Round 2 独立复审
+- **审核分支**：`codex/v4.0-cross-platform-unification`
+- **独立审核方**：独立审核者（Antigravity / Gemini）
+- **审核日期**：2026-11-26
+- **审核结论**：**APPROVED**（仅代表 Windows 宿主机编译、源码调用链审查与 Mock HTTP/DOM/IPC 桩回归验证范围放行；真实 Linux/ELF、真实 GitHub 网络、Electron 桌面、`$XDG_CACHE_HOME` 权限、`apt` 退锁与升级/回退仍未验证，继续保留于 `CRDocs/DEFERRED.md`）
+- **审核依据**：`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`、`.claude/Plan.md`，以及工作区实际源码与 12 项独立复跑实证。
+
+## 一、Round 1 问题逐项复核结果
+
+| 问题 ID | 原级别 | Round 2 复核 | 复核依据与独立核验证据 |
+| --- | :---: | :---: | --- |
+| `LC-LINUX-003-S4-P1-1` | **P1** | **RESOLVED** | 核验 `src/linux/desktop/update-service.cjs:16-17, 65-106, 218-256`：元数据请求保持 8 秒硬超时；流式下载（`stream: true`）在收到最终响应头后立即 `clearTimeout(deadline); request.setTimeout(0); armIdleReadTimeout(response, idleTimeout);`（默认 30s），每块数据经 `Transform` 重置空闲计时器，响应 `end`/`error`/`close` 自动清理；异常清理 `.part`。`tests/linux_desktop_update_regression.js:139-150` 独立复跑证实：慢速分块流总耗时大于连接超时仍完整通过 SHA-256，真正卡死流在空闲超时中止并删净 `.part`。 |
+| `LC-LINUX-003-S4-P1-2` | **P1** | **RESOLVED** | 核验 `src/linux/desktop/settings.js:547, 580, 633-636`：`updateState.webUrl` 初始化、`checkForUpdates()` 空值与 `openReleasePage()` 均兜底官方白名单地址 `https://github.com/yxiaojiang/LanChat/releases/latest`，检查失败时点击“🌐 GitHub 发布页”正常放行。 |
+| `LC-LINUX-003-S4-P2-1` | **P2** | **RESOLVED** | `src/linux/desktop/update-service.cjs`（278 行 `<= 280` 行）已补齐模块职责及关键安全逻辑中文注释；`src/linux/desktop/settings.js`（968 行 `< 1000` 行，下次新增功能前须先拆分）。 |
+| `LC-LINUX-003-S4-P2-2` | **P2** | **RESOLVED** | `update-service.cjs:150, 222-223, 253-255` 已加入 `downloading` 并发下载互斥锁；`tests/linux_desktop_update_regression.js:169-198`（220 行）已补充真实 `settings.js` DOM 桩断言，覆盖失败开官方 Release 页、清单缺失隐藏下载、进度条/状态文案更新及复制单引号安装命令后调用 `quit()`。 |
+
+## 二、Round 2 独立复跑命令与门禁结果（Windows 宿主机）
+
+| # | 验证命令 | 退出码 | 实测结果 |
+| :---: | --- | :---: | --- |
+| 1 | `git branch --show-current` | `0` | `codex/v4.0-cross-platform-unification` |
+| 2 | `cmd /c "Tools\Scripts\Compile.bat < NUL"` | `0` | `LanChat.exe compiled successfully.` |
+| 3 | `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | `0` | 全部 8 组回归通过 |
+| 4 | `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | `0` | `Native Windows compile: ok` 及全部回归通过 |
+| 5 | `powershell -NoProfile -ExecutionPolicy Bypass -File tests/file_transfer_stability_regression.ps1` | `0` | `文件传输稳定性边界回归通过：0 字节、64KB、全局 6、单目标 2` |
+| 6 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ipc_regression.js` | `0` | 通过 |
+| 7 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_lifecycle_regression.js` | `0` | `linux desktop lifecycle regression: ok` |
+| 8 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_sync2a_regression.js` | `0` | `linux desktop sync 2A regression: ok` |
+| 9 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_settings_regression.js` | `0` | `linux desktop settings regression: ok` |
+| 10 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_update_regression.js` | `0` | `linux desktop update regression: ok`（含慢速分块流、卡死超时删 `.part` 与真实 `settings.js` DOM 桩） |
+| 11 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ui_regression.js` + `node --check`（22 文件）+ `python tests/test_linux_flow.py`（22 项）+ `py_compile`（3 文件）+ `git diff --check` | `0` | 全部通过 |
+| 12 | 文件行数门禁（按编辑器行号） | `0` | 全部 `< 1000` 行：`settings.js` **968**、`settings.css` 888、`main.cjs` 804、`tests/linux_desktop_ui_regression.js` **694**（`<= 700`）、`tests/linux_desktop_ipc_regression.js` 409、`update-service.cjs` **278**（`<= 280`）、`tests/linux_desktop_update_regression.js` **220**（`<= 220`）、`settings.html` 118、`preload.cjs` 99 |
+
+## 三、红线与未验证边界声明
+
+- **红线守恒**：未越界进入阶段 2B/5；未修改 LANC / Type 1 / Type 2 / JSONL、版本号（`2.0.26`）或发布链；Electron 主进程无新增 LAN UDP/TCP Socket；未执行 `Publish.bat`、安装覆盖或 `git push`。
+- **未验证边界**：Windows 宿主机无 Linux/WSL 与 .NET 10 SDK，上述全部“Linux”命名回归均为 Windows Mock HTTP、DOM/IPC 桩或 Python 纯逻辑验证；真实 Linux/ELF、真实 GitHub 网络、Electron 桌面、`$XDG_CACHE_HOME` 权限、`apt` 退锁与 `.deb` 升级/回退继续保留于 `CRDocs/DEFERRED.md`（`LC-LINUX-003-S4-ENV-001`），不得视为已核销。
+
+---
+
+# LC-LINUX-003（阶段 4 · Linux 在线更新与维护入口）— Round 1 独立审核结论（打回：存在 2 项 P1 阻断缺陷 + 2 项 P2 建议）
+
+## Round 1 打回整改执行记录（等待独立复审）
+
+- **任务编号**：`LC-LINUX-003`（阶段 4.1～4.3，含 R5 与审核护栏 4）
+- **Round 1 打回整改执行记录**：2026-11-26 · 分支 `codex/v4.0-cross-platform-unification` · 执行者 Codex · 状态 `WAITING_FOR_GROK`
+- **本节性质**：执行记录，不是独立审核结论；原 Round 1 `REJECTED` 结论与全部历史继续保留。
+- **范围边界**：仅修复 `LC-LINUX-003-S4-P1-1`、`S4-P1-2`，并收口 P2-1、P2-2；未进入阶段 2B/5，未改 LANC/JSONL、版本号、安装目录或发布链，未执行 `Publish.bat`、`git push`。
+
+## 本轮整改
+
+1. **`LC-LINUX-003-S4-P1-1`（待独立复核）**：`update-service.cjs` 将 8 秒硬超时限定为元数据/建连阶段；流式下载收到最终响应头后清除硬截止，默认改用 30 秒空闲读超时，每个 Transform 数据块重置，响应结束、错误或关闭清除。新增 `downloading` 互斥；下载继续以 `.part`、`0o600`、SHA-256 和原子改名保证落盘安全。
+2. **`LC-LINUX-003-S4-P1-2`（待独立复核）**：`settings.js` 的 `updateState.webUrl` 初始化、`checkUpdate()` 空地址结果和 `openReleasePage()` 均兜底官方地址 `https://github.com/yxiaojiang/LanChat/releases/latest`，检查失败时发布页按钮不再静默失效。
+3. **`LC-LINUX-003-S4-P2-1/P2-2`（待独立复核）**：补齐更新服务关键中文注释；`update-service.cjs` 278 行、`settings.js` 968 行；更新回归 220 行，增加慢速分块成功、真正卡死超时清理 `.part`，并以真实 `settings.js` DOM 桩断言失败打开 Release、进度更新、清单缺失隐藏下载和复制命令后 `quit`。
+
+## 独立可复跑证据（Windows 宿主机）
+
+- `Compile.bat`：退出码 0；三套 PowerShell 回归：全部退出码 0。
+- 6 个 Node 回归（IPC、lifecycle、sync2A、settings、update、UI）：全部退出码 0；22 个 JS/CJS 文件 `node --check`：退出码 0。
+- `python tests/test_linux_flow.py`：22 项通过；指定 5 个 Python 文件 `py_compile`：退出码 0；行数门禁与 `git diff --check`：退出码 0。
+- 更新回归明确证明：总下载时间超过短连接超时的分块流仍完成并通过 SHA-256；响应头后真正卡死在空闲超时中止并删除 `.part`。
+
+## 未验证边界与交接
+
+Windows 宿主机的 Mock HTTP、DOM/IPC 桩和纯逻辑证据不等同 Linux/ELF 实机通过。真实 Linux/ELF、真实 GitHub 网络、Electron 桌面、`XDG_CACHE_HOME` 权限、apt 退锁、`.deb` 升级/回退与便携包启动仍保留在 `CRDocs/DEFERRED.md` 的 `LC-LINUX-003-S4-ENV-001`。
+
+请独立审核者读取 `CRDocs/RULES.md`、`CRDocs/STATUS.md`、`CRDocs/REVIEW.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md` 及 `.claude/Plan.md`，直接检查阶段 4 实际代码/diff，重点复核两项 P1、下载并发锁、官方 Release 兜底和新增真实 DOM/Mock 用例。审核结束后保留全部历史并回写 `CRDocs/REVIEW.md`、`CRDocs/STATUS.md`，再交出下一份提示词；执行者不得自行写入 `APPROVED`。
+- **审核轮次**：Round 1 独立审核
+- **审核分支**：`codex/v4.0-cross-platform-unification`
+- **独立审核方**：独立审核者（Antigravity / Gemini）
+- **审核日期**：2026-11-26
+- **审核结论**：**REJECTED**（对应 `CRDocs/README.md` 中的 `CHANGES_REQUESTED`；仅针对 Windows 宿主机编译、源码调用链审查与 Mock/桩回归范围，发现 **2 项 P1 阻断缺陷**与 **2 项 P2 建议**，打回执行者整改复审）
+- **审核依据**：`.claude/Rules.md`、`.claude/Plan.md`、`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`，以及工作区实际源码、完整 `git diff` 与 12 项独立复跑实证。
+
+## 一、阶段 4 分项核查结论
+
+| 阶段 / 事项 | 结论 | 核对依据与实测证据 |
+| --- | :---: | --- |
+| 4.1 `update-service.cjs`（双轨探测、R5 清单、缓存、护栏 4） | **FAIL (P1/P2)** | **达标项**：API 8s 超时 + 403→302 Tag 降级、`x64->amd64`/`arm64->arm64` 与 `LANCHAT_INSTALLED` 资产匹配、嵌套 `manifest[arch].artifacts[assetName]` 强校验（缺失/不匹配阻断下载）、`${XDG_CACHE_HOME:-~/.cache}/lanchat/updates` `0o700` 目录权限、`.part`（`0o600`）流式 SHA-256 与原子 `rename`/失败删坏包、`sudo apt install '<normalizedAbsoluteSavePath>'` 单引号规范化路径与 `githubReleaseUrl` 白名单均成立。<br>**阻断问题**：**`LC-LINUX-003-S4-P1-1`**（`requestUrl` 挂了 8 秒绝对硬截止 `deadline` 且未在流式下载时清除，`downloadUpdate` 下载 80～120MB 真实安装包超过 8 秒必然被强制掐断并删包失败）；另登记 `P2-1`（缺少中文注释）与 `P2-2`（缺少模块内防并发下载锁）。 |
+| 4.2 更新 IPC、520×440 弹窗、CSP 与退锁流 | **FAIL (P1/P2)** | **达标项**：`main.cjs:748-753, 816` 正确注册并向设置窗放行 `check-update`/`download-update`/`open-update-location`/`open-release-page`/`quit`；`settings.html` 保持 `default-src 'none'` CSP，远端更新日志/状态全用 `textContent` 且无 `innerHTML`；520×440 弹窗、进度推送、托盘“检查新版本...”与“复制安装命令并退出 LanChat”退锁流均已接通；`packaging/build-electron.py:201-203` 自动打包 `update-service.cjs`。<br>**阻断问题**：**`LC-LINUX-003-S4-P1-2`**（检查更新失败时 `updateState.webUrl` 为空，点击弹窗内“🌐 GitHub 发布页”按钮静默失效）。另提醒 `settings.js` 已达 962 行，逼近 1000 行预警线。 |
+| 4.3 `tests/linux_desktop_update_regression.js` 与门禁 | **PARTIAL (P1/P2)** | 全部 12 项宿主机命令与行数门禁均退出码 `0`（`tests/linux_desktop_update_regression.js` 176 行、`tests/linux_desktop_ui_regression.js` 694 行 `<= 700` 行）；但 Mock 下载体仅 22 字节瞬间完成，未覆盖“慢速分块流总时长超过连接超时”与“检查失败兜底打开 Release 页”，导致 2 项 P1 漏测。 |
+
+## 二、问题分级清单（P0 / P1 / P2）
+
+> 本轮无 P0 问题；存在 **2 项 P1 阻断缺陷**（必须修复后复审）及 **2 项 P2 建议**（建议顺手收口）。
+
+| 问题 ID | 严重度 | 位置 | 问题描述与代码证据 | 整改要求 |
+| --- | :---: | --- | --- | --- |
+| `LC-LINUX-003-S4-P1-1` | **P1（阻断）** | `src/linux/desktop/update-service.cjs:14, 71-92, 214` | `requestUrl` 第 88 行设置了固定 `timeout = 8000` 的绝对硬截止定时器 `setTimeout(() => request.destroy(new Error('更新请求超时')), timeout)`，仅在 `request.once('close')` 时清除，**收到 HTTP 响应头后不会清除**；而 `downloadUpdate` 第 214 行直接调用 `requestUrl(lastCheck.result.downloadUrl, ...)` 未区分流式下载超时。真实 Linux Electron 安装包体积 80～120MB，任何耗时超过 8 秒的正常下载都会在第 8 秒被 `deadline` 强行掐断并触发坏包清理，导致在线下载在真实网络下几乎必败。 | 1. 区分“API/清单元数据请求（8s 硬超时）”与“安装包流式下载”：流式下载在收到响应头并开始读取响应体后清除连接/建连硬截止定时器，改为**空闲读超时**（如默认 30s，每次收到 `data` 块重置，流结束/出错清除），确保大包持续传输不被 8 秒总时长掐断；<br>2. 在 `tests/linux_desktop_update_regression.js` 中补充慢速分块下载断言（如短超时参数下分多块总耗时大于连接超时仍完整下载并通过 SHA-256，以及真正卡死超过空闲超时时中止并清理 `.part`）。 |
+| `LC-LINUX-003-S4-P1-2` | **P1（阻断）** | `src/linux/desktop/settings.js:312, 336-342, 365-370, 398-401` | `showUpdateNotice()` 第 312 行将 `updateState.webUrl` 清空为 `''`；当 `api.checkUpdate()` 因超时、断网、GitHub 5xx 或 403 降级异常进入 `catch` 分支时，`updateState.webUrl` 仍为 `''`。此时弹窗里“🌐 GitHub 发布页”按钮仍可见且可点击，但 `openReleasePage()` 第 399 行 `if (!updateState.webUrl \|\| !api?.openReleasePage) return;` 直接静默返回，导致用户最需要手动打开 Release 网页兜底时按钮失效。 | 1. 在 `showUpdateNotice()` 将 `updateState.webUrl` 初始化为 `'https://github.com/yxiaojiang/LanChat/releases/latest'`（或在 `openReleasePage()` 中兜底该官方白名单地址），确保检查失败时点击“🌐 GitHub 发布页”仍能正常打开 Release 页面；<br>2. 在回归中补充检查失败后点击发布页的断言。 |
+| `LC-LINUX-003-S4-P2-1` | **P2（建议）** | `src/linux/desktop/update-service.cjs:1-254`<br>`src/linux/desktop/settings.js`（962 行） | `update-service.cjs` 全文无中文注释（不符合 `.claude/Rules.md` 第 7 条与 `.claude/Plan.md` 铁律 3）；另 `settings.js` 已达 962 行，逼近 1000 行软门禁。 | 建议为 `update-service.cjs` 补齐模块职责及关键安全边界（403→302 降级、嵌套清单校验、`0o700`/`.part` 原子改名、单引号路径约束）的中文注释（保持 `<= 280` 行）；`settings.js` 保持 `< 1000` 行，后续新增设置功能前须先拆分。 |
+| `LC-LINUX-003-S4-P2-2` | **P2（建议）** | `src/linux/desktop/update-service.cjs:203-232`<br>`tests/linux_desktop_update_regression.js:140-155` | `downloadUpdate` 仅靠前端 `updateState.downloading` 防重入，服务层自身无并发下载锁；且更新弹窗 UI 校验仍以源码正则为主。 | 建议在 `update-service.cjs` 内部增加 `downloading` 互斥保护防止并发写同一 `.part`；并在 `tests/linux_desktop_update_regression.js` 补充 `settings.js` 更新弹窗控制器真实 DOM 桩断言（含失败兜底开 Release 页、进度条更新、清单缺失隐藏下载与复制命令后调用 `quit`）。 |
+
+## 三、独立复跑命令与门禁实测（Windows 宿主机）
+
+| # | 验证命令 | 退出码 | 实测结果 |
+| :---: | --- | :---: | --- |
+| 1 | `git branch --show-current` | `0` | `codex/v4.0-cross-platform-unification` |
+| 2 | `cmd /c "Tools\Scripts\Compile.bat < NUL"` | `0` | `LanChat.exe compiled successfully.` |
+| 3 | `powershell -NoProfile -ExecutionPolicy Bypass -File tests/chat_composer_regression.ps1 -ExpectLocalPack` | `0` | 全部 8 组回归通过 |
+| 4 | `powershell -NoProfile -ExecutionPolicy Bypass -File tests/friend_refresh_regression.ps1` | `0` | `Native Windows compile: ok` 及全部回归通过 |
+| 5 | `powershell -NoProfile -ExecutionPolicy Bypass -File tests/file_transfer_stability_regression.ps1` | `0` | `文件传输稳定性边界回归通过：0 字节、64KB、全局 6、单目标 2` |
+| 6 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ipc_regression.js` | `0` | 通过 |
+| 7 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_lifecycle_regression.js` | `0` | `linux desktop lifecycle regression: ok` |
+| 8 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_sync2a_regression.js` | `0` | `linux desktop sync 2A regression: ok` |
+| 9 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_settings_regression.js` | `0` | `linux desktop settings regression: ok` |
+| 10 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_update_regression.js` | `0` | `linux desktop update regression: ok` |
+| 11 | `"C:\Program Files\nodejs\node.exe" tests/linux_desktop_ui_regression.js` + `node --check`（22 文件）+ `python tests/test_linux_flow.py`（22 项）+ `py_compile`（3 文件）+ `git diff --check` | `0` | 全部通过 |
+| 12 | 文件行数门禁 | `0` | 全部 `< 1000` 行：`settings.js` **962**（逼近 1000 预警）、`settings.css` 888、`main.cjs` 804、`tests/linux_desktop_ui_regression.js` **677**（按编辑器行号 `694 <= 700`）、`tests/linux_desktop_ipc_regression.js` 409、`update-service.cjs` 254、`tests/linux_desktop_update_regression.js` 176、`settings.html` 118、`preload.cjs` 99 |
+
+## 四、红线与未验证边界声明
+
+- **红线检查**：PASS（未越界进入阶段 2B/5；未修改 LANC / Type 1 / Type 2 / JSONL、版本号（`2.0.26`）或发布链；Electron 主进程无新增 LAN UDP/TCP Socket；未执行 `Publish.bat`、安装覆盖或 `git push`）。
+- **未验证边界**：Windows 宿主机无 Linux/WSL 与 .NET 10 SDK，上述“Linux”命名回归均为 Windows Mock HTTP/DOM/IPC 桩或 Python 纯逻辑证据；真实 Linux/ELF、真实 GitHub 网络、Electron 桌面、`$XDG_CACHE_HOME` 权限、`apt` 退锁与升级/回退仍未验证，继续保留于 `CRDocs/DEFERRED.md`（含 `LC-LINUX-003-S4-ENV-001`）。
+
+---
+
+# LC-LINUX-003（阶段 4 · Linux 在线更新与维护入口）— 执行者交接，等待独立复审
+
+- **任务编号**：`LC-LINUX-003`（阶段 4.1～4.3，含 R5 与审核护栏 4）
+- **执行分支/日期**：`codex/v4.0-cross-platform-unification` / 2026-11-26；**执行者**：Codex
+- **状态**：`WAITING_FOR_GROK`；本节是执行记录，不是 `APPROVED`，独立审核者必须自行检查代码、diff 和命令证据。
+- **范围边界**：未进入阶段 2B/5；未改 LANC/JSONL、版本号、安装目录或发布链，未执行 `Publish.bat`、安装覆盖或 `git push`。
+
+## 本轮交接摘要
+
+已完成 `update-service.cjs` 的 API/403→302 双轨探测、双架构及安装/便携匹配、嵌套清单强校验、`0o700` 缓存、`.part`/SHA-256/原子改名/坏包清理和单引号 apt 命令；已接通四项受限 IPC、520×440 更新弹窗、托盘入口和复制命令后退出退锁流；Mock HTTP、宿主机编译、三套 PowerShell、Node/Python 回归、语法、行数和空白检查全部通过。
+
+## 独立审核重点与边界
+
+请重点核对 `manifest[arch].artifacts[assetName]` 缺失时只能打开 GitHub Release、设置窗来源校验、严格 URL/路径、`default-src 'none'` 与 `textContent`，以及真实下载失败删 `.part`、单引号安装命令和 `quit` 退锁；所有 Linux 命名回归均为 Windows Mock/DOM/IPC 桩证据，Linux/ELF、真实 GitHub 网络、Electron 桌面、apt 安装/回退仍未验证，R5 项在 `DEFERRED.md` 保持 `[OPEN]`。
+
+## 交接提示词
+
+> 请读取 `.claude/Rules.md`、`.claude/Plan.md`、`PlanDocs/LC-LINUX-003/FINAL.md`、`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`，审核 `codex/v4.0-cross-platform-unification` 的 LC-LINUX-003 阶段 4.1～4.3 实际 diff，独立复跑宿主机命令并区分 Mock/桩与 Linux/ELF 实机证据。审核结束后按 `CRDocs/RULES.md` 将完整结论写入 `CRDocs/REVIEW.md` 顶部、把 `CRDocs/STATUS.md` 改为 `APPROVED` 或 `REJECTED`，再交出下一份提示词；不得把本执行记录自行改写成审核通过。
+
+---
+
+# LC-LINUX-003（阶段 3 · 设置页收口：B 类双端同键同步与 C 类诚实只读）— Round 2 独立复审（通过：4 项 P1 与 2 项 P2 全部闭环）
 
 - **任务编号**：`LC-LINUX-003`（阶段 3.1～3.4，含 D1 = A）
 - **审核轮次**：Round 2 独立复审
@@ -2120,4 +2261,3 @@ Linux 的 `display.themeIndex`、`accentIndex`、字体下标和 `uiSize`/`chatS
 5. 现有回归输出与未验证边界是否被准确区分；若发现 P0/P1 问题，请在本文件写明复现条件、分级和修复要求，并将 `CRDocs/STATUS.md` 保持为打回状态。
 
 ---
-

@@ -26,6 +26,10 @@ contextBridge.exposeInMainWorld('lanchat', {
   openDownloads: () => ipcRenderer.invoke('lanchat:open-downloads'),
   openHistory: () => ipcRenderer.invoke('lanchat:open-history'),
   triggerScreenshot: () => ipcRenderer.invoke('lanchat:trigger-screenshot'),
+  checkUpdate: () => ipcRenderer.invoke('lanchat:check-update'),
+  downloadUpdate: () => ipcRenderer.invoke('lanchat:download-update'),
+  openUpdateLocation: path => ipcRenderer.invoke('lanchat:open-update-location', path),
+  openReleasePage: url => ipcRenderer.invoke('lanchat:open-release-page', url),
   quit: () => { void ipcRenderer.invoke('lanchat:quit'); },
   onEvent: callback => { ipcRenderer.on('lanchat:event', (_event, frame) => callback(frame)); }
 });

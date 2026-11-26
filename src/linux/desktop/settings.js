@@ -7,6 +7,8 @@
     api.createSettingsController();
   }
 })(typeof globalThis === 'undefined' ? this : globalThis, function (root) {
+  const OFFICIAL_RELEASE_URL = 'https://github.com/yxiaojiang/LanChat/releases/latest';
+
   function normalizeDir(value) {
     const text = String(value || '').trim();
     if (!text) return '';
@@ -62,6 +64,10 @@
       electronVersion: '45.4.1',
       interfaces: [],
       connected: false
+    };
+
+    const updateState = {
+      webUrl: OFFICIAL_RELEASE_URL, savePath: '', installCommand: '', canDownload: false, downloading: false
     };
 
     // 与 WinForms 面板一致的展示态（语言、链接打开方式及展示型开关等本地 UI 状态）。
@@ -519,13 +525,129 @@
       }, { once: true });
     }
 
+    function updateProgress(data = {}) {
+      const bar = byId('settings-update-progress-bar');
+      const percent = Number.isFinite(Number(data.percent)) ? Math.max(0, Math.min(100, Number(data.percent))) : 0;
+      if (bar) bar.style.width = `${percent}%`;
+      const status = byId('settings-update-status');
+      if (status && updateState.downloading) {
+        const transferred = Number(data.transferred) || 0;
+        const total = Number(data.total) || 0;
+        status.textContent = total ? `正在下载更新… ${percent}%（${transferred} / ${total} 字节）` : `正在下载更新… ${transferred} 字节`;
+      }
+    }
+
     function showUpdateNotice() {
-      void openConfirmModal({
-        title: '检查更新',
-        body: `当前版本 v${runtime.version}\n版本检查与安装包更新将在后续维护切片接入。`,
-        confirmLabel: '知道了',
-        alertOnly: true
-      });
+      const dialog = byId('settings-update-dialog');
+      if (!dialog) {
+        showBanner('更新弹窗不可用', true);
+        return;
+      }
+      if (dialog.open) return;
+      updateState.webUrl = OFFICIAL_RELEASE_URL;
+      updateState.savePath = '';
+      updateState.installCommand = '';
+      updateState.canDownload = false;
+      updateState.downloading = false;
+      byId('settings-update-title').textContent = '检查更新';
+      byId('settings-update-version').textContent = `当前版本 v${runtime.version}`;
+      byId('settings-update-status').textContent = '正在检查 GitHub Release...';
+      byId('settings-update-warning').textContent = '';
+      byId('settings-update-warning').hidden = true;
+      byId('settings-update-notes').textContent = '正在读取...';
+      byId('settings-update-progress-bar').style.width = '0%';
+      byId('settings-update-download').hidden = false;
+      byId('settings-update-download').disabled = true;
+      byId('settings-update-copy-install').hidden = true;
+      byId('settings-update-open-location').hidden = true;
+      dialog.showModal();
+      void checkForUpdates();
+    }
+
+    async function checkForUpdates() {
+      const status = byId('settings-update-status');
+      const warning = byId('settings-update-warning');
+      const download = byId('settings-update-download');
+      if (!api?.checkUpdate) {
+        status.textContent = '当前桌面桥接不可用';
+        warning.textContent = '无法检查更新，只能打开 GitHub Release 页面。';
+        warning.hidden = false;
+        download.hidden = true;
+        return;
+      }
+      try {
+        const result = await api.checkUpdate();
+        updateState.webUrl = result.webUrl || OFFICIAL_RELEASE_URL;
+        updateState.canDownload = result.canDownload === true;
+        byId('settings-update-version').textContent = `当前 v${result.currentVersion} · 最新 v${result.latestVersion}`;
+        byId('settings-update-title').textContent = result.hasUpdate ? (result.title || '发现新版本') : '当前已是最新版本';
+        byId('settings-update-notes').textContent = result.notes || '此 Release 未提供更新日志。';
+        if (!result.hasUpdate) {
+          status.textContent = `当前已是最新版本 (v${result.currentVersion})，无需更新`;
+          download.hidden = true;
+          return;
+        }
+        if (!result.canDownload) {
+          status.textContent = '已发现新版本，但未取得可验证的更新清单。';
+          warning.textContent = result.warning || 'SHA256SUMS.json 不完整，只允许打开 GitHub Release 网页。';
+          warning.hidden = false;
+          download.hidden = true;
+          return;
+        }
+        status.textContent = `发现 ${result.kind === 'deb' ? '.deb 安装包' : '便携包'}：${result.assetName}`;
+        download.textContent = `⚡ 立即下载更新（${result.kind === 'deb' ? '.deb' : '便携包'}）`;
+        download.disabled = false;
+      } catch (error) {
+        status.textContent = '检查更新失败';
+        warning.textContent = error.message;
+        warning.hidden = false;
+        download.hidden = true;
+      }
+    }
+
+    async function downloadUpdate() {
+      const download = byId('settings-update-download');
+      if (!api?.downloadUpdate || updateState.downloading) return;
+      updateState.downloading = true;
+      download.disabled = true;
+      byId('settings-update-copy-install').hidden = true;
+      byId('settings-update-open-location').hidden = true;
+      byId('settings-update-status').textContent = '正在准备下载...';
+      try {
+        const result = await api.downloadUpdate();
+        updateState.savePath = result.savePath || '';
+        updateState.installCommand = result.installCommand || '';
+        byId('settings-update-status').textContent = `下载完成：${result.assetName || updateState.savePath}`;
+        byId('settings-update-open-location').hidden = !updateState.savePath;
+        byId('settings-update-copy-install').hidden = !updateState.installCommand;
+      } catch (error) {
+        byId('settings-update-status').textContent = '下载失败，未保留坏包';
+        byId('settings-update-warning').textContent = error.message;
+        byId('settings-update-warning').hidden = false;
+      } finally {
+        updateState.downloading = false;
+        download.disabled = false;
+      }
+    }
+
+    async function openReleasePage() {
+      if (!api?.openReleasePage) return;
+      try { await api.openReleasePage(updateState.webUrl || OFFICIAL_RELEASE_URL); } catch (error) { showBanner(error.message, true); }
+    }
+
+    async function openUpdateLocation() {
+      if (!updateState.savePath || !api?.openUpdateLocation) return;
+      try { await api.openUpdateLocation(updateState.savePath); } catch (error) { showBanner(error.message, true); }
+    }
+
+    async function copyInstallAndQuit() {
+      if (!updateState.installCommand || !api?.quit) return;
+      if (!await copyToClipboard(updateState.installCommand)) {
+        showBanner('复制安装命令失败，请手动复制后再退出', true);
+        return;
+      }
+      byId('settings-update-status').textContent = '安装命令已复制，正在退出 LanChat 以释放配置锁...';
+      api.quit();
     }
 
     function renderAllPanels() {
@@ -783,6 +905,11 @@
       event.preventDefault();
       byId('settings-confirm-dialog').close('ok');
     });
+    byId('settings-update-later')?.addEventListener('click', () => byId('settings-update-dialog').close());
+    byId('settings-update-download')?.addEventListener('click', () => { void downloadUpdate(); });
+    byId('settings-update-release')?.addEventListener('click', () => { void openReleasePage(); });
+    byId('settings-update-open-location')?.addEventListener('click', () => { void openUpdateLocation(); });
+    byId('settings-update-copy-install')?.addEventListener('click', () => { void copyInstallAndQuit(); });
 
     async function bootstrap() {
       navScroll = scroll.bind(navEl);
@@ -794,6 +921,7 @@
       if (!api) return;
       api.onEvent?.(event => {
         if (event?.event === 'open-update-check') showUpdateNotice();
+        if (event?.event === 'update-progress') updateProgress(event.data);
       });
       try {
         const [settingsData, stateData, sysData] = await Promise.all([

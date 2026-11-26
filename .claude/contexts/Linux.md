@@ -1,6 +1,13 @@
 # Linux.md — Linux 客户端模块上下文
 
-> 2026-11-26 · `LC-LINUX-003` 阶段 3 已完成并通过独立审核。Windows 宿主机上的 Node/Python 回归、设置控制器桩和共享 C# 编译均通过；Linux/ELF、真实 Electron 桌面、网卡/TUN 与双机 LAN 仍未验证，不能把宿主机桩结果写成 Linux 实机证据。
+> 2026-11-26 · `LC-LINUX-003` 阶段 4 已完成并通过独立审核。Windows 宿主机上的 Node/Python 回归、更新 Mock HTTP、设置控制器桩和共享 C# 编译均通过；Linux/ELF、真实 Electron 桌面、GitHub 网络、更新权限/退锁、网卡/TUN 与双机 LAN 仍未验证，不能把宿主机桩结果写成 Linux 实机证据。
+
+## 当前阶段 4 关键状态
+
+- `src/linux/desktop/update-service.cjs` 已接入 GitHub Release 检查、双架构资产与嵌套清单校验、缓存权限、流式校验、原子落盘、下载互斥和失败清理。
+- `main.cjs`、`preload.cjs`、`settings.js` 与 `settings.html` 已接通受限更新 IPC、进度显示、官方 Release 兜底、打开缓存目录及复制 apt 命令后退出。
+- `tests/linux_desktop_update_regression.js` 已覆盖慢速分块、卡死空闲超时、`.part` 清理和真实设置控制器 DOM 桩；全部证据仍是 Windows Mock/桩。
+- 真实 Linux/ELF、Electron、`XDG_CACHE_HOME` 权限、apt 退锁、`.deb` 升级/回退和便携启动统一按 `CRDocs/DEFERRED.md` 的 `LC-LINUX-003-S4-ENV-001` 现场核销。
 
 ## 当前阶段 3 关键状态
 

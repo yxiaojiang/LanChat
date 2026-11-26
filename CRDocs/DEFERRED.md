@@ -4,6 +4,16 @@
 
 ---
 
+## LC-LINUX-003-S4-ENV-001 [OPEN] Linux 在线更新与 apt 退锁现场验收
+
+- **来源阶段**：`LC-LINUX-003` 阶段 4，2026-11-26；对应 R5 环境边界与审核护栏 4。
+- **位置**：`src/linux/desktop/update-service.cjs`、`src/linux/desktop/main.cjs`、`src/linux/desktop/settings.js`。
+- **现状**：Windows 宿主机已用本地 Mock HTTP 验证 API/302、双架构资产选择、嵌套清单、流式 SHA-256、坏包删除和单引号命令；尚未在 Linux/ELF 实机访问 GitHub、验证 `XDG_CACHE_HOME` 权限、真实 Electron 下载进度、apt 配置锁释放、`.deb` 升级/回退或便携包解压启动。
+- **触发阶段**：阶段 5 Linux/ELF 与真实桌面现场验收。
+- **验收条件**：在 x86_64 与 ARM64 Linux 实机分别验证安装版/便携版资产、网络超时与 API 403 降级、缺失/篡改清单阻断、`~/.cache/lanchat/updates` 权限、复制命令后进程退出释放锁、`.deb` 升级与 `apt install --allow-downgrades` 回退；结果不得以 Windows Mock 证据替代。
+
+---
+
 ## LC-UI-INPUT-010-ENV-001 [OPEN] 输入框内联表情真实 DPI/IME 现场验收
 
 - **来源轮次**：`LC-UI-INPUT-010`，2026-11-26。

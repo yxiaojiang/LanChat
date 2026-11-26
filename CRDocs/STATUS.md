@@ -1,4 +1,16 @@
-﻿# 当前任务 — LC-LINUX-003（阶段 3 · 设置页收口：B 类双端同键同步与 C 类诚实只读）
+﻿# 当前任务 — LC-LINUX-003（阶段 4 · Linux 在线更新与维护入口）
+
+- **状态**：`APPROVED`（仅代表 Windows 宿主机编译、源码审查与 Mock HTTP/DOM/IPC 桩回归验证范围放行；Linux 实机、真实 GitHub 网络与 ELF 运行环境仍未验证）
+- **日期**：2026-11-26；**分支**：`codex/v4.0-cross-platform-unification`；**执行者**：Codex（Round 1 整改）；**独立审核者**：Antigravity（Gemini，Round 2 独立复审通过）
+- **范围**：仅 `.claude/Plan.md` 阶段 4.1～4.3，含 R5 与审核护栏 4；未进入阶段 2B/5。
+- **一句话结论**：Round 1 全部 2 项 P1（`LC-LINUX-003-S4-P1-1`、`P1-2`）与 2 项 P2（`P2-1`、`P2-2`）已复核 `RESOLVED`：流式下载在响应头后清除 8 秒连接硬超时并切为 30 秒空闲读超时、新增 `downloading` 互斥锁并验证慢速分块通过与卡死清 `.part`；检查更新失败/空值统一兜底官方 GitHub Release 白名单地址；补齐中文注释与真实 `settings.js` DOM 桩断言；全部 12 项宿主机命令退出码 `0`，所有手写文件 `< 1000` 行，红线零触碰。
+- **未验证边界**：Windows 宿主机无 Linux/WSL 与 .NET 10 SDK，真实 Linux/ELF、真实 GitHub 网络、Electron 桌面、`$XDG_CACHE_HOME` 权限、`apt` 退锁与升级/回退继续保留于 [DEFERRED.md](DEFERRED.md)（`LC-LINUX-003-S4-ENV-001`），不视为 Linux 实机通过。
+- **报告路径**：[Round 2 独立复审（通过）](REVIEW.md#lc-linux-003阶段-4--linux-在线更新与维护入口-round-2-独立复审通过2-项-p1-与-2-项-p2-全部闭环) · [Round 1 整改执行记录](REVIEW.md#round-1-打回整改执行记录等待独立复审) · [Round 1 独立审核（打回）](REVIEW.md#lc-linux-003阶段-4--linux-在线更新与维护入口-round-1-独立审核结论打回存在-2-项-p1-阻断缺陷--2-项-p2-建议) · [阶段 4 执行记录](IMPLEMENTATION.md) · [延期与实机边界](DEFERRED.md)
+- **下一步**：`LC-LINUX-003` 阶段 4 的 Windows 宿主机开发与审核范围已闭环；执行者可按 [.claude/Plan.md](../.claude/Plan.md) 进入 **阶段 2B（内联表情富文本输入框专项，D3 = A，受 `CP-2B` 门禁控制并保留一键回退开关）**，或在接入 Linux 环境时进入 **阶段 5（双架构构建与物理实机/真实 LAN 总验收）**。
+
+---
+
+# 当前任务 — LC-LINUX-003（阶段 3 · 设置页收口：B 类双端同键同步与 C 类诚实只读）
 
 - **状态**：`APPROVED`（仅代表 Windows 宿主机编译、源码审查与静态/桩回归验证范围放行；Linux 实机与 ELF 运行环境仍未验证）
 - **日期**：2026-11-26；**分支**：`codex/v4.0-cross-platform-unification`；**执行者**：Codex（Round 1 整改）；**独立审核者**：Antigravity（Gemini，Round 2 独立复审通过）

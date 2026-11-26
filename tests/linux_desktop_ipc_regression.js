@@ -237,6 +237,7 @@ async function testPasteLifecycle() {
       session.setPermissionRequestHandler = session.setPermissionCheckHandler = () => {};
       const app = Object.assign(new EventEmitter(), {
         getPath: () => directory,
+        getVersion: () => '2.0.26',
         requestSingleInstanceLock: () => true,
         enableSandbox() {},
         whenReady: () => Promise.resolve(),
@@ -291,7 +292,7 @@ async function testPasteLifecycle() {
           name === './tray-manager.cjs' ? { createTrayManager: () => ({
             setSettings() {}, initialize: async () => {}, canHideToTray: () => false,
             notifyMessage() {}, notifyMinimized() {}, windowRestored() {}, destroy() {}
-          }) } :
+          }) } : name === './update-service.cjs' ? { createUpdateService: () => ({}) } :
           name === './appearance.js' ? {} : require(name),
         __dirname: join(__dirname, '../src/linux/desktop'),
         process: { env: {}, resourcesPath: directory },

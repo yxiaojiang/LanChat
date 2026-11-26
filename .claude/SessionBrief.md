@@ -1,19 +1,19 @@
-# 当前接手摘要（LC-LINUX-003 阶段 3 已审核通过）
+# 当前接手摘要（LC-LINUX-003 阶段 4 已审核通过）
 
-> 2026-11-26 · 分支 `codex/v4.0-cross-platform-unification` · 本轮阶段 3 已完成整改、独立审核通过，代码与文档随本次记忆保存提交并推送。
+> 2026-11-26 · 分支 `codex/v4.0-cross-platform-unification` · 阶段 4 已完成整改并经独立复审通过；当前代码、CRDocs 与记忆待本轮提交推送。
 
 ## 当前状态
 
-LC-LINUX-003 阶段 3.1～3.4 已闭环。共享 `NetworkService` 保持 LANC/JSONL 与旧协议兼容；Windows/Linux 已统一持久化 `TunFilter`、`UnicastProbe`、`AutoLoadHistory`、`SendShortcutMode`。设置页的语言、链接、64KB 分块能力与网络协议通道均按真实能力诚实展示。Round 1 打回的 4 项 P1 已修复：设置窗刷新 IPC 放行并捕获错误、Windows 快捷键第五行不再与开关重叠、私聊 `Ctrl+L` 只清当前历史不删好友、Linux 前两枚快捷键徽章随模式保存同步。两项 P2 也已收口，设置回归新增真实控制器/DOM 桩和 IPC 来源校验。
+LC-LINUX-003 阶段 4.1～4.3 已闭环，范围是 Linux 在线更新与维护入口。更新服务已完成 GitHub API/403→302 降级、x64/arm64 资产匹配、嵌套清单强校验、缓存目录和权限、`.part` 流式 SHA-256、原子改名、坏包清理、单引号 apt 命令及下载互斥锁；Electron 设置窗通过受限 IPC 接入检查、下载、打开目录、打开 Release 和复制命令后退出。Round 1 的 2 项 P1 与 2 项 P2 已在 Round 2 复审中标记 `RESOLVED`，`CRDocs/STATUS.md` 当前为 `APPROVED`。
 
 ## 验证与边界
 
-Windows 原生 `Compile.bat`、三套 PowerShell 回归、全部 Node 回归、Python `tests/test_linux_flow.py` 22 项、Python/JS 语法检查、行数门禁和 `git diff --check` 均退出码 0。`tests/linux_desktop_ui_regression.js` 为 691 行，所有本轮手写代码文件低于 1000 行。以上 Linux 命名测试均为 Windows 宿主机上的模拟 DOM、桩 IPC 或纯逻辑验证，不代表 Linux/ELF 实机通过。Windows 宿主机没有可用 Linux/WSL 与 .NET 10 环境，Linux ELF、真实 Electron 桌面、Xorg/Wayland、fcitx5/ibus、真实多网卡/TUN、双机 LAN、升级回退和多 DPI/IME 仍按 `CRDocs/DEFERRED.md` 延期。
+Windows 原生 `Compile.bat`、三套 PowerShell 回归、IPC/生命周期/设置/更新/UI Node 回归、Python `tests/test_linux_flow.py` 22 项、JS/Python 语法检查、行数门禁和 `git diff --check` 均退出码 0。更新回归覆盖慢速分块下载、响应头后卡死超时清理 `.part`、真实 `settings.js` DOM 桩和发布页兜底。所有手写文件低于 1000 行。Linux 命名测试仍是 Windows 宿主机上的 Mock HTTP、DOM/IPC 桩或纯逻辑验证，不代表 Linux/ELF 实机通过；真实 GitHub 网络、Electron 桌面、XDG 权限、apt 退锁、升级回退、多网卡/TUN、双机 LAN 与多 DPI/IME 继续按 `CRDocs/DEFERRED.md` 延期。
 
 ## 关键约束
 
-继续保持 `codex/v4.0-cross-platform-unification` 分支；不得擅自改版本号、LANC/JSONL、发布链或安装目录。除非用户明确要求，不执行 `Publish.bat`、覆盖安装或推送到其他分支。所有新增注释使用中文，代码文件遵守 1000 行门禁；不能把 Windows 宿主机桩结果写成 Linux 实机通过。
+继续保持 `codex/v4.0-cross-platform-unification` 分支；不改版本号、LANC/JSONL、发布链或安装目录。所有新增注释使用中文，手写代码遵守 1000 行门禁；不能把宿主机桩结果写成 Linux 实机通过。用户已明确要求本轮提交并 push，因此可推送当前分支；仍不执行 `Publish.bat` 或安装覆盖。
 
 ## 下一步
 
-阶段 3 已归档，下一步由用户决定进入阶段 4 在线更新、安排 Linux/ELF 与真实桌面现场验收，或先核销 `CRDocs/DEFERRED.md` 中的环境项。新会话先读取本文件、`.claude/Plan.md` 和 `CRDocs/STATUS.md`；当前审核状态记录在 `CRDocs/STATUS.md`，阶段 3 证据记录在 `CRDocs/IMPLEMENTATION.md` 与 `CRDocs/REVIEW.md`。
+阶段 4 已归档，下一步由用户决定进入阶段 2B（内联表情富文本输入框专项）或接入 Linux 环境核销阶段 5 现场验收。新会话先读取本文件、`.claude/Plan.md` 和 `CRDocs/STATUS.md`；阶段 4 证据在 `CRDocs/IMPLEMENTATION.md`、`CRDocs/REVIEW.md`，延期边界在 `CRDocs/DEFERRED.md`。

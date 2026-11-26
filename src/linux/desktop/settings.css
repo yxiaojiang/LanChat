@@ -606,6 +606,119 @@ body.settings-body {
   width: min(460px, 92vw);
 }
 
+.settings-update-modal {
+  box-sizing: border-box;
+  width: 520px;
+  height: 440px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.settings-update-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-update-head .settings-modal-title {
+  margin-bottom: 4px;
+}
+
+.update-lightning {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: #35204e;
+  border: 1px solid #7946d7;
+  color: #cf9dff;
+  font-size: 23px;
+}
+
+.settings-update-status,
+.settings-update-warning {
+  min-height: 22px;
+  font-size: 10pt;
+  line-height: 1.35;
+}
+
+.settings-update-status {
+  color: var(--subtitle);
+}
+
+.settings-update-warning {
+  padding: 8px 10px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  color: var(--danger-hot);
+  background: #261417;
+}
+
+.settings-update-notes-box {
+  min-height: 0;
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--viewport);
+  overflow: hidden;
+}
+
+.settings-update-notes-label {
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 9.5pt;
+  font-weight: 700;
+}
+
+.settings-update-notes {
+  height: calc(100% - 22px);
+  overflow: auto;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 9.5pt;
+  line-height: 1.45;
+  scrollbar-width: none;
+}
+
+.settings-update-notes::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.settings-update-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: #2c2635;
+  overflow: hidden;
+}
+
+.settings-update-progress-bar {
+  width: 0;
+  height: 100%;
+  border-radius: 3px;
+  background: #a966f0;
+  transition: width 0.12s ease;
+}
+
+.settings-update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.settings-update-actions button {
+  min-width: 84px;
+}
+
 .settings-modal-title {
   margin: 0 0 14px;
   font-size: 18pt;

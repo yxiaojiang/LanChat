@@ -241,6 +241,13 @@
 - Windows 原生构建、同名文件并发回环、UI 草稿/粘贴格式回归和 MSI 内容校验通过；Linux UI 回归、双架构 ELF 构建和 Electron 包结构核验通过。未运行虚拟机；ARM64 Linux 与 Windows 安装/真实剪贴板仍由用户验收。系统图形后端、输入法、托盘及长历史测试仍在 LC-LINUX-002 计划中。
 - 本节记录实现与验证边界；版本、发布资产、commit/tag URL 与摘要在发布成功后补录。
 
+## LC-LINUX-003 阶段 4 Linux 在线更新与维护入口（2026-11-26，已完成并审核通过）
+
+- 完成 GitHub Release API/403→302 降级、x64/arm64 资产匹配、嵌套清单强校验、缓存目录权限、`.part` 流式 SHA-256、原子改名、坏包清理、单引号 apt 命令与下载互斥锁。
+- Electron 设置窗通过受限 IPC 接入检查、下载进度、打开缓存目录、打开官方 Release 和复制安装命令后退出；更新服务与设置页补齐中文注释和真实 DOM 桩回归。
+- Round 1 的 2 项 P1、2 项 P2 已在 Round 2 独立复审中全部 `RESOLVED`；宿主机编译、PowerShell/Node/Python 回归、语法、行数与 diff 检查通过。
+- 真实 Linux/ELF、GitHub 网络、Electron、XDG 权限、apt 退锁、`.deb` 升级/回退与便携启动仍保留在 `CRDocs/DEFERRED.md`，不得用 Windows Mock 证据替代。
+
 ## LC-LINUX-003 阶段 3 设置页收口（2026-11-26，已完成并审核通过）
 
 - 完成共享 NetworkService 网卡/TUN 开关与四项双端同键持久化：`TunFilter`、`UnicastProbe`、`AutoLoadHistory`、`SendShortcutMode`；完成 C 类只读设置诚实收口。

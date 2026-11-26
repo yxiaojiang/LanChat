@@ -1,4 +1,43 @@
-﻿# LC-LINUX-003（阶段 3）— Round 1 打回整改执行记录（等待独立复审）
+﻿# LC-LINUX-003（阶段 4 · Linux 在线更新与维护入口）— 执行者交接
+
+> 2026-11-26 · 执行者 Codex · 状态 `WAITING_FOR_GROK` · 分支 `codex/v4.0-cross-platform-unification`
+> 本节为阶段 4.1～4.3 执行记录，不是独立审核结论；下方历史全部保留。
+
+## Round 1 打回整改执行记录（2026-11-26）
+
+本轮严格限定在 `LC-LINUX-003` 阶段 4.1～4.3，状态为 `WAITING_FOR_GROK`，分支为 `codex/v4.0-cross-platform-unification`。未进入阶段 2B/5；未修改 LANC/JSONL、版本号、安装目录或发布链，未执行 `Publish.bat`、`git push`。
+
+1. **`LC-LINUX-003-S4-P1-1`**：`update-service.cjs` 将元数据请求保留为 8 秒硬超时；下载请求收到最终响应头后清除连接硬截止，使用默认 30 秒空闲读超时，数据块由流式 Transform 重置，结束/错误/关闭清理计时器。下载增加 `downloading` 互斥，仍先写 `0o600` 的 `.part`，SHA-256 成功后原子改名，异常删除 `.part`。
+2. **`LC-LINUX-003-S4-P1-2`**：`settings.js` 将 `updateState.webUrl` 初始化、检查结果为空及打开动作兜底为官方白名单地址 `https://github.com/yxiaojiang/LanChat/releases/latest`。
+3. **P2 收口**：为 `update-service.cjs` 补充关键中文注释；新增真实 `settings.js` DOM 桩覆盖失败打开 Release、进度更新、清单缺失隐藏下载、复制命令后调用 `quit`，并静态核对下载互斥。
+
+## Windows 宿主机验证
+
+| 验证 | 结果 |
+| --- | --- |
+| `Compile.bat` | 退出码 0；仅原生编译，未发布或覆盖安装 |
+| 三套 PowerShell 回归 | 全部退出码 0 |
+| 6 个 Linux Desktop Node 回归 | 均退出码 0，含慢速分块流总时长超过连接超时仍 SHA-256 成功、卡死空闲超时清理 `.part` |
+| 22 个 JS/CJS `node --check` | 退出码 0 |
+| `python tests/test_linux_flow.py` | 22 项通过；5 个 Python 文件 `py_compile` 退出码 0 |
+| 行数门禁 | 27 个桌面/回归文件均 `< 1000`；`update-service.cjs` 278 行、更新回归 220 行、`settings.js` 968 行、UI 总回归 694 行 |
+| `git diff --check` | 退出码 0；仅 Git 换行转换提示，无空白错误 |
+
+以上 Linux 命名 Node/Python 用例均为 Windows 宿主机的 Mock HTTP、DOM/IPC 桩或纯逻辑验证，不代表 Linux/ELF 实机通过。真实 Linux/ELF、GitHub 网络、Electron 桌面、`XDG_CACHE_HOME` 权限、apt 退锁与升级/回退仍按 `CRDocs/DEFERRED.md` 的 `LC-LINUX-003-S4-ENV-001` 保持未验证。
+
+请独立审核者重新读取 `CRDocs/RULES.md`、`CRDocs/STATUS.md`、`CRDocs/REVIEW.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md` 及 `.claude/Plan.md`，直接审查阶段 4 实际 diff，并独立复跑上述命令。审核结束后必须保留全部历史、回写 `CRDocs/REVIEW.md` 与 `CRDocs/STATUS.md`；只有独立审核者可以写入 `APPROVED`。
+
+## 实施与验证摘要
+
+- 新增 `src/linux/desktop/update-service.cjs`（254 行）：GitHub API 8 秒超时、403→302 Tag 降级、`x64/arm64` 与 `LANCHAT_INSTALLED` 资产选择、严格 `manifest[arch].artifacts[assetName]`、`0o700` 缓存、`.part` 流式 SHA-256、原子改名、坏包清理和单引号 apt 命令。
+- 接通主窗/设置窗四项受限 IPC；新增 520×440 更新弹窗、远端文本 `textContent`、下载进度、Release 网页/位置入口及复制安装命令后退出退锁流；保留 `default-src 'none'` CSP。
+- 新增 `tests/linux_desktop_update_regression.js`（176 行）并注册到 UI 总回归；覆盖最新版提示、双架构及安装/便携资产、403 降级强制清单、清单缺失阻断、篡改哈希删包、URL/路径校验和单引号命令。
+- 编译、三套 PowerShell、6 个 Node 回归、22 项 Python 回归、22 个 Node/CJS 语法检查、Python 语法、行数门禁和 `git diff --check` 全部通过；`tests/linux_desktop_ui_regression.js` 为 694 行。
+- Windows 宿主机未运行 Linux/ELF、真实 Electron、GitHub 网络或 apt 升级/回退；Mock/桩结果不代表 Linux 实机通过，R5 现场项已写入 `DEFERRED.md`。
+
+---
+
+# LC-LINUX-003（阶段 3）— Round 1 打回整改执行记录（等待独立复审）
 
 > 2026-11-26 · 执行者 Codex · 分支 `codex/v4.0-cross-platform-unification` · 本节仅记录本轮整改与真实命令结果，不是独立审核结论。
 
@@ -837,4 +876,3 @@ LANC 握手帧、TCP `0x01` 及 UDP 六段公告兼容。旧客户端只回 `0x0
 - 正式 `dotnet build` net10.0 受宿主仅安装 SDK 9.0.304 阻断；真实 Linux/ELF、双机 LAN 和桌面剪贴板仍未验证。
 
 ---
-
