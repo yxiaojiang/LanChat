@@ -22,8 +22,8 @@ Linux 已具备主窗双栏、会话/未读/搜索、聊天气泡、Unicode/静�
 
 ## 提交与下一步
 
-版本元数据与 `CHANGELOG.md` 已更新；`v2.0.26` 已完成 Windows EXE/MSI、Linux amd64/arm64 deb/便携包/CLI 构建、提交、push 和 GitHub Release。当前将创建 `V3.0` 封版标签，程序输出版本不改。随后从主线创建 `codex/v4.0-cross-platform-unification`，作为 Windows/Linux 功能统一的后续开发分支。
+版本元数据与 `CHANGELOG.md` 已更新；`v2.0.26` 已完成 Windows EXE/MSI、Linux amd64/arm64 deb/便携包/CLI 构建、提交、push 和 GitHub Release。`V3.0` 封版标签已推送，程序输出版本保持不变；当前分支 `codex/v4.0-cross-platform-unification` 已从主线创建并推送，作为 Windows/Linux 功能统一的后续开发分支。
 
-V4.0 计划基线：补齐 Linux 托盘/通知/关闭恢复、连接节点 GUI、设置页展示性开关的真实业务接线、更新维护入口，并完成 Linux ELF、Xorg/Wayland/XWayland、fcitx5/ibus、多 DPI、双架构升级回退和真实双机 LAN 验收。之后仅保留延期现场验收：截图工具/Excel/WPS 粘贴及长时间稳定性。
+V4.0 计划基线已写入 `PlanDocs/V4.0-UNIFICATION.md`：补齐 Linux 托盘/通知/关闭恢复、连接节点 GUI、设置页展示性开关的真实业务接线、更新维护入口，并完成 Linux ELF、Xorg/Wayland/XWayland、fcitx5/ibus、多 DPI、双架构升级回退和真实双机 LAN 验收。之后仅保留延期现场验收：截图工具/Excel/WPS 粘贴及长时间稳定性。
 
 入口：`Plan.md`、`contexts/Windows.md`、`contexts/Linux.md`、`contexts/Protocol.md`、`CRDocs/STATUS.md`、`CRDocs/REVIEW.md`、`CRDocs/DEFERRED.md`。本轮新增的 `RichEditPaint.cs` 负责 TOM 基线查询和离屏缓冲，待发布脚本完成版本同步后提交并推送。

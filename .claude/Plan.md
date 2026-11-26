@@ -6,7 +6,7 @@
 
 - [x] 完成 `v2.0.26` Windows/Linux 包校验、提交、push 与 GitHub Release（Release 已发布）。
 - [x] 完成 `V3.0` 封版标签，程序输出版本保持 `2.0.26`，并更新 GitHub README。
-- [ ] 在 `codex/v4.0-cross-platform-unification` 上制定并实施 Windows/Linux 功能统一计划，优先处理 Linux 桌面集成、节点 GUI、设置真实接线和更新维护入口。
+- [ ] 在已创建并推送的 `codex/v4.0-cross-platform-unification` 上实施 Windows/Linux 功能统一计划，优先处理 Linux 桌面集成、节点 GUI、设置真实接线和更新维护入口。计划文档：`PlanDocs/V4.0-UNIFICATION.md`。
 
 ## 当前发布基线
 
