@@ -2,6 +2,14 @@
 
 阶段 4 的完整历史已归档至 [`archive/2026-11-26_LC-LINUX-003_阶段4在线更新审核/IMPLEMENTATION.md`](archive/2026-11-26_LC-LINUX-003_阶段4在线更新审核/IMPLEMENTATION.md)。
 
+## v3.0.0 发布交接（2026-11-27）
+
+- **版本同步**：通过 `py packaging/bump-version.py 3.0.0` 将 Windows、Linux Python、Electron、Deb、MSI 和更新服务版本统一为 `3.0.0`；同步更新 README、CHANGELOG、运行时回退值和更新回归样例。
+- **发布命令**：`cmd /c "Tools\\Scripts\\Publish.bat 3.0.0 < NUL"`，Windows MSI/EXE、Linux amd64/arm64 deb、portable、CLI 与 `SHA256SUMS.json` 均构建成功。
+- **提交与远端**：发布脚本创建提交 `081e200`（`release: 发布 v3.0.0 正式版与安装包`），当前分支 `codex/v4.0-cross-platform-unification` 已推送并与 origin 对齐；远端 tag `v3.0.0` 指向同一提交。
+- **Release**：GitHub Release [v3.0.0](https://github.com/yxiaojiang/LanChat/releases/tag/v3.0.0) 已创建，`LanChat.exe`、`LanChat.msi`、摘要文件、双架构 CLI、deb 和 portable 资产全部上传成功。
+- **边界**：发布资产由 Windows 宿主机交叉构建；真实 Linux 安装启动、Electron 桌面、IME/DPI、托盘、系统剪贴板、ELF 实跑、物理 LAN 和升级回退仍需现场核销。
+
 ## Round 3 执行者整改交接（2026-11-27，待独立复审）
 
 - **范围**：仅处理 `REVIEW.md` 顶部 Round 3 的 `LC-LINUX-003-S5-P0-1`、`P1-1`、`P1-2`、`P2-1`、`P2-2`；未改版本号 `2.0.26`、LANC/JSONL、安装目录，未执行 `Publish.bat` 或 `git push`。活动区仍为当前任务 3 轮，未触发最旧轮次归档。
