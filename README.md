@@ -5,11 +5,11 @@ LanChat 是一个无服务器、纯局域网的 Windows / Linux 点对点通讯�
 ## 当前稳定版本
 
 - 产品标签：`V3.0`
-- 程序输出版本：`2.0.26`
-- 发布页：[LanChat V3.0 / v2.0.26](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.26)
+- 程序输出版本：`3.0.0`
+- 发布页：[LanChat V3.0 / v3.0.0](https://github.com/yxiaojiang/LanChat/releases/tag/v3.0.0)
 - 后续统一开发分支：`codex/v4.0-cross-platform-unification`
 
-`V3.0` 是当前双端可稳定使用的封版标签；程序内部版本仍保持 `2.0.26`，用于安装包、更新检查和 Linux 资产命名。
+`V3.0` 是当前双端可稳定使用的封版标签；程序输出版本为 `3.0.0`，用于安装包、更新检查和 Linux 资产命名。
 
 ## 功能
 
@@ -42,7 +42,7 @@ LanChat 是一个无服务器、纯局域网的 Windows / Linux 点对点通讯�
 
 ## 下载与安装
 
-请从 [GitHub Release](https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.26) 下载对应资产。
+请从 [GitHub Release](https://github.com/yxiaojiang/LanChat/releases/tag/v3.0.0) 下载对应资产。
 
 ### Windows
 
@@ -52,20 +52,20 @@ LanChat 是一个无服务器、纯局域网的 Windows / Linux 点对点通讯�
 ### Linux amd64
 
 ```bash
-sudo dpkg -i lanchat_2.0.26_amd64.deb
+sudo dpkg -i lanchat_3.0.0_amd64.deb
 ```
 
-便携包：`lanchat_2.0.26_amd64_portable.tar.gz`<br>
-独立 CLI：`lanchat-cli_2.0.26_amd64`
+便携包：`lanchat_3.0.0_amd64_portable.tar.gz`<br>
+独立 CLI：`lanchat-cli_3.0.0_amd64`
 
 ### Linux ARM64
 
 ```bash
-sudo dpkg -i lanchat_2.0.26_arm64.deb
+sudo dpkg -i lanchat_3.0.0_arm64.deb
 ```
 
-便携包：`lanchat_2.0.26_arm64_portable.tar.gz`<br>
-独立 CLI：`lanchat-cli_2.0.26_arm64`
+便携包：`lanchat_3.0.0_arm64_portable.tar.gz`<br>
+独立 CLI：`lanchat-cli_3.0.0_arm64`
 
 安装包内含对应 Electron 运行时和同架构 ELF，不要求目标机器预装 .NET 或 Python 运行时。
 
@@ -102,7 +102,7 @@ tests/                       Windows、Linux IPC/UI 与传输回归
 
 ## 版本路线
 
-- `V3.0`：当前双端稳定使用版本，程序输出版本 `2.0.26`。
+- `V3.0`：当前双端稳定使用版本，程序输出版本 `3.0.0`。
 - `V4.0`：在 `codex/v4.0-cross-platform-unification` 分支上继续推进 Windows 与 Linux 的功能统一，包括桌面生命周期、节点管理 GUI、设置项真实接线、更新维护入口及跨桌面环境验收。
 
 ## 协议与安全边界

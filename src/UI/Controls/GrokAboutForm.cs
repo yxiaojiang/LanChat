@@ -21,7 +21,7 @@ namespace LanChat
         /// 初始化关于软件模态窗体
         /// </summary>
         /// <param name="version">当前版本号文本（默认 "2.0.0"）</param>
-        public GrokAboutForm(string version = "2.0.0")
+        public GrokAboutForm(string version = "3.0.0")
         {
             _version = version;
             _buildDate = "2026年10月25日";

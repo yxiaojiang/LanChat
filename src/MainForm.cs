@@ -96,7 +96,7 @@ namespace LanChat
         // 全局核心常量
         // ==========================================
         /// <summary>当前应用程序版本号</summary>
-        public const string APP_VERSION = "2.0.26";
+        public const string APP_VERSION = "3.0.0";
         /// <summary>GitHub 开源仓库标识</summary>
         public const string GITHUB_REPO = "yxiaojiang/LanChat";
         private const string BROADCAST_TARGET = "📢 局域网全员群聊";

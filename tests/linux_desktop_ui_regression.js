@@ -7,6 +7,7 @@ const testDesktopSync2A = require('./linux_desktop_sync2a_regression.js');
 const testDesktopSettings = require('./linux_desktop_settings_regression.js');
 const testDesktopUpdate = require('./linux_desktop_update_regression.js');
 const testDesktopComposer = require('./linux_desktop_composer_regression.js');
+const testScrollObservers = require('./linux_desktop_scroll_observer_regression.js');
 const { makeNode, makeOverlayDom, makeSettingsDom, makeRendererDom, withGlobals } = require('./linux_desktop_test_helpers.js');
 const presentation = require('../src/linux/desktop/presentation.js'); const settingsModel = require('../src/linux/desktop/settings-model.js');
 const root = join(__dirname, '..'); const read = path => readFileSync(join(root, path), 'utf8');
@@ -679,6 +680,7 @@ async function testMainRendererRaceAndAppearance() {
 Promise.resolve()
   .then(() => { testSettingsModelAndMarkup(); })
   .then(() => { testScrollbarBehavior(); })
+  .then(() => testScrollObservers())
   .then(() => testOverlayAttachToggle())
   .then(() => testDesktopIpc())
   .then(() => testDesktopLifecycle())

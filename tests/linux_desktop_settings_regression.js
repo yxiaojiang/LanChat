@@ -69,6 +69,14 @@ async function testSettingsControllerStub() {
     });
     await ctrl.ready;
 
+    const updateDialog = nodes.get('settings-update-dialog');
+    nodes.get('settings-menu').hidden = true;
+    updateDialog.open = true;
+    let escapePrevented = false;
+    doc.dispatch('keydown', { key: 'Escape', preventDefault() { escapePrevented = true; } });
+    assert.equal(escapePrevented, false);
+    assert.equal(updateDialog.open, true);
+
     const refreshButton = nodes.get('settings-panels').querySelectorAll('.action-link')
       .find(button => button.textContent === '刷新绑定 >');
     assert.ok(refreshButton);

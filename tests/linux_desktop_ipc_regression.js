@@ -156,6 +156,11 @@ async function testMainPathPolicy() {
     const [fallbackMemory] = await mainApi.stagePastedFiles([], Uint8Array.from(invalid).buffer, true);
     assert.deepEqual(decoded, [invalid, jpeg]);
     await mainApi.discardPastedFiles([fallbackMemory.id]);
+
+    const wrappedPng = Buffer.concat([Buffer.from([7, 8]), png, Buffer.from([9])]);
+    const pngView = new Uint8Array(wrappedPng.buffer, wrappedPng.byteOffset + 2, png.length);
+    assert.equal(mainApi.decodeClipboardImage(pngView), image);
+    assert.throws(() => mainApi.decodeClipboardImage(new Uint8Array(64 * 1024 * 1024 + 1)), /64 MiB/);
     systemClipboard = [clipboardItem('image/png', invalid), clipboardItem('image/jpeg', invalid)];
     await assert.rejects(() => mainApi.stagePastedFiles([], null, true), /无法读取剪贴板图片/);
     assert.deepEqual(readdirSync(pasted), []);
@@ -237,7 +242,7 @@ async function testPasteLifecycle() {
       session.setPermissionRequestHandler = session.setPermissionCheckHandler = () => {};
       const app = Object.assign(new EventEmitter(), {
         getPath: () => directory,
-        getVersion: () => '2.0.26',
+         getVersion: () => '3.0.0',
         requestSingleInstanceLock: () => true,
         enableSandbox() {},
         whenReady: () => Promise.resolve(),

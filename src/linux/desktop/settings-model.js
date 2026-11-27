@@ -88,7 +88,7 @@
   // 构造用于剪贴板复制的设备与运行诊断摘要。
   function buildDiagnostics({ version, osText, machine, arch, electronVersion, address }) {
     return [
-      `LanChat v${version || '2.0.18'}`,
+      `LanChat v${version || '3.0.0'}`,
       `OS: ${osText || 'Linux'}`,
       `Machine: ${machine || 'unknown'}`,
       `Arch: ${arch || 'unknown'}`,

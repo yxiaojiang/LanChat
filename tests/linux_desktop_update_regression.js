@@ -18,7 +18,7 @@ async function startMock(state) {
       return;
     }
     if (path === '/latest') {
-      response.writeHead(302, { location: 'https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.28' });
+      response.writeHead(302, { location: 'https://github.com/yxiaojiang/LanChat/releases/tag/v3.0.2' });
       response.end();
       return;
     }
@@ -47,7 +47,7 @@ async function startMock(state) {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   return { server, base: `http://127.0.0.1:${server.address().port}` };
 }
-function release(base, tag = 'v2.0.27', asset = 'lanchat_2.0.27_amd64.deb') {
+function release(base, tag = 'v3.0.1', asset = 'lanchat_3.0.1_amd64.deb') {
   const version = tag.replace(/^v/i, '');
   const names = new Set([asset, `lanchat_${version}_amd64.deb`, `lanchat_${version}_arm64.deb`,
     `lanchat_${version}_amd64_portable.tar.gz`]);
@@ -66,27 +66,27 @@ function manifest(asset, hash = digest, arch = 'amd64') {
 function multiManifest() {
   return {
     amd64: { artifacts: {
-      'lanchat_2.0.27_amd64.deb': digest,
-      'lanchat_2.0.27_amd64_portable.tar.gz': digest
+      'lanchat_3.0.1_amd64.deb': digest,
+      'lanchat_3.0.1_amd64_portable.tar.gz': digest
     } },
-    arm64: { artifacts: { 'lanchat_2.0.27_arm64.deb': digest } }
+    arm64: { artifacts: { 'lanchat_3.0.1_arm64.deb': digest } }
   };
 }
 function service(options, base, homeDir) {
   return createUpdateService({
-    currentVersion: '2.0.26', apiUrl: `${base}/api`, latestUrl: `${base}/latest`,
+    currentVersion: '3.0.0', apiUrl: `${base}/api`, latestUrl: `${base}/latest`,
     downloadRoot: `${base}/download/`, homeDir, ...options
   });
 }
 async function testLatestAndAssets(base, homeDir, state) {
-  state.release = release(base, 'v2.0.26', 'lanchat_2.0.26_amd64.deb');
+  state.release = release(base, 'v3.0.0', 'lanchat_3.0.0_amd64.deb');
   const current = service({ env: { LANCHAT_INSTALLED: '1' }, arch: 'x64' }, base, homeDir);
   assert.equal((await current.checkUpdate()).hasUpdate, false);
   state.release = release(base);
   const x64 = service({ env: { LANCHAT_INSTALLED: '1' }, arch: 'x64' }, base, homeDir);
   const result = await x64.checkUpdate();
   assert.equal(result.hasUpdate, true);
-  assert.equal(result.assetName, 'lanchat_2.0.27_amd64.deb');
+  assert.equal(result.assetName, 'lanchat_3.0.1_amd64.deb');
   assert.equal(result.sha256Verified, true);
   assert.equal(result.canDownload, true);
   const downloaded = await x64.downloadUpdate();
@@ -101,21 +101,21 @@ async function testLatestAndAssets(base, homeDir, state) {
   assert.equal(folder.isDirectory(), true);
   const arm = service({ env: { LANCHAT_INSTALLED: '1' }, arch: 'arm64' }, base, homeDir);
   const armResult = await arm.checkUpdate();
-  assert.equal(armResult.assetName, 'lanchat_2.0.27_arm64.deb');
+  assert.equal(armResult.assetName, 'lanchat_3.0.1_arm64.deb');
   assert.equal(armResult.canDownload, true);
   const portable = service({ env: { LANCHAT_INSTALLED: '0' }, arch: 'x64' }, base, homeDir);
   const portableResult = await portable.checkUpdate();
-  assert.equal(portableResult.assetName, 'lanchat_2.0.27_amd64_portable.tar.gz');
+  assert.equal(portableResult.assetName, 'lanchat_3.0.1_amd64_portable.tar.gz');
   assert.equal(portableResult.canDownload, true);
   return state;
 }
 async function testFallbackAndWarnings(base, homeDir, state) {
   state.apiStatus = 403;
-  state.release = release(base, 'v2.0.28', 'lanchat_2.0.28_amd64.deb');
-  state.manifest = manifest('lanchat_2.0.28_amd64.deb');
+  state.release = release(base, 'v3.0.2', 'lanchat_3.0.2_amd64.deb');
+  state.manifest = manifest('lanchat_3.0.2_amd64.deb');
   const fallback = service({ env: { LANCHAT_INSTALLED: '1' }, arch: 'x64' }, base, homeDir);
   const result = await fallback.checkUpdate();
-  assert.equal(result.latestVersion, '2.0.28');
+  assert.equal(result.latestVersion, '3.0.2');
   assert.equal(result.sha256Verified, true);
   state.manifest = null;
   const missing = service({ env: { LANCHAT_INSTALLED: '1' }, arch: 'x64' }, base, homeDir);
@@ -124,24 +124,24 @@ async function testFallbackAndWarnings(base, homeDir, state) {
   assert.match(blocked.warning, /SHA256SUMS/);
   let opened = '';
   await missing.openReleasePage(blocked.webUrl, url => { opened = url; });
-  assert.match(opened, /github\.com\/yxiaojiang\/LanChat\/releases\/tag\/v2\.0\.28/);
-  await assert.rejects(() => missing.openReleasePage('https://example.com/releases/tag/v2.0.28', () => {}), /只允许/);
+  assert.match(opened, /github\.com\/yxiaojiang\/LanChat\/releases\/tag\/v3\.0\.2/);
+  await assert.rejects(() => missing.openReleasePage('https://example.com/releases/tag/v3.0.2', () => {}), /只允许/);
 }
 async function testTamperedHash(base, homeDir, state) {
   state.apiStatus = 200;
-  state.release = release(base, 'v2.0.29', 'lanchat_2.0.29_amd64.deb');
-  state.manifest = manifest('lanchat_2.0.29_amd64.deb', '0'.repeat(64));
+  state.release = release(base, 'v3.0.3', 'lanchat_3.0.3_amd64.deb');
+  state.manifest = manifest('lanchat_3.0.3_amd64.deb', '0'.repeat(64));
   const tampered = service({ env: { LANCHAT_INSTALLED: '1' }, arch: 'x64' }, base, homeDir);
   assert.equal((await tampered.checkUpdate()).canDownload, true);
   await assert.rejects(() => tampered.downloadUpdate(), /SHA-256/);
-  assert.deepEqual(await readdir(join(homeDir, '.cache', 'lanchat', 'updates')), ['lanchat_2.0.27_amd64.deb']);
+  assert.deepEqual(await readdir(join(homeDir, '.cache', 'lanchat', 'updates')), ['lanchat_3.0.1_amd64.deb']);
 }
 async function testStreamTimeoutModes(base, homeDir, state) {
-  state.release = release(base, 'v2.0.30', 'lanchat_2.0.30_amd64.deb'); state.manifest = manifest('lanchat_2.0.30_amd64.deb'); state.downloadMode = 'slow';
+  state.release = release(base, 'v3.0.4', 'lanchat_3.0.4_amd64.deb'); state.manifest = manifest('lanchat_3.0.4_amd64.deb'); state.downloadMode = 'slow';
   const slow = service({ env: { LANCHAT_INSTALLED: '1' }, arch: 'x64', requestTimeout: 200, downloadIdleTimeout: 300 }, base, homeDir);
   assert.equal((await slow.checkUpdate()).canDownload, true);
   assert.equal((await slow.downloadUpdate()).sha256Verified, true);
-  state.release = release(base, 'v2.0.31', 'lanchat_2.0.31_amd64.deb'); state.manifest = manifest('lanchat_2.0.31_amd64.deb'); state.downloadMode = 'stuck';
+  state.release = release(base, 'v3.0.5', 'lanchat_3.0.5_amd64.deb'); state.manifest = manifest('lanchat_3.0.5_amd64.deb'); state.downloadMode = 'stuck';
   const stuck = service({ env: { LANCHAT_INSTALLED: '1' }, arch: 'x64', requestTimeout: 200, downloadIdleTimeout: 60 }, base, homeDir);
   await stuck.checkUpdate();
   await assert.rejects(() => stuck.downloadUpdate(), /空闲超时/);
@@ -177,8 +177,8 @@ async function testSettingsUpdateDom() {
     const pages = require('../src/linux/desktop/settings-pages.js'); const appearance = require('../src/linux/desktop/appearance.js'); const scroll = require('../src/linux/desktop/scrollbar.js');
     const api = {
       settings: async () => ({}), state: async () => ({}), systemInfo: async () => ({}), onEvent: fn => { eventHandler = fn; },
-      checkUpdate: async () => { checkCount += 1; if (checkCount === 1) throw new Error('网络失败'); if (checkCount === 2) return { hasUpdate: true, currentVersion: '2.0.26', latestVersion: '2.0.27', canDownload: false, warning: '清单缺失', webUrl: '' }; return { hasUpdate: true, currentVersion: '2.0.26', latestVersion: '2.0.27', canDownload: true, webUrl: 'https://github.com/yxiaojiang/LanChat/releases/tag/v2.0.27', assetName: 'lanchat_2.0.27_amd64.deb', kind: 'deb' }; },
-      openReleasePage: async url => { opened = url; }, downloadUpdate: () => new Promise(resolve => { finishDownload = () => resolve({ savePath: '/tmp/lanchat.deb', installCommand: "sudo apt install '/tmp/lanchat.deb'", assetName: 'lanchat_2.0.27_amd64.deb' }); }), quit: () => { quit += 1; }
+       checkUpdate: async () => { checkCount += 1; if (checkCount === 1) throw new Error('网络失败'); if (checkCount === 2) return { hasUpdate: true, currentVersion: '3.0.0', latestVersion: '3.0.1', canDownload: false, warning: '清单缺失', webUrl: '' }; return { hasUpdate: true, currentVersion: '3.0.0', latestVersion: '3.0.1', canDownload: true, webUrl: 'https://github.com/yxiaojiang/LanChat/releases/tag/v3.0.1', assetName: 'lanchat_3.0.1_amd64.deb', kind: 'deb' }; },
+       openReleasePage: async url => { opened = url; }, downloadUpdate: () => new Promise(resolve => { finishDownload = () => resolve({ savePath: '/tmp/lanchat.deb', installCommand: "sudo apt install '/tmp/lanchat.deb'", assetName: 'lanchat_3.0.1_amd64.deb' }); }), quit: () => { quit += 1; }
     };
     const ctrl = settingsApp.createSettingsController({ document: doc, window: win, api, model, pages, appearance, scroll });
     await ctrl.ready;

@@ -32,8 +32,10 @@ const sending = new Set();
 const transfers = new Map();
 const peers = new Map();
 const historyLoads = new Map();
+const nativeCompose = byId('message');
+const richCompose = byId('message-rich');
 const compose = createComposerBox({
-  native: byId('message'), rich: byId('message-rich'), document: doc, window: win, maxLength: 32768
+  native: nativeCompose, rich: richCompose, document: doc, window: win, maxLength: 32768
 });
 const feed = byId('messages');
 const dialog = byId('recipient');
@@ -140,7 +142,7 @@ function updateHeader() {
     ? presentation.groupTitle([...peers.values()].filter(item => item.key !== group && item.online).length)
     : peer?.nick ?? '局域网节点';
   byId('avatar').src = active === group ? 'assets/group.png' : 'assets/peer.png';
-  byId('connection').textContent = !online ? '通信服务已断开' : active === group ? address :
+  byId('connection').textContent = connecting ? '正在连接通信服务…' : !online ? '通信服务已断开' : active === group ? address :
     peer?.online ? `${peer.ip}:${peer.port}` : '节点离线';
   const available = online && (active === group || peer?.online);
   byId('conversation').dataset.fileChat = !online ? '' : active === group ? group : peer?.online ? peer.id : 'OFFLINE';
@@ -795,7 +797,14 @@ function handleEvent(event) {
 scroll.bind(byId('chats'));
 scroll.bind(byId('messages'));
 scroll.bind(byId('attachments'));
-composeScroll = scroll.bind(compose);
+// 滚动监听器必须接收真实 DOM 节点；输入代理只负责转发编辑器行为，不能作为观察目标。
+const nativeComposeScroll = nativeCompose ? scroll.bind(nativeCompose) : null;
+const richComposeScroll = richCompose ? scroll.bind(richCompose) : null;
+composeScroll = {
+  refresh() {
+    (compose.isRich() ? richComposeScroll : nativeComposeScroll)?.refresh();
+  }
+};
 scroll.bind(byId('recipients'));
 drawChats();
 let initPromise = Promise.resolve();

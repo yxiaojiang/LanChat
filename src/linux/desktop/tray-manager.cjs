@@ -24,8 +24,6 @@ function createTrayManager(options = {}) {
     onOpenUpdate = () => {},
     onQuit = () => {}
   } = options;
-  if (!Tray || !Menu) throw new Error('托盘依赖不可用');
-
   let tray = null;
   let previewWindow = null;
   let previewTimer = null;
@@ -36,6 +34,12 @@ function createTrayManager(options = {}) {
   let settings = { keepAliveInTray: true, trayPreview: true };
   let unread = { count: 0, summary: '' };
   const xorg = platform === 'linux' && ['x11', 'xorg'].includes(String(sessionType).toLowerCase());
+
+  function recordTrayFailure(error) {
+    tray = null;
+    statusNotifierHostAvailable = false;
+    console.error('托盘初始化失败，已降级为任务栏最小化', error);
+  }
 
   // 根据未读数量生成与 Windows 端一致的短提示，避免托盘实现暴露过长摘要。
   function tooltip() {
@@ -127,13 +131,25 @@ function createTrayManager(options = {}) {
 
   function createTray() {
     if (tray) return tray;
-    tray = new Tray(image('tray'));
-    tray.setToolTip(tooltip());
-    tray.setContextMenu(buildMenu());
-    tray.on('click', () => { markInteraction(); hidePreview(); onActivateChat(null); });
-    tray.on('mouse-enter', showPreview);
-    tray.on('mouse-leave', hidePreview);
-    return tray;
+    if (!Tray || !Menu) {
+      recordTrayFailure(new Error('托盘依赖不可用'));
+      return null;
+    }
+    let candidate = null;
+    try {
+      candidate = new Tray(image('tray'));
+      candidate.setToolTip(tooltip());
+      candidate.setContextMenu(buildMenu());
+      candidate.on('click', () => { markInteraction(); hidePreview(); onActivateChat(null); });
+      candidate.on('mouse-enter', showPreview);
+      candidate.on('mouse-leave', hidePreview);
+      tray = candidate;
+      return tray;
+    } catch (error) {
+      candidate?.destroy?.();
+      recordTrayFailure(error);
+      return null;
+    }
   }
 
   function probeStatusNotifierHost() {
@@ -172,10 +188,14 @@ function createTrayManager(options = {}) {
 
   return {
     async initialize() {
-      statusNotifierHostAvailable = await probeStatusNotifierHost();
-      createTray();
-      updateIcon();
-      startFlash();
+      try {
+        statusNotifierHostAvailable = await probeStatusNotifierHost();
+        if (!createTray()) return { statusNotifierHostAvailable: false };
+        updateIcon();
+        startFlash();
+      } catch (error) {
+        recordTrayFailure(error);
+      }
       return { statusNotifierHostAvailable };
     },
     setSettings(next = {}) {
@@ -185,7 +205,7 @@ function createTrayManager(options = {}) {
       if (settings.trayPreview) startFlash();
       else stopFlash();
     },
-    canHideToTray() { return statusNotifierHostAvailable || trayInteractionConfirmed; },
+    canHideToTray() { return Boolean(tray && (statusNotifierHostAvailable || trayInteractionConfirmed)); },
     setUnreadState(next = {}) {
       unread = { count: Math.max(0, Number(next.count) || 0), summary: String(next.summary || '') };
       updateIcon();

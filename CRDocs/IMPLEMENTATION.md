@@ -2,6 +2,32 @@
 
 阶段 4 的完整历史已归档至 [`archive/2026-11-26_LC-LINUX-003_阶段4在线更新审核/IMPLEMENTATION.md`](archive/2026-11-26_LC-LINUX-003_阶段4在线更新审核/IMPLEMENTATION.md)。
 
+## Round 3 执行者整改交接（2026-11-27，待独立复审）
+
+- **范围**：仅处理 `REVIEW.md` 顶部 Round 3 的 `LC-LINUX-003-S5-P0-1`、`P1-1`、`P1-2`、`P2-1`、`P2-2`；未改版本号 `2.0.26`、LANC/JSONL、安装目录，未执行 `Publish.bat` 或 `git push`。活动区仍为当前任务 3 轮，未触发最旧轮次归档。
+- **P0 `LC-LINUX-003-S5-P0-1`**：`renderer.js` 保存原生 textarea 与富文本真实 DOM 引用，分别传给 `scroll.bind()`；代理对象仅保留编辑器 API 转发。双轨各自监听真实节点，按当前模式刷新对应滑块；补充 `composer-box.js` 的 `clientHeight` 转发。新增 `tests/linux_desktop_scroll_observer_regression.js`，以严格 `nodeType` 校验的 `ResizeObserver`/`MutationObserver` 覆盖主窗启动、两轨观察目标、切换后的单一可见滑块，并验证连接中状态。
+- **P1 `LC-LINUX-003-S5-P1-1`**：`main.cjs` 仅在主窗存在、未销毁且可见时设置设置窗 `parent`/`modal`；设置窗关闭时同样只对可见主窗回焦。生命周期桩覆盖隐藏主窗从托盘打开设置窗及关闭回焦。
+- **P1 `LC-LINUX-003-S5-P1-2`**：`tray-manager.cjs` 捕获托盘依赖缺失、`Tray` 构造和菜单绑定异常，清空托盘状态并让 `canHideToTray()` 返回 `false`；`main.cjs` 对初始化 Promise 增加最终 `.catch()`，保持降级为任务栏最小化且无未捕获异步拒绝。生命周期回归覆盖构造异常。
+- **P2 `LC-LINUX-003-S5-P2-1`**：`decodeClipboardImage()` 同时兼容 `ArrayBuffer` 与 `ArrayBuffer.isView()`，按 `byteOffset`/`byteLength` 构造 Buffer，64 MiB 限制保持不变；IPC 回归覆盖带偏移的 `Uint8Array` 与超限拒绝。
+- **P2 `LC-LINUX-003-S5-P2-2`**：设置页 Escape 拦截补充更新弹窗 `open` 判断；渲染层连接中优先显示“正在连接通信服务…”，连接完成前不显示断开文案。
+
+### Round 3 宿主机验证
+
+- `C:\Program Files\nodejs\node.exe --check`：源码与测试共 25 个 JS/CJS 文件通过。
+- `C:\Program Files\nodejs\node.exe tests/linux_desktop_ui_regression.js`：通过，包含 IPC、生命周期、更新、设置 Escape、富文本、严格 DOM Observer 与主窗启动链路；新增专项 `tests/linux_desktop_scroll_observer_regression.js`（65 行）单独通过。
+- `py -m py_compile tests/linux_desktop_regression.py tests/test_linux_flow.py Tools/Scripts/BuildLinuxDeb.py` 与 `py tests/test_linux_flow.py`：22 项通过。
+- `tests/friend_refresh_regression.ps1`、`tests/chat_composer_regression.ps1 -ExpectLocalPack`、`tests/file_transfer_stability_regression.ps1`：全部通过；`cmd /c "Tools\\Scripts\\Compile.bat < NUL"`：通过。编译生成的 `release/LanChat.exe`、`release/uninstall.exe` 已恢复，未作为本轮改动交付。
+- `bin/lc-linux-002/cache/dotnet/dotnet.exe build src/linux/LanChat.Linux/LanChat.Linux.csproj -c Release -p:SelfContained=false -p:PublishSingleFile=false -p:PublishTrimmed=false`：通过，0 警告、0 错误。
+- 手写源码行数：`renderer.js` 825、`composer-box.js` 361、`main.cjs` 830、`settings.js` 969、`tray-manager.cjs` 241、`linux_desktop_ui_regression.js` 698、新增专项 65，均低于 1000 行预警及 1500 行硬上限；`git diff --check`：通过。
+
+### 未验证边界与交接提示
+
+上述均为 Windows 宿主机、Node/DOM/IPC Mock 或缓存 SDK 证据，不核销真实 Linux Electron、Xorg/Wayland/XWayland、托盘实现、系统剪贴板、IME、DPI、Linux ELF、物理 LAN 或升级回退；这些仍按 `DEFERRED.md` 保持未验证。请独立审核者重新检查实际 diff、调用链和测试，并重点确认五个 Round 3 问题均已闭环，再决定是否将对应问题标为 `RESOLVED`。
+
+**交给独立审核者的提示词**：
+
+> 读取 `CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/REVIEW.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md` 与 `.claude/Rules.md`。独立检查 Round 3 的 `LC-LINUX-003-S5-P0-1`、`P1-1`、`P1-2`、`P2-1`、`P2-2` 的实际代码、调用链、diff 与宿主机证据；重点复跑严格 `ResizeObserver`/`MutationObserver`、主窗启动、隐藏主窗设置窗、托盘构造失败降级、ArrayBufferView/64 MiB、Escape 和 connecting 文案回归。确认版本号、LANC/JSONL、安装目录和未验证边界未被越界修改后，按 CRDocs 规则将结论写入 `REVIEW.md` 顶部并相应更新 `STATUS.md`；不要把 Windows Mock 证据写成 Linux 实机通过。
+
 ## 阶段 5.1 候选产物构建与静态核验（2026-11-26）
 
 - **命令**：`python Tools/Scripts/BuildLinuxDeb.py`。

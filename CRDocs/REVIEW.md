@@ -1,6 +1,87 @@
-# LC-LINUX-003 阶段 2B — 最近 3 轮审核记录
+# LC-LINUX-003 阶段 2B / 实机初测 — 最近 3 轮审核记录
 
-阶段 4 的完整历史已归档至 [`archive/2026-11-26_LC-LINUX-003_阶段4在线更新审核/REVIEW.md`](archive/2026-11-26_LC-LINUX-003_阶段4在线更新审核/REVIEW.md)。本文件只保留阶段 2B 当前交接与审核记录。
+阶段 4 的完整历史已归档至 [`archive/2026-11-26_LC-LINUX-003_阶段4在线更新审核/REVIEW.md`](archive/2026-11-26_LC-LINUX-003_阶段4在线更新审核/REVIEW.md)。本文件只保留当前任务最近 3 轮交接与审核记录。
+
+## Round 3 独立复审（通过：1 项 P0、2 项 P1 与 2 项 P2 全部闭环）
+
+- **任务编号**：`LC-LINUX-003`（Linux 实机初测阻断回退整改复审）
+- **审核轮次**：Round 3 独立复审
+- **审核分支**：`codex/v4.0-cross-platform-unification`
+- **独立审核方**：独立审核者（Antigravity / Gemini）
+- **审核日期**：2026-11-27
+- **审核结论**：**APPROVED**（仅代表 Windows 宿主机源码审查、diff 核验与严格 DOM Observer / IPC / 生命周期 / 设置回归范围放行；真实 Linux Electron 重新打包与实机启动/托盘/IME/LAN 验收仍需在物理 Linux 现场核销）
+- **审核依据**：`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/IMPLEMENTATION.md`、`CRDocs/DEFERRED.md`、`.claude/Rules.md`，以及本轮完整 `git diff` 与独立复跑门禁实证。
+
+### 一、Round 3 五项问题逐项复核结果
+
+| 问题 ID | 原级别 | Round 3 复核 | 复核依据与独立核验证据 |
+| --- | :---: | :---: | --- |
+| `LC-LINUX-003-S5-P0-1` | **P0** | **RESOLVED** | 核验 `src/linux/desktop/renderer.js:35-39, 800-807`、`src/linux/desktop/composer-box.js:344` 与 `tests/linux_desktop_scroll_observer_regression.js`：已改为仅对真实 DOM 节点 `#message` 与 `#message-rich` 调用 `scroll.bind()`，不再将 `compose` 代理对象传入监听器；`composer-box.js` 已补齐 `clientHeight` 转发；新增专项回归注入严格校验 `target?.nodeType === 1` 的 `StrictResizeObserver` / `StrictMutationObserver`，覆盖主窗启动、双轨观察与模式切换并接入 `linux_desktop_ui_regression.js` 实跑通过。 |
+| `LC-LINUX-003-S5-P1-1` | **P1** | **RESOLVED** | 核验 `src/linux/desktop/main.cjs:180, 239` 与 `tests/linux_desktop_lifecycle_regression.js`：`openSettingsWindow` 改为 `window && !window.isDestroyed() && window.isVisible()` 才绑定 `parent`/`modal: true`，关闭设置窗时亦仅对可见主窗调用 `window.focus()`；生命周期回归覆盖隐藏主窗打开设置窗与关闭回焦断言通过。 |
+| `LC-LINUX-003-S5-P1-2` | **P1** | **RESOLVED** | 核验 `src/linux/desktop/tray-manager.cjs:38-42, 131-152, 189-208`、`src/linux/desktop/main.cjs:621-624` 与 `tests/linux_desktop_lifecycle_regression.js`：捕获依赖缺失与 `Tray` 构造/绑定异常，销毁半成品并清零 `tray` 与 `statusNotifierHostAvailable`，`canHideToTray()` 要求 `tray` 存在，主进程补充 `.catch()` 兜底；`ThrowingTray` 单测确认不抛未捕获异步拒绝并自动降级为任务栏最小化。 |
+| `LC-LINUX-003-S5-P2-1` | **P2** | **RESOLVED** | 核验 `src/linux/desktop/main.cjs:356-364` 与 `tests/linux_desktop_ipc_regression.js`：`decodeClipboardImage` 兼容 `ArrayBuffer` 与 `ArrayBuffer.isView(bytes)`（按 `byteOffset`/`byteLength` 构造 Buffer），保留 `64 MiB` 上限校验；带偏移 `Uint8Array` 与超限拒绝单测通过。 |
+| `LC-LINUX-003-S5-P2-2` | **P2** | **RESOLVED** | 核验 `src/linux/desktop/settings.js:837-838`、`src/linux/desktop/renderer.js:145` 及对应单测：`Escape` 拦截已覆盖 `settings-update-dialog?.open`；`updateHeader()` 在 `connecting` 期间保持“正在连接通信服务…”，连接成功后转为监听地址。 |
+
+### 二、Round 3 独立复跑命令与门禁结果（Windows 宿主机）
+
+| # | 验证命令 | 退出码 | 实测结果 |
+| :---: | --- | :---: | --- |
+| 1 | `node --check`（`src/linux/desktop/*.js,*.cjs` + `tests/linux_desktop_*.js` 共 25 文件） | `0` | 全部 25 个文件语法通过 |
+| 2 | `node tests/linux_desktop_scroll_observer_regression.js` | `0` | `linux desktop scroll observer regression: ok`（严格 `ResizeObserver`/`MutationObserver` 校验 + 主窗启动 + `connecting` 文案） |
+| 3 | `node tests/linux_desktop_ui_regression.js` | `0` | 串联 IPC（含 `Uint8Array`/64 MiB）、生命周期（含隐藏主窗设置窗、托盘失败降级）、设置（含更新弹窗 `Escape`）、更新、富文本、严格 Observer 与 UI 回归全部通过 |
+| 4 | `py tests/test_linux_flow.py` | `0` | `Ran 22 tests ... OK` |
+| 5 | 文件行数门禁与 `git diff --check` | `0` | 全部 `< 1000` 行：`settings.js` 965、`renderer.js` 817、`main.cjs` 813、`linux_desktop_ui_regression.js` 681、`composer-box.js` 359、`tray-manager.cjs` 238、`linux_desktop_scroll_observer_regression.js` 65；`git diff --check` 零报错 |
+
+### 三、红线与未验证边界声明
+
+- **红线守恒**：本轮 `git diff` 仅涉及 `src/linux/desktop/{composer-box.js,main.cjs,renderer.js,settings.js,tray-manager.cjs}`、`tests/linux_desktop_*.js` 与 `CRDocs/*`；版本号（`2.0.26`）、LANC/JSONL 协议、共享 C# 代码、安装目录均未改动，未执行 `Publish.bat` 或 `git push`。
+- **未验证边界**：上述全部为 Windows 宿主机源码审查与 Node DOM/IPC 桩回归证据，不代表 Linux 实机已通过。需重新运行 `python Tools/Scripts/BuildLinuxDeb.py` 生成包含本轮修复的新 2.0.26 Linux 安装包，并在物理 Linux 机器上实测安装启动、托盘、设置窗、输入法与双机 LAN 核销 `CRDocs/DEFERRED.md`。
+
+---
+
+## Round 3 独立审核结论（打回：Linux 实机启动阻断缺陷 + 全链路复核 1 项 P0、2 项 P1、2 项 P2）
+
+- **任务编号**：`LC-LINUX-003`（Linux 实机初测阻断回退与桌面主流程全链路复核）
+- **审核轮次**：Round 3 独立审核
+- **审核分支**：`codex/v4.0-cross-platform-unification`
+- **独立审核方**：独立审核者（Antigravity / Gemini）
+- **审核日期**：2026-11-27
+- **审核结论**：**REJECTED**（用户 Linux 实机安装 2.0.26 `.deb` 后启动复现主界面完全瘫痪——顶部永久停在“正在连接通信服务…”，输入框、设置及底部按钮全部不可点击，仅搜索框可用；经源码全链路核查，确认 **1 项 P0 致命启动缺陷**、**2 项 P1 真机高风险缺陷**及 **2 项 P2 体验/兼容建议**，打回执行者整改并补齐防复发回归后复审）
+- **审核依据**：用户 Linux 实机故障现象、`CRDocs/RULES.md`、`CRDocs/README.md`、`CRDocs/STATUS.md`、`CRDocs/DEFERRED.md`、`.claude/Rules.md`，以及对 `src/linux/desktop/` 全量源码、`src/linux/LanChat.Linux/`（`Program.cs`、`DesktopService.cs`、`LinuxProfile.cs`、`LanChat.Linux.csproj`）和 `packaging/build-electron.py`、`packaging/lanchat-launcher.sh` 的全链路源码审计。
+
+### 一、问题分级清单（P0 / P1 / P2）
+
+| 问题 ID | 严重度 | 位置 | 问题描述与代码证据 | 整改要求 |
+| --- | :---: | --- | --- | --- |
+| `LC-LINUX-003-S5-P0-1` | **P0（阻断）** | `src/linux/desktop/renderer.js:35-37, 798`<br>`src/linux/desktop/scrollbar.js:21, 40-43`<br>`src/linux/desktop/composer-box.js:344-346` | 1. **主界面初始化必崩**：`renderer.js:35` 将 `compose` 改为 `createComposerBox(...)` 返回的普通 JS 代理对象，但 `renderer.js:798` 仍执行 `composeScroll = scroll.bind(compose)`。在真实 Electron/Chromium 环境下，`scrollbar.js:40` 的 `new ResizeObserver(schedule).observe(view)` 与第 42 行的 `new MutationObserver(schedule).observe(view, ...)` 严格要求真实 DOM `Element`/`Node`，传入普通对象会直接抛出 `TypeError: parameter 1 is not of type 'Element'`，导致 `createMainController()` 在第 798 行中止，后续 `drawChats()`、`api.onEvent()` 与 `initialize()` 全部未执行，界面永久停留在 `index.html` 初始静态态（顶部“正在连接通信服务…”、设置与输入区全 `disabled`、仅搜索框可用）；<br>2. **宿主机测试漏检原因**：Node 桩环境缺少 `ResizeObserver`/`MutationObserver`，`scrollbar.js:40-43` 被跳过；<br>3. **连带缺陷**：`composer-box.js:344-346` 缺失 `clientHeight` 转发（导致 `scrollbar.js:21` 算出 `NaN`），且原生 `<textarea id="message">` 与富文本 `<div id="message-rich">` 切换时滚动条未覆盖双真实 DOM 节点。 | 1. 停止将非 DOM 代理对象传给 `scroll.bind()`：改为对真实 DOM 节点 `byId('message')` 与 `byId('message-rich')` 分别绑定（或由 `scrollbar.js` / `composer-box.js` 严格操作真实 DOM 元素并在切换模式与输入变化时同步刷新，且保证两个模式共用或正确显隐浮动滑块、无重复重叠滑块）；<br>2. 在 `composer-box.js` 补齐 `clientHeight` 转发；<br>3. 在宿主机回归测试（如 `tests/linux_desktop_ui_regression.js` / `tests/linux_desktop_composer_regression.js`）中注入严格校验 DOM 节点类型的模拟 `ResizeObserver` 和 `MutationObserver`，并在 `createMainController()` 启动链路下实测通过，杜绝同类漏检。 |
+| `LC-LINUX-003-S5-P1-1` | **P1（阻断）** | `src/linux/desktop/main.cjs:180-190, 239`<br>`src/linux/desktop/tray-manager.cjs:121-122` | 主窗口关闭时默认隐藏到托盘（`window.hide()`）。此时从托盘右键点击“系统设置…”或“检查新版本…”，`openSettingsWindow` 仅判断 `hasParent = window && !window.isDestroyed()`（未检查 `window.isVisible()`），会创建 `parent: hiddenWindow, modal: true` 的模态子窗。在 Linux GTK/X11/Wayland 桌面环境下，挂载在隐藏父窗上的模态窗口极易不可见、无法聚焦或卡死；且关闭设置窗时 `main.cjs:239` 对隐藏主窗执行 `window.focus()`。 | 仅当主窗存在且可见（`window && !window.isDestroyed() && window.isVisible()`）时才设置 `parent` 与 `modal: true`（或托盘打开设置/更新前先恢复显示主窗）；关闭设置窗时仅在主窗可见时再调用 `window.focus()`。补充对应主进程单元测试覆盖“主窗隐藏时从托盘打开设置窗”路径。 |
+| `LC-LINUX-003-S5-P1-2` | **P1（阻断）** | `src/linux/desktop/main.cjs:616`<br>`src/linux/desktop/tray-manager.cjs:128-137, 174-180` | `main.cjs:616` 使用 `void trayManager.initialize()` 启动托盘初始化且无异常捕获；`tray-manager.cjs:130` 创建 `new Tray(...)` 若在缺少托盘/AppIndicator 支持的精简 Linux 桌面环境抛出异常，将形成主进程 `UnhandledPromiseRejection`，存在导致 Electron 主进程崩溃或异常弹窗的风险。 | 为 `trayManager.initialize()` / `createTray()` 增加安全异常兜底：托盘创建失败时记录错误日志并保持 `tray = null`、`canHideToTray() === false`（自动降级为关窗最小化到任务栏），绝不向主进程抛出未捕获异步拒绝。补充失败降级单元测试。 |
+| `LC-LINUX-003-S5-P2-1` | **P2（建议）** | `src/linux/desktop/main.cjs:356-361` | `decodeClipboardImage(bytes)` 仅校验 `bytes instanceof ArrayBuffer`。Electron 跨进程 IPC 传递二进制数据时，主进程收到的对象可能是 `Uint8Array` 等 `ArrayBufferView`，导致直接粘贴内存截图时误报“剪贴板图片格式无效或超过 64 MiB”。 | 兼容 `ArrayBuffer` 与 `ArrayBuffer.isView(bytes)`（对视图使用 `Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)`），保持 `64 MiB` 上限校验不变，补充对应单测。 |
+| `LC-LINUX-003-S5-P2-2` | **P2（建议）** | `src/linux/desktop/settings.js:837`<br>`src/linux/desktop/renderer.js:143` | 1. `settings.js:837` 的 `Escape` 键拦截列表遗漏 `byId('settings-update-dialog')?.open`，更新弹窗打开时按 `Esc` 会直接关闭整个设置窗；<br>2. `renderer.js:143` 的 `updateHeader()` 在 `connecting === true` 且 `!online` 时将顶部状态写成“通信服务已断开”，启动连接瞬间会产生误导闪烁。 | 1. `settings.js:837` 增加 `byId('settings-update-dialog')?.open` 判定；<br>2. `renderer.js:143` 在 `connecting` 时显示“正在连接通信服务…”，仅在 `!connecting && !online` 时显示“通信服务已断开”。 |
+
+### 二、全链路排查已确认无异常范围
+
+- **其他 `scroll.bind()` 调用点**：已核查 `settings.js:915-917`（`navEl`、`viewport`、`feedback-input`）与 `overlay.js:21`（`emojiGrid`），均传入真实 DOM 元素，不存在同类崩溃。
+- **C# 后端与 JSONL IPC 管道**：已核查 `src/linux/LanChat.Linux/`（`Program.cs`、`DesktopService.cs`、`LinuxProfile.cs`、`LanChat.Linux.csproj`）及共享 C# 服务，无非 CLI 路径误写 `stdout` 污染 IPC 的情况，序列化全部采用 `JsonObject`/`JsonArray`/`JsonNode` 保持裁剪安全。
+- **打包与资源清单**：已核查 `packaging/build-electron.py`、`packaging/lanchat-launcher.sh`、`src/linux/desktop/package.json` 及 `assets/LinuxDesktop/`，前端引用的图标资源、`lanchat-bin` 路径与 `chrome-sandbox` 权限均对齐。
+
+### 三、整改与交接约束
+
+- 本轮仅修复上述 `OPEN` 缺陷并补齐宿主机防复发回归测试；不改版本号（`2.0.26`）、LANC/JSONL 协议与安装目录，不执行 `Publish.bat`、覆盖安装或 `git push`。
+- 严格遵守手写单文件 `< 1000` 行预警与 `1500` 行上限、全中文注释、`git diff --check` 零告警。
+- 宿主机 Node 回归（含严格 `ResizeObserver`/`MutationObserver` 校验）通过后，按 `CRDocs` 规则回写 `IMPLEMENTATION.md` 并将 `STATUS.md` 置为 `WAITING_FOR_GROK`，交由独立审核者复审；复审通过后再重新构建 Linux `.deb` 包交由用户实机验证。
+
+---
+
+## Round 3 执行者整改交接（待独立复审）
+
+- **日期/状态**：2026-11-27；五项 Round 3 `OPEN` 问题已完成代码整改与宿主机回归，当前交接状态为 `WAITING_FOR_GROK`，不宣称 `APPROVED` 或 Linux 实机通过。
+- **整改摘要**：P0 改为对 `#message`/`#message-rich` 两个真实 DOM 节点分别绑定滚动监听并补齐 `clientHeight`；P1-1 收紧隐藏主窗的设置窗父子关系与回焦；P1-2 为托盘构造、菜单绑定和初始化 Promise 增加异常降级；P2-1 支持 `ArrayBufferView` 且保留 64 MiB；P2-2 修正更新弹窗 Escape 与 connecting 文案。严格 Observer、主窗启动和双轨滑块测试已加入宿主机回归。
+- **证据与边界**：详见 [`IMPLEMENTATION.md`](IMPLEMENTATION.md#round-3-执行者整改交接2026-11-27待独立复审)；Windows/Node/缓存 SDK 证据不替代真实 Linux Electron、托盘、IME、DPI、ELF、系统剪贴板、物理 LAN 与升级回退。
+
+### 交给独立审核者的提示词
+
+读取全部 CRDocs 与 `.claude/Rules.md`，独立检查上述五个问题的实际代码、调用链、diff 和测试；复跑严格 `ResizeObserver`/`MutationObserver`、主窗启动、隐藏主窗设置窗、托盘构造失败、ArrayBufferView/64 MiB、Escape 与 connecting 文案用例。确认未改版本号、LANC/JSONL、安装目录且没有把宿主机 Mock 写成 Linux 实机通过后，按规则在 `REVIEW.md` 顶部写入复审结论并更新 `STATUS.md`。
 
 ## Round 2 独立复审（通过：1 项 P0、2 项 P1 与 1 项 P2 全部闭环）
 

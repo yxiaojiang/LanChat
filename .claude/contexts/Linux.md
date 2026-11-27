@@ -1,5 +1,7 @@
 # Linux.md — Linux 客户端模块上下文
 
+> 2026-11-27 · v3.0.0 发布收口：Round 3 五项缺陷已独立审核通过，版本同步和 Windows 宿主机构建门禁已完成；真实 Linux/ELF/Electron/双机 LAN 仍待阶段 5 现场核销。
+
 > 2026-11-26 · `LC-LINUX-003` 阶段 4 已完成并通过独立审核。Windows 宿主机上的 Node/Python 回归、更新 Mock HTTP、设置控制器桩和共享 C# 编译均通过；Linux/ELF、真实 Electron 桌面、GitHub 网络、更新权限/退锁、网卡/TUN 与双机 LAN 仍未验证，不能把宿主机桩结果写成 Linux 实机证据。
 
 ## 当前阶段 4 关键状态

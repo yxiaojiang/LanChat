@@ -1,19 +1,23 @@
-# 当前接手摘要（LC-LINUX-003 编码阶段闭环，进入阶段 5 准备）
+# 当前接手摘要（v3.0.0 发布收口，等待 Linux 实机核销）
 
-> 2026-11-26 · 分支 `codex/v4.0-cross-platform-unification` · 阶段 0、1、2A、3、4、2B 均已完成编码与 Windows 宿主机独立审核；阶段 2B Round 2 为 `APPROVED`，本地收口 commit 与阶段 5 实机准备进行中。
+> 2026-11-27 · 分支 `codex/v4.0-cross-platform-unification` · LC-LINUX-003 阶段 2B Round 3 已获独立审核通过，五项缺陷已闭环；当前进入 v3.0.0 打包、提交、推送与 Release 收口。
 
 ## 当前状态
 
-LC-LINUX-003 阶段 2B 已完成 Round 1 整改和 Round 2 独立复审。`preload.cjs` 的右键剪贴板链路已改为主进程无参 IPC，富文本编辑器已修复叶子文本、`<br>`、块级换行偏移、持久化显隐、统一禁用态、`draftChat` 和显式选区替换；富文本默认仍关闭，CP-2B 需真实 Linux `fcitx5`/`ibus` 核销后才评估改变默认值。`CRDocs/STATUS.md` 的 `APPROVED` 仅代表 Windows 宿主机范围，不代表 Linux 实机或物理 LAN。
+Round 3 的 P0/P1/P2 已完成并通过独立复审：`renderer.js` 现在只向滚动条传入 `#message` 与 `#message-rich` 真实 DOM 节点，双轨输入按显隐切换浮动滑块，`composer-box.js` 补齐 `clientHeight`；隐藏主窗打开设置不再挂隐藏父窗或错误回焦；托盘创建异常安全降级为任务栏最小化；剪贴板图片兼容 `ArrayBufferView` 并保留 64 MiB 限制；设置 Escape 和 connecting 文案已修正。严格 `ResizeObserver`/`MutationObserver` 回归已纳入 UI 总回归。
+
+## v3.0.0 发布状态
+
+核心版本已从 2.0.26 统一为 3.0.0，覆盖 Windows 常量、Linux Python/ELF、Electron package、Deb/MSI 构建脚本、README、CHANGELOG 和更新回归样例。目标是通过 `Tools/Scripts/Publish.bat 3.0.0` 生成 Windows MSI/EXE、Linux amd64/arm64 deb/portable/CLI 与摘要文件，并由发布脚本提交、推送当前分支及创建或更新 GitHub Release。发布完成后须核对远端 tag、Release 资产和本地工作区清洁状态。
 
 ## 验证与边界
 
-已运行 `python Tools/Scripts/BuildLinuxDeb.py`。项目缓存提供 .NET 10 SDK，脚本成功生成 2.0.26 的 amd64/arm64 `.deb`、portable、独立 CLI 和 `SHA256SUMS.json`。独立重算当前 6 个 artifact 摘要全部匹配；从 portable 与 deb 内嵌路径读取 `lanchat-bin`，确认 amd64 为 ELF64 机器码 62、arm64 为 ELF64 机器码 183。以上仍为 Windows 宿主机交叉构建证据；真实 Linux 安装、Electron 启动、输入法、系统托盘、更新退锁和 LAN 仍未核销。
+Round 3 宿主机门禁已通过：25 个 JS/CJS 语法、Node Linux UI/IPC/生命周期/设置/更新回归、严格 DOM Observer 专项、Python 22 项、Windows 三套回归、缓存 .NET 10 共享后端 0 警告/0 错误、行数与 `git diff --check`。这些证据不替代真实 Linux Electron、Xorg/Wayland/XWayland、托盘、IME、DPI、系统剪贴板、Linux ELF 实跑、物理 LAN 和升级回退。
 
 ## 关键约束
 
-继续保持当前分支；不改版本号、LANC/JSONL、安装目录，不执行 `Publish.bat`、安装覆盖或 `git push`。所有宿主机 Mock、Node/Python 纯逻辑、交叉编译和静态摘要证据不得写成 Linux 实机通过。`CRDocs/DEFERRED.md` 的 CP-0、CP-1、CP-2B、在线更新/apt 退锁、Linux ELF、Xorg/Wayland、DPI/IME、多网卡/TUN、双机 LAN 和升级回退仍需现场核销。
+3.0.0 不改变 LANC/JSONL、安装目录或共享网络核心；保持全中文注释、手写源码单文件低于 1000 行预警；不把宿主机 Mock 或交叉编译写成 Linux 实机通过。发布脚本可按用户明确指令提交和推送；不要执行安装覆盖，真实 Linux 验收仍按 `CRDocs/DEFERRED.md` 阶段 5 清单取证。
 
 ## 下一步
 
-完成一个干净的本地 commit 后，在物理 x86_64、物理 ARM64 Linux 及物理 Windows 主机上按 `CRDocs/DEFERRED.md` 阶段 5 清单取证：先做 CP-0 ELF/后端回归，再做 CP-1 桌面托盘与通知、CP-2B 输入法/剪贴板/DPI、S4 更新退锁，最后做真实双机 LAN、切网、休眠唤醒和 TUN 多网卡矩阵。新会话先读取本文件、`.claude/Plan.md` 和 `CRDocs/STATUS.md`。
+完成 3.0.0 Release 资产构建、Git 提交/推送与 GitHub Release 核验；随后在物理 x86_64、物理 ARM64 Linux 及 Windows 主机按 CP-0、CP-1、CP-2B、S4 和真实 LAN 矩阵核销。新会话先读取本文件、`.claude/Plan.md`、`CRDocs/STATUS.md` 和 `CRDocs/DEFERRED.md`。

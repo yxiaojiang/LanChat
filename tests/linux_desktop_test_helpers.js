@@ -8,6 +8,7 @@ function makeNode(tagName, id = '') {
   const node = {
     tagName,
     id,
+    nodeType: 1,
     hidden: false,
     disabled: false,
     open: false,
@@ -163,7 +164,7 @@ function makeSettingsDom() {
     'settings-banner', 'settings-menu', 'settings-nick-dialog', 'nick-form', 'nick-input', 'nick-error',
     'nick-cancel', 'settings-feedback-dialog', 'feedback-form', 'feedback-input', 'feedback-error',
     'feedback-cancel', 'settings-confirm-dialog', 'settings-confirm-title', 'settings-confirm-body',
-    'settings-confirm-accept', 'settings-confirm-cancel'
+    'settings-confirm-accept', 'settings-confirm-cancel', 'settings-update-dialog'
   ];
   const nodes = new Map(ids.map(id => [id, makeNode(id === 'feedback-input' ? 'TEXTAREA' : 'DIV', id)]));
   const feedbackHost = makeNode('DIV');
@@ -181,12 +182,12 @@ function makeRendererDom() {
     'search', 'search-clear', 'refresh', 'nickname', 'nickname-chip', 'chats',
     'open-settings', 'quit', 'conversation', 'avatar', 'title', 'connection',
     'messages', 'attachments-host', 'attachments', 'status', 'compose', 'attach', 'open-downloads',
-    'send-file', 'take-screenshot', 'clear-chat', 'message', 'send', 'recipient', 'recipients',
+    'send-file', 'take-screenshot', 'clear-chat', 'message', 'message-rich', 'send', 'recipient', 'recipients',
     'recipient-confirm', 'recipient-cancel'
   ];
   const nodes = new Map(ids.map(id => [id, makeNode(id === 'message' ? 'TEXTAREA' : 'DIV', id)]));
   nodes.get('attachments-host').append(nodes.get('attachments'));
-  for (const id of ['chats', 'messages', 'message', 'recipients']) {
+  for (const id of ['chats', 'messages', 'message', 'message-rich', 'recipients']) {
     if (!nodes.get(id).parentElement) nodes.get(id).parentElement = makeNode('DIV');
   }
   return { doc: makeDocument(nodes), win, nodes };

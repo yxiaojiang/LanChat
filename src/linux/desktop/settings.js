@@ -60,7 +60,7 @@
       hostname: 'localhost',
       osText: 'Linux',
       arch: 'x64',
-      version: '2.0.18',
+      version: '3.0.0',
       electronVersion: '45.4.1',
       interfaces: [],
       connected: false
@@ -834,7 +834,8 @@
         closeMenu(true);
         return;
       }
-      if (byId('settings-nick-dialog').open || byId('settings-feedback-dialog').open || byId('settings-confirm-dialog').open) {
+      if (byId('settings-nick-dialog').open || byId('settings-feedback-dialog').open || byId('settings-confirm-dialog').open ||
+          byId('settings-update-dialog')?.open) {
         return;
       }
       if (doc.activeElement === searchInput && searchInput.value) {

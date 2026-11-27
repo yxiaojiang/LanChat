@@ -177,7 +177,7 @@ function openSettingsWindow(event = null) {
     if (event) dispatchSettingsEvent(event);
     return;
   }
-  const hasParent = window && !window.isDestroyed();
+  const hasParent = window && !window.isDestroyed() && window.isVisible();
   const parentBounds = hasParent ? window.getBounds() : null;
   const display = parentBounds ? screen.getDisplayMatching(parentBounds) : screen.getPrimaryDisplay();
   const bounds = computeSettingsBounds(display.workArea, parentBounds);
@@ -236,7 +236,7 @@ function openSettingsWindow(event = null) {
     settingsWindow = null;
     settingsWindowLoaded = false;
     pendingSettingsEvent = null;
-    if (window && !window.isDestroyed() && !exiting) {
+    if (window && !window.isDestroyed() && window.isVisible() && !exiting) {
       window.focus();
       forward({ event: 'settings-closed' });
     }
@@ -354,9 +354,14 @@ async function readClipboardImage(items) {
 }
 
 function decodeClipboardImage(bytes) {
-  if (!(bytes instanceof ArrayBuffer) || bytes.byteLength > maxPastedImageBytes)
+  const buffer = bytes instanceof ArrayBuffer
+    ? Buffer.from(bytes)
+    : ArrayBuffer.isView(bytes)
+      ? Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+      : null;
+  if (!buffer || buffer.byteLength > maxPastedImageBytes)
     throw new Error('剪贴板图片格式无效或超过 64 MiB');
-  const image = nativeImage.createFromBuffer(Buffer.from(bytes));
+  const image = nativeImage.createFromBuffer(buffer);
   return image.isEmpty() ? null : image;
 }
 
@@ -568,7 +573,7 @@ async function openPath(target, kind) {
 if (process.env.LANCHAT_TEST_MODE === '1') {
   module.exports = { openPath, recordMessagePaths, allowedFilePaths, computeSettingsBounds, computeSettingsMinSize,
     readClipboardPaths, stagePastedFiles, discardPastedFiles, readEmojiPack, bindWindowLifecycle, openSettingsWindow,
-    dispatchFiles, triggerScreenshot, isIpv4, isAllowedRequest };
+    dispatchFiles, triggerScreenshot, decodeClipboardImage, showWindow, isIpv4, isAllowedRequest };
 } else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -613,7 +618,10 @@ if (process.env.LANCHAT_TEST_MODE === '1') {
       onQuit: () => app.quit()
     });
     trayManager.setSettings(traySettings);
-    void trayManager.initialize();
+    void trayManager.initialize().catch(error => {
+      // 托盘不可用时保持主窗可见/可最小化，不能让初始化拒绝升级为未捕获异步异常。
+      console.error('托盘初始化失败，已降级为任务栏最小化', error);
+    });
     ipcMain.on('lanchat:unread-state', (event, state) => {
       const fromMain = event.sender === window?.webContents && event.senderFrame === event.sender.mainFrame &&
         event.senderFrame.url === pageUrl;

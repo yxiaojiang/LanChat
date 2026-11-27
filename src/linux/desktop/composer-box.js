@@ -341,6 +341,7 @@
         get isContentEditable() { return useRich; },
          get dataset() { return dataset; },
         get style() { return active().style; },
+        get clientHeight() { return active().clientHeight || 23; },
         get scrollHeight() { return active().scrollHeight || 23; },
         get scrollTop() { return active().scrollTop || 0; },
         set scrollTop(value) { active().scrollTop = value; },

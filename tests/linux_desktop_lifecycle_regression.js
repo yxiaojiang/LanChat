@@ -46,11 +46,14 @@ function loadMainWithElectronFakes() {
   }
   class FakeBrowserWindow extends EventEmitter {
     static instances = [];
-    constructor() {
+    constructor(options = {}) {
       super();
+      this.options = options;
       this.webContents = new FakeWebContents();
       this.destroyed = false;
       this.minimized = false;
+      this.visible = options.show !== false;
+      this.focusCount = 0;
       this.bounds = { x: 0, y: 0, width: 1260, height: 820 };
       FakeBrowserWindow.instances.push(this);
     }
@@ -58,8 +61,10 @@ function loadMainWithElectronFakes() {
     isDestroyed() { return this.destroyed; }
     isMinimized() { return this.minimized; }
     restore() { this.minimized = false; }
-    show() {}
-    focus() {}
+    show() { this.visible = true; }
+    hide() { this.visible = false; }
+    isVisible() { return this.visible; }
+    focus() { this.focusCount += 1; }
     getBounds() { return this.bounds; }
     setMinimumSize() {}
     setBounds(bounds) { this.bounds = bounds; }
@@ -93,7 +98,7 @@ function loadMainWithElectronFakes() {
   }
 }
 
-function createHarness(execFile, immediateTimeout = false) {
+function createHarness(execFile, immediateTimeout = false, TrayType = FakeTray) {
   const intervals = [];
   const images = [];
   const notifications = [];
@@ -105,7 +110,7 @@ function createHarness(execFile, immediateTimeout = false) {
     return callback;
   };
   const manager = createTrayManager({
-    Tray: FakeTray,
+    Tray: TrayType,
     Menu,
     Notification: class extends FakeNotification {
       constructor(options) { super(options); notifications.push(this); }
@@ -176,6 +181,16 @@ async function run() {
   assert.equal(timeout.manager.canHideToTray(), false);
   timeout.manager.destroy();
 
+  // Tray 构造失败时必须吞掉异常，主窗生命周期应自动走任务栏最小化分支。
+  class ThrowingTray {
+    constructor() { throw new Error('桌面没有托盘支持'); }
+  }
+  const creationFailure = createHarness((_command, _args, _options, callback) => callback(new Error('busctl 不可用')), false, ThrowingTray);
+  await assert.doesNotReject(() => creationFailure.manager.initialize());
+  assert.equal(creationFailure.getTray(), null);
+  assert.equal(creationFailure.manager.canHideToTray(), false);
+  creationFailure.manager.destroy();
+
   // 主窗关窗、恢复和聚焦均执行真实绑定分支，确认托盘不可用时保守最小化。
   const { main: mainModule } = loadMainWithElectronFakes();
   const makeWindow = () => {
@@ -237,6 +252,19 @@ async function run() {
   settingsHarness.main.openSettingsWindow({ event: 'open-update-check' });
   assert.equal(settingsWindow.webContents.sent.length, 2);
   settingsWindow.close();
+
+  // 主窗隐藏到托盘后打开设置，不得把隐藏主窗作为模态父窗，也不得关闭时强制聚焦隐藏主窗。
+  const hiddenSettingsHarness = loadMainWithElectronFakes();
+  hiddenSettingsHarness.main.showWindow();
+  const mainWindow = hiddenSettingsHarness.FakeBrowserWindow.instances.at(-1);
+  mainWindow.emit('ready-to-show');
+  mainWindow.hide();
+  hiddenSettingsHarness.main.openSettingsWindow();
+  const hiddenParentSettings = hiddenSettingsHarness.FakeBrowserWindow.instances.at(-1);
+  assert.equal(hiddenParentSettings.options.parent, undefined);
+  assert.equal(hiddenParentSettings.options.modal, false);
+  hiddenParentSettings.close();
+  assert.equal(mainWindow.focusCount, 0);
 
   const main = readFileSync('src/linux/desktop/main.cjs', 'utf8');
   const profile = readFileSync('src/linux/LanChat.Linux/LinuxProfile.cs', 'utf8');
